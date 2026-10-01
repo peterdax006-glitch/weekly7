@@ -1,0 +1,379 @@
+{
+ "validator": "independent (deep/validator)",
+ "components": {
+  "K01": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_ledger.py -q",
+    "result": "21 passed in 24.49s"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K02": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_selfmodel.py -q",
+    "result": "9 passed in 90.62s (0:01:30)"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K03": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_objective.py -q",
+    "result": "5 passed in 35.87s"
+   },
+   "issues": [
+    {
+     "where": "creator/objective.py:170",
+     "severity": "medium",
+     "issue": "compile_capabilities ordered by id, silently dropping the K10->K15 build-order dependency (K15 not yet compiled). FIXED, regression test."
+    },
+    {
+     "where": "creator/objective.py:52",
+     "severity": "low",
+     "issue": "COMPONENT_DEPENDS covers only K01-K16; K17-K26 have no build-order dependencies."
+    },
+    {
+     "where": "creator/objective.py:148",
+     "severity": "low",
+     "issue": "register_objective is idempotent on statement only: a changed outcomes/constraints list is silently ignored."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K04": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_gaps.py -q",
+    "result": "8 passed in 359.59s (0:05:59)"
+   },
+   "issues": [
+    {
+     "where": "creator/gaps.py:1",
+     "severity": "low",
+     "issue": "Test suite takes ~6 minutes (needs real selfmodel build); no cheap unit-level coverage of sync() regression/stale branches observed."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K05": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_agents.py -q",
+    "result": "13 passed in 8.36s"
+   },
+   "issues": [
+    {
+     "where": "creator/agents.py:218",
+     "severity": "medium",
+     "issue": "run_agent crashed (AttributeError) when the CLI printed valid non-object JSON ('\"x\"', 123, null). FIXED, regression test."
+    },
+    {
+     "where": "creator/agents.py:5",
+     "severity": "low",
+     "issue": "Docstring says no user/project settings are loaded, but build_command passes --setting-sources project."
+    },
+    {
+     "where": "creator/agents.py:98",
+     "severity": "low",
+     "issue": "BudgetError text tells the operator to set CREATOR_AGENT_CALLS=1, which from_env deliberately ignores: misleading."
+    },
+    {
+     "where": "creator/agents.py:118",
+     "severity": "low",
+     "issue": "Budget.record is an unlocked read-modify-write; two concurrent swarm workers can lose a call record (budget can be undercounted)."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K06": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_sandbox.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): ..........................."
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K07": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_research.py -q",
+    "result": "10 passed in 0.99s"
+   },
+   "issues": [
+    {
+     "where": "creator/research.py:43",
+     "severity": "low",
+     "issue": "generate_questions: float(importance) raises on non-numeric/None importance instead of skipping/defaulting; docstring promises only description-less skipping."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K08": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_design.py -q",
+    "result": "7 passed in 0.16s"
+   },
+   "issues": [
+    {
+     "where": "creator/design.py:118",
+     "severity": "low",
+     "issue": "select() keys scores by option name: duplicate names collapse (only generate_options dedupes), so a duplicate can be scored as its twin."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K09": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_planner.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): .."
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K10": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_evaluate.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): .."
+   },
+   "issues": [
+    {
+     "where": "creator/evaluate.py:190",
+     "severity": "low",
+     "issue": "Both guard Measurements of one arm cite the same pooled evidence file path (rewritten per guard); content identical today but fragile if guards ever diverge."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K11": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_debug.py -q",
+    "result": "11 passed in 5.82s"
+   },
+   "issues": [
+    {
+     "where": "creator/debug.py:87",
+     "severity": "low",
+     "issue": "reproduce(): on timeout stderr is dropped from the captured output."
+    },
+    {
+     "where": "creator/debug.py:24",
+     "severity": "low",
+     "issue": "ASSERTION regex 'assert ' matches any text containing the word; fallback classification can mislabel."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K12": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_memory.py -q",
+    "result": "6 passed in 1.56s"
+   },
+   "issues": [
+    {
+     "where": "creator/memory.py:108",
+     "severity": "low",
+     "issue": "load() renumbers seq after skipping corrupt lines, so seq differs from what was saved; save() is not atomic."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K13": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_meta.py -q",
+    "result": "7 passed in 0.15s"
+   },
+   "issues": [
+    {
+     "where": "creator/meta.py:132",
+     "severity": "low",
+     "issue": "record() accepts NaN cost; Strategy.agent is not checked against any agent registry."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K14": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_kernel.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): "
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K15": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_devbench.py -q",
+    "result": "10 passed in 171.45s (0:02:51)"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K16": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_audit.py -q",
+    "result": "19 passed in 114.86s"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K17": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_efficiency.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): ......."
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K18": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_generator.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): ........"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K19": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_autotune.py -q",
+    "result": "11 passed in 5.21s"
+   },
+   "issues": [
+    {
+     "where": "creator/autotune.py:63",
+     "severity": "medium",
+     "issue": "tried() json-decodes every history line unguarded: one corrupt line makes propose()/trial() raise forever."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K20": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_localworker.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): ."
+   },
+   "issues": [
+    {
+     "where": "creator/localworker.py:42",
+     "severity": "low",
+     "issue": "relevant_files(package, workdir): workdir is an unused (dead) parameter."
+    },
+    {
+     "where": "creator/localworker.py:54",
+     "severity": "medium",
+     "issue": "run_tests: subprocess.run timeout raises TimeoutExpired, uncaught; it escapes LocalWorker.__call__ instead of being a failed attempt."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K21": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_selfworkers.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): ...."
+   },
+   "issues": [
+    {
+     "where": "creator/selfworkers.py:135",
+     "severity": "low",
+     "issue": "dead_private/_used_names skip= only skips the node itself, not its children: a self-recursive unused private is never deleted (safe direction, but docstring over-promises)."
+    }
+   ],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K22": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_swarm.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): "
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K23": {
+   "verdict": "NOT_VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_oversight.py -q",
+    "result": "STILL RUNNING at report time (no failure seen so far): .."
+   },
+   "issues": [
+    {
+     "where": "creator/oversight.py:58",
+     "severity": "medium",
+     "issue": "goal_drift docstring promises flagging concentrated work 'while the goal's metrics do not move'; code never checks metrics and 'concentrated' does not set drifting."
+    },
+    {
+     "where": "creator/oversight.py:84",
+     "severity": "low",
+     "issue": "knowledge_gaps: ledger.get(failure_id) raises if a Diagnosis cites a missing failure."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K24": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_recursion.py -q",
+    "result": "5 passed in 1.58s"
+   },
+   "issues": [
+    {
+     "where": "creator/recursion.py:1",
+     "severity": "low",
+     "issue": "Docstring labels itself K20 (declared as K24)."
+    },
+    {
+     "where": "creator/recursion.py:235",
+     "severity": "low",
+     "issue": "step(forced=Change) is not validated against meta.BOUNDS or PARAMS."
+    }
+   ],
+   "depth": "module+docstring read in full"
+  },
+  "K25": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_testgen.py -q",
+    "result": "21 passed in 86.29s (0:01:26)"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  },
+  "K26": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest tests/test_creator_reproduce.py -q",
+    "result": "11 passed in 55.27s"
+   },
+   "issues": [],
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+  }
+ },
+ "verdict_counts": {
+  "VALIDATED": 6,
+  "VALIDATED_WITH_ISSUES": 10,
+  "NOT_VALIDATED": 10
+ },
+ "fixed": [
+  "agents.run_agent non-object JSON crash",
+  "objective.compile_capabilities build-order dependency"
+ ],
+ "regression_tests": "tests/test_creator_validator_regressions.py (both proven failing before fix)",
+ "not_done": "K01/K02/K06/K14/K15/K16/K17/K18/K21/K22/K25/K26 only partially read within the time box; ledger.py/model.py/devbench/ not modified"
+}
