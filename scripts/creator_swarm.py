@@ -44,7 +44,7 @@ class SerialSession:
         self.inner = K.HandoffWorker(timeout_s=hours * 3600, notify=announce)
 
     def __call__(self, plan, package, workdir):                       # type: ignore[no-untyped-def]
-        with THINKER:
+        with W.waiting_on_thinker(plan.package_id), THINKER:              # waiting for me holds no worker slot
             try:
                 return self.inner(plan, package, workdir)
             finally:
@@ -54,10 +54,9 @@ class SerialSession:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
-    ap.add_argument("--max-workers", type=int, default=12)
-    ap.add_argument("--start-gb", type=float, default=2.5)
-    ap.add_argument("--per-worker-gb", type=float, default=0.5)      # only until real worker memory has been measured
-    ap.add_argument("--low-gb", type=float, default=2.0)             # hard pull-back below this (the host kills at critical)
+    ap.add_argument("--max-workers", type=int, default=32)
+    ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
+    ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
     ap.add_argument("--test-parallel", type=int, default=6)
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
@@ -69,14 +68,15 @@ def main(argv: list[str]) -> int:
 
     def make_worker() -> SW.SelfFirst:
         return SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], session)
-    gov = W.Governor(start_gb=a.start_gb, per_worker_gb=a.per_worker_gb, low_gb=a.low_gb, max_workers=a.max_workers)
+    gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:
             n += 1
-            rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages,
+            rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
+                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"),
                               on_report=lambda r: print(json.dumps({"package": r.package, "req": r.requirement,
                                                                     "outcome": r.outcome, "reason": r.reason[:200],
                                                                     "by": r.details.get("worker", {}).get("by")}), flush=True))
@@ -86,7 +86,9 @@ def main(argv: list[str]) -> int:
             with LOG.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(line) + "\n")
             print("ROUND", json.dumps(line), flush=True)
-            if rnd.outcome != "WORKED":
+            if rnd.outcome == "RAM_TIGHT":
+                time.sleep(60)                                           # memory may free up soon: look again in a minute
+            elif rnd.outcome != "WORKED":
                 time.sleep(600)                                          # nothing to do / red audit: look again later
     print("SWARM DONE", flush=True)
     return 0

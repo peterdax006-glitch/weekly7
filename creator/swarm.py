@@ -14,6 +14,7 @@ These are the system's own workers (rules, search) - never Claude agents."""
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import threading
 import time
 from typing import Any, Callable, Optional
@@ -91,34 +92,62 @@ def stop_worker_processes(scratch: Any, package_id: str) -> int:
     return killed
 
 
+def total_ram_gb() -> float:
+    try:
+        import psutil
+        return float(psutil.virtual_memory().total) / 1e9
+    except ImportError:
+        return 16.0
+
+
+WAITING: set[str] = set()                           # packages whose worker is waiting for the Claude session (uses no RAM)
+_WAITING_LOCK = threading.Lock()
+
+
+class waiting_on_thinker:
+    """Mark a package as waiting for the session while it waits: it does not hold a worker slot (1 Oct: waiting workers held
+    slots while using no memory, so few agents ever ran)."""
+
+    def __init__(self, package_id: str) -> None:
+        self.package_id = package_id
+
+    def __enter__(self) -> "waiting_on_thinker":
+        with _WAITING_LOCK:
+            WAITING.add(self.package_id)
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        with _WAITING_LOCK:
+            WAITING.discard(self.package_id)
+
+
 @dataclasses.dataclass
 class Governor:
-    """The first worker starts when free RAM >= start_gb. Each further worker needs free RAM >= low_gb + headroom_gb + the
-    MEASURED memory of an average running worker (`observe`; `per_worker_gb` until something is measured) - free RAM already
-    reflects the running workers, so they are not subtracted again (1 Oct: doing so kept the swarm at one worker while 5 workers
-    really used ~0.3 GB each). Below low_gb the youngest worker is pulled back hard."""
-    start_gb: float = 2.5
-    per_worker_gb: float = 0.5
-    low_gb: float = 2.0
-    max_workers: int = 4
+    """Use the machine's memory (owner, 1 Oct 2026, asked 4+ times; diagnosis in memory 'use-the-memory-means-change-the-rule').
+    The reserve is a FRACTION of this machine's RAM (default 7%, at least 0.8 GB) instead of fixed GB numbers that ate most of
+    the ~3-4 GB actually available. Another worker starts while  available - measured_worker >= floor ; below pull_fraction x floor
+    the youngest worker is pulled back HARD (its processes killed), which is what keeps the host's reaper away."""
+    floor_fraction: float = 0.07
+    floor_min_gb: float = 0.8
+    pull_fraction: float = 0.75
+    per_worker_gb: float = 0.4                      # only until real worker memory has been measured
+    max_workers: int = 32
     free: Callable[[], float] = free_ram_gb
-    headroom_gb: float = 0.5
+    total: Callable[[], float] = total_ram_gb
     observe: Optional[Callable[[int], Optional[float]]] = None
+
+    def floor(self) -> float:
+        return max(self.floor_min_gb, self.floor_fraction * self.total())
 
     def estimate(self, running: int) -> float:
         seen = self.observe(running) if (self.observe is not None and running) else None
-        return max(0.15, 1.25 * seen) if seen else self.per_worker_gb
+        return max(0.1, 1.25 * seen) if seen else self.per_worker_gb
 
     def can_start(self, running: int) -> bool:
-        if running >= self.max_workers:
-            return False
-        free = self.free()
-        if running == 0:
-            return free >= self.start_gb
-        return free >= self.low_gb + self.headroom_gb + self.estimate(running)
+        return running < self.max_workers and self.free() - self.estimate(running) >= self.floor()
 
     def too_tight(self) -> bool:
-        return self.free() < self.low_gb
+        return self.free() < self.pull_fraction * self.floor()
 
 
 @dataclasses.dataclass
@@ -132,7 +161,7 @@ class _Running:
 
 @dataclasses.dataclass
 class RoundReport:
-    outcome: str                                    # WORKED / NOTHING_TO_DO / AUDIT_RED
+    outcome: str                                    # WORKED / NOTHING_TO_DO / AUDIT_RED / RAM_TIGHT
     reports: list[K.CycleReport]
     peak_parallel: int
     pulled_back: int
@@ -140,7 +169,8 @@ class RoundReport:
 
 
 def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Optional[Governor] = None,
-              max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None) -> RoundReport:
+              max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None,
+              filler: Optional[Callable[[], Optional[Callable[[], None]]]] = None, filler_budget: int = 0) -> RoundReport:
     gov = governor or Governor()
     scratch_dir = cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
     if gov.observe is None:                                             # measure what workers really use
@@ -161,6 +191,9 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     reports: list[K.CycleReport] = []
     peak = pulled = planned = 0
     exhausted = False
+    fillers: list[threading.Thread] = []
+    fill_left = filler_budget
+    starved = False
 
     def finish(r: _Running) -> None:
         if r.result:
@@ -172,18 +205,28 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         for r in [r for r in running if not r.thread.is_alive()]:
             running.remove(r)
             finish(r)
-        if gov.too_tight() and running:
-            youngest = max((r for r in running if not r.cancel.is_set()), key=lambda r: r.started, default=None)
+        active = [r for r in running if r.plan.package_id not in WAITING]
+        if gov.too_tight() and active:
+            youngest = max((r for r in active if not r.cancel.is_set()), key=lambda r: r.started, default=None)
             if youngest is not None:
                 youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
                 stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
                                       youngest.plan.package_id)
                 pulled += 1
-        elif not exhausted and planned < max_packages and gov.can_start(len(running)):
+        elif not exhausted and planned < max_packages and gov.can_start(len(active)):
             with lock:
-                plan = K.plan_one(cfg, led, main, base_sha,
-                                  exclude_components=[r.plan.component for r in running],
-                                  exclude_paths=[r.plan.component for r in running if r.plan.step == "efficiency"])
+                held = [r.plan.component for r in running]
+                held_paths = [r.plan.component for r in running if r.plan.step == "efficiency"]
+                order = [cfg]
+                if cfg.mode == "auto":                                  # shrink work runs ALONGSIDE gap work, not only after it
+                    order = [dataclasses.replace(cfg, mode="efficiency"), dataclasses.replace(cfg, mode="gaps")]
+                    if planned % 2 == 0:
+                        order.reverse()
+                plan = None
+                for c in order:
+                    plan = K.plan_one(c, led, main, base_sha, exclude_components=held, exclude_paths=held_paths)
+                    if plan is not None:
+                        break
             if plan is None:
                 exhausted = True
             else:
@@ -198,10 +241,66 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 t = threading.Thread(target=job, name=f"swarm-{plan.package_id}", daemon=True)
                 running.append(_Running(plan, t, ev, time.monotonic(), box))
                 t.start()
-                peak = max(peak, len(running))
+                peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
                 continue
-        if not running and (exhausted or planned >= max_packages):
+        if (exhausted or planned >= max_packages) and filler is not None and fill_left > 0 and gov.can_start(len(active)):
+            job_fn = filler()                                           # leftover memory: useful measurement work
+            if job_fn is not None:
+                fill_left -= 1
+                ft = threading.Thread(target=job_fn, name="swarm-filler", daemon=True)
+                fillers.append(ft)
+                ft.start()
+                peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
+                continue
+        fillers[:] = [f for f in fillers if f.is_alive()]
+        if not running and not fillers and (exhausted or planned >= max_packages):
             break
+        if not running and not fillers and not gov.can_start(0):        # too tight to start anything: end the round so the
+            starved = True                                              # runner records it and retries later (never a silent
+            break                                                       # wait forever - found by the tight-RAM test, 2 Oct)
         time.sleep(poll_s)
     Ledger(cfg.ledger_path, evidence_root=cfg.repo).checkpoint(f"swarm round: {len(reports)} packages, peak {peak} parallel")
-    return RoundReport("WORKED" if reports else "NOTHING_TO_DO", reports, peak, pulled)
+    outcome = "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
+    return RoundReport(outcome, reports, peak, pulled, "free RAM below the reserve; nothing could start" if starved else "")
+
+
+
+def self_bench_filler(store: Any, tasks: Optional[list[Any]] = None) -> Callable[[], Optional[Callable[[], None]]]:
+    """Filler work for leftover memory: benchmark the system's OWN search worker on dev tasks it has not measured for the current
+    code (holdout never touched). Results append to `store` - real data on what the system can already do by itself."""
+    import json
+    from pathlib import Path
+    from creator import devbench as D
+    from creator import generator as G
+    store = Path(store)
+    code = hashlib.sha256(Path(G.__file__).read_bytes()).hexdigest()[:12]
+    done = set()
+    if store.is_file():
+        for ln in store.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(ln)
+                if row.get("code") == code:
+                    done.add(row["task"])
+            except ValueError:
+                continue
+    todo = [t for t in (tasks or D.load_tasks()) if t.split == "dev" and t.id not in done]
+    manifest = D.load_manifest()
+    write_lock = threading.Lock()
+
+    def next_job() -> Optional[Callable[[], None]]:
+        if not todo:
+            return None
+        task = todo.pop(0)
+
+        def job() -> None:
+            try:
+                s = D.run_task(task, G.SearchSolver(), manifest, solver_name="self-search")
+                row = {"task": task.id, "category": task.category, "outcome": s.outcome, "seconds": s.seconds, "code": code}
+            except Exception as e:                                      # noqa: BLE001 - a filler never stops the swarm
+                row = {"task": task.id, "outcome": "ERROR", "error": f"{type(e).__name__}: {e}", "code": code}
+            with write_lock:
+                store.parent.mkdir(parents=True, exist_ok=True)
+                with store.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(row) + "\n")
+        return job
+    return next_job

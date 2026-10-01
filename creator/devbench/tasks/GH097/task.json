@@ -1,0 +1,8 @@
+{
+ "id": "GH097",
+ "category": "feature",
+ "split": "holdout",
+ "objective": "Implement safe_div() in app/solution.py so it meets its docstring.",
+ "time_limit_s": 600,
+ "call_limit": 10
+}

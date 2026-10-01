@@ -143,3 +143,25 @@ def test_the_sealed_suite_checked_is_the_audited_repositorys(tmp_path: Path) -> 
     [f] = A.check_sealed_suite(repo=tmp_path)                                         # half a devbench: caught
     assert f.severity == "CRITICAL" and f.subject == "MANIFEST"
     assert A.check_sealed_suite() == []                                               # the real repository stays clean
+
+
+def test_learning_stores_must_not_contain_the_holdout(tmp_path: Path) -> None:
+    """CR201: experience that mentions a holdout task or a sealed answer literal is memorization, not learning."""
+    import shutil
+    repo = tmp_path / "r"
+    shutil.copytree(A.REPO_ROOT / "creator" / "devbench" / "sealed", repo / "creator" / "devbench" / "sealed")
+    st = repo / "state" / "creator"
+    st.mkdir(parents=True)
+    (st / "dev_memory.jsonl").write_text('{"kind": "repair", "subject": "D01 bugfix", "detail": "fixed"}\n', encoding="utf-8")
+    assert A.check_memorization(repo=repo) == []                                     # dev tasks may be learned from
+    from creator import devbench as D
+    holdout = D.load_manifest(repo / "creator" / "devbench" / "sealed" / "MANIFEST.json")["splits"]["holdout"][0]
+    (st / "generator_memory_dev.jsonl").write_text('{"objective": "slugify", "files": {"a.py": "hello-world 299993"}}\n',
+                                                   encoding="utf-8")
+    assert A.check_memorization(repo=repo) == []                                     # dev answers are fair to learn from
+    (st / "generator_memory_dev.jsonl").unlink()
+    (st / "generator_memory_x.jsonl").write_text(f'{{"objective": "solve {holdout}", "files": {{"a.py": "x"}}}}\n',
+                                                 encoding="utf-8")
+    found = A.check_memorization(repo=repo)
+    assert {f.subject for f in found} == {"generator_memory_x.jsonl"} and all(f.severity == "CRITICAL" for f in found)
+    assert any("holdout" in f.detail for f in found)

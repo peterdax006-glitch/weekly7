@@ -18,7 +18,7 @@ OUT = ROOT / "state" / "creator" / "devbench_validation.json"
 def main() -> int:
     t0 = time.time()
     m = D.load_manifest()
-    v = D.validate_suite(manifest=m)
+    v = D.validate_suite(manifest=m, parallel=int(sys.argv[1]) if len(sys.argv) > 1 else 1)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({"ok": v.ok, "problems": list(v.problems), "per_task": v.per_task, "manifest_digest": m["digest"],
                                "creator_tree": tree_hash(ROOT / "creator"), "seconds": round(time.time() - t0),

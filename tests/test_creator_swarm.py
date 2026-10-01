@@ -61,7 +61,8 @@ def own() -> SW.SelfFirst:
 
 
 def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfig) -> None:
-    gov = W.Governor(start_gb=0, per_worker_gb=0, low_gb=-1, max_workers=3, free=lambda: 10.0)
+    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=3, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.2)
     assert rnd.peak_parallel == 3 and rnd.pulled_back == 0
     assert sorted(r.outcome for r in rnd.reports) == ["ADOPTED"] * 3, [(r.package, r.outcome, r.reason) for r in rnd.reports]
@@ -77,7 +78,8 @@ def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfi
 
 
 def test_little_ram_means_one_worker_at_a_time(cfg: K.KernelConfig) -> None:
-    gov = W.Governor(start_gb=2.0, per_worker_gb=5.0, low_gb=0.5, max_workers=3, free=lambda: 3.0,
+    gov = W.Governor(floor_min_gb=0.5, floor_fraction=0.0, per_worker_gb=1.0, max_workers=3, free=lambda: 3.0,
+                     total=lambda: 16.0,
                      observe=lambda running: 5.0)                         # each worker measured at 5 GB: only one fits
     rnd = W.run_round(cfg, own, gov, max_packages=2, poll_s=0.2)
     assert rnd.peak_parallel == 1 and len(rnd.reports) == 2
@@ -90,7 +92,8 @@ def test_tight_ram_pulls_the_youngest_back_and_adopts_nothing_of_it(cfg: K.Kerne
         state["n"] += 1
         return 10.0 if state["n"] < 6 else 0.1                          # plenty at first, then tight
 
-    gov = W.Governor(start_gb=0, per_worker_gb=0, low_gb=1.0, max_workers=3, free=free)
+    gov = W.Governor(floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=3, free=free,
+                     total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.2)
     assert rnd.pulled_back >= 1
     cancelled = [r for r in rnd.reports if r.outcome == "CANCELLED"]
@@ -123,12 +126,32 @@ def test_hard_pull_back_kills_only_that_workers_processes(tmp_path: Path) -> Non
 
 
 
-def test_the_governor_uses_measured_worker_memory_not_a_double_count() -> None:
-    """Regression (1 Oct): free RAM already reflects running workers; subtracting a fixed 0.8 GB each again kept the swarm at 1."""
-    gov = W.Governor(start_gb=2.5, per_worker_gb=0.8, low_gb=2.0, headroom_gb=0.5, max_workers=16, free=lambda: 4.3,
-                     observe=lambda running: 0.3)
-    assert gov.can_start(0) and gov.can_start(5) and gov.can_start(15)            # 4.3 >= 2.0 + 0.5 + 1.25 x 0.3
-    tight = W.Governor(start_gb=2.5, low_gb=2.0, headroom_gb=0.5, max_workers=16, free=lambda: 2.6,
-                       observe=lambda running: 0.3)
-    assert tight.can_start(0) and not tight.can_start(1)                          # 2.6 < 2.875: no second worker
-    assert not W.Governor(max_workers=2, free=lambda: 99.0).can_start(2)
+def test_the_governor_fills_the_machine_with_measured_workers() -> None:
+    """Owner, 1 Oct (asked 4+ times): use the memory. The reserve is 7% of THIS machine's RAM, not fixed GB that ate most of
+    the ~3-4 GB actually available; workers are added while available - measured worker >= reserve."""
+    gov = W.Governor(free=lambda: 3.0, total=lambda: 15.6, observe=lambda n: 0.3, max_workers=32)
+    assert abs(gov.floor() - 1.092) < 1e-6                                   # 7% of 15.6 GB
+    assert gov.can_start(0) and gov.can_start(20)                             # 3.0 - 0.375 >= 1.09: keep adding
+    assert not W.Governor(free=lambda: 1.3, total=lambda: 15.6, observe=lambda n: 0.3).can_start(3)
+    assert W.Governor(free=lambda: 0.7, total=lambda: 15.6).too_tight()       # < 0.75 x floor: pull back hard
+    assert not W.Governor(free=lambda: 1.0, total=lambda: 15.6).too_tight()
+    assert W.Governor(total=lambda: 4.0).floor() == 0.8                       # never below 0.8 GB
+
+
+def test_a_worker_waiting_for_the_session_holds_no_slot() -> None:
+    with W.waiting_on_thinker("CP7"):
+        assert "CP7" in W.WAITING
+    assert "CP7" not in W.WAITING
+
+
+def test_leftover_memory_runs_filler_jobs(cfg: K.KernelConfig) -> None:
+    done = []
+
+    def filler():
+        if len(done) >= 3:
+            return None
+        return lambda: done.append(1)
+    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=4, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, own, gov, max_packages=1, poll_s=0.1, filler=filler, filler_budget=5)
+    assert len(rnd.reports) == 1 and len(done) == 3                           # gap work done, then filler while memory allows

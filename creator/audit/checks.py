@@ -236,6 +236,39 @@ def check_hardcoded_answers(led: Optional[Ledger] = None, repo: Path = REPO_ROOT
     return out
 
 
+LEARNING_STORES = ("generator_memory*.jsonl", "dev_memory.jsonl", "rule_outcomes.jsonl")
+
+
+def check_memorization(led: Optional[Ledger] = None, repo: Path = REPO_ROOT, state: Optional[Path] = None,
+                       **_: Any) -> list[AuditFinding]:
+    """CR201 no benchmark memorization: nothing the Creator learns from may contain a HOLDOUT task id or a distinctive literal
+    from the sealed answer keys - otherwise its later scores measure recall, not ability."""
+    st = state or (Path(repo) / "state" / "creator")
+    bench = Path(repo) / "creator" / "devbench"
+    if not st.is_dir() or not (bench / "sealed").is_dir():
+        return []
+    from creator import devbench as D
+    try:
+        holdout = set(D.load_manifest(bench / "sealed" / "MANIFEST.json")["splits"]["holdout"])
+    except D.DevbenchError:
+        return []
+    lits: set[str] = set()                                              # HOLDOUT answer keys only: learning from dev tasks is
+    for h in holdout:                                                   # allowed (1 Oct: a dev answer 'hello-world' was flagged)
+        if (bench / "sealed" / h).is_dir():
+            lits |= answer_literals(bench / "sealed" / h)
+    out = []
+    for pattern in LEARNING_STORES:
+        for f in sorted(st.glob(pattern)):
+            text = f.read_text(encoding="utf-8", errors="replace")
+            ids = sorted(h for h in holdout if re.search(rf"\b{re.escape(h)}\b", text))
+            hits = sorted(x for x in lits if x in text)
+            if ids:
+                out.append(AuditFinding("memorization", "CRITICAL", f.name, f"holdout task(s) in a learning store: {ids[:5]}"))
+            if hits:
+                out.append(AuditFinding("memorization", "CRITICAL", f.name, f"sealed answer literal(s) learned: {hits[:5]}"))
+    return out
+
+
 def check_budget_anomalies(led: Optional[Ledger] = None, budget_file: Optional[Path] = None, **_: Any) -> list[AuditFinding]:
     path = budget_file or (REPO_ROOT / "state" / "creator" / "agent_budget.json")
     if not path.is_file():
@@ -308,6 +341,7 @@ CHECKS: dict[str, Callable[..., list[AuditFinding]]] = {
     "ledger_integrity": check_ledger_integrity, "evidence_drift": check_evidence_drift, "stale_done": check_stale_done,
     "fake_adoption": check_fake_adoption, "claim_recompute": check_claim_recompute, "sealed_suite": check_sealed_suite,
     "hardcoded_answers": check_hardcoded_answers, "budget_anomalies": check_budget_anomalies,
+    "memorization": check_memorization,
 }
 
 

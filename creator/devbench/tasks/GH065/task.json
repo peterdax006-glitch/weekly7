@@ -1,0 +1,8 @@
+{
+ "id": "GH065",
+ "category": "feature",
+ "split": "holdout",
+ "objective": "Implement title_words() in app/solution.py so it meets its docstring.",
+ "time_limit_s": 600,
+ "call_limit": 10
+}

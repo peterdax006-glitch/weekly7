@@ -1,0 +1,8 @@
+{
+ "id": "G059",
+ "category": "bugfix",
+ "split": "dev",
+ "objective": "pairs_sum() in app/solution.py does not do what its docstring says for some inputs. Find the bug and fix it.",
+ "time_limit_s": 600,
+ "call_limit": 10
+}

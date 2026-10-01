@@ -411,6 +411,19 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
     return False, {}, tried
 
 
+class SearchSolver:
+    """A devbench Solver made ONLY of the system's own search (no model at all): its measured solve rate is what the system can
+    already do by itself."""
+    name = "self-search"
+
+    def __init__(self, budget: int = 120) -> None:
+        self.budget = budget
+
+    def __call__(self, task: Mapping[str, Any], workdir: Path) -> D.SolverResult:
+        ok, _, n = solve_with_search(task, workdir, self.budget)
+        return D.SolverResult(ok, 0, f"search {'passed' if ok else 'failed'} the visible tests after {n} candidates")
+
+
 # ------------------------------------------------------------------------------------------------ the solver
 
 @dataclasses.dataclass(frozen=True)

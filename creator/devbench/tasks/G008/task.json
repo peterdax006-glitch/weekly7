@@ -1,0 +1,8 @@
+{
+ "id": "G008",
+ "category": "feature",
+ "split": "dev",
+ "objective": "Implement running_max() in app/solution.py so it meets its docstring.",
+ "time_limit_s": 600,
+ "call_limit": 10
+}

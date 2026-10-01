@@ -431,7 +431,7 @@ class SuiteValidation:
 
 
 def validate_suite(tasks: Optional[Sequence[Task]] = None, manifest: Optional[Mapping[str, Any]] = None,
-                   scratch: Optional[Path] = None, sealed_dir: Path = SEALED) -> SuiteValidation:
+                   scratch: Optional[Path] = None, sealed_dir: Path = SEALED, parallel: int = 1) -> SuiteValidation:
     """Calibrate the benchmark before it measures anything (C77 secs 49-55; C70-C74 'answer key first'):
     every task must be SOLVED by its sealed reference, NOT solved by the do-nothing solver, and scored FALSE_COMPLETION (never
     SOLVED) for a solver that claims success without changing anything. A suite that fails any of these cannot score the Creator."""
@@ -439,12 +439,21 @@ def validate_suite(tasks: Optional[Sequence[Task]] = None, manifest: Optional[Ma
     ts = list(tasks or load_tasks())
     problems: list[str] = []
     per: dict[str, dict[str, str]] = {}
+    def calibrate(t: Task) -> tuple[str, dict[str, str]]:
+        return t.id, {"reference": run_task(t, ReferenceSolver(sealed_dir), m, scratch, "reference").outcome,
+                      "null": run_task(t, NullSolver(), m, scratch, "null").outcome,
+                      "liar": run_task(t, LiarSolver(), m, scratch, "liar").outcome,
+                      "cheat": run_task(t, CheatSolver(), m, scratch, "cheat").outcome}
+    if parallel > 1:                                                    # tasks are independent (own temp dirs)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            results = list(pool.map(calibrate, ts))
+    else:
+        results = [calibrate(t) for t in ts]
+    for tid, row in results:
+        per[tid] = row
     for t in ts:
-        ref = run_task(t, ReferenceSolver(sealed_dir), m, scratch, "reference").outcome
-        null = run_task(t, NullSolver(), m, scratch, "null").outcome
-        liar = run_task(t, LiarSolver(), m, scratch, "liar").outcome
-        cheat = run_task(t, CheatSolver(), m, scratch, "cheat").outcome
-        per[t.id] = {"reference": ref, "null": null, "liar": liar, "cheat": cheat}
+        ref, null, liar, cheat = per[t.id]["reference"], per[t.id]["null"], per[t.id]["liar"], per[t.id]["cheat"]
         if ref != "SOLVED":
             problems.append(f"{t.id}: the reference solution scores {ref} - the task is not provably solvable")
         if null == "SOLVED":
