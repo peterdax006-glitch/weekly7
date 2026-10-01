@@ -1,0 +1,8 @@
+{
+ "id": "D03",
+ "category": "test_gap",
+ "split": "dev",
+ "objective": "app/money.py has no tests. Write tests in tests/test_money.py that would catch a wrong result, a missing negative-amount check and a missing type check in add_cents. Do not change app/money.py.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

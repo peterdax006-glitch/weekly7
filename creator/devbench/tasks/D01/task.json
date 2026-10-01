@@ -1,0 +1,8 @@
+{
+ "id": "D01",
+ "category": "bugfix",
+ "split": "dev",
+ "objective": "median() in app/stats.py returns the wrong value for lists with an even number of elements. Fix it so it returns the mean of the two middle values (for any order of input). An empty list must raise ValueError.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

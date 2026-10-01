@@ -1,0 +1,8 @@
+{
+ "id": "D09",
+ "category": "feature",
+ "split": "dev",
+ "objective": "Give the Cache class in app/cache.py a capacity (constructor argument, default 128). When full, putting a new key evicts the least-recently-used key; get() counts as a use.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

@@ -1,0 +1,8 @@
+{
+ "id": "H04",
+ "category": "refactor",
+ "split": "holdout",
+ "objective": "Replace the if/elif chain in app/shapes.py area() with a dispatch table keyed by shape name; behaviour (including the ValueError for unknown shapes) must not change.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

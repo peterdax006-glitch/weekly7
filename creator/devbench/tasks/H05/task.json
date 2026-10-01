@@ -1,0 +1,8 @@
+{
+ "id": "H05",
+ "category": "test_gap",
+ "split": "holdout",
+ "objective": "app/fifo.py has no tests. Write tests in tests/test_fifo.py that would catch LIFO order, a missing empty-queue error and a wrong length. Do not change app/fifo.py.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

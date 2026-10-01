@@ -1,0 +1,8 @@
+{
+ "id": "D05",
+ "category": "performance",
+ "split": "dev",
+ "objective": "primes_below(n) in app/primes.py is far too slow for large n. Make primes_below(300000) return the correct list in under 1 second on this machine, keeping results identical.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

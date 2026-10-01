@@ -1,0 +1,201 @@
+{
+ "digest": "63eb0b50bcffa0b0ed4bd7f169afb39e05f581b3d500be6703b04dbc9e045add",
+ "resealed": false,
+ "sealed_at": "2026-10-01T05:28:05Z",
+ "splits": {
+  "dev": [
+   "D01",
+   "D02",
+   "D03",
+   "D04",
+   "D05",
+   "D06",
+   "D07",
+   "D08",
+   "D09",
+   "D10"
+  ],
+  "holdout": [
+   "H01",
+   "H02",
+   "H03",
+   "H04",
+   "H05"
+  ]
+ },
+ "tasks": {
+  "D01": {
+   "category": "bugfix",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "fa2cca97c3f413a02c2cef6be4470319d913e0ad726f6d34a9406afb019a829e"
+   },
+   "reference": {
+    "app/stats.py": "c5f6b92ae869bfbdf92a692e0b42b708c7c5a14dd8da1511a771e036409870e1"
+   },
+   "visible": "886b7add57cba9f4355acac103179cac45edc6f7ca11e0444c4707de920eeb4e"
+  },
+  "D02": {
+   "category": "feature",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "3878f4d7e9132ccda0ede80393d657f706655c3f82b5ef14d2ff5fa8dae743b7"
+   },
+   "reference": {
+    "app/textutil.py": "9b45afab790076881cd7db50acdd7a9d46fe7dd31815fdb3fcb465844293d6a5"
+   },
+   "visible": "f169e2425c02212249165b0883aa226345cc29ae033a7a4141706f6a5537e715"
+  },
+  "D03": {
+   "category": "test_gap",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mutant_neg.txt": "ee237e58e88537361ed99c5052141b54df65f9d0683d87d8e8c5eb57577b8161",
+    "mutant_sum.txt": "6e3ae9165bd62c7029ceae2482a2f32b5ba26760187804a0d501e7f08223447d",
+    "mutant_type.txt": "b88ebae01b78ad6ff90096d5e6249b9b9a282f3f3e72fb364857e90d49659aee",
+    "test_hidden.py": "a2641b16ea85ccd2e1e7bc26d6804f5a0bee1b228db4b850337fd0016772d996"
+   },
+   "reference": {
+    "tests/test_money.py": "6bbf3058ef5ff97c8dffa0ba49c2a24e0e66d7e2cce038caa5b65caa1b1bfd8a"
+   },
+   "visible": "2232bb5c7e44c61acf9ee0581cbc017cb87ce734b2c688e424e2292285205879"
+  },
+  "D04": {
+   "category": "refactor",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "310b6fa51ea25eb8265b2563f24ab96b474d81a21cb9a2e3c29f5700d5c30962"
+   },
+   "reference": {
+    "app/report.py": "de2022ab804b902219fb448eba292778d65f73f4ba8b113d6f93107e9b10f0b3"
+   },
+   "visible": "cb1ac61ad24fc0f709b04f47fb1157179635ba4071dc3b95b0a2c3158c991df3"
+  },
+  "D05": {
+   "category": "performance",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "9b389a24709186fe09d56000690b8e929119070c76a4e6c5fa0c04984d62a07e"
+   },
+   "reference": {
+    "app/primes.py": "93cf99849e289e8b76771a5c832ab138e15e446a685a9c1629fc4cf28d729f46"
+   },
+   "visible": "00db014579828f72a0cbe98b23736a78541590584d90dc0ddad912f3cf301870"
+  },
+  "D06": {
+   "category": "integration",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "e20a4fad5336665c1fbe890dc57c6f2752d3b602f1bfe839ab2e306f7b9d63e9"
+   },
+   "reference": {
+    "app/server.py": "a04ee909b03ad1110370876ea127131d1f7edf2be4332b31bc8a208e8094e978"
+   },
+   "visible": "984a825d4637fd825fc76139d4c45e57a7c6454d0e3cfa08159cdeb7f194d672"
+  },
+  "D07": {
+   "category": "diagnosis",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "296464bf17c6fce0cb5af1990b423d28eb2ff2ff93286eccd56f980db3d46714",
+    "test_unchanged.py": "068f0562d6af138070a4f04d30c08ee4e63d3e1af2da8e262dd4cb1c68b72cbc"
+   },
+   "reference": {
+    "app/dates.py": "2ab065d0dc20ed3bf03f010092d4016491c625ac95e3576f9029bacf5d7a5582"
+   },
+   "visible": "01516d329d583bc91d49ffe7130c4a2a736ff645d75041e60ba56afbdccd7094"
+  },
+  "D08": {
+   "category": "bugfix",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "f9f32b2d96a6c2a088b187e2ecdb85fb4a00cbcef963900778030d720f6dc763"
+   },
+   "reference": {
+    "app/inventory.py": "b3dca08f5cb57f4242bd20f1a5ed8e8b0b4e36fce68a736298dfd9b0c017e5d6"
+   },
+   "visible": "2ca509c62928d58ebd296fead4407c1babc63141507db1ef8541afdfae0f5a7c"
+  },
+  "D09": {
+   "category": "feature",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "c59870cf90b5ad0bd447788223984219733e7bbe0c55cee36e20290c599e0926"
+   },
+   "reference": {
+    "app/cache.py": "15b8cd9c677b76d43e79c8f73eeced7f8ecd85763d3c0512452ecb9932094b9c"
+   },
+   "visible": "52b3c04c36f75581f27910fe435a32ec169f8154f9cb9a4e5cd21c8f1ebd74c5"
+  },
+  "D10": {
+   "category": "bugfix",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "c8e741b4f2f287623988850eb7620e705117b6fc75e0ce57d022990663526594"
+   },
+   "reference": {
+    "app/parse.py": "f39b626602db3546412188df443be76a579c5320a2b53b098cb9089496d5ea7d"
+   },
+   "visible": "f26c788f20091b6c96d3b7c0e6d6038dac7d2dd8dad04fe5d021954182a7b335"
+  },
+  "H01": {
+   "category": "bugfix",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "acc567062150c8c790aae760bc5d697fc83726b8eb2c6e42e466d1b33ce5f031"
+   },
+   "reference": {
+    "app/geometry.py": "3294a1a6266e9f71e517c86bcaeba0b4af95a1174d7bcc74fa77d148e17ac07a"
+   },
+   "visible": "4ef57a47feb1dc51c2e0a6ce8070e04dc243d1ac28276e6e86aa9b5e2b317d74"
+  },
+  "H02": {
+   "category": "feature",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "8791c0628a87137a63d0deec391a930796dd31b436e71af847f1636f869ec543"
+   },
+   "reference": {
+    "app/wordcount.py": "8049c24ff18e0b0bba061221e1d79625fbb94315d73cf2ab7a35619df0b25cc9"
+   },
+   "visible": "11ebead397e6f8ebd359b9d88192651e82370847a3e45855f6a06c207f7f4e99"
+  },
+  "H03": {
+   "category": "diagnosis",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "2ee400f1d19765e17d31cab692d9ebca10e9fcf4e80615c0c67585e21f1248e5",
+    "test_unchanged.py": "6c61261e4b96001185f44712ed0893635f5b7438601adfd0d9fa3d39381cbc87"
+   },
+   "reference": {
+    "app/billing.py": "9d255f54c0c22d4b9cc4c343e913f9837c9ff52cfeb7a2166675b8d8489bc9e3"
+   },
+   "visible": "a4cc3ffd967b909ad38ba7f58df35eaa152f8df30c5d34c5b9a59fdc44420456"
+  },
+  "H04": {
+   "category": "refactor",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_hidden.py": "a02fd1fbcb0c8c28343c85922b238124acf986d325623cfbebcaf1f984d26865"
+   },
+   "reference": {
+    "app/shapes.py": "f2ec930cd642e6548a64797d07cb709679e8c257fdcf8023bddc29f7ce5a9021"
+   },
+   "visible": "3abec5519b2d184a02d792d2b57ca04658f32f814a196ac12fbcea4a22e1461a"
+  },
+  "H05": {
+   "category": "test_gap",
+   "hidden": {
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "m_empty.txt": "997b03bf1fc97caa0adac0bc0b45982fe68342cb20b54994a11a9ab7f25c6c2f",
+    "m_len.txt": "9a50a290ade07f61e5d67bc74560524a711410537eb406791aa7b39ef5f6336b",
+    "m_lifo.txt": "841409abb34e5a0914e47a947e4c6f32e10af6c6c38a24058be8ea834e47459d",
+    "test_hidden.py": "0f5ffa90c8216ecb2c99c0ab47a5994e4a5bdb8942afe6b8e01db7367dbec380"
+   },
+   "reference": {
+    "tests/test_fifo.py": "b343a8f107ea0e50917d7ed51a615eb633240fc2e72f23c3b3f549afe94b6a82"
+   },
+   "visible": "12cd2a771eee243e5d85dfcf599a372baae422dee6aa66f0daee322c0ab28f55"
+  }
+ }
+}

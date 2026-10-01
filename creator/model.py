@@ -862,10 +862,16 @@ VERDICT_FUNCTION = "creator.model:improvement_verdict"
 
 
 def _pool(ms: Sequence[Measurement]) -> tuple[float, float]:
-    """Mean of replicate values and the standard error of that mean (independent replicates)."""
+    """Mean of replicate values and a CONSERVATIVE standard error. Replicates in a controlled comparison share one population (the
+    same tasks), so they are not independent samples of it: re-running the same tasks does not shrink the uncertainty about new
+    ones. The SE is therefore the mean replicate SE (fully correlated), floored by the between-replicate spread - never the
+    sqrt(k)-shrunk independent-replicate SE, which let 100 reruns of 10 tasks make any difference 'significant' (30 Sep)."""
     k = len(ms)
     mean = sum(m.value for m in ms) / k
-    se = math.sqrt(sum(m.stderr ** 2 for m in ms)) / k
+    se = sum(m.stderr for m in ms) / k
+    if k > 1:
+        sd = math.sqrt(sum((m.value - mean) ** 2 for m in ms) / (k - 1))
+        se = max(se, sd / math.sqrt(k))
     return mean, se
 
 

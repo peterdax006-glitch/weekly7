@@ -1,0 +1,14 @@
+class Queue:
+    def __init__(self):
+        self._items = []
+
+    def push(self, x):
+        self._items.append(x)
+
+    def pop(self):
+        if not self._items:
+            raise IndexError("empty queue")
+        return self._items.pop(0)
+
+    def __len__(self):
+        return len(self._items)

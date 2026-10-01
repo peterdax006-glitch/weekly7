@@ -1,0 +1,8 @@
+{
+ "id": "H03",
+ "category": "diagnosis",
+ "split": "holdout",
+ "objective": "The visible test suite fails. Find the root cause in app/ and fix it. Do not edit the tests.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

@@ -1,0 +1,8 @@
+{
+ "id": "H01",
+ "category": "bugfix",
+ "split": "holdout",
+ "objective": "polygon_area in app/geometry.py returns negative areas for clockwise polygons. It must return the (non-negative) area for any vertex order.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

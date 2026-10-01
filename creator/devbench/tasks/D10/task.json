@@ -1,0 +1,8 @@
+{
+ "id": "D10",
+ "category": "bugfix",
+ "split": "dev",
+ "objective": "parse_int in app/parse.py should accept optional surrounding whitespace and an optional leading '+' or '-', and raise ValueError for empty or invalid input (including just a sign).",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

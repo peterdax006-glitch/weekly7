@@ -1,0 +1,8 @@
+{
+ "id": "H02",
+ "category": "feature",
+ "split": "holdout",
+ "objective": "Add top_k(text, k) to app/wordcount.py: the k most frequent words (case-insensitive, words are runs of letters), as (word, count) pairs, highest count first, ties broken alphabetically.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

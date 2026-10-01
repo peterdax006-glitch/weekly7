@@ -1,0 +1,8 @@
+{
+ "id": "D02",
+ "category": "feature",
+ "split": "dev",
+ "objective": "Add a function slugify(text) to app/textutil.py: lower-case the text, replace every run of characters that are not letters or digits with a single '-', and strip leading/trailing '-'. Keep title_case working.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

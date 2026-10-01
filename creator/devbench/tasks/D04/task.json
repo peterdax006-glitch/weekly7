@@ -1,0 +1,8 @@
+{
+ "id": "D04",
+ "category": "refactor",
+ "split": "dev",
+ "objective": "In app/report.py the two functions duplicate their row formatting. Extract a function format_row(name, value) that both use, without changing any output.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

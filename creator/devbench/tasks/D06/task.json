@@ -1,0 +1,8 @@
+{
+ "id": "D06",
+ "category": "integration",
+ "split": "dev",
+ "objective": "app/server.py starts on a hard-coded port 8000. It must use the port returned by app/config.py load() instead (the config may be overridden by the APP_PORT environment variable, which load() already supports).",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

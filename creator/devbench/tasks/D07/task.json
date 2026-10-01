@@ -1,0 +1,8 @@
+{
+ "id": "D07",
+ "category": "diagnosis",
+ "split": "dev",
+ "objective": "The visible test suite fails. Find the root cause in app/ and fix it. Do not edit the tests.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}

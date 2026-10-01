@@ -1,0 +1,8 @@
+{
+ "id": "D08",
+ "category": "bugfix",
+ "split": "dev",
+ "objective": "Inventory objects in app/inventory.py share their item list with each other. Make every Inventory independent while keeping the same constructor signature.",
+ "time_limit_s": 900,
+ "call_limit": 20
+}
