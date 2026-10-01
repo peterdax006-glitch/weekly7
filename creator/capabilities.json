@@ -1,0 +1,21 @@
+{
+ "about": "Declared capabilities of the Creator (creator/ARCHITECTURE.md K01-K16). ONLY the declaration lives here (modules, tests, depth floor); every STATE is computed from evidence by creator/selfmodel.py and is never written here.",
+ "capabilities": [
+  {"id": "K01", "name": "development ledger", "modules": ["creator/model.py", "creator/ledger.py"], "tests": ["tests/test_creator_ledger.py"], "floor": 900},
+  {"id": "K02", "name": "self-model", "modules": ["creator/selfmodel.py"], "tests": ["tests/test_creator_selfmodel.py"], "floor": 1800},
+  {"id": "K03", "name": "objective and requirements", "modules": ["creator/objective.py"], "tests": ["tests/test_creator_objective.py"], "floor": 1000},
+  {"id": "K04", "name": "gap analysis", "modules": ["creator/gaps.py"], "tests": ["tests/test_creator_gaps.py"], "floor": 700},
+  {"id": "K05", "name": "agent runtime", "modules": ["creator/agents.py"], "tests": ["tests/test_creator_agents.py"], "floor": 1400},
+  {"id": "K06", "name": "sandbox build test rollback", "modules": ["creator/build.py", "creator/testrun.py", "creator/sandbox.py"], "tests": ["tests/test_creator_sandbox.py"], "floor": 1400},
+  {"id": "K07", "name": "research", "modules": ["creator/research.py"], "tests": ["tests/test_creator_research.py"], "floor": 1200},
+  {"id": "K08", "name": "design generation", "modules": ["creator/design.py"], "tests": ["tests/test_creator_design.py"], "floor": 900},
+  {"id": "K09", "name": "planner", "modules": ["creator/planner.py"], "tests": ["tests/test_creator_planner.py"], "floor": 1200},
+  {"id": "K10", "name": "evaluation and improvement measurement", "modules": ["creator/evaluate.py"], "tests": ["tests/test_creator_evaluate.py"], "floor": 1400},
+  {"id": "K11", "name": "debugging and repair", "modules": ["creator/debug.py"], "tests": ["tests/test_creator_debug.py"], "floor": 1200},
+  {"id": "K12", "name": "development memory", "modules": ["creator/memory.py"], "tests": ["tests/test_creator_memory.py"], "floor": 900},
+  {"id": "K13", "name": "meta-learning and strategies", "modules": ["creator/meta.py"], "tests": ["tests/test_creator_meta.py"], "floor": 1500},
+  {"id": "K14", "name": "kernel loop, checkpoints, observability", "modules": ["creator/kernel.py"], "tests": ["tests/test_creator_kernel.py"], "floor": 1600},
+  {"id": "K15", "name": "devbench sealed development-task suite", "modules": ["creator/devbench.py"], "tests": ["tests/test_creator_devbench.py"], "floor": 1800},
+  {"id": "K16", "name": "audit and adversary", "modules": ["creator/audit_checks.py"], "tests": ["tests/test_creator_audit.py"], "floor": 1200}
+ ]
+}
