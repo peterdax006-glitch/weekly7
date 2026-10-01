@@ -31,6 +31,26 @@ def free_ram_gb() -> float:
         return 99.0
 
 
+def sandbox_memory_gb(scratch: Any) -> float:
+    """Resident memory of every process running inside the swarm's sandboxes (their cwd is under `scratch`)."""
+    from pathlib import Path
+    try:
+        import psutil
+    except ImportError:
+        return 0.0
+    root = str(Path(scratch).resolve()).lower() if scratch else ""
+    if not root:
+        return 0.0
+    total = 0
+    for proc in psutil.process_iter(["pid"]):
+        try:
+            if str(Path(proc.cwd()).resolve()).lower().startswith(root):
+                total += proc.memory_info().rss
+        except (psutil.Error, OSError):
+            continue
+    return total / 1e9
+
+
 def stop_worker_processes(scratch: Any, package_id: str) -> int:
     """HARD pull-back: kill the processes running inside a worker's sandbox (found by their working directory), so memory is
     released now - not at the worker's next checkpoint (1 Oct: memory spiked faster than workers reached one and the host
@@ -73,16 +93,29 @@ def stop_worker_processes(scratch: Any, package_id: str) -> int:
 
 @dataclasses.dataclass
 class Governor:
-    """Defaults raised 1 Oct after the host stopped the swarm at critical RAM: start a worker only with 3.5 GB + 0.8 GB per running
-    worker free; pull back (hard) below 2.5 GB."""
-    start_gb: float = 3.5
-    per_worker_gb: float = 0.8
-    low_gb: float = 2.5
+    """The first worker starts when free RAM >= start_gb. Each further worker needs free RAM >= low_gb + headroom_gb + the
+    MEASURED memory of an average running worker (`observe`; `per_worker_gb` until something is measured) - free RAM already
+    reflects the running workers, so they are not subtracted again (1 Oct: doing so kept the swarm at one worker while 5 workers
+    really used ~0.3 GB each). Below low_gb the youngest worker is pulled back hard."""
+    start_gb: float = 2.5
+    per_worker_gb: float = 0.5
+    low_gb: float = 2.0
     max_workers: int = 4
     free: Callable[[], float] = free_ram_gb
+    headroom_gb: float = 0.5
+    observe: Optional[Callable[[int], Optional[float]]] = None
+
+    def estimate(self, running: int) -> float:
+        seen = self.observe(running) if (self.observe is not None and running) else None
+        return max(0.15, 1.25 * seen) if seen else self.per_worker_gb
 
     def can_start(self, running: int) -> bool:
-        return running < self.max_workers and self.free() >= self.start_gb + self.per_worker_gb * running
+        if running >= self.max_workers:
+            return False
+        free = self.free()
+        if running == 0:
+            return free >= self.start_gb
+        return free >= self.low_gb + self.headroom_gb + self.estimate(running)
 
     def too_tight(self) -> bool:
         return self.free() < self.low_gb
@@ -109,6 +142,15 @@ class RoundReport:
 def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Optional[Governor] = None,
               max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None) -> RoundReport:
     gov = governor or Governor()
+    scratch_dir = cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
+    if gov.observe is None:                                             # measure what workers really use
+        mem_peak = {"gb": 0.0}
+
+        def observe(running: int) -> Optional[float]:
+            per = sandbox_memory_gb(scratch_dir) / max(1, running)
+            mem_peak["gb"] = max(mem_peak["gb"], per)
+            return mem_peak["gb"] or None
+        gov.observe = observe
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     main, recovered, stop = K.prepare(cfg, led)
     if stop is not None or main is None:

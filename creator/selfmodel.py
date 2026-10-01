@@ -474,7 +474,7 @@ def load_test_evidence(path: Path) -> dict[str, TestEvidence]:
 
 
 def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Path, timeout: float = 600.0,
-                          junit_dir: Optional[Path] = None) -> dict[str, TestEvidence]:
+                          junit_dir: Optional[Path] = None, parallel: int = 1) -> dict[str, TestEvidence]:
     """Run each test file once, record its outcome against the digest of (the file + every module it reaches), and merge into
     `store`. A later edit to any reached module changes the digest, so the old result reads STALE - it is never reused as
     evidence for different code."""
@@ -484,12 +484,21 @@ def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Pa
     jdir = junit_dir or (store.parent / "junit")
     jdir.mkdir(parents=True, exist_ok=True)
     known = load_test_evidence(store)
-    for tf in test_files:
+
+    def one(tf: str) -> TestEvidence:
         jp = jdir / (tf.replace("/", "__") + ".xml")
         run = T.run_pytest(rootp, [tf], jp, label="selfmodel", config=T.PytestConfig(timeout=timeout))
         status = run.status.value if hasattr(run.status, "value") else str(run.status)
         outcome = {"PASSED": "PASS", "FAILED": "FAIL", "NO_TESTS": "EMPTY"}.get(status, "ERROR")
-        known[tf] = TestEvidence(tf, outcome, reach_digest(graph, tf, comps), str(jp))
+        return TestEvidence(tf, outcome, reach_digest(graph, tf, comps), str(jp))
+    if parallel > 1 and len(test_files) > 1:                            # independent files run side by side (1 Oct: the
+        from concurrent.futures import ThreadPoolExecutor               # serial suite left the machine idle)
+        with ThreadPoolExecutor(max_workers=parallel) as pool:
+            for ev in pool.map(one, test_files):
+                known[ev.test_file] = ev
+    else:
+        for tf in test_files:
+            known[tf] = one(tf)
     store.parent.mkdir(parents=True, exist_ok=True)
     tmp = store.with_suffix(".tmp")
     tmp.write_text(json.dumps({k: dataclasses.asdict(v) for k, v in sorted(known.items())}, indent=1), encoding="utf-8")

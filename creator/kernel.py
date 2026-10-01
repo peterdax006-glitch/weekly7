@@ -63,6 +63,7 @@ class KernelConfig:
     build: B.BuildConfig = dataclasses.field(default_factory=B.BuildConfig)
     pytest: T.PytestConfig = dataclasses.field(default_factory=T.PytestConfig)
     test_timeout: float = 3600.0                        # a full suite under swarm contention took 1205 s (1 Oct)
+    test_parallel: int = 1                              # test files run side by side when assessing a tree
     sealed_root: Optional[Path] = None                  # repository whose sealed keys the diff audit compares against
     steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
     mode: str = "auto"                                  # auto: gaps, then shrink when none | gaps | efficiency (shrink only)
@@ -193,7 +194,8 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
     tests = sorted({t for s in specs for t in s.tests if (root / t).is_file()})
     evd = cfg.state / "evidence" / label
     evd.mkdir(parents=True, exist_ok=True)
-    ev = SM.collect_test_evidence(root, tests, evd / "test_evidence.json", timeout=cfg.test_timeout, junit_dir=evd / "junit") \
+    ev = SM.collect_test_evidence(root, tests, evd / "test_evidence.json", timeout=cfg.test_timeout, junit_dir=evd / "junit",
+                                  parallel=cfg.test_parallel) \
         if run_tests and tests else {}
     model = SM.build(root, scope=cfg.scope, capabilities=specs, test_evidence=ev, ledger=led)
     snap = evd / f"selfmodel_{model.digest()}.json"

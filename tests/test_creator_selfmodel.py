@@ -114,3 +114,10 @@ def test_scans_the_real_creator_package() -> None:
     m = SM.build(scope=("creator",), include_versions=False)
     assert "creator/ledger.py" in m.components and m.capability("K01").present_modules
     assert m.capability("K03").state == "NOT_STARTED" or m.capability("K03").present_modules
+
+
+
+def test_parallel_evidence_matches_serial(tree: Path, tmp_path: Path) -> None:
+    serial = SM.collect_test_evidence(tree, ["tests/test_core.py", "tests/test_util.py"], tmp_path / "a.json")
+    par = SM.collect_test_evidence(tree, ["tests/test_core.py", "tests/test_util.py"], tmp_path / "b.json", parallel=2)
+    assert {k: (v.outcome, v.source_digest) for k, v in serial.items()} == {k: (v.outcome, v.source_digest) for k, v in par.items()}

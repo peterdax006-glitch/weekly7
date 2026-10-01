@@ -55,9 +55,10 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--max-workers", type=int, default=12)
-    ap.add_argument("--start-gb", type=float, default=3.5)          # raised 1 Oct: the host stops everything at critical RAM
-    ap.add_argument("--per-worker-gb", type=float, default=0.8)
-    ap.add_argument("--low-gb", type=float, default=2.5)
+    ap.add_argument("--start-gb", type=float, default=2.5)
+    ap.add_argument("--per-worker-gb", type=float, default=0.5)      # only until real worker memory has been measured
+    ap.add_argument("--low-gb", type=float, default=2.0)             # hard pull-back below this (the host kills at critical)
+    ap.add_argument("--test-parallel", type=int, default=6)
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
@@ -69,7 +70,8 @@ def main(argv: list[str]) -> int:
     def make_worker() -> SW.SelfFirst:
         return SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], session)
     gov = W.Governor(start_gb=a.start_gb, per_worker_gb=a.per_worker_gb, low_gb=a.low_gb, max_workers=a.max_workers)
-    cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode)
+    cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
+                         test_parallel=a.test_parallel)
     n = 0
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:

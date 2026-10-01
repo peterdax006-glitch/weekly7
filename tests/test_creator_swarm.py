@@ -77,7 +77,8 @@ def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfi
 
 
 def test_little_ram_means_one_worker_at_a_time(cfg: K.KernelConfig) -> None:
-    gov = W.Governor(start_gb=2.0, per_worker_gb=5.0, low_gb=0.5, max_workers=3, free=lambda: 3.0)
+    gov = W.Governor(start_gb=2.0, per_worker_gb=5.0, low_gb=0.5, max_workers=3, free=lambda: 3.0,
+                     observe=lambda running: 5.0)                         # each worker measured at 5 GB: only one fits
     rnd = W.run_round(cfg, own, gov, max_packages=2, poll_s=0.2)
     assert rnd.peak_parallel == 1 and len(rnd.reports) == 2
 
@@ -119,3 +120,15 @@ def test_hard_pull_back_kills_only_that_workers_processes(tmp_path: Path) -> Non
         for p in (inside, outside):
             if p.poll() is None:
                 p.kill()
+
+
+
+def test_the_governor_uses_measured_worker_memory_not_a_double_count() -> None:
+    """Regression (1 Oct): free RAM already reflects running workers; subtracting a fixed 0.8 GB each again kept the swarm at 1."""
+    gov = W.Governor(start_gb=2.5, per_worker_gb=0.8, low_gb=2.0, headroom_gb=0.5, max_workers=16, free=lambda: 4.3,
+                     observe=lambda running: 0.3)
+    assert gov.can_start(0) and gov.can_start(5) and gov.can_start(15)            # 4.3 >= 2.0 + 0.5 + 1.25 x 0.3
+    tight = W.Governor(start_gb=2.5, low_gb=2.0, headroom_gb=0.5, max_workers=16, free=lambda: 2.6,
+                       observe=lambda running: 0.3)
+    assert tight.can_start(0) and not tight.can_start(1)                          # 2.6 < 2.875: no second worker
+    assert not W.Governor(max_workers=2, free=lambda: 99.0).can_start(2)
