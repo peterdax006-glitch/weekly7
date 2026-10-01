@@ -1,0 +1,199 @@
+{
+ "code_hash": "9b3e26a1d8800e14",
+ "code_mixed": [],
+ "run": "forms_dev_v2",
+ "seeds": [
+  1,
+  2,
+  3,
+  5,
+  8,
+  9,
+  10,
+  11,
+  12,
+  14,
+  15,
+  16,
+  17,
+  19
+ ],
+ "config": {
+  "n_names": 48,
+  "n_dates": 208,
+  "n_sectors": 6,
+  "frame_weeks": 156,
+  "first_look": 208,
+  "look_every": 13,
+  "bands": [
+   [
+    "obvious",
+    0.6
+   ],
+   [
+    "moderate",
+    0.35
+   ],
+   [
+    "subtle",
+    0.2
+   ],
+   [
+    "faint",
+    0.12
+   ],
+   [
+    "extremely_subtle",
+    0.06
+   ]
+  ],
+  "real_kinds": [
+   "linear",
+   "rare",
+   "threshold",
+   "conditional",
+   "interactive",
+   "xor",
+   "delayed",
+   "regime",
+   "changing",
+   "lifecycle"
+  ],
+  "noise_counts": [
+   [
+    "null",
+    130
+   ],
+   [
+    "identity_null",
+    30
+   ],
+   [
+    "mt_winner",
+    60
+   ],
+   [
+    "autocorr_trap",
+    25
+   ],
+   [
+    "regime_corr",
+    20
+   ],
+   [
+    "vol_corr",
+    20
+   ],
+   [
+    "sample_size",
+    20
+   ],
+   [
+    "threshold_illusion",
+    20
+   ],
+   [
+    "near_pattern",
+    15
+   ],
+   [
+    "coincidence",
+    15
+   ],
+   [
+    "early_decay",
+    10
+   ],
+   [
+    "reversal",
+    15
+   ],
+   [
+    "delayed_coincidence",
+    15
+   ],
+   [
+    "interaction_decoy",
+    10
+   ],
+   [
+    "xor_trap",
+    10
+   ],
+   [
+    "selection_bias",
+    10
+   ],
+   [
+    "survivor_bias",
+    10
+   ],
+   [
+    "strong_nontransferable",
+    10
+   ],
+   [
+    "adversarial_near",
+    15
+   ],
+   [
+    "proxy",
+    15
+   ],
+   [
+    "fluke",
+    10
+   ],
+   [
+    "leak",
+    10
+   ]
+  ],
+  "null_world_share": 0.1,
+  "tiers": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "slow_sd": 0.4,
+  "mt_pool": 40,
+  "mt_window": 0.35,
+  "ticker_sd": 0.5,
+  "oracle_draws": 24,
+  "power_floor": 0.5,
+  "orient_frac": 0.3,
+  "single_era_share": 0.5,
+  "min_segment": 26,
+  "year_range": [
+   1978,
+   2046
+  ],
+  "screen_top": 6,
+  "screen_t": 2.0,
+  "gate": true,
+  "screen_calls": null,
+  "seed_salt": "F19-heldout-v1",
+  "evidence_ablation": [],
+  "honest_multiplicity": true,
+  "candidate_forms": true
+ },
+ "freeze": {
+  "benchmark_config": "fc4c3b5328712c66",
+  "quality_policy": "fac9a0809651133c",
+  "sequential_plan": "215a00f35651fc60",
+  "evidence_config": "1277a4029ea9d72f",
+  "screen": [
+   6,
+   2.0,
+   13
+  ],
+  "code_hash": "9b3e26a1d8800e14",
+  "final_salt": "F19-final-UNCREATED"
+ },
+ "pid": 2484,
+ "at": "2026-09-30T22:21:13",
+ "label": "IMPLEMENTED - NOT VALIDATED"
+}

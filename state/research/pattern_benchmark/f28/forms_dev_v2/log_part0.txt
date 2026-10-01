@@ -1,0 +1,5 @@
+22:21:13 run forms_dev_v2 part 0/2 pid 2484 code 9b3e26a1d8800e14
+22:22:37 W00002 development tier 3: real 3/18 FP 0 {} 84s
+22:24:05 W00008 development tier 2: real 5/17 FP 0 {} 88s
+22:25:51 W00010 development tier 3: real 10/21 FP 1 {'proxy': 1} 106s
+22:27:32 W00012 development tier 3: real 5/16 FP 0 {} 101s
