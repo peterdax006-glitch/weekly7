@@ -148,6 +148,21 @@ def _md_table(df: pd.DataFrame, floatfmt: str = "{:.3f}", index: bool = True) ->
     return "\n".join(lines) + "\n"
 
 
+# Path classes defined by a range ratio (window true range / move-day true range) and by sigma multiples. A precursor of the same family
+# compared across those classes partly restates the label's own yardstick (e.g. the move day's true range is the DENOMINATOR of
+# CONSOLIDATED vs EXPANDED): it is known at the anchor, so it is no leak, but it is definitional rather than a discovery.
+RANGE_CLASSES = ("CONSOLIDATED", "EXPANDED", "STOPPED")
+SIGMA_CLASSES = ("SPIKED_NEXT_DAY", "REVERSED_NEXT_DAY")
+
+
+def yardstick_overlap(comparison: str, family: str, feature: str) -> bool:
+    if comparison == "ctl":
+        return False
+    if any(c in comparison for c in RANGE_CLASSES) and family in ("range", "compression", "volatility"):
+        return True
+    return any(c in comparison for c in SIGMA_CLASSES) and family == "volatility"
+
+
 def truncation_on_real(a, st) -> list[dict]:
     """The F09 truncation method on real bars: one slice of each audit year, cuts on days with episodes."""
     out = []
@@ -212,9 +227,18 @@ def build_report(a, out: Path, sweep_info: dict | None) -> dict:
     recs, held = PC.release(st, now)
     rep["release"] = {"released_records": len(recs), "held": {k: v for k, v in list(held.items())[:5]}, "held_total": len(held)}
     if len(ct):
-        top = ct[~ct["feature"].str.startswith(PC.DECOY_PREFIX)].head(a.top)
+        ct = ct.assign(definitional=[yardstick_overlap(c, f, x) for c, f, x in zip(ct["comparison"], ct["family"], ct["feature"])])
+        cand = ct[ct["status"].astype(str) == "CANDIDATE"]
+        rep["candidates_breakdown"] = {"total": int(len(cand)), "definitional": int(cand["definitional"].sum()),
+                                       "matched_control": int((cand["comparison"] == "ctl").sum()),
+                                       "class_pair_non_definitional": int(((cand["comparison"] != "ctl") & ~cand["definitional"]).sum()),
+                                       "by_family": {str(k): int(v) for k, v in cand["family"].value_counts().items()},
+                                       "by_lens": {str(k): int(v) for k, v in cand["lens"].value_counts().items()},
+                                       "decoys": int(cand["feature"].str.startswith(PC.DECOY_PREFIX).sum())}
+        nd = ct[~ct["feature"].str.startswith(PC.DECOY_PREFIX) & ~ct["definitional"]]
+        top = pd.concat([nd[nd["comparison"] == "ctl"].head(a.top // 2), nd[nd["comparison"] != "ctl"].head(a.top - a.top // 2)])
         keep = ["candidate_id", "status", "key", "feature", "family", "effect", "t", "q", "p_perm", "n1", "n0", "clusters", "wf_tested", "wf_passed",
-                "eras", "text"]
+                "eras", "definitional", "text"]
         rep["top_candidates"] = top[keep].to_dict("records")
         hmap = hold.set_index("candidate_id") if len(hold) else pd.DataFrame()
         for r in rep["top_candidates"]:
@@ -256,7 +280,10 @@ def write_markdown(out: Path, rep: dict, lab_year: dict, all_counts: dict, hb: p
         L += [f"### mean raw outcomes - lens {lens} (signed by the move's side; r1 = next close-to-close)", "", _md_table(EP.mean_table(all_counts[lens]), "{:.4f}")]
     L += ["## Multiple testing", "", "```", json.dumps(rep["ledger"], indent=1), json.dumps(rep["decoys"], indent=1), "```",
           f"Tracked by status: {rep['tracked_by_status']}", f"Unknown map: {rep['unknown_map']}", ""]
-    L += ["## Top precursor candidates (not promotions: research questions at most)", ""]
+    L += ["## Top precursor candidates (not promotions: research questions at most)", "",
+          f"Breakdown of CANDIDATE status: {rep.get('candidates_breakdown')}", "",
+          "Listed: the strongest NON-definitional findings (half matched-control, half class-pair). Matched-control findings are mostly 'movers "
+          "were already more volatile than same-cohort non-movers' - real, but the volatility-first finding again, not a new edge.", ""]
     for r in rep["top_candidates"]:
         h = r.get("holdout")
         ht = f"holdout t {h['t_hold']:.2f} confirmed={h['confirmed']}" if h else "not re-found in the pre-holdout discovery"

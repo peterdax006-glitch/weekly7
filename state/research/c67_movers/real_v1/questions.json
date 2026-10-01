@@ -1,0 +1,1884 @@
+{
+ "label": "SURVIVOR_ONLY",
+ "questions": [
+  {
+   "qid": "Q0f1e3eaadc84",
+   "text": "Does the newly discovered pcaikdfmhginbc generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcaikdfmhginbc)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcaikdfmhginbc)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcaikdfmhginbc)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcaikdfmhginbc)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcaikdfmhginbc)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcaikdfmhginbc)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcaikdfmhginbc"
+  },
+  {
+   "qid": "Q1f375fb14468",
+   "text": "Does the newly discovered pcdnjkppfogghe generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcdnjkppfogghe)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcdnjkppfogghe)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcdnjkppfogghe)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcdnjkppfogghe)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcdnjkppfogghe)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcdnjkppfogghe)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcdnjkppfogghe"
+  },
+  {
+   "qid": "Q32476b2b1c8c",
+   "text": "Does the newly discovered pcmodgaocbkbjh generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcmodgaocbkbjh)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcmodgaocbkbjh)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcmodgaocbkbjh)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcmodgaocbkbjh)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcmodgaocbkbjh)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcmodgaocbkbjh)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcmodgaocbkbjh"
+  },
+  {
+   "qid": "Q655c8b726641",
+   "text": "Does the newly discovered pcggeaoekjadma generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcggeaoekjadma)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcggeaoekjadma)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcggeaoekjadma)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcggeaoekjadma)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcggeaoekjadma)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcggeaoekjadma)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcggeaoekjadma"
+  },
+  {
+   "qid": "Q8409a3dc5ff8",
+   "text": "Does the newly discovered pcfgcfimkfndaa generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcfgcfimkfndaa)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcfgcfimkfndaa)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcfgcfimkfndaa)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcfgcfimkfndaa)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcfgcfimkfndaa)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcfgcfimkfndaa)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcfgcfimkfndaa"
+  },
+  {
+   "qid": "Q97a571c39187",
+   "text": "Does the newly discovered pcofclidcjkifc generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcofclidcjkifc)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcofclidcjkifc)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcofclidcjkifc)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcofclidcjkifc)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcofclidcjkifc)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcofclidcjkifc)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcofclidcjkifc"
+  },
+  {
+   "qid": "Q9f5b6fd31cad",
+   "text": "Does the newly discovered pcagfkihfpdpbk generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcagfkihfpdpbk)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcagfkihfpdpbk)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcagfkihfpdpbk)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcagfkihfpdpbk)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcagfkihfpdpbk)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcagfkihfpdpbk)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcagfkihfpdpbk"
+  },
+  {
+   "qid": "Qb32d7c3da848",
+   "text": "Does the newly discovered pcllcgbingjplj generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcllcgbingjplj)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcllcgbingjplj)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcllcgbingjplj)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcllcgbingjplj)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcllcgbingjplj)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcllcgbingjplj)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcllcgbingjplj"
+  },
+  {
+   "qid": "Qc8badde9438f",
+   "text": "Does the newly discovered pckiphglpmnjam generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pckiphglpmnjam)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pckiphglpmnjam)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pckiphglpmnjam)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pckiphglpmnjam)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pckiphglpmnjam)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pckiphglpmnjam)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pckiphglpmnjam"
+  },
+  {
+   "qid": "Qce5f4f70941c",
+   "text": "Does the newly discovered pcpkfimmejiood generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcpkfimmejiood)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcpkfimmejiood)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcpkfimmejiood)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcpkfimmejiood)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcpkfimmejiood)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcpkfimmejiood)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcpkfimmejiood"
+  },
+  {
+   "qid": "Qd59bea089273",
+   "text": "Does the newly discovered pccnobfdfpmage generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pccnobfdfpmage)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pccnobfdfpmage)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pccnobfdfpmage)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pccnobfdfpmage)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pccnobfdfpmage)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pccnobfdfpmage)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pccnobfdfpmage"
+  },
+  {
+   "qid": "Qd9c9cad21fce",
+   "text": "Does the newly discovered pclfackpbgghdj generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pclfackpbgghdj)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pclfackpbgghdj)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pclfackpbgghdj)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pclfackpbgghdj)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pclfackpbgghdj)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pclfackpbgghdj)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pclfackpbgghdj"
+  },
+  {
+   "qid": "Qdbafc6ba1485",
+   "text": "Does the newly discovered pcnmcldpacedeh generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcnmcldpacedeh)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcnmcldpacedeh)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcnmcldpacedeh)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcnmcldpacedeh)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcnmcldpacedeh)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcnmcldpacedeh)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcnmcldpacedeh"
+  },
+  {
+   "qid": "Qe158de5365e1",
+   "text": "Does the newly discovered pcodmfijjoaocd generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcodmfijjoaocd)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcodmfijjoaocd)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcodmfijjoaocd)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcodmfijjoaocd)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcodmfijjoaocd)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcodmfijjoaocd)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcodmfijjoaocd"
+  },
+  {
+   "qid": "Qe5796e8bf250",
+   "text": "Does the newly discovered pcaegmmogihjop generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcaegmmogihjop)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcaegmmogihjop)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcaegmmogihjop)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcaegmmogihjop)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcaegmmogihjop)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcaegmmogihjop)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcaegmmogihjop"
+  },
+  {
+   "qid": "Qf00300cb20c8",
+   "text": "Does the newly discovered pcnohmignjealo generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcnohmignjealo)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcnohmignjealo)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcnohmignjealo)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcnohmignjealo)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcnohmignjealo)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcnohmignjealo)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pcnohmignjealo"
+  },
+  {
+   "qid": "Qf5a33e8f48fb",
+   "text": "Does the newly discovered pchankajmhpjnm generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pchankajmhpjnm)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pchankajmhpjnm)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pchankajmhpjnm)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pchankajmhpjnm)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pchankajmhpjnm)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pchankajmhpjnm)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pchankajmhpjnm"
+  },
+  {
+   "qid": "Qfc7480fbbfff",
+   "text": "Does the newly discovered pclcpkkcddkfpb generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "VOLATILITY",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pclcpkkcddkfpb)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pclcpkkcddkfpb)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pclcpkkcddkfpb)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pclcpkkcddkfpb)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pclcpkkcddkfpb)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pclcpkkcddkfpb)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.692e-05,
+   "subject": "pclcpkkcddkfpb"
+  },
+  {
+   "qid": "Q0e27a35ee023",
+   "text": "Does the newly discovered pcedbanfnibdec generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcedbanfnibdec)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcedbanfnibdec)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcedbanfnibdec)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcedbanfnibdec)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcedbanfnibdec)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcedbanfnibdec)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcedbanfnibdec"
+  },
+  {
+   "qid": "Q4cfde080e1f9",
+   "text": "Does the newly discovered pcbemicknibnap generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcbemicknibnap)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcbemicknibnap)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcbemicknibnap)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcbemicknibnap)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcbemicknibnap)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcbemicknibnap)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcbemicknibnap"
+  },
+  {
+   "qid": "Q5ee662b0cf76",
+   "text": "Does the newly discovered pcpllghbkkddde generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcpllghbkkddde)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcpllghbkkddde)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcpllghbkkddde)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcpllghbkkddde)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcpllghbkkddde)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcpllghbkkddde)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcpllghbkkddde"
+  },
+  {
+   "qid": "Q8b80d2888c69",
+   "text": "Does the newly discovered pcnoofkdbelkdl generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcnoofkdbelkdl)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcnoofkdbelkdl)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcnoofkdbelkdl)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcnoofkdbelkdl)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcnoofkdbelkdl)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcnoofkdbelkdl)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcnoofkdbelkdl"
+  },
+  {
+   "qid": "Q9820d35c9bae",
+   "text": "Does the newly discovered pcgdphpmoebpln generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcgdphpmoebpln)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcgdphpmoebpln)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcgdphpmoebpln)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcgdphpmoebpln)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcgdphpmoebpln)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcgdphpmoebpln)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcgdphpmoebpln"
+  },
+  {
+   "qid": "Qa9ee36a9c3b8",
+   "text": "Does the newly discovered pcjhajdegablal generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcjhajdegablal)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcjhajdegablal)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcjhajdegablal)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcjhajdegablal)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcjhajdegablal)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcjhajdegablal)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcjhajdegablal"
+  },
+  {
+   "qid": "Qf749c9d2b0b9",
+   "text": "Does the newly discovered pcnlgpaeimjkbd generalize beyond the data it was found in?",
+   "source": "new_discovery",
+   "problem": "LOSS_AVOIDANCE",
+   "created_real": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "success": "the effect replicates in at least two unseen periods and one unseen group of names with the same sign and at least half the size",
+   "failure": "the effect vanishes or reverses in an unseen period or group, and the discovery is recorded as not general",
+   "hypotheses": [
+    [
+     "h_general",
+     "the effect holds in unseen periods and groups (pcnlgpaeimjkbd)",
+     0.25,
+     "explanation"
+    ],
+    [
+     "h_period_bound",
+     "the effect belongs to the period it was found in (pcnlgpaeimjkbd)",
+     0.2,
+     "explanation"
+    ],
+    [
+     "h_group_bound",
+     "the effect belongs to the group of names it was found in (pcnlgpaeimjkbd)",
+     0.15,
+     "explanation"
+    ],
+    [
+     "h_selection",
+     "the effect is a product of searching many candidates (pcnlgpaeimjkbd)",
+     0.25,
+     "noise"
+    ],
+    [
+     "h_proxy",
+     "the effect is a proxy for volatility or liquidity (pcnlgpaeimjkbd)",
+     0.1,
+     "explanation"
+    ],
+    [
+     "h_unknown",
+     "none of these (pcnlgpaeimjkbd)",
+     0.05,
+     "explanation"
+    ]
+   ],
+   "plan": {
+    "steps": [
+     "re-test in unseen periods",
+     "re-test in unseen groups",
+     "compare effect sizes"
+    ],
+    "controls": [
+     "shuffled_labels",
+     "noise_pair",
+     "placebo_window"
+    ],
+    "min_n": 100,
+    "cost": 90.0
+   },
+   "priority": 2.307e-05,
+   "subject": "pcnlgpaeimjkbd"
+  }
+ ],
+ "refused": [],
+ "merged": 0,
+ "ledger": [
+  {
+   "qid": "Q0f1e3eaadc84",
+   "key": "b555fa8140df",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcaikdfmhginbc generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q1f375fb14468",
+   "key": "fe6ba144b919",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcdnjkppfogghe generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q32476b2b1c8c",
+   "key": "9d56091f190e",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcmodgaocbkbjh generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q655c8b726641",
+   "key": "3c5bbbb2941f",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcggeaoekjadma generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q8409a3dc5ff8",
+   "key": "edbbee734be7",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcfgcfimkfndaa generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q97a571c39187",
+   "key": "66c49e23587c",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcofclidcjkifc generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q9f5b6fd31cad",
+   "key": "399952da1492",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcagfkihfpdpbk generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qb32d7c3da848",
+   "key": "bdedf71a4a0b",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcllcgbingjplj generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qc8badde9438f",
+   "key": "f8d40e2b172b",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pckiphglpmnjam generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qce5f4f70941c",
+   "key": "86f7b51c6eca",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcpkfimmejiood generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qd59bea089273",
+   "key": "85e04620c4ba",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pccnobfdfpmage generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qd9c9cad21fce",
+   "key": "9e1ff2b4158c",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pclfackpbgghdj generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qdbafc6ba1485",
+   "key": "e1e24880435f",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcnmcldpacedeh generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qe158de5365e1",
+   "key": "d1a2279b98c3",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcodmfijjoaocd generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qe5796e8bf250",
+   "key": "c0c102e5532d",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcaegmmogihjop generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qf00300cb20c8",
+   "key": "13d687a8d66c",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2025-12-31",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcnohmignjealo generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qf5a33e8f48fb",
+   "key": "e6815e8d6691",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pchankajmhpjnm generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qfc7480fbbfff",
+   "key": "6dfaddda3609",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pclcpkkcddkfpb generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q0e27a35ee023",
+   "key": "702ae05e51af",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcedbanfnibdec generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q4cfde080e1f9",
+   "key": "e68e6f415046",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcbemicknibnap generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q5ee662b0cf76",
+   "key": "3104aa5c9fec",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcpllghbkkddde generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q8b80d2888c69",
+   "key": "87c318a03ef1",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcnoofkdbelkdl generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Q9820d35c9bae",
+   "key": "f8ee61e106cb",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcgdphpmoebpln generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qa9ee36a9c3b8",
+   "key": "a5a262ae7adc",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcjhajdegablal generalize beyond the data it was found in?"
+  },
+  {
+   "qid": "Qf749c9d2b0b9",
+   "key": "c130b15c016d",
+   "source": "new_discovery",
+   "asked_at": "2026-09-30",
+   "evidence_through": "2026-01-08",
+   "fate": "OPEN",
+   "difficulty": 0.7954834594497356,
+   "at": "2026-09-30",
+   "text": "Does the newly discovered pcnlgpaeimjkbd generalize beyond the data it was found in?"
+  }
+ ]
+}

@@ -46,3 +46,5 @@
 18:04:46 W00088 development tier 4: real 3/19 FP 0 {} 374s
 18:12:27 W00090 development tier 1: real 8/20 FP 0 {} 461s
 18:16:07 W00092 development tier 5: real 3/13 FP 0 {} 219s
+18:21:20 W00094 development tier 2: real 8/18 FP 0 {} 313s
+18:31:33 W00096 development tier 5: real 5/15 FP 1 {'proxy': 1} 613s
