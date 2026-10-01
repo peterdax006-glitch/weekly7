@@ -237,6 +237,26 @@ def _find_capability(ledger: Ledger, component: str) -> Optional[str]:
     return None
 
 
+def _build_order(specs: Sequence[SM.CapabilitySpec]) -> list[SM.CapabilitySpec]:
+    """Specs with every component after the components it is built on (COMPONENT_DEPENDS), ties by id. K10 is built on K15, so id
+    order alone silently dropped that dependency."""
+    by_id = {s.id: s for s in specs}
+    out: list[SM.CapabilitySpec] = []
+    seen: set[str] = set()
+
+    def visit(cid: str) -> None:
+        if cid in seen:
+            return
+        seen.add(cid)
+        for d in COMPONENT_DEPENDS.get(cid, ()):
+            if d in by_id:
+                visit(d)
+        out.append(by_id[cid])
+    for cid in sorted(by_id):
+        visit(cid)
+    return out
+
+
 def compile_capabilities(ledger: Ledger, objective_id: str, specs: Sequence[SM.CapabilitySpec],
                          created_by: M.Role = M.Role.KERNEL) -> Compiled:
     """Register a Capability and the requirement ladder for every declared component. Idempotent and dependency-ordered."""
@@ -252,7 +272,7 @@ def compile_capabilities(ledger: Ledger, objective_id: str, specs: Sequence[SM.C
                                                          f"{', '.join(spec.tests) or 'none'}; floor {spec.floor}"))
             created += 1
         caps[spec.id] = cid
-    for spec in order:
+    for spec in _build_order(order):
         prio = M.Priority.CRITICAL if spec.id in CRITICAL_COMPONENTS else M.Priority.HIGH
         for step, _kind, _w, desc in LADDER:
             key = f"{spec.id}.{step}"

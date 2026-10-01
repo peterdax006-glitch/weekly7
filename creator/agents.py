@@ -242,6 +242,8 @@ def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Bud
         data = {}
     if isinstance(data, list):                                          # stream form: take the final result event
         data = next((x for x in reversed(data) if isinstance(x, dict) and x.get("type") == "result"), {})
+    if not isinstance(data, dict):                                      # valid JSON that is not an object (a bare string, a number)
+        data = {}
     text = str(data.get("result", ""))
     usd = float(data.get("total_cost_usd", 0.0) or 0.0)
     turns = int(data.get("num_turns", 0) or 0)
