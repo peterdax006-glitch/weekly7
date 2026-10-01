@@ -1,2 +1,10 @@
 19:10:18 run tune4 part 0/2 pid 24416 code 9b3e26a1d8800e14
 19:11:36 W00010 development tier 3: real 9/21 FP 0 {} 77s
+19:13:24 W00022 development tier 5: real 6/19 FP 0 {} 109s
+21:06:09 W00028 development tier 3: real 6/19 FP 1 {'proxy': 1} 6764s
+21:08:04 W00036 development tier 4: real 6/23 FP 0 {} 115s
+21:09:16 W00086 development tier 2: real 4/22 FP 1 {'proxy': 1} 72s
+21:10:29 W00096 development tier 5: real 5/15 FP 1 {'proxy': 1} 73s
+21:11:36 W00002 development tier 3: real 3/18 FP 0 {} 67s
+21:12:42 W00008 development tier 2: real 4/17 FP 0 {} 66s
+done

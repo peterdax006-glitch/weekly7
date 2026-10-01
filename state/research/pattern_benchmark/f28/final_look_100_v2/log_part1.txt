@@ -1,0 +1,4 @@
+21:15:40 run final_look_100_v2 part 1/2 pid 28532 code 9b3e26a1d8800e14
+21:17:15 W00001 development tier 4: real 6/21 FP 0 {} 94s
+21:19:02 W00003 development tier 6: real 3/19 FP 0 {} 108s
+21:20:08 W00005 development tier 2: real 5/16 FP 0 {} 66s
