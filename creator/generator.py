@@ -562,7 +562,8 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
                       rank: bool = True, extra_passes: int = 5, extra_budget: int = 40) -> tuple[bool, dict[str, str], int]:
     """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried).
     With rank=True the first visible-passing candidate is not trusted: further passing candidates are collected (up to extra_passes /
-    extra_budget more tries) and the one that changes the program's behaviour least (auto-derived calls vs the original) wins.
+    extra_budget more tries, never beyond budget) and the one that changes the program's behaviour least (auto-derived calls vs the
+    original) wins.
     rank=False is the old first-found behaviour."""
     targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
                and p.name not in ("__init__.py", "conftest.py") and "__pycache__" not in p.parts]
@@ -584,7 +585,7 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
             if tried >= budget and not passing:
                 path.write_text(original, encoding="utf-8")
                 return False, {}, tried
-            if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget + extra_budget):
+            if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget):   # budget is a hard cap
                 break
             tried += 1
             src = ast.unparse(cand) + "\n"

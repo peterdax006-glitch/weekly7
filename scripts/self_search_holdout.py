@@ -38,7 +38,24 @@ def run(targeted: bool, workers: int) -> dict:
     return {"config": config, "summary": suite.summary(), "tasks": {s.task_id: s.outcome for s in scores}}
 
 
+def run_synth(workers: int) -> dict:
+    from creator import synth as S
+    tasks = [t for t in D.load_tasks() if t.split == "holdout" and t.category == "feature"]
+    m = D.load_manifest()
+    D.freeze_config({"solver": "self-synth"}, FROZEN)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        scores = list(pool.map(lambda t: D.run_task(t, S.SynthSolver(), m, solver_name="self-synth"), tasks))
+    suite = D.SuiteScore("holdout", "self-synth", tuple(scores))
+    return {"summary": suite.summary(), "tasks": {s.task_id: s.outcome for s in scores}}
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["synth"]:
+        r = run_synth(int(argv[1]) if len(argv) > 1 else 2)
+        (OUT.parent / "self_synth_holdout.json").write_text(json.dumps(r, indent=1), encoding="utf-8")
+        s = r["summary"]
+        print("synth holdout feature", f"{s['SOLVED']}/{s['n']} solved", "false completions", s["FALSE_COMPLETION"], r["tasks"])
+        return 0
     workers = int(argv[0]) if argv else 4
     t0 = time.time()
     out: dict[str, dict] = {"targeted": run(True, workers), "generic_only": run(False, workers)}
