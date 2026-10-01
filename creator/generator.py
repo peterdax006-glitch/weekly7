@@ -559,7 +559,8 @@ def _edit_size(original: str, candidate: str) -> int:
 
 
 def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True,
-                      rank: bool = True, extra_passes: int = 5, extra_budget: int = 40) -> tuple[bool, dict[str, str], int]:
+                      rank: bool = True, extra_passes: int = 5, extra_budget: int = 40,
+                      per_family: int = 40, pair_width: int = 12) -> tuple[bool, dict[str, str], int]:
     """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried).
     With rank=True the first visible-passing candidate is not trusted: further passing candidates are collected (up to extra_passes /
     extra_budget more tries, never beyond budget) and the one that changes the program's behaviour least (auto-derived calls vs the
@@ -575,10 +576,10 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
         except SyntaxError:
             continue
         legacy = list(generic_mutations(tree))
-        singles = list(targeted_mutations(tree)) + legacy
+        singles = list(targeted_mutations(tree, per_family)) + legacy
         cands: Iterator[ast.Module] = iter(singles)
-        if pairs:
-            cands = itertools.chain(singles, (m2 for m1 in legacy[:12] for m2 in itertools.islice(mutations(m1), 12)))
+        if pairs and pair_width > 0:
+            cands = itertools.chain(singles, (m2 for m1 in legacy[:pair_width] for m2 in itertools.islice(mutations(m1), pair_width)))
         passing: list[str] = []
         first_at = 0
         for cand in cands:

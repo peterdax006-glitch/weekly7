@@ -87,6 +87,8 @@ class Scores:
     n_holdout: int
     holdout: float
     holdout_guard: float = 1.0
+    guard_metric: str = GUARD            # name of the guard metric this workload computes
+    confirm_label: str = "holdout"       # what the confirmation split really is (the real workload never touches the holdout)
 
 
 Workload = Callable[[ProcessConfig], Scores]
@@ -221,6 +223,8 @@ def ab_test(led: Ledger, experiment_id: str, base: ProcessConfig, cand: ProcessC
     sb, sc = workload(base), workload(cand)
     pop = f"process-workload:{sha256_text(json.dumps([sb.n_dev, sb.n_holdout, len(sb.dev)]))[:12]}"
     cond = f"fixed deterministic workload; budget {BUDGET}; replicates {len(sb.dev)}"
+    if sb.confirm_label != "holdout":
+        cond += f"; confirmation split = {sb.confirm_label}"
 
     def meas(metric: str, v: float, n: int, split: M.Split, who: str, inputs: Any) -> str:
         return led.append(M.Measurement(
@@ -230,7 +234,7 @@ def ab_test(led: Ledger, experiment_id: str, base: ProcessConfig, cand: ProcessC
 
     def ids(s: Scores, who: str, cfg: ProcessConfig) -> tuple[list[str], str, str]:
         d = [meas(PRIMARY, v, s.n_dev, M.Split.DEV, who, {"cfg": dataclasses.asdict(cfg), "rep": r}) for r, v in enumerate(s.dev)]
-        g = meas(GUARD, sum(s.guard) / len(s.guard), s.n_dev, M.Split.DEV, who, {"cfg": dataclasses.asdict(cfg), "guard": 1})
+        g = meas(s.guard_metric, sum(s.guard) / len(s.guard), s.n_dev, M.Split.DEV, who, {"cfg": dataclasses.asdict(cfg), "guard": 1})
         h = meas(PRIMARY, s.holdout, s.n_holdout, M.Split.HOLDOUT, who, {"cfg": dataclasses.asdict(cfg), "holdout": 1})
         return d, g, h
     bd, bg, bh = ids(sb, "baseline", base)
