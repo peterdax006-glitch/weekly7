@@ -178,7 +178,7 @@ def test_lm_trainer_starts_only_when_idle_and_ram_allows(tmp_path: Path) -> None
     free[0] = 8.0
     tr.tick()
     assert len(spawned) == 1
-    assert spawned[0][-3:] == ["train", "--minutes", "20"]
+    assert spawned[0][-7:] == ["train", "--minutes", "20", "--mix", "dialogue", "--dialogue-share", "0.2"]
     assert spawned[0][0] == str(tr.python)
 
 

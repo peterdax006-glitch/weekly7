@@ -44,6 +44,8 @@ LM_PYTHON = Path.home() / "creator_runtime" / "lmenv" / ("Scripts/python.exe" if
 LM_IDLE_S = 600.0                    # the owner must have been away this long before training starts
 LM_MIN_FREE_GB = 3.0
 LM_MINUTES = 20
+LM_MIX = "dialogue"                 # training mix for the idle trainer: "dialogue" (stories + dialogue turns) or "none" (stories only)
+LM_DIALOGUE_SHARE = 0.2
 LM_GRACE_S = 90.0                    # how long a run gets to stop itself via its STOP file before the process tree is ended
 LM_RESTART_GAP_S = 60.0              # never relaunch faster than this (a crashing trainer must not spin)
 
@@ -154,7 +156,10 @@ class LMTrainer:
         self.warned = False
 
     def cmd(self) -> list[str]:
-        return [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
+        c = [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
+        if LM_MIX != "none":
+            c += ["--mix", LM_MIX, "--dialogue-share", str(LM_DIALOGUE_SHARE)]
+        return c
 
     def _spawn(self, cmd: list[str]) -> Any:
         flags = (IDLE_PRIORITY | NO_WINDOW) if sys.platform == "win32" else 0
