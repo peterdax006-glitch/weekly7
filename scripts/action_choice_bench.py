@@ -317,6 +317,66 @@ def main_heldout(seeds: list[int], n: int, hard: bool, call_timeout: float, out_
     return res
 
 
+def lesson_examples(lessons: list[Any], objective: str, k: int = 3) -> str:
+    """Examples exactly as ActionStudent.build_prompt renders them: retrieved ADOPTED lessons as (objective, chosen actions)."""
+    from creator import model_student as MS
+    parts: list[str] = []
+    for les in MS.retrieve(lessons, "shrink", objective, "", 6):
+        acts = A.lesson_actions(les)
+        if acts and len(parts) < k:
+            parts.append(f"Example task: {les.objective[:300]}\nChosen actions: " + "; ".join(a.short() for a in acts[:4]))
+    return "\n\n".join(parts)
+
+
+def main_lessons(seeds: list[int], n: int, hard: bool, call_timeout: float, out_path: Path, lessons_path: Path) -> dict[str, Any]:
+    """Same tasks, same rich-label question, same lexical-prior combination; only the retrieved lesson examples differ (with vs without)."""
+    from creator import generator as G
+    from creator.curriculum import LessonLog
+    lessons = LessonLog(lessons_path).lessons()
+    tasks = [t for sd in seeds for t in generate_tasks(n, sd, hard)]
+    N = len(tasks)
+    res: dict[str, Any] = {"seeds": seeds, "n_per_seed": n, "hard": hard, "N": N, "lessons": len(lessons), "policies": {}}
+    pols: dict[str, list[Optional[int]]] = {"lexical": [A.lexical_pick(t.objective, t.candidates) for t in tasks]}
+
+    def dump() -> None:
+        res["policies"] = {}
+        for name, pk in pols.items():
+            k = sum(p == t.correct for t, p in zip(tasks, pk))
+            ent: dict[str, Any] = {"correct": k, "n": N, "acc": round(k / N, 3), "ci95": _wilson(k, N),
+                                   "by_kind": {kd: sum(1 for t, p in zip(tasks, pk) if t.kind == kd and p == t.correct) for kd in KINDS},
+                                   "confusion": {}}
+            for t, p in zip(tasks, pk):
+                if p != t.correct:
+                    key = f"{t.kind}->{_kind_of(t, p)}"
+                    ent["confusion"][key] = ent["confusion"].get(key, 0) + 1
+            res["policies"][name] = ent
+        res["tasks_per_kind"] = {kd: sum(t.kind == kd for t in tasks) for kd in KINDS}
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(res, indent=2), encoding="utf-8", newline="\n")
+
+    dump()
+    with G.LocalModel(startup_s=300.0) as llm:
+        for name, use in {"model_no_lessons": False, "model_with_lessons": True}.items():
+            out: list[Optional[int]] = []
+            for i, t in enumerate(tasks):
+                ex = lesson_examples(lessons, t.objective) if use else ""
+                q = (ex + "\n\n" if ex else "") + _question(t, True, False)
+                try:
+                    r = str(llm.chat([{"role": "system", "content": A.SYSTEM}, {"role": "user", "content": q}], max_tokens=60,
+                                     temperature=0.0, timeout=call_timeout))
+                    pk = classify(r, len(t.candidates))[1]
+                    out.append(pk[0] if pk else None)
+                except Exception as e:                    # noqa: BLE001
+                    print(f"  [{name}] task {i} failed: {type(e).__name__}", flush=True)
+                    out.append(None)
+                print(f"  [{name}] {i + 1}/{N} pick={out[-1]} want={t.correct}", flush=True)
+            pols[name] = out
+            pols["combined_" + name] = [A.combine_choice(p, t.objective, t.candidates) for t, p in zip(tasks, out)]
+            dump()
+            print(name, res["policies"][name]["acc"], res["policies"]["combined_" + name]["acc"], flush=True)
+    return res
+
+
 def main_variants(seeds: list[int], n: int, configs: dict[str, dict[str, Any]], hard: bool = False) -> dict[str, Any]:
     from creator import generator as G
     res: dict[str, Any] = {}
@@ -336,11 +396,15 @@ def main() -> int:
     ap.add_argument("--hard", action="store_true", help="name-free objectives (role descriptions only)")
     ap.add_argument("--seeds", default="101,102,103")
     ap.add_argument("--heldout", action="store_true", help="one-shot held-out measurement of all policies with CIs (use with --seeds, --hard)")
+    ap.add_argument("--lessons", help="with --heldout: compare the model with vs without examples retrieved from this lesson JSONL")
     ap.add_argument("--call-timeout", type=float, default=90.0)
     ap.add_argument("--out", default=str(ROOT / "state/creator/action_choice_bench.json"))
     args = ap.parse_args()
     from creator import generator as G
     t0 = time.monotonic()
+    if args.heldout and args.lessons:
+        main_lessons([int(x) for x in args.seeds.split(",")], args.n, args.hard, args.call_timeout, Path(args.out), Path(args.lessons))
+        return 0
     if args.heldout:
         main_heldout([int(x) for x in args.seeds.split(",")], args.n, args.hard, args.call_timeout, Path(args.out))
         return 0
