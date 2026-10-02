@@ -243,3 +243,16 @@ def test_lm_trainer_uses_idle_priority_and_no_window() -> None:
     svc = _load("nupen_service")
     assert svc.IDLE_PRIORITY == 0x40 and svc.NO_WINDOW == 0x08000000
     assert str(svc.LM_PYTHON).replace("\\", "/").endswith("creator_runtime/lmenv/Scripts/python.exe") or sys.platform != "win32"
+
+
+def test_the_supervisor_imports_creator_when_launched_from_anywhere(tmp_path: Path) -> None:
+    """2 Oct: launched as a script (pythonw scripts/nupen_service.py) its import path starts at scripts/, so the LM trainer's
+    `from creator import swarm` raised ModuleNotFoundError and the supervisor died silently right after 'supervisor up'."""
+    import subprocess
+    script = Path(__file__).resolve().parents[1] / "scripts" / "nupen_service.py"
+    code = ("import importlib.util, os, sys; sys.path[:] = [p for p in sys.path if p not in ('', os.getcwd())]; "
+            f"spec = importlib.util.spec_from_file_location('svc', r'{script}'); m = importlib.util.module_from_spec(spec); "
+            "spec.loader.exec_module(m); m.LMTrainer(); print('ok')")
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    r = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, env=env, timeout=120)
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-800:]

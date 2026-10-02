@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:                     # launched as a script its path starts at scripts/: 2 Oct, the LM trainer's
+    sys.path.insert(0, str(ROOT))                 # `from creator import swarm` killed the supervisor right after 'up'
 STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
 PIDFILE = STATE / "nupen_service.pid"
