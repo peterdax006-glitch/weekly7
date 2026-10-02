@@ -30,7 +30,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR002",
@@ -50,7 +50,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR003",
@@ -70,7 +70,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR004",
@@ -90,7 +90,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR005",
@@ -110,7 +110,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR005_structure computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR005_structure computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR006",
@@ -130,7 +130,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR006_branch_state computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR006_branch_state computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR007",
@@ -150,7 +150,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR007_builders computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR007_builders computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR008",
@@ -170,7 +170,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR008_integrations computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR008_integrations computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR009",
@@ -190,7 +190,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR009_tests computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR009_tests computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR010",
@@ -210,7 +210,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR010_validation_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR010_validation_infra computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR011",
@@ -230,7 +230,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR011_provenance computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR011_provenance computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR012",
@@ -250,7 +250,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR012_rollback computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR012_rollback computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR013",
@@ -270,7 +270,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR013_deterministic_replay computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR013_deterministic_replay computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR014",
@@ -290,7 +290,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR014_reachability computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR014_reachability computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR015",
@@ -310,7 +310,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR015_data_flow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR015_data_flow computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR016",
@@ -330,7 +330,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR016_firewalls computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR016_firewalls computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR017",
@@ -350,7 +350,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR017_research_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR017_research_boundary computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR018",
@@ -370,7 +370,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR018_learner_truth_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR018_learner_truth_boundary computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR019",
@@ -390,7 +390,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR019_known_failures computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR019_known_failures computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR020",
@@ -410,7 +410,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR020_known_limitations computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR020_known_limitations computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR021",
@@ -430,7 +430,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR021_stale_checklists computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR021_stale_checklists computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR022",
@@ -450,7 +450,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR022_duplicates computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR022_duplicates computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR023",
@@ -470,7 +470,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR023_disconnected computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR023_disconnected computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR024",
@@ -490,7 +490,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR024_implemented_not_validated computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR024_implemented_not_validated computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR025",
@@ -510,7 +510,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR025_shallow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR025_shallow computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR026",
@@ -530,7 +530,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR026_future_leak_risks computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR026_future_leak_risks computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR027",
@@ -550,7 +550,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR027_self_learning_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR027_self_learning_infra computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR028",
@@ -570,7 +570,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR028_research_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR028_research_infra computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR029",
@@ -590,7 +590,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR029_experiment_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR029_experiment_infra computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR030",
@@ -610,7 +610,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR030_health_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR030_health_infra computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR031",
@@ -630,7 +630,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR031_compute_controls computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR031_compute_controls computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR032",
@@ -650,7 +650,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents, CR005_structure, CR006_branch_state, CR007_builders, CR008_ computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents, CR005_structure, CR006_branch_state, CR007_builders, CR008_ computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR033",
@@ -670,7 +670,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR005_structure, CR015_data_flow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR005_structure, CR015_data_flow computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR034",
@@ -690,7 +690,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR035",
@@ -710,7 +710,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR027_self_learning_infra, CR028_research_infra, CR029_experiment_infra, CR030_h computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR027_self_learning_infra, CR028_research_infra, CR029_experiment_infra, CR030_h computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR036",
@@ -730,7 +730,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR015_data_flow, CR017_research_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
+   "notes": "section CR015_data_flow, CR017_research_boundary computed by creator/recon.py on the current tree 190d6e23cbea; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR037",
@@ -3123,44 +3123,78 @@
    "group": "SECTION / BUILD THE SYSTEM THAT CAN BUILD ITSELF",
    "description": "SECTION REQUIREMENT: BUILD THE SYSTEM THAT CAN BUILD ITSELF - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_integration.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "4 rules: NOT_CHECKABLE=1, PASS=2, UNPROVEN=1; CR209.2 UNPROVEN, CR209.4 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR210",
    "group": "SECTION / THE ONLY MAJOR THING YOU ARE BUILDING NOW IS THE CREATOR.",
    "description": "SECTION REQUIREMENT: THE ONLY MAJOR THING YOU ARE BUILDING NOW IS THE CREATOR. - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_objective.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=2, UNPROVEN=1; CR210.3 UNPROVEN; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR211",
    "group": "SECTION / THE CENTRAL RULE",
    "description": "SECTION REQUIREMENT: THE CENTRAL RULE - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_integration.py",
+    "tests/test_creator_recursion.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=2, PENDING=1; CR211.3 PENDING; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR212",
    "group": "SECTION / 1. THE MOST IMPORTANT DISTINCTION",
    "description": "SECTION REQUIREMENT: 1. THE MOST IMPORTANT DISTINCTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: incomplete;; imperfect;; partially validated;; rough;; over-specialized;; under-integrated;; missing capabilities.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_selfmodel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "4 rules: NOT_CHECKABLE=1, PASS=3; CR212.4 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR213",
@@ -3193,99 +3227,179 @@
    "group": "SECTION / 2. DO NOT MAKE WEEKLY7 THE FIRST AUTONOMOUS TARGET",
    "description": "SECTION REQUIREMENT: 2. DO NOT MAKE WEEKLY7 THE FIRST AUTONOMOUS TARGET - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_integration.py",
+    "tests/test_creator_kernel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "4 rules: NOT_CHECKABLE=1, PASS=2, UNPROVEN=1; CR215.2 UNPROVEN, CR215.4 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR216",
    "group": "SECTION / 3. CLAUDE'S ROLE",
    "description": "SECTION REQUIREMENT: 3. CLAUDE'S ROLE - every requirement in this section of CREATOR_MASTER_PROMPT.md (11 bullets: architect;; foundation builder;; infrastructure builder;; integrator;; tester;; auditor.; evaluator;; adversarial reviewer;; supervisor;; safety authority;; independent verifier.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "2 rules: PASS=1, PENDING=1; CR216.1 PENDING; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR217",
    "group": "SECTION / Initially",
    "description": "SECTION REQUIREMENT: Initially - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: architect;; foundation builder;; infrastructure builder;; integrator;; tester;; auditor.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
    "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "1 rules: NOT_CHECKABLE=1; CR217.1 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR218",
    "group": "SECTION / During autonomous-development construction",
    "description": "SECTION REQUIREMENT: During autonomous-development construction - every requirement in this section of CREATOR_MASTER_PROMPT.md (5 bullets: evaluator;; adversarial reviewer;; supervisor;; safety authority;; independent verifier.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_ledger.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=3; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR219",
    "group": "SECTION / Eventually",
    "description": "SECTION REQUIREMENT: Eventually - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=2, PENDING=1; CR219.1 PENDING; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR220",
    "group": "SECTION / 4. THE PRIMARY DEVELOPMENT PRINCIPLE",
    "description": "SECTION REQUIREMENT: 4. THE PRIMARY DEVELOPMENT PRINCIPLE - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_gaps.py",
+    "tests/test_creator_oversight.py",
+    "tests/test_creator_planner.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=3; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR221",
    "group": "SECTION / 5. EXISTING PROJECT MATERIAL IS AUTHORITATIVE FOUNDATION",
    "description": "SECTION REQUIREMENT: 5. EXISTING PROJECT MATERIAL IS AUTHORITATIVE FOUNDATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (13 bullets: C62 — Self-Learning Engine;; C63 — Foundation-first doctrine;; C64 — Blind trader / knowing curator;; C65 — Live-system parking;; C66 — Autonomous Deep-Research Self-Learning Engine;; C67 — Mover-episode research;; C68 — Prediction-error → market-change → self-calibration → adaptive-exit intelligence;; existing canon;; existing anti-cheating requirements;; existing provenance requirements;; existing validation requirements;; existing firewall requirements;; existing testing requirements.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_sandbox.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "5 rules: NOT_CHECKABLE=1, PASS=4; CR221.5 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR222",
    "group": "SECTION / 7. STATUS STATES ARE SACRED",
    "description": "SECTION REQUIREMENT: 7. STATUS STATES ARE SACRED - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_selfmodel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "5 rules: PASS=5; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR223",
    "group": "SECTION / 8. THE EXECUTION ORDER",
    "description": "SECTION REQUIREMENT: 8. THE EXECUTION ORDER - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_integration.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_ledger.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "4 rules: PASS=4; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR224",
@@ -3994,44 +4108,85 @@
    "group": "SECTION / 62. LINE-DEPTH REQUIREMENTS",
    "description": "SECTION REQUIREMENT: 62. LINE-DEPTH REQUIREMENTS - every requirement in this section of CREATOR_MASTER_PROMPT.md (12 bullets: C62 minimum: **56,700 meaningful lines**;; C66 minimum: **61,600 meaningful lines**;; combined C62+C66 minimum: approximately **118,300 meaningful lines**.; blank lines;; comments;; docstrings;; repeated boilerplate;; meaningless wrappers;; duplicated code;; dead code;; fake abstractions;; generated padding.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_efficiency.py",
+    "tests/test_creator_objective.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "4 rules: NOT_CHECKABLE=1, PASS=3; CR278.4 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR279",
    "group": "SECTION / MEANINGFUL LINES ONLY",
    "description": "SECTION REQUIREMENT: MEANINGFUL LINES ONLY - every requirement in this section of CREATOR_MASTER_PROMPT.md (9 bullets: blank lines;; comments;; docstrings;; repeated boilerplate;; meaningless wrappers;; duplicated code;; dead code;; fake abstractions;; generated padding.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_efficiency.py",
+    "tests/test_creator_selfmodel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=3; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR280",
    "group": "SECTION / 63. WORK PACKAGE GRANULARITY",
    "description": "SECTION REQUIREMENT: 63. WORK PACKAGE GRANULARITY - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_ledger.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: PASS=3; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR281",
    "group": "SECTION / 65. REQUIRED AUTONOMOUS LOOP",
    "description": "SECTION REQUIREMENT: 65. REQUIRED AUTONOMOUS LOOP - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_gaps.py",
+    "tests/test_creator_integration.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_meta.py",
+    "tests/test_creator_planner.py",
+    "tests/test_creator_recursion.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "6 rules: PASS=6; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR282",
@@ -4051,11 +4206,20 @@
    "group": "SECTION / 67. DO NOT MANUALLY SOLVE WHAT THE AUTONOMOUS DEVELOPER SHOULD SOLVE",
    "description": "SECTION REQUIREMENT: 67. DO NOT MANUALLY SOLVE WHAT THE AUTONOMOUS DEVELOPER SHOULD SOLVE - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_kernel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "5 rules: NOT_CHECKABLE=1, PASS=3, PENDING=1; CR283.4 PENDING, CR283.5 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR284",
@@ -4075,22 +4239,49 @@
    "group": "SECTION / 69. DO NOT CONFUSE COMPLEXITY WITH CAPABILITY",
    "description": "SECTION REQUIREMENT: 69. DO NOT CONFUSE COMPLEXITY WITH CAPABILITY - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_claims.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_oversight.py",
+    "tests/test_creator_recursion.py",
+    "tests/test_creator_research.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "6 rules: PASS=6; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR286",
    "group": "SECTION / 70. FAILURE IS NOT A REASON TO LOWER THE STANDARD",
    "description": "SECTION REQUIREMENT: 70. FAILURE IS NOT A REASON TO LOWER THE STANDARD - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: delete the test;; weaken the threshold;; change the definition;; hide the failure;; mark it as \"mostly complete\";; remove the difficult case;; substitute a weaker benchmark.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_audit_recursion_failures.py",
+    "tests/test_creator_devbench.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_planner.py",
+    "tests/test_creator_sandbox.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "7 rules: PASS=7; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR287",
@@ -4214,22 +4405,42 @@
    "group": "SECTION / 81. WHEN THE CHECKLIST RUNS OUT",
    "description": "SECTION REQUIREMENT: 81. WHEN THE CHECKLIST RUNS OUT - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_gaps.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_objective.py",
+    "tests/test_creator_recursion.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "5 rules: NOT_CHECKABLE=1, PASS=3, PENDING=1; CR296.1 PENDING, CR296.5 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR297",
    "group": "SECTION / 82. CURRENT DOWNSTREAM SYSTEMS ARE NOT THE FINISH LINE",
    "description": "SECTION REQUIREMENT: 82. CURRENT DOWNSTREAM SYSTEMS ARE NOT THE FINISH LINE - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: foundation;; test environments;; examples;; existing infrastructure;; development challenges;; sources of engineering lessons.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_kernel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "3 rules: NOT_CHECKABLE=1, PASS=2; CR297.3 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR298",
@@ -4249,66 +4460,121 @@
    "group": "SECTION / 84. FINAL OPERATING DIRECTIVE",
    "description": "SECTION REQUIREMENT: 84. FINAL OPERATING DIRECTIVE - every requirement in this section of CREATOR_MASTER_PROMPT.md (33 bullets: build the foundation;; build the autonomous-development machinery;; make it observable;; make it testable;; make it measurable;; make it safe to modify;; make it capable of inspecting itself;; make it capable of identifying its own gaps;; make it capable of researching;; make it capable of designing;; make it capable of implementing;; make it capable of testing;; make it capable of debugging;; make it capable of repairing;; make it capable of measuring improvement;; make it capable of learning from development;; make it capable of improving its development strategy;; make it capable of recursively improving itself;; prove every major capability.; manually finish the final system;; make Weekly7 the autonomous target;; turn the project into a stock-predictor completion project;; hardcode autonomous demonstrations;; fake self-improvement;; lower standards;; delete failures;; hide failed tests;; confuse code existence with capability;; confuse self-modification with self-improvement;; confuse a passing test with scientific validation;; tune against the final holdout;; give the autonomous developer answers it is supposed to discover;; manually perform the work that the autonomous developer is supposed to learn to perform.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "1 rules: UNPROVEN=1; CR299.1 UNPROVEN; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR300",
    "group": "SECTION / DO",
    "description": "SECTION REQUIREMENT: DO - every requirement in this section of CREATOR_MASTER_PROMPT.md (19 bullets: build the foundation;; build the autonomous-development machinery;; make it observable;; make it testable;; make it measurable;; make it safe to modify;; make it capable of inspecting itself;; make it capable of identifying its own gaps;; make it capable of researching;; make it capable of designing;; make it capable of implementing;; make it capable of testing;; make it capable of debugging;; make it capable of repairing;; make it capable of measuring improvement;; make it capable of learning from development;; make it capable of improving its development strategy;; make it capable of recursively improving itself;; prove every major capability.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "12 rules: PASS=8, UNPROVEN=4; CR300.1 UNPROVEN, CR300.2 UNPROVEN, CR300.7 UNPROVEN, CR300.12 UNPROVEN; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR301",
    "group": "SECTION / DO NOT",
    "description": "SECTION REQUIREMENT: DO NOT - every requirement in this section of CREATOR_MASTER_PROMPT.md (14 bullets: manually finish the final system;; make Weekly7 the autonomous target;; turn the project into a stock-predictor completion project;; hardcode autonomous demonstrations;; fake self-improvement;; lower standards;; delete failures;; hide failed tests;; confuse code existence with capability;; confuse self-modification with self-improvement;; confuse a passing test with scientific validation;; tune against the final holdout;; give the autonomous developer answers it is supposed to discover;; manually perform the work that the autonomous developer is supposed to learn to perform.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "TESTING",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_audit_recursion_failures.py",
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_devbench.py",
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_recursion.py",
+    "tests/test_creator_sandbox.py",
+    "tests/test_creator_selfmodel.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "9 rules: PASS=9; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR302",
    "group": "SECTION / 85. THE FINAL MISSION",
    "description": "SECTION REQUIREMENT: 85. THE FINAL MISSION - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "8 rules: PASS=3, PENDING=2, UNPROVEN=3; CR302.3 UNPROVEN, CR302.4 UNPROVEN, CR302.5 UNPROVEN, CR302.7 PENDING, CR302.8 PENDING; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR303",
    "group": "SECTION / 86. NON-STOP EXECUTION RULE",
    "description": "SECTION REQUIREMENT: 86. NON-STOP EXECUTION RULE - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: a convenient milestone was reached;; a time estimate was reached;; a large amount of code was written;; a subsystem appears complete;; the system appears impressive;; a demonstration succeeded.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IMPLEMENTED",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_efficiency.py",
+    "tests/test_creator_gaps.py",
+    "tests/test_creator_oversight.py",
+    "tests/test_creator_planner.py",
+    "tests/test_nupen_service.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "9 rules: NOT_CHECKABLE=1, PASS=6, PENDING=2; CR303.7 PENDING, CR303.8 PENDING, CR303.9 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   },
   {
    "id": "CR304",
    "group": "SECTION / 87. ABSOLUTE FINAL RULE",
    "description": "SECTION REQUIREMENT: 87. ABSOLUTE FINAL RULE - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [],
-   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
+   "status": "IN_PROGRESS",
+   "code_paths": [
+    "creator/doctrine.py"
+   ],
+   "tests": [
+    "tests/test_creator_doctrine.py"
+   ],
+   "evidence": [
+    "state/build/DOCTRINE_MAP.md",
+    "state/creator/junit"
+   ],
+   "notes": "5 rules: NOT_CHECKABLE=2, PASS=1, PENDING=1, UNPROVEN=1; CR304.2 PENDING, CR304.3 UNPROVEN, CR304.4 NOT_CHECKABLE, CR304.5 NOT_CHECKABLE; state/build/DOCTRINE_MAP.md"
   }
  ],
  "line_budget": []

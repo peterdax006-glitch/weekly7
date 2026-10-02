@@ -153,6 +153,30 @@ def rollup(items: list[dict[str, Any]]) -> int:
             changed += 1
     return changed
 
+DOCTRINE_MAP = ROOT / "state" / "build" / "DOCTRINE_MAP.md"
+
+
+def doctrine_rollup(items: list[dict[str, Any]]) -> int:
+    """The doctrine/process SECTION REQUIREMENT boxes: each section is split into rules (creator/doctrine.py), every rule is mapped
+    to existing code and passing tests, to a computed check, or listed as not machine-checkable; the section takes the weakest
+    rule result (TESTING only when every rule is mapped to a passing check or test; never VALIDATED)."""
+    from creator import doctrine as DOC
+    results = DOC.evaluate(ROOT)
+    DOCTRINE_MAP.write_bytes(DOC.render_map(results, DOC.TITLES).encode("utf-8"))
+    changed = 0
+    for it in items:
+        if it["id"] not in DOC.SECTIONS or not it["description"].startswith("SECTION REQUIREMENT"):
+            continue
+        status, note = DOC.roll_up(it["id"], results)
+        rules = DOC.RULES_BY_SECTION[it["id"]]
+        tests = sorted({r.split("::")[0] for x in rules for r in x.refs if r.startswith("tests/")})
+        new = (status, note, ["state/build/DOCTRINE_MAP.md", "state/creator/junit"], ["creator/doctrine.py"], tests)
+        if (it["status"], it["notes"], it["evidence"], it["code_paths"], it["tests"]) != new:
+            it["status"], it["notes"], it["evidence"], it["code_paths"], it["tests"] = new
+            changed += 1
+    return changed
+
+
 RECON_TESTS = "tests/test_creator_recon.py"
 RECON_EVIDENCE = ["state/build/CREATOR_PHASE0_LEDGER.json", "creator/recon.py", RECON_TESTS]
 # CR032-036 are conclusions drawn from the tested sections they name; each needs all of them present in a CURRENT ledger.
@@ -243,6 +267,7 @@ def main() -> int:
             it["status"], it["evidence"], it["notes"] = new[0], new[1], new[2]
             changed += 1
     changed += rollup(data["items"])
+    changed += doctrine_rollup(data["items"])
     CHECK.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
     from collections import Counter
     print("changed", changed, dict(Counter(i["status"] for i in data["items"])))
