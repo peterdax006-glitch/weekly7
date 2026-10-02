@@ -250,6 +250,10 @@ class Curriculum:
                 self.log.outcome(lid, False, f"{NO_SIGNAL[outcome]}: {str(getattr(report, 'reason', ''))[:500]}")
             else:
                 self.log.outcome(lid, None, f"{outcome}: undecided")
+        for s in self.students:                                 # a resume student retires the pending item the kernel just measured
+            hook = getattr(s, "resolved", None)
+            if hook is not None:
+                hook(str(getattr(report, "package", "")), ADJUDICATED.get(outcome), f"{outcome}: {str(getattr(report, 'reason', ''))[:300]}")
 
     # --- workers
     def student_steps(self) -> list["_StudentStep"]:
@@ -281,6 +285,8 @@ class _StudentStep:
                 p.package_id == les.package_id and p.solver == self.name and p.adopted is False and is_skill_signal(p) for p in past):
             return K.WorkResult(False, f"{self.name} was already rejected on {les.package_id}")      # Claude's turn
         res = self.student(plan, package, workdir)
+        if getattr(self.student, "credits_original", False) and res.by:       # a resume credits the ORIGINAL solver (teacher stays teacher)
+            les.solver = res.by
         self.cur._record(les, res, workdir)
         return dataclasses.replace(res, by=res.by or self.name)
 
