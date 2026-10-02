@@ -141,6 +141,25 @@ class waiting_on_thinker:
             WAITING.discard(self.package_id)
 
 
+def user_idle_seconds() -> float:
+    """Seconds since the owner last touched keyboard or mouse (Windows GetLastInputInfo). Unknown = 0 (assume the owner is
+    there: the cautious answer)."""
+    try:
+        import ctypes
+
+        class LASTINPUTINFO(ctypes.Structure):
+            _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+        info = LASTINPUTINFO()
+        info.cbSize = ctypes.sizeof(info)
+        user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32           # type: ignore[attr-defined]
+        if not user32.GetLastInputInfo(ctypes.byref(info)):
+            return 0.0
+        kernel32.GetTickCount.restype = ctypes.c_uint
+        return ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000.0
+    except Exception:                                                   # noqa: BLE001 - non-Windows or no desktop
+        return 0.0
+
+
 @dataclasses.dataclass
 class Governor:
     """Use the machine's memory (owner, 1 Oct 2026, asked 4+ times; diagnosis in memory 'use-the-memory-means-change-the-rule').
@@ -158,9 +177,15 @@ class Governor:
     free: Callable[[], float] = free_ram_gb
     total: Callable[[], float] = total_ram_gb
     observe: Optional[Callable[[int], Optional[float]]] = None
+    user_active_floor_fraction: Optional[float] = None  # owner, 1 Oct: "when i start doing things it adjusts how much RAM it can
+    idle_after_s: float = 300.0                         # use" - while the owner is at the keyboard keep this larger share free
+    idle: Optional[Callable[[], float]] = None          # seconds since the owner's last input (None = user_idle_seconds)
 
     def floor(self) -> float:
-        return max(self.floor_min_gb, self.floor_fraction * self.total())
+        frac = self.floor_fraction
+        if self.user_active_floor_fraction is not None and (self.idle or user_idle_seconds)() < self.idle_after_s:
+            frac = max(frac, self.user_active_floor_fraction)
+        return max(self.floor_min_gb, frac * self.total())
 
     def estimate(self, running: int) -> float:
         seen = self.observe(running) if (self.observe is not None and running) else None
