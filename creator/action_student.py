@@ -371,6 +371,17 @@ def _py_texts(workdir: Path) -> dict[str, str]:
 WHY_CHARS = 200                                      # the teacher's reasoning shown with each few-shot example
 
 
+PREDICT_TAG = "PREDICT"
+
+
+def parse_prediction(text: str) -> Optional[dict[str, Any]]:
+    """{'metric', 'size_delta', 'act_delta'|None} from a WorkResult note/reasoning written by ActionStudent; None when absent."""
+    m = re.search(PREDICT_TAG + r" metric=(\S*) size_delta=(-?\d+) act_delta=(-?\d+|na)", text or "")
+    if not m:
+        return None
+    return {"metric": m.group(1), "size_delta": int(m.group(2)), "act_delta": None if m.group(3) == "na" else int(m.group(3))}
+
+
 class ActionStudent:
     name = "nupen-model-v2"
 
@@ -581,4 +592,20 @@ class ActionStudent:
         for p in changed:
             eol = "\r\n" if b"\r\n" in (workdir / p).read_bytes() else "\n"          # a CRLF file stays CRLF: no whole-file diff
             (workdir / p).write_text(cur[p], encoding="utf-8", newline=eol)
-        return WorkResult(True, f"{len(done)} actions applied: {', '.join(done)}", calls=self.last_calls, by=self.name, reasoning=reasoning)
+        pred = self.prediction(chosen)
+        note = f"{len(done)} actions applied: {', '.join(done)}" + (f" | {PREDICT_TAG} {pred}" if pred else "")
+        why = (reasoning + f" [{PREDICT_TAG} {pred}]") if pred else reasoning
+        parsed = parse_prediction(f"{PREDICT_TAG} {pred}") if pred else None
+        predicted = {"size_delta": float(parsed["size_delta"])} if parsed else None     # creator.reasoning.calibration scores this against the measured size_delta
+        return WorkResult(True, note, calls=self.last_calls, by=self.name, reasoning=why, predicted=predicted)
+
+    def prediction(self, chosen: list[Action]) -> str:
+        """The pre-screen's own predicted effect of the claimed change, in a parseable form (see `parse_prediction`), so that
+        calibration can score it against the kernel's measured verdict. '' when the pre-screen did not run."""
+        rows = {r["action"]: r for r in self.last_prescreen if r.get("stage") == "metric" and "action" in r}
+        got = [rows[a.short()] for a in chosen if a.short() in rows]
+        if not got:
+            return ""
+        sd = sum(int(r.get("size_delta") or 0) for r in got)
+        ads = [r["act_delta"] for r in got if r.get("act_delta") is not None]
+        return f"metric={got[0].get('metric', '')} size_delta={sd} act_delta={sum(ads) if ads else 'na'}"

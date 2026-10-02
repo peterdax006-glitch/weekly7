@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _no_real_lm_training(monkeypatch: pytest.MonkeyPatch) -> None:
     """Supervisor tests must never start the real language-model trainer, whatever the machine's idle state."""
     monkeypatch.setenv("NUPEN_LM", "0")
+    monkeypatch.setenv("NUPEN_PRACTICE", "0")
 
 
 def _load(name: str):                                                       # type: ignore[no-untyped-def]
