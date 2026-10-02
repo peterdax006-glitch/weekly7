@@ -15,7 +15,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
@@ -424,6 +424,32 @@ def run_pytest(root: str | Path, targets: Sequence[str], junit_path: str | Path,
     else:
         status = RunStatus.FAILED if any_bad else RunStatus.PASSED
     return TestRun(label, tree, sel, status, cases, proc.returncode, proc.seconds, proc, str(jp), tuple(problems))
+
+
+def run_base(root: str | Path, targets: Sequence[str], junit_path: str | Path, *, tree: str = "",
+             config: PytestConfig | None = None, reuse: Mapping[str, str] | None = None) -> TestRun:
+    """The baseline run. `reuse` maps test file -> junit of a PASSING earlier run on this very tree (the caller vouches for it);
+    those files are read back instead of run, the rest run in one invocation. Without `reuse` this is run_pytest, unchanged."""
+    served: dict[str, CaseResult] = {}
+    fresh = list(targets)
+    for t in targets:
+        m = module_name_for(t)
+        if reuse and t in reuse and m:
+            try:
+                got = parse_junit(reuse[t], {m: t})
+            except ValueError:
+                continue                                   # unreadable record: run it
+            if got and not any(c.outcome.bad for c in got.values()):
+                served.update(got)
+                fresh.remove(t)
+    if not served:
+        return run_pytest(root, targets, junit_path, label="base", tree=tree, config=config)
+    if not fresh:
+        return TestRun("base", tree, tuple(targets), RunStatus.PASSED, served, 0, 0.0, problems=("served from the tree cache",))
+    run = run_pytest(root, fresh, junit_path, label="base", tree=tree, config=config)
+    if not run.trustworthy:
+        return run
+    return replace(run, selection=tuple(targets), cases={**served, **run.cases})
 
 
 # ---------------------------------------------------------------------------------------------------------- comparison

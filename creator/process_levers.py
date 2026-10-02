@@ -63,13 +63,25 @@ class ProcessSolver:
         return D.SolverResult(False, 0, f"search failed after {tried} candidates")
 
 
-def build_worker(process: R.ProcessConfig, session: Any = None) -> Any:
+def tuned_search_budget(process: R.ProcessConfig, worker_config: Optional[Path] = None) -> int:
+    """K19 -> the process: the search budget the swarm's worker really uses. The process lever (research_budget) is the default; once
+    creator.autotune has ADOPTED a worker configuration by measured trial (state/creator/worker_config.json exists), that
+    configuration's search_budget replaces it - the Creator's own tuning reaches the worker the swarm builds."""
+    lv = levers(process)
+    path = worker_config or DEFAULT_PATH.with_name("worker_config.json")
+    if not path.is_file():
+        return lv.search_budget
+    from creator import autotune as AT
+    return AT.load_active(path).search_budget
+
+
+def build_worker(process: R.ProcessConfig, session: Any = None, worker_config: Optional[Path] = None) -> Any:
     """The swarm's worker for this process: own workers first (rules, generated tests, search), the session last."""
     from creator import selfworkers as SW
     from creator import testgen as TG
     lv = levers(process)
-    return SW.SelfFirst([SW.RuleWorker(max_rounds=lv.rule_rounds), TG.TestGenWorker(), SW.SearchWorker(budget=lv.search_budget)],
-                        session)
+    return SW.SelfFirst([SW.RuleWorker(max_rounds=lv.rule_rounds), TG.TestGenWorker(),
+                         SW.SearchWorker(budget=tuned_search_budget(process, worker_config))], session)
 
 
 def load_process(path: Path = DEFAULT_PATH) -> R.ProcessConfig:

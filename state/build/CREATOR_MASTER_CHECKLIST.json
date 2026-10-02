@@ -801,11 +801,14 @@
    "group": "64. THE MASTER CHECKLIST / OBJECTIVE ENGINE",
    "description": "goal-drift detection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K23=TESTED (computed from test evidence); creator/oversight.py:60 goal_drift; tests/test_creator_oversight.py::test_an_adoption_under_a_non_owner_objective_is_drift, test_concentrated_work_with_a_flat_metric_level_is_flagged_as_stalled"
   },
   {
    "id": "CR058",
@@ -826,11 +829,14 @@
    "group": "64. THE MASTER CHECKLIST / GAP ANALYSIS",
    "description": "knowledge-gap detection",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K23=TESTED (computed from test evidence); creator/oversight.py:97 knowledge_gaps; tests/test_creator_oversight.py::test_unexplained_failures_become_knowledge_gaps_once"
   },
   {
    "id": "CR060",
@@ -1145,22 +1151,28 @@
    "group": "64. THE MASTER CHECKLIST / PLANNING",
    "description": "parallelism",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K22=TESTED (computed from test evidence); creator/swarm.py parallel workers; tests/test_creator_swarm.py::test_parallel_workers_on_disjoint_modules_all_get_adopted"
   },
   {
    "id": "CR083",
    "group": "64. THE MASTER CHECKLIST / PLANNING",
    "description": "critical path",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K23=TESTED (computed from test evidence); creator/oversight.py:139 critical_path; tests/test_creator_oversight.py::test_critical_path_puts_the_most_blocking_gap_first"
   },
   {
    "id": "CR084",
@@ -1223,11 +1235,14 @@
    "group": "64. THE MASTER CHECKLIST / IMPLEMENTATION",
    "description": "refactoring",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K17=TESTED (computed from test evidence)"
   },
   {
    "id": "CR089",
@@ -1290,11 +1305,14 @@
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "test generation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K25=TESTED (computed from test evidence); creator/testgen.py:273 generate; tests/test_creator_testgen.py::test_generated_tests_pass_on_the_code_they_came_from, test_a_behaviour_change_makes_a_generated_test_fail"
   },
   {
    "id": "CR094",
@@ -1329,11 +1347,14 @@
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "edge-case testing",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K25=TESTED (computed from test evidence); creator/testgen.py:103 _edge_values; tests/test_creator_testgen.py::test_candidates_cover_zero_negative_empty_none_and_defaults, test_bool_edge_values_are_not_merged_with_ints"
   },
   {
    "id": "CR097",
@@ -1869,22 +1890,28 @@
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-research",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K07=TESTED (computed from test evidence)"
   },
   {
    "id": "CR136",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-design",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K08=TESTED (computed from test evidence)"
   },
   {
    "id": "CR137",
@@ -1897,40 +1924,49 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR138",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-testing",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K06=TESTED, K14=TESTED (computed from test evidence)"
   },
   {
    "id": "CR139",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-evaluation",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K10=TESTED, K02=TESTED (computed from test evidence)"
   },
   {
    "id": "CR140",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-repair",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR141",
@@ -1943,29 +1979,35 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR142",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "development-process improvement",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED; capped at IMPLEMENTED: creator/recursion.py + scripts/creator_recurse.py exist and K24 tests pass, but no RECURSION_STEP finding is in state/creator/ledger.jsonl"
   },
   {
    "id": "CR143",
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "recursive improvement",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED; capped at IMPLEMENTED: same as CR142: the mechanism is tested, no real recursive improvement has run"
   },
   {
    "id": "CR144",
@@ -2080,77 +2122,98 @@
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation exists.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR153",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation builds.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR154",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation executes.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR155",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is observable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR156",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is testable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR157",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is recoverable.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR158",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is sufficiently modular.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
   },
   {
    "id": "CR159",
@@ -2303,7 +2366,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR170",
@@ -2316,7 +2379,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR171",
@@ -2441,7 +2504,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR180",
@@ -2454,7 +2517,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR181",
@@ -2467,18 +2530,21 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR182",
    "group": "79. COMPLETION GATE / TRUE AUTONOMY",
    "description": "System can research what it does not know.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K07=TESTED (computed from test evidence)"
   },
   {
    "id": "CR183",
@@ -2491,7 +2557,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR184",
@@ -2504,7 +2570,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR185",
@@ -2517,7 +2583,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR186",
@@ -2530,18 +2596,21 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR187",
    "group": "79. COMPLETION GATE / TRUE AUTONOMY",
    "description": "System can repair failures.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K11=TESTED (computed from test evidence)"
   },
   {
    "id": "CR188",
@@ -2554,7 +2623,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR189",
@@ -2567,7 +2636,7 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR190",
@@ -2580,95 +2649,119 @@
    "evidence": [
     "state/creator/kernel_log.jsonl"
    ],
-   "notes": "5 real cycle(s) ADOPTED by evidence"
+   "notes": "6 real cycle(s) ADOPTED by evidence"
   },
   {
    "id": "CR191",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can identify weakness in its development process.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR192",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can design a development-process improvement.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR193",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can implement it.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR194",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can test it.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR195",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can measure whether it improved development.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR196",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "System can use the improved process.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED (computed from test evidence); creator/recursion.py (find_weaknesses:119 design_change:161 ab_test:220 step:276); tests/test_creator_recursion.py::test_weakness_is_found_from_planted_evidence, test_an_improving_change_is_adopted_and_used_by_the_next_iteration; mechanism on a stand-in workload, no real recursion step is in the ledger"
   },
   {
    "id": "CR197",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "The improved process produces demonstrably better development.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED; capped at IMPLEMENTED: needs a real adopted recursion step with a measured improvement; none is in the ledger"
   },
   {
    "id": "CR198",
    "group": "79. COMPLETION GATE / RECURSIVE IMPROVEMENT",
    "description": "The recursive loop works again under different conditions.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K24=TESTED; capped at IMPLEMENTED: needs a second real recursion step under different conditions; none is in the ledger"
   },
   {
    "id": "CR199",
@@ -2701,11 +2794,13 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "No benchmark memorization.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/AUDIT.json"
+   ],
+   "notes": "audit check memorization: 0 finding(s); adversary all caught; creator/audit/checks.py:248 check_memorization, adversary 'holdout_in_memory'"
   },
   {
    "id": "CR202",
@@ -2738,11 +2833,14 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "No unresolved critical failure hidden.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K16=TESTED; capped at IMPLEMENTED: creator/audit/checks.py (stale_done:88, fake_adoption:108) find hidden failures it knows of; no check enumerates unresolved FAILED records"
   },
   {
    "id": "CR205",
@@ -2775,22 +2873,28 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "Critical results reproducible.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K26=TESTED (computed from test evidence); creator/reproduce.py:187 reproduce, scripts/reproduce.py; tests/test_creator_reproduce.py::test_clean_ledger_reproduces, test_tampered_evidence_is_not_reproduced; real ledger (no --rerun): 10/10 claims REPRODUCED, chain ok over 1397 records, 713 evidence files unchanged - state/build/evidence/REPRODUCE_20261001.json"
   },
   {
    "id": "CR208",
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "Evidence supports all major claims.",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K26=TESTED, K16=TESTED; capped at IMPLEMENTED: creator/audit/checks.py:132 check_claim_recompute + creator/reproduce.py; claims are recomputed, but 'all major claims' is not shown"
   },
   {
    "id": "CR209",
@@ -2801,7 +2905,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR210",
@@ -2812,7 +2916,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR211",
@@ -2823,7 +2927,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR212",
@@ -2834,29 +2938,33 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR213",
    "group": "SECTION / A. THE FOUNDATION",
    "description": "SECTION REQUIREMENT: A. THE FOUNDATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: incomplete;; imperfect;; partially validated;; rough;; over-specialized;; under-integrated;; missing capabilities.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR214",
    "group": "SECTION / B. THE AUTONOMOUS DEVELOPER",
    "description": "SECTION REQUIREMENT: B. THE AUTONOMOUS DEVELOPER - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 20 members in 79 AUTONOMOUS DEVELOPER is TESTING (CR159, CR160, CR161, CR162, CR163, CR164); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR215",
@@ -2867,7 +2975,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR216",
@@ -2878,7 +2986,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR217",
@@ -2889,7 +2997,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR218",
@@ -2900,7 +3008,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR219",
@@ -2911,7 +3019,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR220",
@@ -2922,7 +3030,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR221",
@@ -2933,7 +3041,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR222",
@@ -2944,7 +3052,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR223",
@@ -2955,172 +3063,202 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR224",
    "group": "SECTION / 9. FOUNDATION REQUIREMENTS",
    "description": "SECTION REQUIREMENT: 9. FOUNDATION REQUIREMENTS - every requirement in this section of CREATOR_MASTER_PROMPT.md (15 bullets: executable;; modular;; testable;; observable;; measurable;; replaceable;; inspectable;; versionable;; recoverable;; provenance-aware;; deterministic where required;; safe to modify;; capable of recording evidence;; capable of exposing failures;; capable of being evaluated by another process.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR225",
    "group": "SECTION / 10. BUILD THE SELF-DEVELOPMENT KERNEL",
    "description": "SECTION REQUIREMENT: 10. BUILD THE SELF-DEVELOPMENT KERNEL - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR226",
    "group": "SECTION / 11. SELF-MODEL",
    "description": "SECTION REQUIREMENT: 11. SELF-MODEL - every requirement in this section of CREATOR_MASTER_PROMPT.md (18 bullets: what components exist;; what each component does;; what dependencies exist;; what capabilities exist;; what capabilities are missing;; what interfaces exist;; what tests exist;; which tests pass;; which tests fail;; which capabilities are validated;; which capabilities are unvalidated;; what known weaknesses exist;; what resources are available;; what modifications are currently active;; what experiments are running;; what development objectives are active;; what historical changes were made;; what evidence supports each major claim.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 SELF-MODEL is TESTING (CR042, CR043, CR044, CR045, CR046, CR047); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR227",
    "group": "SECTION / 12. OBJECTIVE UNDERSTANDING",
    "description": "SECTION REQUIREMENT: 12. OBJECTIVE UNDERSTANDING - every requirement in this section of CREATOR_MASTER_PROMPT.md (12 bullets: objective;; desired outcomes;; constraints;; non-goals;; requirements;; acceptance criteria;; measurable metrics;; dependencies;; uncertainties;; unknowns;; risks;; required capabilities.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 OBJECTIVE ENGINE is TESTING (CR051, CR052, CR053, CR054, CR055, CR056); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR228",
    "group": "SECTION / 13. REQUIREMENT COMPILATION",
    "description": "SECTION REQUIREMENT: 13. REQUIREMENT COMPILATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (10 bullets: unique identifier;; description;; priority;; dependency;; acceptance test;; measurement method;; failure condition;; validation method;; evidence location;; current state.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 OBJECTIVE ENGINE is TESTING (CR051, CR052, CR053, CR054, CR055, CR056); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR229",
    "group": "SECTION / 14. CAPABILITY-GAP DETECTION",
    "description": "SECTION REQUIREMENT: 14. CAPABILITY-GAP DETECTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: whether the gap is real;; whether existing components can satisfy it;; whether modification is required;; whether research is required;; whether a new component is required;; whether the gap depends on another gap;; how important the gap is.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 6 members in 64 GAP ANALYSIS is TESTING (CR058, CR059, CR060, CR061, CR062, CR063); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR230",
    "group": "SECTION / 15. KNOWLEDGE-GAP DETECTION",
    "description": "SECTION REQUIREMENT: 15. KNOWLEDGE-GAP DETECTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (11 bullets: formulate research questions;; research;; evaluate evidence;; compare alternatives;; identify uncertainty;; update development knowledge.; design;; implement;; test.; create better evaluation.; redesign.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 6 members in 64 GAP ANALYSIS is TESTING (CR058, CR059, CR060, CR061, CR062, CR063); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR231",
    "group": "SECTION / 16. AUTONOMOUS RESEARCH",
    "description": "SECTION REQUIREMENT: 16. AUTONOMOUS RESEARCH - every requirement in this section of CREATOR_MASTER_PROMPT.md (11 bullets: formulate questions;; prioritize questions;; search;; collect evidence;; compare sources;; identify contradictions;; assess confidence;; distinguish evidence from speculation;; determine whether additional research is worthwhile;; preserve useful findings;; connect findings to development decisions.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 RESEARCH is TESTING (CR064, CR065, CR066, CR067, CR068, CR069); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR232",
    "group": "SECTION / 17. DESIGN GENERATION",
    "description": "SECTION REQUIREMENT: 17. DESIGN GENERATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: generating alternatives;; identifying assumptions;; identifying failure modes;; estimating complexity;; identifying dependencies;; comparing approaches;; selecting based on explicit criteria;; preserving rejected alternatives and reasons where useful.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 DESIGN is TESTING (CR072, CR073, CR074, CR075, CR076, CR077); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR233",
    "group": "SECTION / 18. TASK DECOMPOSITION",
    "description": "SECTION REQUIREMENT: 18. TASK DECOMPOSITION - every requirement in this section of CREATOR_MASTER_PROMPT.md (14 bullets: ID;; objective;; rationale;; prerequisites;; inputs;; outputs;; dependencies;; implementation requirements;; tests;; evidence requirements;; failure conditions;; rollback conditions;; completion criteria;; anti-premature-completion criteria.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR234",
    "group": "SECTION / 19. AUTONOMOUS PLANNING",
    "description": "SECTION REQUIREMENT: 19. AUTONOMOUS PLANNING - every requirement in this section of CREATOR_MASTER_PROMPT.md (10 bullets: dependencies;; parallelism;; critical path;; uncertainty;; resources;; expected information gain;; risk;; testing cost;; rollback cost;; expected improvement.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR235",
    "group": "SECTION / 20. RESOURCE ALLOCATION",
    "description": "SECTION REQUIREMENT: 20. RESOURCE ALLOCATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: compute;; agent calls;; research effort;; testing effort;; experimentation;; debugging effort.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR236",
    "group": "SECTION / 21. AGENT ORCHESTRATION",
    "description": "SECTION REQUIREMENT: 21. AGENT ORCHESTRATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (16 bullets: researcher;; architect;; implementer;; tester;; debugger;; adversarial reviewer;; validator;; auditor.; ownership;; task assignment;; dependencies;; result provenance;; conflicts;; competing hypotheses;; acceptance/rejection;; rollback.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR237",
    "group": "SECTION / 22. AUTONOMOUS IMPLEMENTATION",
    "description": "SECTION REQUIREMENT: 22. AUTONOMOUS IMPLEMENTATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (18 bullets: create code;; modify code;; refactor code;; integrate modules;; create tests;; update interfaces;; build;; execute;; inspect failures;; revert changes;; preserve working states;; compare versions.; reason;; parent objective;; originating task;; affected components;; expected effect;; actual result.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 IMPLEMENTATION is TESTING (CR086, CR087, CR088, CR089, CR090, CR091); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR238",
    "group": "SECTION / 23. BUILD MANAGEMENT",
    "description": "SECTION REQUIREMENT: 23. BUILD MANAGEMENT - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: build;; detect build failures;; classify build failures;; repair them;; verify successful builds;; detect environment-specific problems;; preserve reproducibility where required.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 IMPLEMENTATION is TESTING (CR086, CR087, CR088, CR089, CR090, CR091); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR239",
@@ -3130,8 +3268,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 TESTING is NOT_STARTED (CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR240",
@@ -3141,96 +3281,114 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 TESTING is NOT_STARTED (CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR241",
    "group": "SECTION / 26. FAILURE DISCOVERY",
    "description": "SECTION REQUIREMENT: 26. FAILURE DISCOVERY - every requirement in this section of CREATOR_MASTER_PROMPT.md (15 bullets: shallow implementations;; unreachable code;; incorrect wiring;; silent failures;; false positives;; false negatives;; data corruption;; leakage;; overfitting;; memorization;; instability;; nondeterminism;; resource waste;; regressions;; specification violations.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 DEBUGGING is TESTING (CR101, CR102, CR103, CR104, CR105, CR106); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR242",
    "group": "SECTION / 27. ROOT-CAUSE ANALYSIS",
    "description": "SECTION REQUIREMENT: 27. ROOT-CAUSE ANALYSIS - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 DEBUGGING is TESTING (CR101, CR102, CR103, CR104, CR105, CR106); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR243",
    "group": "SECTION / 28. AUTONOMOUS REPAIR",
    "description": "SECTION REQUIREMENT: 28. AUTONOMOUS REPAIR - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: propose multiple repairs;; evaluate them;; select experiments;; apply changes in controlled environments;; test;; compare;; rollback failures;; preserve successful repairs.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 DEBUGGING is TESTING (CR101, CR102, CR103, CR104, CR105, CR106); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR244",
    "group": "SECTION / 29. VERSION COMPARISON",
    "description": "SECTION REQUIREMENT: 29. VERSION COMPARISON - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: target capability;; regression metrics;; robustness;; resource usage;; complexity;; stability;; reproducibility.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 IMPROVEMENT is TESTING (CR110, CR111, CR112, CR113, CR114, CR115); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR245",
    "group": "SECTION / 30. SELF-IMPROVEMENT DEFINITION",
    "description": "SECTION REQUIREMENT: 30. SELF-IMPROVEMENT DEFINITION - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: it is larger;; it is newer;; it is more sophisticated;; it passes tests;; it produces a better demo;; the system claims it is better.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 IMPROVEMENT is TESTING (CR110, CR111, CR112, CR113, CR114, CR115); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR246",
    "group": "SECTION / SELF-MODIFICATION IS NOT SELF-IMPROVEMENT.",
    "description": "SECTION REQUIREMENT: SELF-MODIFICATION IS NOT SELF-IMPROVEMENT. - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: it is larger;; it is newer;; it is more sophisticated;; it passes tests;; it produces a better demo;; the system claims it is better.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 IMPROVEMENT is TESTING (CR110, CR111, CR112, CR113, CR114, CR115); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR247",
    "group": "SECTION / 31. IMPROVEMENT MEASUREMENT",
    "description": "SECTION REQUIREMENT: 31. IMPROVEMENT MEASUREMENT - every requirement in this section of CREATOR_MASTER_PROMPT.md (10 bullets: baseline metric;; new metric;; difference;; uncertainty;; test conditions;; evaluation population;; regression measurements;; resource change;; reproducibility;; evidence location.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 IMPROVEMENT is TESTING (CR110, CR111, CR112, CR113, CR114, CR115); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR248",
    "group": "SECTION / 32. HOLDOUT AND ANTI-OVERFITTING",
    "description": "SECTION REQUIREMENT: 32. HOLDOUT AND ANTI-OVERFITTING - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: development data;; development tests;; validation data;; adversarial tests;; fresh holdouts;; final frozen evaluation where appropriate.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 IMPROVEMENT is TESTING (CR110, CR111, CR112, CR113, CR114, CR115); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR249",
@@ -3240,8 +3398,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR250",
@@ -3251,8 +3411,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR251",
@@ -3262,8 +3424,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR252",
@@ -3273,118 +3437,140 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR253",
    "group": "SECTION / 37. DEVELOPMENT MEMORY",
    "description": "SECTION REQUIREMENT: 37. DEVELOPMENT MEMORY - every requirement in this section of CREATOR_MASTER_PROMPT.md (14 bullets: objectives;; plans;; experiments;; changes;; successes;; failures;; diagnoses;; repairs;; regressions;; rejected approaches;; research;; evidence;; resource costs;; development strategies.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 MEMORY is TESTING (CR118, CR119, CR120, CR121, CR122, CR123); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR254",
    "group": "SECTION / 38. FAILED-LEARNER MEMORY",
    "description": "SECTION REQUIREMENT: 38. FAILED-LEARNER MEMORY - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: what failed;; under what conditions;; why it failed;; what was attempted;; whether the repair worked;; whether the failure recurred.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 7 members in 64 MEMORY is TESTING (CR118, CR119, CR120, CR121, CR122, CR123); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR255",
    "group": "SECTION / 39. DEVELOPMENT META-LEARNING",
    "description": "SECTION REQUIREMENT: 39. DEVELOPMENT META-LEARNING - every requirement in this section of CREATOR_MASTER_PROMPT.md (11 bullets: research;; planning;; decomposition;; architecture;; coding;; testing;; debugging;; repair;; validation;; agent selection;; resource allocation.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 META-LEARNING is TESTING (CR125, CR126, CR127, CR128, CR129, CR130); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR256",
    "group": "SECTION / 40. META-META-LEARNING",
    "description": "SECTION REQUIREMENT: 40. META-META-LEARNING - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 META-LEARNING is TESTING (CR125, CR126, CR127, CR128, CR129, CR130); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR257",
    "group": "SECTION / 41. SELF-INSPECTION",
    "description": "SECTION REQUIREMENT: 41. SELF-INSPECTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (10 bullets: architecture;; code;; tests;; interfaces;; execution;; performance;; failures;; development history;; capabilities;; limitations.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 SELF-MODEL is TESTING (CR042, CR043, CR044, CR045, CR046, CR047); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR258",
    "group": "SECTION / 42. SELF-DIAGNOSIS",
    "description": "SECTION REQUIREMENT: 42. SELF-DIAGNOSIS - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 9 members in 64 SELF-MODEL is TESTING (CR042, CR043, CR044, CR045, CR046, CR047); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR259",
    "group": "SECTION / 43. SELF-DESIGN",
    "description": "SECTION REQUIREMENT: 43. SELF-DESIGN - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: existing infrastructure;; new components;; architectural modifications;; alternative algorithms;; research requirements;; expected cost;; expected benefit;; risks.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR260",
    "group": "SECTION / 44. CONTROLLED SELF-MODIFICATION",
    "description": "SECTION REQUIREMENT: 44. CONTROLLED SELF-MODIFICATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (9 bullets: change proposal;; baseline;; isolated experiment;; build;; test;; evaluation;; regression check;; approval/adoption logic;; rollback.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR261",
    "group": "SECTION / 45. ROLLBACK",
    "description": "SECTION REQUIREMENT: 45. ROLLBACK - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: breaks the build;; causes regressions;; reduces validated performance;; violates a firewall;; introduces leakage;; becomes unstable;; produces unexplained behavior;)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR262",
    "group": "SECTION / 46. REGRESSION PROTECTION",
    "description": "SECTION REQUIREMENT: 46. REGRESSION PROTECTION - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR263",
@@ -3394,8 +3580,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR264",
@@ -3405,140 +3593,166 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR265",
    "group": "SECTION / 49. THE FIRST REAL AUTONOMOUS DEVELOPMENT TEST",
    "description": "SECTION REQUIREMENT: 49. THE FIRST REAL AUTONOMOUS DEVELOPMENT TEST - every requirement in this section of CREATOR_MASTER_PROMPT.md (12 bullets: inspect itself;; identify a genuine limitation;; formulate the problem;; determine what it needs to know;; research if necessary;; design an improvement;; implement it;; test it;; evaluate it;; reject it if it fails;; adopt it if it succeeds;; preserve evidence.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 12 members in 79 TRUE AUTONOMY is TESTING (CR179, CR180, CR181, CR182, CR183, CR184); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR266",
    "group": "SECTION / 50. THE FIRST TEST MUST NOT BE HARD-CODED",
    "description": "SECTION REQUIREMENT: 50. THE FIRST TEST MUST NOT BE HARD-CODED - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: the weakness;; the solution;; the exact files to edit;; the exact architecture;; the exact research answer;; the exact test result;; the exact repair.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 12 members in 79 TRUE AUTONOMY is TESTING (CR179, CR180, CR181, CR182, CR183, CR184); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR267",
    "group": "SECTION / 51. SECOND AUTONOMOUS DEVELOPMENT TEST",
    "description": "SECTION REQUIREMENT: 51. SECOND AUTONOMOUS DEVELOPMENT TEST - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: architecture limitation;; testing limitation;; research limitation;; debugging limitation;; planning limitation;; performance limitation;; reasoning limitation;; integration limitation.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 12 members in 79 TRUE AUTONOMY is TESTING (CR179, CR180, CR181, CR182, CR183, CR184); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR268",
    "group": "SECTION / 52. THIRD AUTONOMOUS DEVELOPMENT TEST",
    "description": "SECTION REQUIREMENT: 52. THIRD AUTONOMOUS DEVELOPMENT TEST - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: discover the problem;; choose the development strategy;; determine the required resources;; execute;; evaluate;; learn from the result.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 12 members in 79 TRUE AUTONOMY is TESTING (CR179, CR180, CR181, CR182, CR183, CR184); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR269",
    "group": "SECTION / 53. RECURSIVE SELF-IMPROVEMENT TEST",
    "description": "SECTION REQUIREMENT: 53. RECURSIVE SELF-IMPROVEMENT TEST - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 79 RECURSIVE IMPROVEMENT is IMPLEMENTED (CR197, CR198); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR270",
    "group": "SECTION / 54. MEASURE RECURSION",
    "description": "SECTION REQUIREMENT: 54. MEASURE RECURSION - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 79 RECURSIVE IMPROVEMENT is IMPLEMENTED (CR197, CR198); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR271",
    "group": "SECTION / 55. SELF-IMPROVEMENT MUST GENERALIZE",
    "description": "SECTION REQUIREMENT: 55. SELF-IMPROVEMENT MUST GENERALIZE - every requirement in this section of CREATOR_MASTER_PROMPT.md (4 bullets: different problems;; different components;; different failure types;; different development objectives.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 79 RECURSIVE IMPROVEMENT is IMPLEMENTED (CR197, CR198); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR272",
    "group": "SECTION / 56. NO BENCHMARK GAMING",
    "description": "SECTION REQUIREMENT: 56. NO BENCHMARK GAMING - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: hardcoded benchmark answers;; benchmark-specific branches;; hidden test detection;; test-specific behavior;; memorization;; evaluation leakage;; overfitting;; selective reporting.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR273",
    "group": "SECTION / 57. NO FALSE AUTONOMY",
    "description": "SECTION REQUIREMENT: 57. NO FALSE AUTONOMY - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR274",
    "group": "SECTION / 58. OBSERVABILITY",
    "description": "SECTION REQUIREMENT: 58. OBSERVABILITY - every requirement in this section of CREATOR_MASTER_PROMPT.md (16 bullets: current objective;; current plan;; active task;; current hypothesis;; current code version;; experiments;; test results;; failures;; evidence;; proposed changes;; accepted changes;; rejected changes;; rollback events;; resource consumption;; confidence;; unresolved questions.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR275",
    "group": "SECTION / 59. CHECKPOINTS",
    "description": "SECTION REQUIREMENT: 59. CHECKPOINTS - every requirement in this section of CREATOR_MASTER_PROMPT.md (8 bullets: source state;; task state;; experiment state;; evidence;; memory;; metrics;; current plan;; current self-model.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR276",
    "group": "SECTION / 60. FAILURE RECOVERY",
    "description": "SECTION REQUIREMENT: 60. FAILURE RECOVERY - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: recover state;; identify the last valid checkpoint;; determine what was running;; determine whether the change was committed;; determine whether evidence was complete;; resume safely.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR277",
@@ -3548,8 +3762,10 @@
    "status": "NOT_STARTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR278",
@@ -3560,7 +3776,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR279",
@@ -3571,7 +3787,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR280",
@@ -3582,7 +3798,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR281",
@@ -3593,18 +3809,20 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR282",
    "group": "SECTION / 66. RECURSIVE LOOP",
    "description": "SECTION REQUIREMENT: 66. RECURSIVE LOOP - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 79 RECURSIVE IMPROVEMENT is IMPLEMENTED (CR197, CR198); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR283",
@@ -3615,18 +3833,20 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR284",
    "group": "SECTION / 68. DO NOT CREATE FAKE AUTONOMY",
    "description": "SECTION REQUIREMENT: 68. DO NOT CREATE FAKE AUTONOMY - every requirement in this section of CREATOR_MASTER_PROMPT.md (9 bullets: hardcode a demonstration;; manually choose the system's answer;; secretly supply the architecture;; secretly supply the research result;; secretly supply the repair;; manually edit its state to make it appear successful;; tell it exactly what file to modify during the autonomous test;; feed it the expected answer;; precompute the solution and have it \"discover\" it.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR285",
@@ -3637,7 +3857,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR286",
@@ -3648,106 +3868,124 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR287",
    "group": "SECTION / 71. THE SYSTEM MUST KNOW WHAT IT DOES NOT KNOW",
    "description": "SECTION REQUIREMENT: 71. THE SYSTEM MUST KNOW WHAT IT DOES NOT KNOW - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 6 members in 64 GAP ANALYSIS is TESTING (CR058, CR059, CR060, CR061, CR062, CR063); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR288",
    "group": "SECTION / 72. THE SYSTEM MUST KNOW WHEN TO STOP AN APPROACH",
    "description": "SECTION REQUIREMENT: 72. THE SYSTEM MUST KNOW WHEN TO STOP AN APPROACH - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: diminishing returns;; repeated failure;; contradictory evidence;; architectural dead ends;; excessive resource cost;; inadequate expected benefit.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 META-LEARNING is TESTING (CR125, CR126, CR127, CR128, CR129, CR130); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR289",
    "group": "SECTION / 73. THE SYSTEM MUST LEARN FROM NEGATIVE RESULTS",
    "description": "SECTION REQUIREMENT: 73. THE SYSTEM MUST LEARN FROM NEGATIVE RESULTS - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 META-LEARNING is TESTING (CR125, CR126, CR127, CR128, CR129, CR130); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR290",
    "group": "SECTION / 74. THE SYSTEM MUST LEARN FROM POSITIVE RESULTS",
    "description": "SECTION REQUIREMENT: 74. THE SYSTEM MUST LEARN FROM POSITIVE RESULTS - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: why it worked;; where it worked;; whether it generalizes;; what conditions mattered;; what resources it required;; whether another approach worked better.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 8 members in 64 META-LEARNING is TESTING (CR125, CR126, CR127, CR128, CR129, CR130); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR291",
    "group": "SECTION / 75. THE DEVELOPER MUST IMPROVE ITS OWN EFFICIENCY",
    "description": "SECTION REQUIREMENT: 75. THE DEVELOPER MUST IMPROVE ITS OWN EFFICIENCY - every requirement in this section of CREATOR_MASTER_PROMPT.md (9 bullets: compute;; time;; number of experiments;; failed attempts;; successful attempts;; useful research;; wasted research;; regression count;; repair count.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR292",
    "group": "SECTION / 76. FINAL ADVERSARIAL CAMPAIGN",
    "description": "SECTION REQUIREMENT: 76. FINAL ADVERSARIAL CAMPAIGN - every requirement in this section of CREATOR_MASTER_PROMPT.md (19 bullets: false autonomy;; fake self-improvement;; benchmark overfitting;; hidden hardcoding;; future leakage;; truth-world leakage;; memorization;; false validation;; shallow decomposition;; shallow research;; bad architecture selection;; poor debugging;; failure to rollback;; regression hiding;; self-model inaccuracies;; evidence corruption;; provenance gaps;; resource waste;; recursive-loop failure.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR293",
    "group": "SECTION / 77. FRESH-HOLDOUT SELF-DEVELOPMENT",
    "description": "SECTION REQUIREMENT: 77. FRESH-HOLDOUT SELF-DEVELOPMENT - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 12 members in 79 TRUE AUTONOMY is TESTING (CR179, CR180, CR181, CR182, CR183, CR184); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR294",
    "group": "SECTION / 78. INDEPENDENT REPRODUCTION",
    "description": "SECTION REQUIREMENT: 78. INDEPENDENT REPRODUCTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (6 bullets: starting state;; objective;; development actions;; evidence;; final state;; measured improvement.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR295",
    "group": "SECTION / 80. ANTI-PREMATURE-COMPLETION FIREWALL",
    "description": "SECTION REQUIREMENT: 80. ANTI-PREMATURE-COMPLETION FIREWALL - every requirement in this section of CREATOR_MASTER_PROMPT.md (11 bullets: the code is large;; the architecture looks sophisticated;; the tests pass;; one autonomous cycle worked;; one self-improvement worked;; a demo looks impressive;; the system can edit its own files;; the system can call research tools;; the system can call agents;; the system can generate plans;; the system has memory.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR296",
@@ -3758,7 +3996,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR297",
@@ -3769,18 +4007,20 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR298",
    "group": "SECTION / 83. THE ULTIMATE TEST",
    "description": "SECTION REQUIREMENT: 83. THE ULTIMATE TEST - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "evidence": [
+    "state/build/CREATOR_MASTER_CHECKLIST.json"
+   ],
+   "notes": "weakest of 30 members in 79 TRUE AUTONOMY, 79 RECURSIVE IMPROVEMENT, 79 VALIDATION is IMPLEMENTED (CR197, CR198, CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR299",
@@ -3791,7 +4031,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR300",
@@ -3802,7 +4042,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR301",
@@ -3813,7 +4053,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR302",
@@ -3824,7 +4064,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR303",
@@ -3835,7 +4075,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   },
   {
    "id": "CR304",
@@ -3846,7 +4086,7 @@
    "code_paths": [],
    "tests": [],
    "evidence": [],
-   "notes": "added 30 Sep: section without '[ ]' boxes, tracked as one item"
+   "notes": "no measurable member items map to this section (doctrine/role/process rule)"
   }
  ],
  "line_budget": []

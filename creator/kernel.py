@@ -40,6 +40,7 @@ from creator import planner as P
 from creator import sandbox as S
 from creator import selfmodel as SM
 from creator import testrun as T
+from creator import treecache as TC
 from creator.audit import checks as AUD
 from creator.ledger import Ledger
 
@@ -174,14 +175,20 @@ class Assessed:
 
 def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_tests: bool = True,
                 audit: bool = True) -> Assessed:
-    """Fresh evidence for `root` (main or a sandbox): run the declared tests, build the self-model, re-check every requirement."""
+    """Fresh evidence for `root` (main or a sandbox): run the declared tests, build the self-model, re-check every requirement.
+    Main's round assessment (label "main") serves passing files from an earlier assessment of the byte-identical clean tree;
+    every other label (the candidate replicates, the post-merge check) runs everything."""
     specs = cfg.specs()
     tests = sorted({t for s in specs for t in s.tests if (root / t).is_file()})
     evd = cfg.state / "evidence" / label
     evd.mkdir(parents=True, exist_ok=True)
+    cache = TC.TreeCache(cfg.state / "evidence" / "tree_cache")
+    key = TC.tree_key(root, T.PytestConfig().python) if run_tests and tests else None   # None: dirty or sandbox tree -> all fresh
     ev = SM.collect_test_evidence(root, tests, evd / "test_evidence.json", timeout=cfg.test_timeout, junit_dir=evd / "junit",
-                                  parallel=cfg.test_parallel) \
+                                  parallel=cfg.test_parallel, reuse=cache.lookup(key) if label == "main" else None) \
         if run_tests and tests else {}
+    if key and TC.tree_key(root, T.PytestConfig().python) == key:       # the tests left the tree as they found it
+        cache.store(key, {t: ev[t] for t in tests if t in ev})
     model = SM.build(root, scope=cfg.scope, capabilities=specs, test_evidence=ev, ledger=led)
     tmp = evd / "selfmodel.tmp.json"
     SM.save(model, tmp)
@@ -613,7 +620,10 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
         if cfg.hide:
             sb.reveal()                                                 # the Creator's own tests need the sealed suite back
-        ev = sb.evaluate(build_config=cfg.build, pytest_config=sandbox_pytest(cfg))
+        pcfg = sandbox_pytest(cfg)
+        served = TC.TreeCache(cfg.state / "evidence" / "tree_cache").lookup(TC.tree_key(cfg.repo, pcfg.python, rev=base_sha,
+                                                                                         require_clean=False))
+        ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()})
         before, after = _test_sources(sb.path, base_sha, change.files)
         weak = AUD.check_test_weakening(before, after)
         planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
