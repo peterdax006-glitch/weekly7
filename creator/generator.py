@@ -448,8 +448,9 @@ def visible_tests(workdir: Path) -> D.TestCounts:
 
 def failure_text(workdir: Path, limit: int = 2500) -> str:
     D.purge_bytecode(workdir)
-    p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
-                       cwd=workdir, capture_output=True, text=True, timeout=120)
+    from creator import testslots
+    p = testslots.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
+                      cwd=workdir, text=True, timeout=120)
     return (p.stdout + p.stderr)[-limit:]
 
 

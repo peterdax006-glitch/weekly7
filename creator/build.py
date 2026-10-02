@@ -76,14 +76,20 @@ def _text(v: Any) -> str:
 
 
 def run_cmd(argv: Sequence[str], cwd: str | Path, *, timeout: float, env: Mapping[str, str] | None = None,
-            stdin: str | None = None) -> ProcResult:
+            stdin: str | None = None, budget: bool = False) -> ProcResult:
     """Run one child process to completion (or its own timeout). A timeout or a launch failure is a result, never an
-    exception: callers classify it. Only the child started here is ever stopped (subprocess.run's own timeout)."""
+    exception: callers classify it. Only the child started here (and its descendants) is ever stopped. budget=True: a TEST launch,
+    it waits for a machine-wide test slot (creator.testslots) and measures its memory; verdicts are unaffected."""
     t0 = time.monotonic()
     args = tuple(str(a) for a in argv)
     try:
-        cp = subprocess.run(list(args), cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace",
-                            timeout=timeout, env=dict(env) if env is not None else None, input=stdin)
+        if budget:
+            from creator import testslots
+            cp = testslots.run(list(args), cwd=str(cwd), text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                               env=dict(env) if env is not None else None, input=stdin)
+        else:
+            cp = subprocess.run(list(args), cwd=str(cwd), capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                timeout=timeout, env=dict(env) if env is not None else None, input=stdin)
     except subprocess.TimeoutExpired as e:
         return ProcResult(args, str(cwd), None, _text(e.stdout), _text(e.stderr), time.monotonic() - t0, timed_out=True)
     except OSError as e:

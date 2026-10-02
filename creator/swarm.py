@@ -24,6 +24,7 @@ from creator import registry as REG                                   # goals/co
 from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
+from creator import testslots as TS
 from creator import schedule as SCHED
 from creator.ledger import Ledger
 
@@ -182,6 +183,8 @@ class Governor:
     observe: Optional[Callable[[int], Optional[float]]] = None
     user_active_floor_fraction: Optional[float] = None  # owner, 1 Oct: "when i start doing things it adjusts how much RAM it can
     idle_after_s: float = 300.0                         # use" - while the owner is at the keyboard keep this larger share free
+    test_parallel: int = 0                              # test processes ONE worker's evaluation runs side by side (0 = not counted)
+    eval_reserve: Callable[[int, int, int], float] = TS.eval_reserve_gb   # (running, test_parallel, extra) -> GB set aside
     idle: Optional[Callable[[], float]] = None          # seconds since the owner's last input (None = user_idle_seconds)
 
     def floor(self) -> float:
@@ -194,8 +197,14 @@ class Governor:
         seen = self.observe(running) if (self.observe is not None and running) else None
         return max(0.1, 1.25 * seen) if seen else self.per_worker_gb
 
+    def reservation(self, running: int, extra: int = 1) -> float:
+        """Memory the evaluations of `extra` more workers will need: a worker is not started if the work it would do cannot
+        finish (2 Oct: workers were admitted by their own memory, then pulled back mid-evaluation for the test processes)."""
+        return self.eval_reserve(running, self.test_parallel, extra)
+
     def can_start(self, running: int) -> bool:
-        return running < self.max_workers and self.free() - self.estimate(running) >= self.floor()
+        return (running < self.max_workers
+                and self.free() - self.estimate(running) - self.reservation(running) >= self.floor())
 
     def too_tight(self) -> bool:
         return self.free() < self.pull_fraction * self.floor()
@@ -233,7 +242,7 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
         return None
     slots = 0
     est, free, floor = gov.estimate(load), gov.free(), gov.floor()
-    while slots < cap and gov.can_start(load + slots) and free - (slots + 1) * est >= floor:   # each planned worker eats its share
+    while slots < cap and gov.can_start(load + slots) and free - (slots + 1) * est - gov.reservation(load, slots + 1) >= floor:   # each planned worker eats its share
         slots += 1
     if slots == 0:
         return []
