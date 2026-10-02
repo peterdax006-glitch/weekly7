@@ -68,9 +68,8 @@ def report(pid: str, outcome: str) -> Any:
 
 def answer_later(repo: Path, body: dict[str, Any]) -> threading.Thread:
     def go() -> None:
-        for _ in range(400):
-            if (repo / ".creator_task.md").exists():
-                break
+        deadline = time.monotonic() + 90.0                      # generous: a loaded machine may start the worker late
+        while not (repo / ".creator_task.md").exists() and time.monotonic() < deadline:
             time.sleep(0.025)
         (repo / "m.py").write_text("x = 3\n", encoding="utf-8")
         (repo / ".creator_done.json").write_text(json.dumps(body), encoding="utf-8")

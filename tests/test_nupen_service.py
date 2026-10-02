@@ -145,9 +145,12 @@ def test_the_off_switch_stops_the_swarm_and_everything_it_started(tmp_path: Path
     threading.Thread(target=stop_when_started, daemon=True).start()
     assert svc.run(sys.executable, poll_s=0.2) == 0
     gpid = int(marker.read_text(encoding="utf-8"))
-    time.sleep(1.0)
-    out = subprocess.run(["tasklist", "/FI", f"PID eq {gpid}", "/NH"], capture_output=True, text=True).stdout
-    assert str(gpid) not in out                                                  # the grandchild is gone too
+    def alive() -> bool:
+        return str(gpid) in subprocess.run(["tasklist", "/FI", f"PID eq {gpid}", "/NH"], capture_output=True, text=True).stdout
+    deadline = time.monotonic() + 30.0
+    while alive() and time.monotonic() < deadline:                              # termination is asynchronous: wait, do not guess
+        time.sleep(0.1)
+    assert not alive()                                                  # the grandchild is gone too
 
 
 # ---- LM trainer at idle priority (owner priority 3) ------------------------------------------------------------------

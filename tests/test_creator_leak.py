@@ -157,28 +157,50 @@ def test_a_stale_server_whose_owner_is_dead_is_reaped_by_pid_only(tmp_path: Path
                 q.kill()
 
 
+HOLDER = """import sys, time
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from creator import generator as G
+m = G.MachineLock(Path(sys.argv[2]))
+m.acquire()
+print('held', flush=True)
+end = time.monotonic() + float(sys.argv[3])
+while time.monotonic() < end and not Path(sys.argv[4]).exists():
+    time.sleep(0.02)
+m.release()
+"""
+
+
 def test_one_local_model_per_machine_lock_waits_times_out_and_survives_a_killed_holder(tmp_path: Path) -> None:
     """2 Oct: three llama servers (~1 GB each) ran at once. MachineLock lets one holder per machine, across processes."""
     import subprocess
     import sys
-    import time
+    import threading
+    import time  # noqa: F401
     from creator import generator as G
     lock = tmp_path / "llama_server.lock"
-    holder = [sys.executable, "-c",
-              "import sys, time; sys.path.insert(0, sys.argv[1]); from pathlib import Path; from creator import generator as G; "
-              "m = G.MachineLock(Path(sys.argv[2])); m.acquire(); print('held', flush=True); time.sleep(float(sys.argv[3])); m.release()",
-              str(Path(__file__).resolve().parents[1]), str(lock)]
-    p = subprocess.Popen(holder + ["2.5"], stdout=subprocess.PIPE, text=True)
+    go = tmp_path / "release_now"
+    script = tmp_path / "holder.py"
+    script.write_text(HOLDER, encoding="utf-8")
+    holder = [sys.executable, str(script), str(Path(__file__).resolve().parents[1]), str(lock)]
+    p = subprocess.Popen(holder + ["300", str(go)], stdout=subprocess.PIPE, text=True)   # holds until `go` exists, not for a time
     assert p.stdout is not None and p.stdout.readline().strip() == "held"
     with pytest.raises(TimeoutError):
         G.MachineLock(lock, wait_s=0.3, poll_s=0.05).acquire()              # held elsewhere: no second server
-    t0 = time.monotonic()
-    m = G.MachineLock(lock, wait_s=20, poll_s=0.05)
-    m.acquire()                                                              # waits for the holder to release
-    assert time.monotonic() - t0 > 0.5
+    m = G.MachineLock(lock, wait_s=120, poll_s=0.05)
+    got = threading.Event()
+    def wait_for_lock() -> None:
+        m.acquire()
+        got.set()
+    waiter = threading.Thread(target=wait_for_lock)
+    waiter.start()
+    assert not got.wait(0.5)                                                 # the holder has not released, so it must still be waiting
+    go.write_text("x", encoding="utf-8")                                     # now the holder releases
+    assert got.wait(60)                                                      # and the waiter gets the lock
+    waiter.join(10)
     m.release()
-    p.wait(10)
-    q = subprocess.Popen(holder + ["60"], stdout=subprocess.PIPE, text=True)
+    p.wait(30)
+    q = subprocess.Popen(holder + ["300", str(tmp_path / "never")], stdout=subprocess.PIPE, text=True)
     assert q.stdout is not None and q.stdout.readline().strip() == "held"
     q.kill()                                                                 # a hard-killed holder must not leave it locked
     q.wait(10)
