@@ -124,7 +124,8 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--max-workers", type=int, default=int(DEV.settings()["max_workers"]))   # RAM-derived (32 on 16 GB)
-    ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
+    ap.add_argument("--floor-fraction", type=float, default=float(DEV.settings()["governor_floor_fraction"]))   # reserve = this share of RAM
+    ap.add_argument("--floor-min-gb", type=float, default=float(DEV.settings()["governor_floor_min_gb"]))      # ... but never less than this
     ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
     ap.add_argument("--test-parallel", type=int, default=int(DEV.settings()["test_slots"]))   # machine-derived (4 on 16 GB); creator.testslots caps across all evaluations
     ap.add_argument("--packages", type=int, default=12)
@@ -144,7 +145,7 @@ def main(argv: list[str]) -> int:
 
     def make_worker() -> "SW.SelfFirst":                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
-    gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers,
+    gov = W.Governor(floor_fraction=a.floor_fraction, floor_min_gb=a.floor_min_gb, max_workers=a.max_workers,
                      user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)

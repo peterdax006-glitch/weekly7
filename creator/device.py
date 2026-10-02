@@ -232,6 +232,7 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "max_workers": max(1, round(dev.ram_gb * WORKER_PER_GB)),
         "governor_floor_fraction": 0.07,                 # shares of THIS machine's RAM; the fractions are the machine-independent part
         "governor_floor_min_gb": 0.8,
+        "user_aware": True,                              # keep 25% free while the owner is at the keyboard (False: never yield)
         "lm_threads": max(1, dev.cores_physical // 2),
         "lm_min_free_gb": round(max(LM_FREE_MIN_GB, LM_FREE_FRACTION * dev.ram_gb), 1),
         "torch_device": "cuda" if cuda else "cpu",

@@ -395,7 +395,7 @@ class PracticeRunner:
 
 def swarm_cmd(python: str) -> list[str]:
     return [python, "-u", str(ROOT / "scripts" / "creator_swarm.py"), "--rounds", "0", "--packages", "24",
-            "--user-aware", "--teacher-presence"]
+            "--teacher-presence"] + (["--user-aware"] if DEV.settings()["user_aware"] else [])   # device_overrides.json can turn it off
 
 
 def beat() -> None:

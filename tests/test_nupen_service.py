@@ -48,6 +48,18 @@ def test_the_reserve_grows_while_the_owner_is_at_the_keyboard() -> None:
     assert plain.floor() == pytest.approx(1.12)                             # off unless asked for
 
 
+def test_the_owner_can_set_a_fixed_reserve_and_turn_off_yielding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Owner, 2 Oct 2026: 'building itself no matter what ... utilizing all but 1 GB' - via state/creator/device_overrides.json."""
+    svc = _load("nupen_service")
+    base = svc.DEV.settings()
+    monkeypatch.setattr(svc.DEV, "settings", lambda refresh=False: {**base, "user_aware": False})
+    assert "--user-aware" not in svc.swarm_cmd("py")
+    monkeypatch.setattr(svc.DEV, "settings", lambda refresh=False: {**base, "user_aware": True})
+    assert "--user-aware" in svc.swarm_cmd("py")
+    fixed = W.Governor(floor_fraction=0.0, floor_min_gb=1.0, total=lambda: 33.8, idle=lambda: 0.0)
+    assert fixed.floor() == pytest.approx(1.0)                              # all but 1 GB, owner at the keyboard or not
+
+
 def test_idle_seconds_is_a_number() -> None:
     assert W.user_idle_seconds() >= 0.0
 

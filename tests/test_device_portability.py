@@ -66,6 +66,10 @@ def test_overrides_win_and_unknown_keys_are_ignored(tmp_path):
     s = DEV.derive(machine(), overrides=ov, lm_cuda=False)
     assert s["llama_threads"] == 3 and s["gpu_layers"] == 20 and "nonsense" not in s
     assert DEV.load_overrides(tmp_path / "missing.json") == {}
+    assert DEV.derive(machine(), overrides={}, lm_cuda=False)["user_aware"] is True              # yields to the owner by default
+    s = DEV.derive(machine(), overrides={"user_aware": False, "governor_floor_fraction": 0.0, "governor_floor_min_gb": 1.0},
+                   lm_cuda=False)
+    assert (s["user_aware"], s["governor_floor_fraction"], s["governor_floor_min_gb"]) == (False, 0.0, 1.0)
     p.write_text("not json", encoding="utf-8")
     assert DEV.load_overrides(p) == {}
 
