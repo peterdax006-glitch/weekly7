@@ -457,7 +457,7 @@ def _fresh_main(cfg: K.KernelConfig) -> None:
 
 
 def test_replicate_and_post_merge_reuse_runs_fewer_tests_and_decides_the_same(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cycle-time cut: cand1 and main_after serve cand0's PASS files (same reach digest; merged tree == candidate tree). The
+    """Cycle-time cut: main_after serves cand0's PASS files (merged tree == candidate tree); cand1 re-runs (reproducibility check). The
     adoption decision, verdict and requirement outcomes equal the run with the optimisation off; every stage is timed."""
     change = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}
     calls = _spy_pytest(monkeypatch)
@@ -510,3 +510,20 @@ def test_a_pulled_back_package_keeps_its_finished_work(cfg: K.KernelConfig) -> N
     assert saved.is_file() and saved.parent == cfg.state / "pending"
     assert "pkg/user.py" in saved.read_text(encoding="utf-8") and "tests/test_user.py" in saved.read_text(encoding="utf-8")
     assert head(cfg) == before and not (cfg.repo / "pkg" / "user.py").exists()
+
+
+def test_second_candidate_replicate_reruns_tests_while_main_after_may_reuse(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """cand1 is the reproducibility check: it never receives a reuse map. The byte-identical post-merge assessment may."""
+    seen: dict[str, object] = {}
+    real = K.assess_tree
+
+    def spy(c, led, root, label, run_tests=True, audit=True, reuse=None):           # type: ignore[no-untyped-def]
+        seen[label.rsplit("_", 1)[-1] if "_cand" in label else label] = reuse
+        return real(c, led, root, label, run_tests, audit, reuse)
+    monkeypatch.setattr(K, "assess_tree", spy)
+    change = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}
+    rep = K.cycle(cfg, Scripted("good", dict(change)))
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details)
+    assert seen["cand1"] is None, "the second replicate must re-run its tests"
+    after = [v for k, v in seen.items() if k.endswith("main_after")]
+    assert after and after[0], "the byte-identical post-merge check may serve cand0's PASS files"

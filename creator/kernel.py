@@ -74,7 +74,7 @@ class KernelConfig:
     steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
     mode: str = "auto"                                  # auto: gaps, then shrink when none | gaps | efficiency (shrink only)
     measure_memory: bool = True
-    reuse_candidate_tests: bool = True                  # 2nd candidate replicate / post-merge check serve PASS files of cand0 (same reach digest)
+    reuse_candidate_tests: bool = True                  # the post-merge check serves PASS files of cand0 (byte-identical merged tree); cand1 NEVER does (reproducibility check)
 
     @property
     def ledger_path(self) -> Path:
@@ -679,10 +679,10 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         cand: list[Assessed] = []
         for r in range(2):
             with stage(f"cand_assessment_{r}"):
-                # replicate 1 re-derives every requirement check on the candidate tree; the declared test files that PASSED in
-                # replicate 0 are served from it when their reach digest (test + every module it reaches) is unchanged.
+                # replicate 1 is the deliberate reproducibility check: it re-runs every declared test and re-derives every
+                # requirement check, so it never serves results from replicate 0 (only the byte-identical post-merge check may).
                 cand.append(assess_tree(cfg, led, sb.path, f"{plan.package_id}_cand{r}", audit=False,
-                                        reuse=(pass_reuse(cand[0]) if r and cfg.reuse_candidate_tests else None)))
+                                        reuse=None))
         evid = [_evidence_file(cfg, plan.package_id, "evaluation.json", ev.to_record()),
                 M.EvidenceRef.of(main.snapshot, cfg.repo, "selfmodel"), M.EvidenceRef.of(cand[0].snapshot, cfg.repo, "selfmodel"),
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
