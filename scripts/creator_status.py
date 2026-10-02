@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from creator import gaps as G  # noqa: E402
 from creator import objective as O  # noqa: E402
+from creator import schedule as SCH  # noqa: E402
 from creator import selfmodel as SM  # noqa: E402
 from creator.audit import checks as AUD  # noqa: E402
 from creator.ledger import Ledger  # noqa: E402
@@ -66,7 +67,7 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "curriculum": _curriculum(),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "curriculum": _curriculum(), "plan": SCH.last_plan(LEDGER),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
@@ -75,6 +76,11 @@ def main(argv: list[str]) -> int:
     print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
     print("CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall)", status["curriculum"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
+    plan = status["plan"]
+    if plan["at"]:
+        print(f"PLAN {plan['at']} critical path {plan['critical_path_s']:.0f}s: {' -> '.join(plan['critical_path']) or '-'}; chosen {plan['chosen']}")
+        for r in plan["reasons"]:
+            print(f"  {'RUN ' if r['chosen'] else 'hold'} {r['node']} {r['component']}.{r['step']}: {r['why']}")
     for f in aud.findings[:10]:
         print("FINDING", f.severity, f.check, f.subject, f.detail[:100])
     for g in summ["next"]:

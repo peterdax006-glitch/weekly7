@@ -22,6 +22,7 @@ from typing import Any, Callable, Optional
 from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
+from creator import schedule as SCHED
 from creator.ledger import Ledger
 
 
@@ -220,9 +221,43 @@ class RoundReport:
     reason: str = ""
 
 
+def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, gov: Governor, load: int, cap: int,
+                   held: list[str], held_paths: list[str], planned: int) -> Optional[list[Any]]:
+    """One scheduling decision for run_round: as many plans as there are free slots AND the governor allows, chosen together by
+    creator.schedule so no two share a component or file. Gap work comes from schedule.plan_batch; shrink/coverage work
+    (plan_efficiency) fills the rest in 'auto' mode and is the fallback when the batch is empty. Returns None only for
+    'use the old path' (efficiency-only mode has nothing to schedule; a scheduler failure is recorded, not hidden)."""
+    if cfg.mode == "efficiency":
+        return None
+    slots = 0
+    est, free, floor = gov.estimate(load), gov.free(), gov.floor()
+    while slots < cap and gov.can_start(load + slots) and free - (slots + 1) * est >= floor:   # each planned worker eats its share
+        slots += 1
+    if slots == 0:
+        return []
+    held_files = list(held_paths)
+    plans: list[Any] = []
+    gap_slots = slots - 1 if (cfg.mode == "auto" and slots >= 2) else slots    # keep one slot for shrink work alongside gaps
+    try:
+        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
+    except Exception as e:                                              # noqa: BLE001 - never lose a round to the scheduler
+        SCHED.note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
+        return None
+    seen = {p.component for p in plans}
+    if cfg.mode == "auto" and len(plans) < slots:
+        eff = K.plan_one(dataclasses.replace(cfg, mode="efficiency"), led, main, base_sha,
+                         exclude_components=held + sorted(seen), exclude_paths=held_paths)
+        if eff is not None:
+            plans.append(eff)
+    return plans[:slots]
+
+
 def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Optional[Governor] = None,
               max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None,
-              filler: Optional[Callable[[], Optional[Callable[[], None]]]] = None, filler_budget: int = 0) -> RoundReport:
+              filler: Optional[Callable[[], Optional[Callable[[], None]]]] = None, filler_budget: int = 0,
+              scheduled: bool = True) -> RoundReport:
+    """`scheduled` (default): gap work is chosen as a batch by creator.schedule (dependency graph, critical path, no two plans on
+    one component/file); False keeps the old one-package-at-a-time K.plan_one path."""
     gov = governor or Governor()
     scratch_dir = cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
     if gov.observe is None:                                             # measure what workers really use
@@ -248,6 +283,32 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     starved = False
     last_start = -1e9
     nothing_while: Optional[tuple[str, ...]] = None                     # running set for which planning found nothing
+
+    queue: list[Any] = []                                               # planned, not yet started (the ramp spaces the starts)
+
+    def start(plan: Any) -> None:
+        nonlocal last_start, peak
+        ev = threading.Event()
+        box: list[K.CycleReport] = []
+
+        def job() -> None:
+            own = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+            try:
+                box.append(K.execute(cfg, protect_finished(make_worker()), plan, main, base_sha, len(reports) + 1, own, recovered,
+                                     lock=lock, cancel=ev, checkpoint=False))
+            except Exception as e:                                      # noqa: BLE001 - a dead job thread must leave a report, not a hole
+                why = f"{type(e).__name__}: {e}"
+                try:
+                    if own.view.status[plan.work_package_id] not in (M.Status.FAILED, M.Status.IMPLEMENTED):
+                        K.P.record_outcome(own, plan, False, f"swarm job crashed: {why}"[:500])
+                except Exception:                                       # noqa: BLE001 - the report below is what matters
+                    pass
+                box.append(K.CycleReport(len(reports) + 1, "ERROR", plan.package_id, plan.requirement_key, reason=why))
+        t = threading.Thread(target=job, name=f"swarm-{plan.package_id}", daemon=True)
+        running.append(_Running(plan, t, ev, time.monotonic(), box))
+        t.start()
+        last_start = time.monotonic()
+        peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
 
     def finish(r: _Running) -> None:
         if r.result:
@@ -275,49 +336,36 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
                                       youngest.plan.package_id)
                 pulled += 1
-        elif (not exhausted and planned < max_packages and ramped and gov.can_start(load)
+        elif queue and ramped and gov.can_start(load):                  # a planned package starts once the ramp allows
+            start(queue.pop(0))
+            continue
+        elif (not queue and not exhausted and planned < max_packages and ramped and gov.can_start(load)
               and nothing_while != key):
             with lock:
                 held = [r.plan.component for r in running]
                 held_paths = [r.plan.component for r in running if r.plan.step in K.P.EFFICIENCY_STEPS]
-                order = [cfg]
-                if cfg.mode == "auto":                                  # shrink work runs ALONGSIDE gap work, not only after it
-                    order = [dataclasses.replace(cfg, mode="efficiency"), dataclasses.replace(cfg, mode="gaps")]
-                    if planned % 2 == 0:
-                        order.reverse()
-                plan = None
-                for c in order:
-                    plan = K.plan_one(c, led, main, base_sha, exclude_components=held, exclude_paths=held_paths)
-                    if plan is not None:
-                        break
-            if plan is None:                                            # a target held by a running worker may free up: wait for
+                plans = plan_scheduled(cfg, led, main, base_sha, gov, load, min(max_packages - planned, gov.max_workers),
+                                       held, held_paths, planned) if scheduled else None
+                if plans is None:                                       # flag off, or the scheduler failed: the old path
+                    plans = []
+                    order = [cfg]
+                    if cfg.mode == "auto":                              # shrink work runs ALONGSIDE gap work, not only after it
+                        order = [dataclasses.replace(cfg, mode="efficiency"), dataclasses.replace(cfg, mode="gaps")]
+                        if planned % 2 == 0:
+                            order.reverse()
+                    for c in order:
+                        plan = K.plan_one(c, led, main, base_sha, exclude_components=held, exclude_paths=held_paths)
+                        if plan is not None:
+                            plans = [plan]
+                            break
+            if not plans:                                               # a target held by a running worker may free up: wait for
                 if running:                                             # the running set to change before planning again (1 Oct:
                     nothing_while = key   # one held target ended the round at 2)
                 else:
                     exhausted = True
             else:
-                planned += 1
-                ev = threading.Event()
-                box: list[K.CycleReport] = []
-
-                def job(plan: Any = plan, ev: threading.Event = ev, box: list[K.CycleReport] = box) -> None:
-                    own = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-                    try:
-                        box.append(K.execute(cfg, protect_finished(make_worker()), plan, main, base_sha, len(reports) + 1, own, recovered,
-                                             lock=lock, cancel=ev, checkpoint=False))
-                    except Exception as e:                              # noqa: BLE001 - a dead job thread must leave a report, not a hole
-                        why = f"{type(e).__name__}: {e}"
-                        try:
-                            if own.view.status[plan.work_package_id] not in (M.Status.FAILED, M.Status.IMPLEMENTED):
-                                K.P.record_outcome(own, plan, False, f"swarm job crashed: {why}"[:500])
-                        except Exception:                               # noqa: BLE001 - the report below is what matters
-                            pass
-                        box.append(K.CycleReport(len(reports) + 1, "ERROR", plan.package_id, plan.requirement_key, reason=why))
-                t = threading.Thread(target=job, name=f"swarm-{plan.package_id}", daemon=True)
-                running.append(_Running(plan, t, ev, time.monotonic(), box))
-                t.start()
-                last_start = time.monotonic()
-                peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
+                planned += len(plans)
+                queue.extend(plans)
                 continue
         if ((exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
                 and gov.can_start(load)):
@@ -331,9 +379,9 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
                 continue
         fillers[:] = [f for f in fillers if f.is_alive()]
-        if not running and not fillers and (exhausted or planned >= max_packages):
+        if not running and not fillers and not queue and (exhausted or planned >= max_packages):
             break
-        if not running and not fillers and not gov.can_start(0):        # too tight to start anything: end the round so the
+        if not running and not fillers and not queue and not gov.can_start(0):        # too tight to start anything: end the round so the
             starved = True                                              # runner records it and retries later (never a silent
             break                                                       # wait forever - found by the tight-RAM test, 2 Oct)
         time.sleep(poll_s)

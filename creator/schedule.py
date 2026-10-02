@@ -254,6 +254,35 @@ def record_explanations(path: Path, rows: Sequence[dict[str, Any]], a: Analysis)
             f.write(json.dumps({"at": at, "critical_path_s": a.length, **r}, sort_keys=True) + "\n")
 
 
+def note(ledger_path: Any, row: dict[str, Any]) -> None:
+    """A scheduler event that is not a node decision (for instance a failure the swarm fell back from)."""
+    path = explain_path_for(ledger_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), **row}, sort_keys=True) + "\n")
+
+
+def last_plan(ledger_path: Any, limit: int = 12) -> dict[str, Any]:
+    """The newest batch of explanations (rows sharing the last timestamp) and the critical path length, for STATUS and the console."""
+    path = explain_path_for(ledger_path)
+    rows: list[dict[str, Any]] = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    node_rows = [r for r in rows if "node" in r]
+    if not node_rows:
+        return {"at": None, "critical_path_s": 0.0, "critical_path": [], "chosen": [], "reasons": []}
+    at = node_rows[-1]["at"]
+    last = [r for r in node_rows if r["at"] == at]
+    return {"at": at, "critical_path_s": last[0].get("critical_path_s", 0.0),
+            "critical_path": [r["node"] for r in last if r.get("slack_s") == 0],
+            "chosen": [r["node"] for r in last if r.get("chosen")],
+            "reasons": [{k: r[k] for k in ("node", "component", "step", "chosen", "slack_s", "why")} for r in last[:limit]]}
+
+
 def plan_batch(cfg: Any, led: Ledger, main: Any, base_sha: str, slots: int, held: Sequence[str] = (),
                held_files: Iterable[str] = ()) -> list[P.Plan]:
     """Adapter for swarm.run_round: writes the package chain for each pick of next_batch; mode 'efficiency' or a shortfall falls
