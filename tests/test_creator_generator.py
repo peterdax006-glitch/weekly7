@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -128,6 +129,9 @@ def test_the_solver_is_scored_by_hidden_tests(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(not (G.SERVER_EXE.is_file() and G.DEFAULT_MODEL.is_file()), reason="local model runtime not installed")
+@pytest.mark.skipif(os.environ.get("NUPEN_REAL_MODEL_TEST") != "1",
+                    reason="loads a 1.3 GB model server: opt-in with NUPEN_REAL_MODEL_TEST=1 (run at every deploy). 2 Oct 2026: it "
+                           "ran inside every kernel evaluation that touched generator.py and pulled work back for RAM")
 def test_the_real_local_model_answers_offline() -> None:
     with G.LocalModel() as llm:
         reply = llm.chat([{"role": "user", "content": "Reply with exactly: FILE: a.py then a python block defining x = 1"}],
