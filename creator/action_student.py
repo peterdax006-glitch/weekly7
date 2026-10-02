@@ -45,8 +45,19 @@ class Action:
     def p(self) -> dict[str, str]:
         return dict(self.params)
 
-    def label(self) -> str:
+    def label(self, rich: bool = False) -> str:
         p = self.p
+        if rich:
+            if self.kind == "lazy_import":
+                return (f"lazy_import: move the import of '{p['alias']}' from the top of the file into the function(s) that use it "
+                        f"({p.get('into', '')}); '{p['alias']}' stays in use, it is only loaded later")
+            if self.kind == "remove_unused":
+                return f"remove_unused: delete the whole function '{p['name']}' (dead code: no code calls or references it)"
+            if self.kind == "inline_temp":
+                return (f"inline_temp: in function '{p['function']}' replace the temporary variable '{p['variable']}' "
+                        f"by its expression and delete the assignment")
+            if self.kind == "drop_unused_import":
+                return f"drop_unused_import: delete the import of '{p['name']}' (the file never uses '{p['name']}')"
         if self.kind == "lazy_import":
             return f"lazy_import: move top-level import of '{p['alias']}' into the function(s) that use it ({p.get('into', '')})"
         if self.kind == "remove_unused":
@@ -252,6 +263,60 @@ def export_choices(lessons_path: Path, out_jsonl: Path, adopted_only: bool = Tru
 
 # ------------------------------------------------------------------------------------------------ the student
 
+_KIND_WORDS = {"lazy_import": {"defer", "lazy", "lazily", "later", "startup", "start", "load"},
+               "remove_unused": {"remove", "dead", "calls", "nothing", "helper", "function"},
+               "inline_temp": {"inline", "temporary", "temp", "single", "variable"},
+               "drop_unused_import": {"unused", "import", "delete", "never"},
+               "add_empty_guard": {"empty", "guard", "early"}}
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in re.split(r"[^a-z0-9]+", text.lower()) if w}
+
+
+def lexical_scores(objective: str, cands: list[Action]) -> list[float]:
+    """Non-LLM baseline: 3 points per candidate name (alias/function/variable/param) found whole in the objective,
+    plus 0.5 per generic kind word present. Names come from the candidate; kind words are task-agnostic synonyms."""
+    ow = _words(objective.replace("_", " ")) | _words(objective)
+    out = []
+    for a in cands:
+        sc = 0.0
+        names = {v for k, v in a.params if k in ("alias", "name", "function", "variable", "param")}
+        for n in names:
+            nw = _words(n.replace("_", " "))
+            sc_n = 3.0 if nw and nw <= ow else 0.0
+            sc += sc_n or 1.0 * len(nw & ow)
+        sc += 0.5 * len(_KIND_WORDS.get(a.kind, set()) & ow)
+        out.append(sc)
+    return out
+
+
+def lexical_pick(objective: str, cands: list[Action]) -> Optional[int]:
+    """1-based index of the unique best lexical candidate, else None (ties are not guessed)."""
+    sc = lexical_scores(objective, cands)
+    if not sc or max(sc) <= 0 or sc.count(max(sc)) != 1:
+        return None
+    return sc.index(max(sc)) + 1
+
+
+def combine_choice(model_pick: Optional[int], objective: str, cands: list[Action], margin: float = 3.0) -> Optional[int]:
+    """Lexical prior + model: the model's pick stands unless a unique lexical candidate beats it by >= `margin` points
+    (or the model gave none)."""
+    sc = lexical_scores(objective, cands)
+    lex = lexical_pick(objective, cands)
+    if model_pick is None:
+        return lex
+    if lex is not None and lex != model_pick and sc[lex - 1] - sc[model_pick - 1] >= margin:
+        return lex
+    return model_pick
+
+
+def majority_vote(picks: list[Optional[int]]) -> Optional[int]:
+    """Most common non-None pick; ties go to the earliest seen. None when nobody picked."""
+    seen = [x for x in picks if x is not None]
+    return max(dict.fromkeys(seen), key=seen.count) if seen else None
+
+
 def _elsewhere(others: list[str]) -> Callable[[str], bool]:
     return lambda name: any(ST._refs(t, name) for t in others)
 
@@ -276,7 +341,8 @@ class ActionStudent:
     name = "nupen-model-v2"
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
-                 max_files: int = 4, timeout_s: float = 300.0) -> None:
+                 max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = False, lexical_prior: bool = False) -> None:
+        self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
         self.lessons_path, self.llm, self.k = Path(lessons_path), llm, k
         self.max_tokens, self.max_candidates, self.max_files, self.timeout_s = max_tokens, max_candidates, max_files, timeout_s
         self.last_prompt, self.last_reply, self.last_seconds, self.last_calls = "", "", 0.0, 0
@@ -313,7 +379,7 @@ class ActionStudent:
         task_file = workdir / ".creator_task.md"
         text = task_file.read_text(encoding="utf-8", errors="replace") if task_file.is_file() else objective
         parts.append(f"Task ({kind}):\n{text[:1500]}")
-        parts.append("Candidate actions:\n" + "\n".join(f"{i}. [{a.path}] {a.label()}" for i, a in enumerate(cands, 1)))
+        parts.append("Candidate actions:\n" + "\n".join(f"{i}. [{a.path}] {a.label(self.rich_labels)}" for i, a in enumerate(cands, 1)))
         return "\n\n".join(parts)
 
     def _ask(self, messages: list[dict[str, str]]) -> str:
@@ -341,6 +407,9 @@ class ActionStudent:
             why = (re.search(r"WHY:\s*(.*)", reply) or re.search(r"(.*)", reply))
             reasoning = (why.group(1).strip() if why else "")[:500]
             picks = parse_choice(reply, len(cands))
+            if self.lexical_prior and (picks is None or len(picks) == 1):
+                alt = combine_choice(picks[0] if picks else None, str(getattr(package, "objective", "")), cands)
+                picks = [alt] if alt else picks
             if not picks:
                 return WorkResult(False, f"model reply held no valid choice: {reply[:120]!r}", calls=self.last_calls, reasoning=reasoning)
             return self._apply([cands[i - 1] for i in picks], package, workdir, reasoning)

@@ -104,3 +104,37 @@ def test_export_choices_maps_lessons_onto_actions(tmp_path: Path) -> None:
 def dataclasses_replace(les: CUR.Lesson) -> CUR.Lesson:
     import dataclasses
     return dataclasses.replace(les, adopted=None)
+
+
+def test_lexical_pick_names_and_ties() -> None:
+    acts = A.enumerate_actions(SRC, "u.py")
+    pick = A.lexical_pick("Remove the dead helper unused_helper; nothing calls it.", acts)
+    assert pick is not None and acts[pick - 1].short() == "remove_unused(unused_helper)"
+    assert A.lexical_pick("tidy things up", acts) is None            # no evidence: never guess
+
+
+def test_combine_choice_overrides_only_on_clear_lexical_margin() -> None:
+    acts = A.enumerate_actions(SRC, "u.py")
+    obj = "Delete the unused import os; the module never uses it."
+    want = next(i for i, a in enumerate(acts, 1) if a.short() == "drop_unused_import(os)")
+    wrong = next(i for i, a in enumerate(acts, 1) if a.short() == "inline_temp(total,t)")
+    assert A.combine_choice(wrong, obj, acts) == want                # model wrong, lexical clear -> lexical
+    assert A.combine_choice(want, obj, acts) == want
+    assert A.combine_choice(None, obj, acts) == want                 # model silent -> lexical
+    assert A.combine_choice(wrong, "tidy things up", acts) == wrong  # no lexical evidence -> model stands
+
+
+def test_majority_vote_and_rich_label() -> None:
+    assert A.majority_vote([2, None, 3, 3]) == 3 and A.majority_vote([None]) is None and A.majority_vote([4, 5]) == 4
+    a = A.enumerate_actions(SRC, "u.py")[0]
+    assert a.label(rich=True) != a.label() and a.short().split("(")[0] in a.label(rich=True)
+
+
+def test_student_lexical_prior_flag_fixes_a_wrong_pick(work: Path) -> None:
+    pkg = SimpleNamespace(objective="Delete the unused import os; the module never uses it.", outputs=("app/u.py",))
+    (work / ".creator_task.md").write_text(pkg.objective, encoding="utf-8")
+    acts = A.enumerate_actions(SRC, "app/u.py")
+    wrong = next(i for i, a in enumerate(acts, 1) if a.short() == "inline_temp(total,t)")
+    A.ActionStudent(work / "n.jsonl", llm=FakeLLM(f"CHOICE: {wrong}\nWHY: x"), lexical_prior=True, rich_labels=True)(PLAN, pkg, work)
+    new = (work / "app/u.py").read_text(encoding="utf-8")
+    assert "import os" not in new and "t = sum(xs)" in new          # the import was dropped, the model's inline_temp was overridden
