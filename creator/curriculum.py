@@ -265,6 +265,33 @@ def kernel_outcomes(state: Path) -> dict[str, tuple[str, str]]:
     return out
 
 
+def kernel_workers(state: Path) -> dict[str, str]:
+    """package_id -> the worker (details.worker.by) of the kernel's LATEST cycle for it, when the record names one."""
+    out: dict[str, str] = {}
+
+    def take(d: Any) -> None:
+        if isinstance(d, dict) and d.get("package"):
+            det = d.get("details")
+            by = (det.get("worker") or {}).get("by") if isinstance(det, dict) and isinstance(det.get("worker"), dict) else None
+            if by:
+                out[str(d["package"])] = str(by)
+            else:
+                out.pop(str(d["package"]), None)
+
+    for d in _jsonl_dicts(Path(state) / "kernel_log.jsonl"):
+        take(d)
+    try:
+        dirs = [p for p in (Path(state) / "cycles").iterdir() if p.is_dir()]
+    except OSError:
+        dirs = []
+    for dd in dirs:
+        try:
+            take(json.loads((dd / "cycle.json").read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 def reconcile_lessons(log: LessonLog, state: Path, in_flight: Iterable[str] = ()) -> dict[str, Any]:
     """Give every lesson that still has no outcome one, from the kernel's records: ADOPTED/REJECTED/ROLLED_BACK -> that verdict;
     CANCELLED/ERROR -> the no-signal outcome; no record at all (the process died mid-cycle) -> adopted=False, verdict 'interrupted: ...'
@@ -274,7 +301,10 @@ def reconcile_lessons(log: LessonLog, state: Path, in_flight: Iterable[str] = ()
     try:
         busy = set(in_flight)
         outcomes = kernel_outcomes(state)
-        for les in log.lessons():
+        workers = kernel_workers(state)
+        every = log.lessons()
+        students = {x.solver for x in every if x.solver not in TEACHER}
+        for les in every:
             if les.adopted is not None:
                 continue
             rep["pending"] += 1
@@ -282,7 +312,14 @@ def reconcile_lessons(log: LessonLog, state: Path, in_flight: Iterable[str] = ()
                 rep["skipped"] += 1
                 continue
             oc, reason = outcomes.get(les.package_id, ("", ""))
-            if oc in ADJUDICATED:
+            by = workers.get(les.package_id, "")
+            foreign = bool(by) and ((by in students) if les.solver in TEACHER else by != les.solver)
+            if oc in ADJUDICATED and foreign:
+                # the package's latest cycle measured ANOTHER worker's change (a retry): this lesson's own attempt was never judged,
+                # and crediting (or blaming) it with that verdict would put someone else's result into this student's record
+                adopted, key = False, INTERRUPTED
+                verdict = f"{INTERRUPTED}: {les.package_id} was later judged on {by}'s change, not on this attempt ({oc})"
+            elif oc in ADJUDICATED:
                 adopted, verdict, key = ADJUDICATED[oc], f"{oc}: {reason[:500]}", oc
             elif oc in NO_SIGNAL:
                 adopted, verdict, key = False, f"{NO_SIGNAL[oc]}: {reason[:500]}", oc

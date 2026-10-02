@@ -181,3 +181,17 @@ def test_status_line_and_constraint(tmp_path: Path):
 def test_evaluate_candidate_never_raises(tmp_path: Path):
     rep = FU.evaluate_candidate(tmp_path / "missing", "HEAD", ["creator/x.py"], "feature")
     assert rep.total == 0
+
+
+def test_a_hung_git_cannot_hang_the_candidate_evaluation(tmp_path, monkeypatch):
+    """Validator 6: `git show` had no timeout, so a locked repository hung the kernel cycle that 'never raises'."""
+    import subprocess
+    seen = {}
+
+    def hang(cmd, **kw):
+        seen.update(kw)
+        raise subprocess.TimeoutExpired(cmd, kw.get("timeout") or 0)
+    (tmp_path / "m.py").write_text("X = 1\n", encoding="utf-8")
+    monkeypatch.setattr(FU.subprocess, "run", hang)
+    rep = FU.evaluate_candidate(tmp_path, "HEAD", ["m.py"], "feature")
+    assert seen.get("timeout") and "evaluate" in rep.errors

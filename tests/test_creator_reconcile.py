@@ -104,3 +104,18 @@ def test_learning_signal_reports_per_student_and_kind() -> None:
             log.add(x)
         m = [x for x in CON.learning_metrics(Path(td), now, 24.0) if x.name == "learning_signal"][0]
     assert m.detail["per_student_kind"]["stu|shrink"] == {"attempts": 4, "with_verdict": 1, "adopted": 1}
+
+
+def test_an_orphan_lesson_is_not_credited_with_a_retry_by_another_worker(tmp_path: Path) -> None:
+    """Validator 6: package ids are reused by retries. A student's lesson whose process died (no outcome) was settled ADOPTED because a
+    LATER cycle of the same package, by another worker, was adopted - that credit entered the student's skill record."""
+    log = plant(tmp_path, [lesson("orphan", "P9", "stu", done=True), lesson("other", "P8", "stu2", done=True, adopted=True, verdict="ADOPTED: x"),
+                           lesson("mine", "P7", "stu", done=True)], {})
+    with (tmp_path / "kernel_log.jsonl").open("w", encoding="utf-8") as fh:
+        for pkg, by in (("P9", "stu2"), ("P7", "stu")):
+            fh.write(json.dumps({"package": pkg, "outcome": "ADOPTED", "reason": "ok", "details": {"worker": {"by": by}}}) + "\n")
+    CUR.reconcile_lessons(log, tmp_path)
+    got = {x.lesson_id: x for x in log.lessons()}
+    assert got["orphan"].adopted is False and got["orphan"].verdict.startswith("interrupted")
+    assert not CUR.is_skill_signal(got["orphan"])
+    assert got["mine"].adopted is True                               # the worker that was judged is the lesson's own
