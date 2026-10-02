@@ -17,6 +17,12 @@ from creator import swarm as W
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def _no_real_lm_training(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Supervisor tests must never start the real language-model trainer, whatever the machine's idle state."""
+    monkeypatch.setenv("NUPEN_LM", "0")
+
+
 def _load(name: str):                                                       # type: ignore[no-untyped-def]
     spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)                             # type: ignore[arg-type]
@@ -130,3 +136,110 @@ def test_the_off_switch_stops_the_swarm_and_everything_it_started(tmp_path: Path
     time.sleep(1.0)
     out = subprocess.run(["tasklist", "/FI", f"PID eq {gpid}", "/NH"], capture_output=True, text=True).stdout
     assert str(gpid) not in out                                                  # the grandchild is gone too
+
+
+# ---- LM trainer at idle priority (owner priority 3) ------------------------------------------------------------------
+
+class _FakeProc:
+    def __init__(self) -> None:
+        self.pid, self.returncode = 4242, None
+
+    def poll(self):                                                         # type: ignore[no-untyped-def]
+        return self.returncode
+
+
+def _trainer(tmp_path: Path, idle: list, free: list, python: Path | None = None):   # type: ignore[no-untyped-def]
+    svc = _load("nupen_service")
+    py = python or (tmp_path / "python.exe")
+    if python is None:
+        py.write_text("", encoding="utf-8")
+    clock = [1000.0]
+    spawned: list = []
+    killed: list = []
+    logs: list = []
+
+    def spawn(cmd):                                                         # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        return _FakeProc()
+    tr = svc.LMTrainer(python=py, idle=lambda: idle[0], free_gb=lambda: free[0], spawn=spawn, stop_file=tmp_path / "STOP",
+                       stop=lambda p: (killed.append(p), setattr(p, "returncode", 1)), clock=lambda: clock[0], log=logs.append,
+                       grace_s=90.0, restart_gap_s=60.0)
+    return tr, spawned, killed, logs, clock
+
+
+def test_lm_trainer_starts_only_when_idle_and_ram_allows(tmp_path: Path) -> None:
+    idle, free = [30.0], [8.0]
+    tr, spawned, _k, _l, _c = _trainer(tmp_path, idle, free)
+    tr.tick()
+    assert not spawned                                                      # owner at the keyboard
+    idle[0], free[0] = 3600.0, 1.0
+    tr.tick()
+    assert not spawned                                                      # idle but too little RAM
+    free[0] = 8.0
+    tr.tick()
+    assert len(spawned) == 1
+    assert spawned[0][-3:] == ["train", "--minutes", "20"]
+    assert spawned[0][0] == str(tr.python)
+
+
+def test_lm_trainer_never_runs_two_at_once(tmp_path: Path) -> None:
+    tr, spawned, _k, _l, clock = _trainer(tmp_path, [3600.0], [8.0])
+    for _ in range(5):
+        clock[0] += 100
+        tr.tick()
+    assert len(spawned) == 1
+    tr.proc.returncode = 0                                                  # finished: the next may start (after the restart gap)
+    clock[0] += 100
+    tr.tick()
+    assert len(spawned) == 2
+
+
+def test_lm_trainer_stops_when_the_owner_returns(tmp_path: Path) -> None:
+    idle = [3600.0]
+    tr, spawned, killed, _l, clock = _trainer(tmp_path, idle, [8.0])
+    tr.tick()
+    idle[0] = 2.0
+    tr.tick()
+    assert (tmp_path / "STOP").exists() and not killed                      # asked politely first, through the STOP file
+    clock[0] += 120                                                         # it ignored the file: the whole tree is ended
+    tr.tick()
+    assert len(killed) == 1 and tr.proc is None
+    tr.tick()
+    assert len(spawned) == 1                                                # owner still active: not restarted
+
+
+def test_lm_trainer_ends_cleanly_when_it_obeys_the_stop_file(tmp_path: Path) -> None:
+    idle = [3600.0]
+    tr, _s, killed, _l, _c = _trainer(tmp_path, idle, [8.0])
+    tr.tick()
+    idle[0] = 1.0
+    tr.tick()
+    tr.proc.returncode = 0                                                  # exited by itself after the STOP file
+    tr.tick()
+    assert tr.proc is None and not killed
+
+
+def test_nupen_stop_stops_the_lm_trainer_and_blocks_a_start(tmp_path: Path) -> None:
+    tr, spawned, killed, _l, clock = _trainer(tmp_path, [3600.0], [8.0])
+    tr.tick(halt=True)
+    assert not spawned                                                      # NUPEN_STOP: never starts
+    tr.tick()
+    tr.tick(halt=True)
+    assert (tmp_path / "STOP").exists()
+    clock[0] += 120
+    tr.tick(halt=True)
+    assert len(killed) == 1 and len(spawned) == 1
+
+
+def test_lm_trainer_without_its_environment_is_skipped_and_logged_once(tmp_path: Path) -> None:
+    tr, spawned, _k, logs, clock = _trainer(tmp_path, [3600.0], [8.0], python=tmp_path / "missing" / "python.exe")
+    for _ in range(3):
+        clock[0] += 100
+        tr.tick()
+    assert not spawned and len(logs) == 1
+
+
+def test_lm_trainer_uses_idle_priority_and_no_window() -> None:
+    svc = _load("nupen_service")
+    assert svc.IDLE_PRIORITY == 0x40 and svc.NO_WINDOW == 0x08000000
+    assert str(svc.LM_PYTHON).replace("\\", "/").endswith("creator_runtime/lmenv/Scripts/python.exe") or sys.platform != "win32"

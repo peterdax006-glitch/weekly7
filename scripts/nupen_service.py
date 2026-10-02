@@ -10,6 +10,9 @@ shouldnt need to go to you to get it to start working as long as its capable of 
 - Safety is the kernel's: only a measured IMPROVEMENT with a clean sandbox evaluation is merged, failed post-merge checks roll
   back, the audit gates every cycle, nothing is ever pushed.
 - Restarts the swarm if it exits (backoff up to 30 min). One supervisor at a time (pidfile, a live holder is never displaced).
+- LM trainer (owner priority 3): while the owner has been idle for 10+ minutes and 3+ GB of RAM is free, Nupen's own language model
+  trains (scripts/nupen_lm.py train --minutes 20) at IDLE priority, one run at a time. It is stopped through its STOP file (then as
+  a process tree) when the owner returns or NUPEN_STOP appears. No lmenv: skipped silently. Log: state/creator/lm_service.log.
 - OFF SWITCH: create state/creator/NUPEN_STOP (the swarm is stopped and the supervisor exits); or
   `python scripts/nupen_autostart.py uninstall` to stop it starting with the computer.
 """
@@ -21,6 +24,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / "state" / "creator"
@@ -29,6 +33,14 @@ PIDFILE = STATE / "nupen_service.pid"
 LOG = STATE / "nupen_service.log"
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
+IDLE_PRIORITY = 0x00000040
+LM_LOG = STATE / "lm_service.log"
+LM_PYTHON = Path.home() / "creator_runtime" / "lmenv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+LM_IDLE_S = 600.0                    # the owner must have been away this long before training starts
+LM_MIN_FREE_GB = 3.0
+LM_MINUTES = 20
+LM_GRACE_S = 90.0                    # how long a run gets to stop itself via its STOP file before the process tree is ended
+LM_RESTART_GAP_S = 60.0              # never relaunch faster than this (a crashing trainer must not spin)
 
 
 def log(msg: str) -> None:
@@ -111,6 +123,96 @@ def stop_tree(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
+def _lm_log(msg: str) -> None:
+    LM_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LM_LOG.open("a", encoding="utf-8") as f:
+        f.write(f"{dt.datetime.now().isoformat(timespec='seconds')} {msg}\n")
+
+
+class LMTrainer:
+    """Runs `nupen_lm.py train` only while the machine is idle, at most one at a time. `tick()` is called every poll."""
+
+    def __init__(self, python: Path = LM_PYTHON, idle=None, free_gb=None, spawn=None, stop_file: Path | None = None,
+                 stop=None, clock=time.monotonic, log=_lm_log, idle_s: float = LM_IDLE_S, min_free_gb: float = LM_MIN_FREE_GB,
+                 grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S) -> None:    # type: ignore[no-untyped-def]
+        if idle is None or free_gb is None:
+            from creator import swarm as W
+            idle, free_gb = idle or W.user_idle_seconds, free_gb or W.free_ram_gb
+        self.python, self.idle, self.free_gb, self.clock, self.log = python, idle, free_gb, clock, log
+        self.spawn = spawn or self._spawn
+        self.stop_tree = stop or stop_tree
+        self.stop_file = stop_file if stop_file is not None else Path.home() / "creator_runtime" / "lmckpt" / "STOP"
+        self.idle_s, self.min_free_gb, self.grace_s, self.restart_gap_s = idle_s, min_free_gb, grace_s, restart_gap_s
+        self.proc: Any = None
+        self.stopping_since: float | None = None
+        self.last_start = -1e18
+        self.warned = False
+
+    def cmd(self) -> list[str]:
+        return [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
+
+    def _spawn(self, cmd: list[str]) -> Any:
+        flags = (IDLE_PRIORITY | NO_WINDOW) if sys.platform == "win32" else 0
+        with (STATE / "lm_train.log").open("a", encoding="utf-8") as out:
+            return subprocess.Popen(cmd, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, creationflags=flags,
+                                    start_new_session=sys.platform != "win32")
+
+    def running(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def _request_stop(self, why: str) -> None:
+        if self.stopping_since is None:
+            self.stopping_since = self.clock()
+            self.log(f"stopping the LM trainer: {why}")
+            try:
+                self.stop_file.parent.mkdir(parents=True, exist_ok=True)
+                self.stop_file.write_text("stop", encoding="utf-8")
+            except OSError:
+                pass
+
+    def tick(self, halt: bool = False) -> None:
+        """One supervision step. `halt` = NUPEN_STOP exists (the whole of Nupen is switched off)."""
+        if self.proc is not None and self.proc.poll() is not None:
+            self.log(f"LM trainer exited code={self.proc.returncode}")
+            self.proc, self.stopping_since = None, None
+        if self.proc is not None:
+            if halt:
+                self._request_stop("NUPEN_STOP")
+            elif self.idle() < self.idle_s:
+                self._request_stop("the owner is back")
+            if self.stopping_since is not None and self.clock() - self.stopping_since >= self.grace_s:
+                self.log("LM trainer did not stop by itself: ending its process tree")
+                self.stop_tree(self.proc)
+                self.proc, self.stopping_since = None, None
+            return
+        if halt or self.clock() - self.last_start < self.restart_gap_s:
+            return
+        if not Path(self.python).is_file():
+            if not self.warned:
+                self.warned = True
+                self.log(f"no LM environment at {self.python}: the LM trainer is skipped")
+            return
+        if self.idle() < self.idle_s or self.free_gb() < self.min_free_gb:
+            return
+        self.last_start = self.clock()
+        try:
+            self.stop_file.unlink()                                         # a stale STOP would end the new run at once
+        except OSError:
+            pass
+        self.proc = self.spawn(self.cmd())
+        self.log(f"LM trainer started pid={getattr(self.proc, 'pid', '?')} (idle {self.idle():.0f}s, free {self.free_gb():.1f} GB)")
+
+    def shutdown(self) -> None:
+        if self.running():
+            self._request_stop("supervisor exiting")
+            end = self.clock() + self.grace_s
+            while self.proc.poll() is None and self.clock() < end:       # a clean stop writes its checkpoint first
+                time.sleep(1.0)
+            if self.proc.poll() is None:
+                self.stop_tree(self.proc)
+        self.proc = None
+
+
 def swarm_cmd(python: str) -> list[str]:
     return [python, "-u", str(ROOT / "scripts" / "creator_swarm.py"), "--rounds", "0", "--packages", "24",
             "--user-aware", "--teacher-presence"]
@@ -122,6 +224,7 @@ def run(python: str, poll_s: float = 10.0) -> int:
         return 0
     log(f"supervisor up pid={os.getpid()}")
     backoff = 30.0
+    lm = LMTrainer() if os.environ.get("NUPEN_LM", "1") != "0" else None
     try:
         while not STOP.exists():
             started = time.monotonic()
@@ -135,13 +238,22 @@ def run(python: str, poll_s: float = 10.0) -> int:
                         log("NUPEN_STOP found: stopping the swarm")
                         stop_tree(proc)
                         break
+                    if lm:
+                        lm.tick(STOP.exists())
                     time.sleep(poll_s)
             log(f"swarm exited code={proc.returncode}")
             if STOP.exists():
                 break
             backoff = 30.0 if time.monotonic() - started > 1800 else min(backoff * 2, 1800.0)
-            time.sleep(backoff)
+            waited = 0.0
+            while waited < backoff and not STOP.exists():               # the trainer keeps being supervised between swarm runs
+                if lm:
+                    lm.tick(False)
+                time.sleep(min(poll_s, backoff - waited))
+                waited += poll_s
     finally:
+        if lm:
+            lm.shutdown()
         try:
             if PIDFILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
                 PIDFILE.unlink()
