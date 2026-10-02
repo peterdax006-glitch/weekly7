@@ -39,6 +39,7 @@ MIN_N = 3                                     # a recurring class needs at least
 PER_SOURCE = 3                                # at most this many NEW proposals per source per run
 SOURCES = ("failure", "weakness", "section", "student", "knowledge")
 OPEN_STATES = ("NOT_STARTED", "IN_PROGRESS")
+META_PREFIX = "SECTION REQUIREMENT"            # doctrine/process-rule meta items: computed compliance checks, not buildable code
 STOP_WORDS = frozenset({"the", "and", "for", "of", "to", "a", "in", "is", "not", "do", "it", "that", "with", "every", "section",
                         "requirement", "this", "final", "rule"})
 
@@ -131,7 +132,8 @@ def from_sections(checklist: Path, specs: Sequence[SM.CapabilitySpec], now: str)
         groups.setdefault(str(it.get("group", "")), []).append(it)
     out = []
     for group, its in sorted(groups.items()):
-        open_ = [i for i in its if i.get("status") in OPEN_STATES and not i.get("code_paths")]
+        open_ = [i for i in its if i.get("status") in OPEN_STATES and not i.get("code_paths")
+                 and not str(i.get("description", "")).startswith(META_PREFIX)]
         if not open_:
             continue
         subject = group.split("/", 1)[-1].strip()

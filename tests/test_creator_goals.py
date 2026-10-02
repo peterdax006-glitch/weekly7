@@ -50,7 +50,10 @@ def plant_failures(led: Ledger, cls: str, n: int, diagnose: str = "") -> list[st
 
 def plant_checklist(repo: Path) -> None:
     (repo / "state" / "build").mkdir(parents=True)
-    items = [{"id": f"CR{i}", "group": "SECTION / 9. TELEPATHY LINK", "status": "NOT_STARTED", "code_paths": []} for i in range(4)]
+    items = [{"id": f"CR{i}", "group": "SECTION / 9. TELEPATHY LINK", "status": "NOT_STARTED", "code_paths": [],
+              "description": "build the telepathy link"} for i in range(4)]
+    items += [{"id": f"CR5{i}", "group": f"SECTION / {i}. DOCTRINE", "status": "NOT_STARTED", "code_paths": [],
+               "description": f"SECTION REQUIREMENT: {i}. DOCTRINE - every requirement in this section"} for i in range(28)]
     items.append({"id": "CR9", "group": "SECTION / 9. TELEPATHY LINK", "status": "TESTING", "code_paths": ["x.py"]})
     items.append({"id": "CR10", "group": "SECTION / mapped", "status": "NOT_STARTED", "code_paths": ["y.py"]})
     (repo / "state" / "build" / "CREATOR_MASTER_CHECKLIST.json").write_text(json.dumps({"items": items}))
@@ -103,7 +106,7 @@ def test_section_source_uses_open_unmapped_checklist_items(world: tuple[Ledger, 
     led, state, repo = world
     plant_checklist(repo)
     props = GO.propose(led, state, repo, SPECS)
-    assert [p.key for p in props] == ["section:9. TELEPATHY LINK"]               # the mapped section is not a gap
+    assert [p.key for p in props] == ["section:9. TELEPATHY LINK"]               # mapped and doctrine meta sections are not gaps
     assert set(props[0].evidence) == {"CR0", "CR1", "CR2", "CR3"} and "4 of 5" in props[0].rationale
 
 
