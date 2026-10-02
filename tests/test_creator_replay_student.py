@@ -63,3 +63,17 @@ def test_teacher_share_counts_replays_and_a_replay_never_owns_a_kind(tmp_path: P
     sc = C.student_scores(lessons)
     assert sc["teacher_share"] == 0.75
     assert "claude-replay" not in C.Router(min_attempts=5, threshold=0.8).owners(lessons, "tests")
+
+
+def test_a_replay_is_not_blocked_by_the_no_tests_example_yet_gate(tmp_path: Path) -> None:
+    """2 Oct, CP0091: 'students wait for an adopted tests example' also stopped the replay student, whose solution IS the teacher's
+    example - so the teacher was handed the same coverage package a second time."""
+    from creator import kernel as K
+    log = C.LessonLog(tmp_path / "lessons.jsonl")
+    _lesson(log, {"tests/test_x.py": ""}, {"tests/test_x.py": "def test_f():\n    assert True\n"})
+    cur = C.Curriculum(tmp_path / "lessons.jsonl", [ReplayStudent(tmp_path / "lessons.jsonl")])
+    step = cur.student_steps()[0]
+    plan = SimpleNamespace(package_id="CP2", component="EFF.coverage", requirement_key="EFF.coverage", step="coverage")
+    wd = _work(tmp_path)
+    r = step(plan, SimpleNamespace(objective=OBJ, outputs=()), wd)
+    assert isinstance(r, K.WorkResult) and r.claimed_done, r.notes
