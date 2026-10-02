@@ -18,6 +18,7 @@ import ast
 import copy
 import dataclasses
 import re
+import sys
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
@@ -181,6 +182,89 @@ def _same(got: Any, want: Any) -> bool:
     return bool(got == want)
 
 
+# ------------------------------------------------------------------------------------------------ evaluation guards
+# Candidate programs run in-process on the examples' values. A huge example (or a candidate that loops on one) must not hang
+# the solver: every evaluation runs under a step budget (traced line events), and examples beyond a size cap are refused.
+STEP_BUDGET = 100_000               # traced line/call events per guarded evaluation; normal examples use a few hundred
+BIG_INT = 10_000                    # an example int beyond this (fibonacci(10**9), pow(10, 10**9)) makes loops/powers risky
+BIG_INT_STEPS = 20_000              # ... so the step budget is tighter and C-level pow/repeat expressions are not tried
+MAX_EXAMPLE_SIZE = 200_000          # approximate total elements/characters/bytes across all example inputs and outputs
+
+
+class BudgetExceeded(Exception):
+    pass
+
+
+class _StepGuard:
+    """Context manager: raises BudgetExceeded once the traced Python code under it has run STEP_BUDGET events."""
+
+    def __init__(self, steps: int = STEP_BUDGET) -> None:
+        self.left = steps
+        self.prev: Any = None
+
+    def _trace(self, frame: Any, event: str, arg: Any) -> Any:
+        self.left -= 1
+        if self.left < 0:
+            raise BudgetExceeded("step budget exhausted")
+        return self._trace
+
+    def __enter__(self) -> "_StepGuard":
+        self.prev = sys.gettrace()
+        sys.settrace(self._trace)
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        sys.settrace(self.prev)
+
+
+def _size(v: Any, cap: int) -> int:
+    """Approximate size of a value, stopping once it exceeds cap."""
+    n, stack = 0, [v]
+    while stack and n <= cap:
+        x = stack.pop()
+        if isinstance(x, bool) or x is None:
+            n += 1
+        elif isinstance(x, int):
+            n += 1 + x.bit_length() // 8
+        elif isinstance(x, (str, bytes)):
+            n += 1 + len(x)
+        elif isinstance(x, dict):
+            n += 1 + len(x)
+            stack.extend(list(x.keys())[:cap])
+            stack.extend(list(x.values())[:cap])
+        elif isinstance(x, (list, tuple, set, frozenset)):
+            n += 1 + len(x)
+            stack.extend(list(x)[:cap])
+        else:
+            n += 1
+    return n
+
+
+def _has_big_int(v: Any, depth: int = 3) -> bool:
+    if isinstance(v, int) and not isinstance(v, bool):
+        return abs(v) > BIG_INT
+    if depth and isinstance(v, (list, tuple, set, frozenset)):
+        return any(_has_big_int(x, depth - 1) for x in list(v)[:1000])
+    return False
+
+
+def _risky(spec: "Spec") -> bool:
+    return any(_has_big_int(a) for args, _ in spec.examples for a in args)
+
+
+def _steps(spec: "Spec") -> int:
+    return BIG_INT_STEPS if _risky(spec) else STEP_BUDGET
+
+
+def examples_too_big(spec: "Spec", cap: int = MAX_EXAMPLE_SIZE) -> bool:
+    total = 0
+    for args, want in spec.examples:
+        total += _size(args, cap) + _size(want, cap)
+        if total > cap:
+            return True
+    return False
+
+
 def _build(spec: Spec, body: str) -> Optional[Callable[..., Any]]:
     src = f"def {spec.name}({', '.join(spec.params)}):\n" + "".join("    " + ln + "\n" for ln in body.splitlines())
     ns: dict[str, Any] = {"re": re}
@@ -196,13 +280,16 @@ def passes(spec: Spec, body: str) -> bool:
     fn = _build(spec, body)
     if fn is None or not spec.examples:
         return False
-    for args, want in spec.examples:
-        try:
-            got = fn(*[copy.deepcopy(a) for a in args])
-        except Exception:
-            return False
-        if not _same(got, want):
-            return False
+    if examples_too_big(spec):
+        return False
+    with _StepGuard(_steps(spec)):
+        for args, want in spec.examples:
+            try:
+                got = fn(*[copy.deepcopy(a) for a in args])
+            except Exception:                       # includes BudgetExceeded
+                return False
+            if not _same(got, want):
+                return False
     return True
 
 
@@ -218,6 +305,9 @@ _BINARY = ("({} + {})", "({} - {})", "({} * {})", "({} // {})", "({} % {})", "({
 
 def enumerate_exprs(spec: Spec, max_size: int = 5, limit: int = 40000) -> Optional[str]:
     """Smallest expression (AST-node count) passing every example: bottom-up enumeration, pruned by value signature."""
+    if examples_too_big(spec):
+        return None
+    risky, steps = _risky(spec), _steps(spec)
     names = list(spec.params)
     envs = [dict(zip(names, [copy.deepcopy(a) for a in args])) for args, _ in spec.examples]
     wants = [w for _, w in spec.examples]
@@ -225,12 +315,15 @@ def enumerate_exprs(spec: Spec, max_size: int = 5, limit: int = 40000) -> Option
     seen: set[str] = set()
 
     def ev(code: str) -> Optional[tuple[Any, ...]]:
+        if risky and ("pow(" in code or "*" in code):      # C-level power / repeat on a huge number cannot be interrupted
+            return None
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 c = compile(code, "<e>", "eval")
-            return tuple(eval(c, {}, dict(e)) for e in envs)
-        except Exception:
+            with _StepGuard(steps):
+                return tuple(eval(c, {}, dict(e)) for e in envs)
+        except Exception:                           # includes BudgetExceeded
             return None
 
     def add(size: int, code: str, vals: tuple[Any, ...]) -> bool:
@@ -314,8 +407,9 @@ def _outputs(spec: Spec, body: str, probes: Sequence[tuple[Any, ...]]) -> list[A
     res: list[Any] = []
     for args in probes:
         try:
-            res.append(("ok", repr(fn(*[copy.deepcopy(a) for a in args]))) if fn else ("err",))
-        except Exception:
+            with _StepGuard(_steps(spec)):
+                res.append(("ok", repr(fn(*[copy.deepcopy(a) for a in args]))) if fn else ("err",))
+        except Exception:                           # includes BudgetExceeded
             res.append(("err",))
     return res
 
@@ -331,6 +425,8 @@ def _disagree(spec: Spec, a: str, b: str) -> bool:
 def synthesize(spec: Spec, disabled: frozenset[str] = frozenset()) -> Optional[tuple[str, str]]:
     """(label, body) of the first candidate passing every example, or None. Abstains (None) unless the evidence is strong:
     at least two distinct examples or two independent docstring cues, and no other passing idiom disagreeing on probe inputs."""
+    if examples_too_big(spec):                      # refuse before repr()/evaluating anything on a huge example
+        return None
     distinct = len({repr(a) for a, _ in spec.examples})
     doc = spec.doc.lower()
     cues = {i.name: _cues(i, doc) for i in IDIOMS}

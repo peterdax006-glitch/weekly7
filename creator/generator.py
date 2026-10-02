@@ -30,6 +30,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -407,6 +408,9 @@ class Experience:
     seconds: float
 
 
+_MEMORY_LOCK = threading.Lock()
+
+
 class ExperienceMemory:
     """Append-only experience log. Learns only from what it is given - the caller never records holdout tasks."""
 
@@ -426,8 +430,10 @@ class ExperienceMemory:
 
     def add(self, e: Experience) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(dataclasses.asdict(e)) + "\n")
+        data = (json.dumps(dataclasses.asdict(e)) + "\n").encode("utf-8")
+        with _MEMORY_LOCK, self.path.open("ab") as fh:            # one whole record per write: threads must not interleave
+            fh.write(data)
+            fh.flush()
 
     def strategy_order(self, category: str) -> list[str]:
         """Strategies ranked by Laplace-smoothed success rate in this category (ties keep the default order)."""
@@ -754,39 +760,43 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
     for path in targets:
         original = path.read_text(encoding="utf-8")
         try:
-            tree = ast.parse(original)
-        except SyntaxError:
-            continue
-        legacy = list(generic_mutations(tree))
-        singles = list(targeted_mutations(tree, per_family)) + legacy
-        cands: Iterator[ast.Module] = iter(singles)
-        if pairs and pair_width > 0:
-            cands = itertools.chain(singles, (m2 for m1 in legacy[:pair_width] for m2 in itertools.islice(mutations(m1), pair_width)))
-        passing: list[str] = []
-        first_at = 0
-        for cand in cands:
-            if tried >= budget and not passing:
-                path.write_text(original, encoding="utf-8")
-                return False, {}, tried
-            if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget):   # budget is a hard cap
-                break
-            tried += 1
-            src = ast.unparse(cand) + "\n"
-            if src in passing:
+            try:
+                tree = ast.parse(original)
+            except SyntaxError:
                 continue
-            path.write_text(src, encoding="utf-8")
-            if visible_tests(workdir).ok:
-                passing.append(src)
-                if not rank:
+            legacy = list(generic_mutations(tree))
+            singles = list(targeted_mutations(tree, per_family)) + legacy
+            cands: Iterator[ast.Module] = iter(singles)
+            if pairs and pair_width > 0:
+                cands = itertools.chain(singles, (m2 for m1 in legacy[:pair_width] for m2 in itertools.islice(mutations(m1), pair_width)))
+            passing: list[str] = []
+            first_at = 0
+            for cand in cands:
+                if tried >= budget and not passing:
+                    path.write_text(original, encoding="utf-8")
+                    return False, {}, tried
+                if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget):   # budget is a hard cap
                     break
-                first_at = first_at or tried
-        if passing:
-            best = passing[0]
-            if len(passing) > 1:
-                best = min(passing, key=lambda s: (behavioural_divergence(workdir, original, s), _edit_size(original, s)))
-            path.write_text(best, encoding="utf-8")
-            return True, {path.relative_to(workdir).as_posix(): best}, tried
-        path.write_text(original, encoding="utf-8")
+                tried += 1
+                src = ast.unparse(cand) + "\n"
+                if src in passing:
+                    continue
+                path.write_text(src, encoding="utf-8")
+                if visible_tests(workdir).ok:
+                    passing.append(src)
+                    if not rank:
+                        break
+                    first_at = first_at or tried
+            if passing:
+                best = passing[0]
+                if len(passing) > 1:
+                    best = min(passing, key=lambda s: (behavioural_divergence(workdir, original, s), _edit_size(original, s)))
+                path.write_text(best, encoding="utf-8")
+                return True, {path.relative_to(workdir).as_posix(): best}, tried
+            path.write_text(original, encoding="utf-8")
+        except BaseException:                                # e.g. visible_tests raised: never leave a mutant on disk
+            path.write_text(original, encoding="utf-8")
+            raise
     return False, {}, tried
 
 

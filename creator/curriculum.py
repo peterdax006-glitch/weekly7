@@ -37,6 +37,15 @@ def _append_line(path: Path, text: str) -> None:
 
 
 ADJUDICATED = {"ADOPTED": True, "REJECTED": False, "ROLLED_BACK": False}      # cycle outcomes that decide a lesson
+# Cycles that ended without judging the change at all (RAM pull-back, kernel crash). The lesson gets a TERMINAL outcome
+# (adopted=False, verdict "cancelled: ..." / "error: ...") so it is never left unscored forever, but it says nothing about
+# skill, so it is EXCLUDED from student success rates (attempts/rate) and from teacher_share, and never counts as a rejection.
+NO_SIGNAL = {"CANCELLED": "cancelled", "ERROR": "error"}
+
+
+def is_skill_signal(les: "Lesson") -> bool:
+    """True when the lesson's outcome is a real judgement of the work (not a cancelled/errored cycle)."""
+    return not str(les.verdict).lower().startswith(tuple(v + ":" for v in NO_SIGNAL.values()))
 
 
 @dataclasses.dataclass
@@ -139,7 +148,7 @@ def student_scores(lessons: Iterable[Lesson]) -> dict[str, Any]:
     cells: dict[tuple[str, str], list[int]] = {}
     adopted_by: dict[str, int] = {}
     for les in lessons:
-        if les.adopted is None:
+        if les.adopted is None or not is_skill_signal(les):
             continue
         c = cells.setdefault((les.solver, les.task_kind), [0, 0])
         c[0] += 1
@@ -233,6 +242,8 @@ class Curriculum:
         for lid in ids:
             if outcome in ADJUDICATED:
                 self.log.outcome(lid, ADJUDICATED[outcome], f"{outcome}: {str(getattr(report, 'reason', ''))[:500]}")
+            elif outcome in NO_SIGNAL:
+                self.log.outcome(lid, False, f"{NO_SIGNAL[outcome]}: {str(getattr(report, 'reason', ''))[:500]}")
             else:
                 self.log.outcome(lid, None, f"{outcome}: undecided")
 
@@ -260,7 +271,7 @@ class _StudentStep:
             return K.WorkResult(False, f"{self.name} cannot attempt this task")
         past = self.cur.log.lessons()
         if not self.cur.router.handed_over(past, les.task_kind) and any(
-                p.package_id == les.package_id and p.solver == self.name and p.adopted is False for p in past):
+                p.package_id == les.package_id and p.solver == self.name and p.adopted is False and is_skill_signal(p) for p in past):
             return K.WorkResult(False, f"{self.name} was already rejected on {les.package_id}")      # Claude's turn
         res = self.student(plan, package, workdir)
         self.cur._record(les, res, workdir)

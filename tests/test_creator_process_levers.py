@@ -133,3 +133,9 @@ def test_process_solver_passes_the_levers_to_the_right_search_parameters(tmp_pat
     PL.ProcessSolver(R.ProcessConfig(research_budget=2, design_breadth=3, reviewer_depth=2, max_retries=1))({}, tmp_path)
     assert seen[0] == dict(budget=80, pairs=True, rank=True, extra_passes=5, per_family=60, pair_width=24)
     assert seen[1]["per_family"] == 120
+
+
+def test_devworkload_with_too_few_dev_tasks_raises_clearly() -> None:
+    """Regression (validator open issue 6): too few dev tasks silently produced empty chunks scored 0.0."""
+    with pytest.raises(ValueError, match="needs"):
+        PL.DevWorkload(seed=1, chunk=4, reps=3, confirm=4, evaluate=fake_eval, dev_ids=[f"t{i}" for i in range(10)])

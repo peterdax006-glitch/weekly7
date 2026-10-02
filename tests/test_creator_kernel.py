@@ -331,3 +331,30 @@ def test_the_sandbox_comparison_gets_the_suite_timeout_unless_set(tmp_path: Path
     assert K.sandbox_pytest(cfg).timeout == cfg.test_timeout >= 3600
     explicit = dc.replace(cfg, pytest=TR.PytestConfig(timeout=30.0))
     assert K.sandbox_pytest(explicit).timeout == 30.0                                 # an explicit choice is kept
+
+
+def test_concurrent_kernel_log_appends_never_interleave(tmp_path: Path) -> None:
+    """Regression (validator open issue 1): every swarm thread appends its cycle record to one kernel_log.jsonl; an unlocked
+    text-mode append of a large record interleaves with another thread's, corrupting both lines."""
+    import json
+    import threading
+    path = tmp_path / "kernel_log.jsonl"
+    big = "reason " * 60000
+
+    def work(w: int) -> None:
+        for i in range(10):
+            K._append_log_line(path, json.dumps({"w": w, "i": i, "reason": big}))
+    ts = [threading.Thread(target=work, args=(w,)) for w in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 80 and {(r["w"], r["i"]) for r in rows} == {(w, i) for w in range(8) for i in range(10)}
+
+
+def test_cycle_record_goes_through_the_locked_appender() -> None:
+    """The cycle's own kernel_log write must use the locked appender, not an ad-hoc open(...'a')."""
+    src = Path(K.__file__).read_text(encoding="utf-8")
+    assert '_append_log_line(cfg.state / "kernel_log.jsonl"' in src
+    assert 'open("a", encoding="utf-8") as fh:\n            fh.write(json.dumps(dataclasses.asdict(rep)' not in src

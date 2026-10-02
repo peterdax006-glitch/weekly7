@@ -217,7 +217,7 @@
     {
      "where": "creator/kernel.py:703",
      "severity": "low",
-     "issue": "kernel_log.jsonl is appended by every swarm thread with an unlocked text write; a very large CycleReport (> write buffer) could interleave. Not fixed."
+     "issue": "kernel_log.jsonl is appended by every swarm thread with an unlocked text write; a very large CycleReport (> write buffer) could interleave. FIXED (h5/openissues): module lock + one binary write per record (kernel._append_log_line); regression test_concurrent_kernel_log_appends_never_interleave + test_cycle_record_goes_through_the_locked_appender (failed before)."
     },
     {
      "where": "creator/kernel.py:621",
@@ -269,12 +269,12 @@
     {
      "where": "creator/generator.py:561",
      "severity": "low",
-     "issue": "solve_with_search leaves the last mutated candidate on disk if visible_tests raises (no try/finally); sandbox is discarded afterwards so harmless in the kernel."
+     "issue": "solve_with_search leaves the last mutated candidate on disk if visible_tests raises (no try/finally); sandbox is discarded afterwards so harmless in the kernel. FIXED (h5/openissues): solve_with_search restores the original file on any exception; regression test_search_restores_the_file_when_visible_tests_raises (failed before)."
     },
     {
      "where": "creator/generator.py:243",
      "severity": "low",
-     "issue": "ExperienceMemory.add is an unlocked text append (files in each row): unsafe if two threads ever share one memory. The swarm filler uses SearchSolver without memory, so not reachable today."
+     "issue": "ExperienceMemory.add is an unlocked text append (files in each row): unsafe if two threads ever share one memory. The swarm filler uses SearchSolver without memory, so not reachable today. FIXED (h5/openissues): module lock + one binary write per record; regression test_experience_memory_concurrent_adds_never_interleave (failed before)."
     },
     {
      "where": "creator/generator.py:1",
@@ -442,7 +442,7 @@
     {
      "where": "creator/curriculum.py:~210",
      "severity": "low",
-     "issue": "A lesson whose cycle ends CANCELLED/ERROR stays adopted=None forever (not scored either way); a student that returns not-done is scored a failure immediately."
+     "issue": "A lesson whose cycle ends CANCELLED/ERROR stays adopted=None forever (not scored either way); a student that returns not-done is scored a failure immediately. FIXED (h5/openissues): CANCELLED/ERROR cycles now give a terminal outcome (adopted=False, verdict 'cancelled: ...'/'error: ...') that is EXCLUDED from student rates and teacher_share and never blocks a student as already rejected (curriculum.NO_SIGNAL/is_skill_signal); regression test_cancelled_and_error_cycles_give_terminal_but_signal_free_outcomes (failed before)."
     },
     {
      "where": "creator/curriculum.py:~268",
@@ -502,7 +502,7 @@
     {
      "where": "creator/process_levers.py:119",
      "severity": "low",
-     "issue": "DevWorkload with fewer dev tasks than chunk*reps+confirm yields empty chunks scored 0.0/0.0 instead of an error."
+     "issue": "DevWorkload with fewer dev tasks than chunk*reps+confirm yields empty chunks scored 0.0/0.0 instead of an error. FIXED (h5/openissues): DevWorkload raises ValueError naming the needed and available dev task counts; regression test_devworkload_with_too_few_dev_tasks_raises_clearly (failed before)."
     }
    ],
    "depth": "module+docstring read in full (round 3)"
@@ -517,7 +517,7 @@
     {
      "where": "creator/synth.py:218",
      "severity": "medium",
-     "issue": "Idiom bodies and enumerated expressions (pow, range-driven loops) are exec'd/eval'd on example values with no time or size limit: a large example (fibonacci(10**9), pow(10, 10**9)) hangs the solver. Not fixed (devbench task timeouts bound it)."
+     "issue": "Idiom bodies and enumerated expressions (pow, range-driven loops) are exec'd/eval'd on example values with no time or size limit: a large example (fibonacci(10**9), pow(10, 10**9)) hangs the solver. FIXED (h5/openissues): every candidate evaluation runs under a step budget (sys.settrace; tighter when an example int exceeds 10**4), examples above a size cap are refused, and pow/repeat expressions are not enumerated on huge ints; results on normal inputs unchanged; regression tests test_huge_example_does_not_hang_the_solver, test_runaway_candidate_is_stopped_by_the_step_budget, test_validator_cases_fibonacci_1e9_and_pow_1e9_return_promptly (hung before)."
     },
     {
      "where": "creator/synth.py:30",

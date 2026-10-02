@@ -114,7 +114,10 @@ class DevWorkload:
             from creator import devbench as D
             self._tasks = {t.id: t for t in D.load_tasks() if t.split == "dev"}     # DEV only: holdout tasks are filtered out
             dev_ids = list(self._tasks)
-        picked = pick_tasks(dev_ids, seed, chunk * reps + confirm)
+        need = chunk * reps + confirm
+        if len(dev_ids) < need:
+            raise ValueError(f"DevWorkload needs {need} dev tasks ({reps} chunks of {chunk} + {confirm} confirm), got {len(dev_ids)}")
+        picked = pick_tasks(dev_ids, seed, need)
         self.chunks = [picked[i * chunk:(i + 1) * chunk] for i in range(reps)]
         self.confirm_ids = picked[chunk * reps:]
         self._cache: dict[tuple[str, str], tuple[bool, bool]] = {}

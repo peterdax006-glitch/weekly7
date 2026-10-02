@@ -209,3 +209,22 @@ def test_concurrent_appends_never_interleave_or_lose_lessons(tmp_path: Path) -> 
         for ln in (tmp_path / name).read_text(encoding="utf-8").splitlines():
             json.loads(ln)                                                  # every line is whole
     assert len(log.lessons()) == 96 and all(x.adopted is True for x in log.lessons())
+
+
+def test_cancelled_and_error_cycles_give_terminal_but_signal_free_outcomes(tmp_path: Path) -> None:
+    """Regression (validator open issue 5): a lesson whose cycle ended CANCELLED/ERROR stayed unscored forever. It now gets
+    adopted=False with verdict 'cancelled: ...'/'error: ...', but says nothing about skill: it is excluded from student success
+    rates, from teacher_share, and never blocks a student as 'already rejected'."""
+    cur = CUR.Curriculum(tmp_path / "l.jsonl")
+    for pid, lid in (("PC", "lc"), ("PE", "le")):
+        cur.log.add(CUR.Lesson(lid, pid, "c", "gap", "o", solver="stu"))
+        cur._open[pid] = [lid]
+    cur.resolve(SimpleNamespace(package="PC", outcome="CANCELLED", reason="pulled back: RAM tight"))
+    cur.resolve(SimpleNamespace(package="PE", outcome="ERROR", reason="OSError: boom"))
+    by = {x.lesson_id: x for x in cur.log.lessons()}
+    assert by["lc"].adopted is False and by["lc"].verdict.startswith("cancelled:")
+    assert by["le"].adopted is False and by["le"].verdict.startswith("error:")
+    real = lessons_for("stu", "gap", [True, False]) + lessons_for("claude", "gap", [True])
+    sc = CUR.student_scores(real + list(by.values()))
+    assert sc == CUR.student_scores(real)                                   # cancelled/error change no rate and no share
+    assert sc["cells"]["stu|gap"]["attempts"] == 2 and sc["teacher_share"] == 0.5
