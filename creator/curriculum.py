@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, Protocol, Sequence, runtime_checkable
 
 from creator import kernel as K
+from creator import reasoning as RE
 
 CLAUDE = "claude"
 _APPEND_LOCK = threading.Lock()                     # swarm workers (threads) share one lessons.jsonl and deferred.jsonl
@@ -66,6 +67,8 @@ class Lesson:
     verdict: str = ""                               # outcome / reason once known
     claimed_done: bool = False
     at: str = ""
+    predicted: dict[str, float] = dataclasses.field(default_factory=dict)   # the solver's predicted effect, e.g. {'size_delta': -12}
+    measured: dict[str, float] = dataclasses.field(default_factory=dict)    # the same effect measured on the change (creator.reasoning)
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -208,6 +211,16 @@ def snapshot_change(workdir: Path) -> tuple[dict[str, str], dict[str, str]]:
     return before, after
 
 
+def _restore(workdir: Path, before: dict[str, str], after: dict[str, str]) -> None:
+    """Undo a change snapshot_change described: new files are removed, changed files get their committed text back."""
+    for rel in after:
+        f = workdir / rel
+        if before.get(rel):
+            f.write_bytes(before[rel].encode("utf-8"))
+        else:
+            f.unlink(missing_ok=True)
+
+
 class Curriculum:
     """Wires lessons into the kernel loop. `student_steps()` and `claude_step(session)` are workers for creator.selfworkers.SelfFirst
     (students as own workers, the capturing session as fallback); `resolve(report)` is the kernel's on_report callback."""
@@ -233,6 +246,8 @@ class Curriculum:
         les.claimed_done, les.reasoning = res.claimed_done, (res.reasoning or res.notes)
         if res.claimed_done:
             les.files_before, les.files_after = snapshot_change(workdir)
+            les.predicted = {k: float(v) for k, v in (getattr(res, "predicted", None) or {}).items()}
+            les.measured = {"size_delta": RE.size_delta(les.files_before, les.files_after)}
         self.log.add(les)
         if res.claimed_done:
             self._open.setdefault(les.package_id, []).append(les.lesson_id)
@@ -281,6 +296,13 @@ class _StudentStep:
                 p.package_id == les.package_id and p.solver == self.name and p.adopted is False and is_skill_signal(p) for p in past):
             return K.WorkResult(False, f"{self.name} was already rejected on {les.package_id}")      # Claude's turn
         res = self.student(plan, package, workdir)
+        if res.claimed_done:                                    # stop rule: an identical change to a rejected one is never retried
+            before, after = snapshot_change(workdir)
+            dup = RE.identical_failed(past, les.component, before, after)
+            if dup is not None:
+                _restore(workdir, before, after)
+                res = K.WorkResult(False, f"{self.name}: identical to rejected lesson {dup.lesson_id} ({dup.package_id}): not retried; "
+                                          f"{RE.NEEDS_TEACHER}", calls=res.calls)
         self.cur._record(les, res, workdir)
         return dataclasses.replace(res, by=res.by or self.name)
 
