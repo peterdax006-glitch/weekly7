@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from creator import constraints as CONSTRAINTS
 from creator import goals as GOALS
 from creator import kernel as K
 from creator import model as M
@@ -272,6 +273,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         gov.observe = observe
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     GOALS.maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
+    CONSTRAINTS.maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
     main, recovered, stop = K.prepare(cfg, led)
     if stop is not None or main is None:
         return RoundReport("AUDIT_RED", [], 0, 0, stop or "")

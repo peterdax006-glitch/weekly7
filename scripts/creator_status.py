@@ -83,6 +83,9 @@ def main(argv: list[str]) -> int:
     print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
     print("CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall)", status["curriculum"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
+    from creator import constraints as CON
+    for i, m in enumerate(CON.top_constraints(STATE), 1):
+        print(f"CONSTRAINT {i}: {m['name']} loss {m['loss']} score {m['score']} ({m['value']} {m['unit']}) remedy={m['remedy']}")
     gp = status["goal_proposals"]
     print(f"GOAL PROPOSALS pending approval: {gp['pending']} (python scripts/nupen_goals.py list)")
     for g in gp["items"][:5]:
