@@ -341,7 +341,7 @@ class ActionStudent:
     name = "nupen-model-v2"
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
-                 max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = False, lexical_prior: bool = False) -> None:
+                 max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True) -> None:
         self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
         self.lessons_path, self.llm, self.k = Path(lessons_path), llm, k
         self.max_tokens, self.max_candidates, self.max_files, self.timeout_s = max_tokens, max_candidates, max_files, timeout_s

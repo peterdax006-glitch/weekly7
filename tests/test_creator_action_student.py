@@ -138,3 +138,12 @@ def test_student_lexical_prior_flag_fixes_a_wrong_pick(work: Path) -> None:
     A.ActionStudent(work / "n.jsonl", llm=FakeLLM(f"CHOICE: {wrong}\nWHY: x"), lexical_prior=True, rich_labels=True)(PLAN, pkg, work)
     new = (work / "app/u.py").read_text(encoding="utf-8")
     assert "import os" not in new and "t = sum(xs)" in new          # the import was dropped, the model's inline_temp was overridden
+
+
+def test_defaults_are_the_policy_that_won_the_heldout_hard_bench() -> None:
+    """Held-out hard seeds 201-203 (n=90): rich labels + lexical prior 0.811 vs lexical 0.589 (CIs disjoint); flags stay switchable."""
+    import inspect
+    sig = inspect.signature(A.ActionStudent.__init__).parameters
+    assert sig["rich_labels"].default is True and sig["lexical_prior"].default is True
+    st = A.ActionStudent(Path("n.jsonl"), llm=FakeLLM(""), rich_labels=False, lexical_prior=False)
+    assert (st.rich_labels, st.lexical_prior) == (False, False)
