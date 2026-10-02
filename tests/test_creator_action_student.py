@@ -175,3 +175,18 @@ def test_defaults_are_the_policy_that_won_the_heldout_hard_bench() -> None:
     assert sig["rich_labels"].default is True and sig["lexical_prior"].default is True
     st = A.ActionStudent(Path("n.jsonl"), llm=FakeLLM(""), rich_labels=False, lexical_prior=False)
     assert (st.rich_labels, st.lexical_prior) == (False, False)
+
+
+def test_prompt_example_shows_the_teachers_reasoning(work: Path, tmp_path: Path) -> None:
+    after = SRC.replace("import csv\n", "").replace("def rows(text):\n", "def rows(text):\n    import csv\n")
+    why = "csv is only needed by rows, so importing it lazily keeps start-up light. " + "x" * 400
+    les = CUR.Lesson(lesson_id="L1", package_id="P1", component="util", task_kind=CUR.task_kind(PLAN), objective="move csv import into rows",
+                     files_before={"u.py": SRC}, files_after={"u.py": after}, claimed_done=True, reasoning=why)
+    log = CUR.LessonLog(tmp_path / "l.jsonl")
+    log.add(dataclasses_replace(les))
+    log.outcome("L1", True, "ok")
+    st = A.ActionStudent(tmp_path / "l.jsonl", llm=FakeLLM(""))
+    prompt = st.build_prompt(PLAN, PKG, st.candidates(PKG, work), work)
+    line = next(ln for ln in prompt.splitlines() if ln.startswith("Why: "))
+    assert "importing it lazily keeps start-up light" in line and len(line) <= len("Why: ") + A.WHY_CHARS
+    assert "Chosen actions: lazy_import(csv)" in prompt

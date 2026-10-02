@@ -352,6 +352,9 @@ def _py_texts(workdir: Path) -> dict[str, str]:
     return out
 
 
+WHY_CHARS = 200                                      # the teacher's reasoning shown with each few-shot example
+
+
 class ActionStudent:
     name = "nupen-model-v2"
 
@@ -389,7 +392,8 @@ class ActionStudent:
         for les in MS.retrieve(LessonLog(self.lessons_path).lessons(), kind, objective, str(getattr(plan, "component", "")), 6):
             acts = lesson_actions(les)
             if acts and len(parts) < self.k:
-                parts.append(f"Example task: {les.objective[:300]}\nChosen actions: " + "; ".join(a.short() for a in acts[:4]))
+                parts.append(f"Example task: {les.objective[:300]}\nChosen actions: " + "; ".join(a.short() for a in acts[:4])
+                             + (f"\nWhy: {' '.join(les.reasoning.split())[:WHY_CHARS]}" if les.reasoning.strip() else ""))
         task_file = workdir / ".creator_task.md"
         text = task_file.read_text(encoding="utf-8", errors="replace") if task_file.is_file() else objective
         parts.append(f"Task ({kind}):\n{text[:1500]}")
