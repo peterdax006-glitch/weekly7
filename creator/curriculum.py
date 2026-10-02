@@ -47,7 +47,7 @@ TEACHER = frozenset({"claude", REPLAY})             # both are the teacher's wor
 
 def is_skill_signal(les: "Lesson") -> bool:
     """True when the lesson's outcome is a real judgement of the work (not a cancelled/errored cycle)."""
-    return not str(les.verdict).lower().startswith(tuple(v + ":" for v in NO_SIGNAL.values()))
+    return not str(les.verdict).lower().startswith(tuple(v + ":" for v in (*NO_SIGNAL.values(), "interrupted")))
 
 
 @dataclasses.dataclass
@@ -120,6 +120,27 @@ class LessonLog:
         self._append({"event": "outcome", "lesson_id": lesson_id, "adopted": adopted, "verdict": verdict[:2000],
                       "at": dt.datetime.now().isoformat(timespec="seconds")})
 
+    def reenable(self, solver: str, kind: str, why: str) -> None:
+        """New evidence (e.g. a retrain): the skip rule counts this student's attempts on `kind` only from now on."""
+        self._append({"event": "reenable", "solver": solver, "task_kind": kind, "why": why[:500],
+                      "at": dt.datetime.now().isoformat(timespec="seconds")})
+
+    def reenabled(self) -> dict[tuple[str, str], str]:
+        """(solver, kind) -> timestamp of the latest reenable event."""
+        out: dict[tuple[str, str], str] = {}
+        try:
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return out
+        for ln in lines:
+            try:
+                d = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(d, dict) and d.get("event") == "reenable":
+                out[(str(d.get("solver")), str(d.get("task_kind")))] = str(d.get("at", ""))
+        return out
+
     def lessons(self) -> list[Lesson]:
         out: dict[str, Lesson] = {}
         try:
@@ -184,6 +205,96 @@ class Router:
     def handed_over(self, lessons: Iterable[Lesson], kind: str) -> bool:
         return bool(self.owners(lessons, kind))
 
+    skip_min_attempts: int = 10
+    skip_no_output_share: float = 0.8
+
+    def skip_reason(self, lessons: Iterable[Lesson], solver: str, kind: str, since: str = "") -> str:
+        """'' or why `solver` should stop being tried on `kind`: >= skip_min_attempts judged attempts (cancelled/errored cycles do not
+        count), none adopted, and >= skip_no_output_share of them produced no measurable work (never claimed done). Attempts older
+        than `since` (a reenable event) are ignored; any adoption is new evidence by itself. Teachers are never skipped."""
+        if solver in TEACHER:
+            return ""
+        mine = [x for x in lessons if x.solver == solver and x.task_kind == kind and x.adopted is not None
+                and is_skill_signal(x) and (not since or x.at > since)]
+        if len(mine) < self.skip_min_attempts or any(x.adopted for x in mine):
+            return ""
+        none = sum(1 for x in mine if not x.claimed_done)
+        if none / len(mine) < self.skip_no_output_share:
+            return ""
+        return (f"{solver} skipped on {kind}: {none}/{len(mine)} attempts produced no measurable work, 0 adopted "
+                f"(re-enabled by a reenable event or by an adoption)")
+
+
+# ------------------------------------------------------------------------------------------------ reconciliation
+
+INTERRUPTED = "interrupted"
+
+
+def _jsonl_dicts(path: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    try:
+        for ln in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                d = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(d, dict):
+                out.append(d)
+    except OSError:
+        pass
+    return out
+
+
+def kernel_outcomes(state: Path) -> dict[str, tuple[str, str]]:
+    """package_id -> (outcome, reason) from the kernel's own records: kernel_log.jsonl, overridden by cycles/<pkg>/cycle.json."""
+    out: dict[str, tuple[str, str]] = {}
+    for d in _jsonl_dicts(Path(state) / "kernel_log.jsonl"):
+        if d.get("package") and d.get("outcome"):
+            out[str(d["package"])] = (str(d["outcome"]), str(d.get("reason", "")))
+    try:
+        dirs = [p for p in (Path(state) / "cycles").iterdir() if p.is_dir()]
+    except OSError:
+        dirs = []
+    for dd in dirs:
+        try:
+            cj = json.loads((dd / "cycle.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(cj, dict) and cj.get("outcome"):
+            out[str(cj.get("package") or dd.name)] = (str(cj["outcome"]), str(cj.get("reason", "")))
+    return out
+
+
+def reconcile_lessons(log: LessonLog, state: Path, in_flight: Iterable[str] = ()) -> dict[str, Any]:
+    """Give every lesson that still has no outcome one, from the kernel's records: ADOPTED/REJECTED/ROLLED_BACK -> that verdict;
+    CANCELLED/ERROR -> the no-signal outcome; no record at all (the process died mid-cycle) -> adopted=False, verdict 'interrupted: ...'
+    (no-signal). Idempotent (a settled lesson is never touched), never raises. Skipped: packages in `in_flight` (a live cycle will
+    resolve them) and teacher lessons marked 'teacher lesson: pending kernel' (written ahead of any kernel cycle on purpose)."""
+    rep: dict[str, Any] = {"pending": 0, "settled": {}, "skipped": 0}
+    try:
+        busy = set(in_flight)
+        outcomes = kernel_outcomes(state)
+        for les in log.lessons():
+            if les.adopted is not None:
+                continue
+            rep["pending"] += 1
+            if les.package_id in busy or str(les.verdict).startswith("teacher lesson:"):
+                rep["skipped"] += 1
+                continue
+            oc, reason = outcomes.get(les.package_id, ("", ""))
+            if oc in ADJUDICATED:
+                adopted, verdict, key = ADJUDICATED[oc], f"{oc}: {reason[:500]}", oc
+            elif oc in NO_SIGNAL:
+                adopted, verdict, key = False, f"{NO_SIGNAL[oc]}: {reason[:500]}", oc
+            else:
+                adopted, key = False, INTERRUPTED
+                verdict = f"{INTERRUPTED}: no kernel record for {les.package_id} (process died before the cycle resolved)"
+            log.outcome(les.lesson_id, adopted, verdict)
+            rep["settled"][key] = rep["settled"].get(key, 0) + 1
+    except Exception as e:                                  # noqa: BLE001 - bookkeeping never stops the swarm
+        rep["error"] = f"{type(e).__name__}: {e}"
+    return rep
+
 
 # ------------------------------------------------------------------------------------------------ the capturing workers
 
@@ -217,6 +328,7 @@ class Curriculum:
         self.students = list(students)
         self.router = router or Router()
         self._open: dict[str, list[str]] = {}             # package_id -> lessons waiting for the cycle outcome
+        self._skipped: set[tuple[str, str]] = set()
 
     # --- recording
     def _draft(self, plan: Any, package: Any, solver: str) -> Lesson:
@@ -251,6 +363,22 @@ class Curriculum:
             else:
                 self.log.outcome(lid, None, f"{outcome}: undecided")
 
+    def note_skip(self, solver: str, kind: str, why: str) -> None:
+        """Record why a student stopped being tried on a kind (once per (student, kind) per process) in skips.jsonl."""
+        key = (solver, kind)
+        if key in self._skipped:
+            return
+        self._skipped.add(key)
+        try:
+            _append_line(self.log.path.with_name("skips.jsonl"), json.dumps(
+                {"solver": solver, "task_kind": kind, "why": why, "at": dt.datetime.now().isoformat(timespec="seconds")}))
+        except OSError:
+            pass
+
+    def reconcile(self) -> dict[str, Any]:
+        """Swarm round start: settle every lesson still without an outcome (see reconcile_lessons); packages in flight here are left alone."""
+        return reconcile_lessons(self.log, self.log.path.parent, in_flight=set(self._open))
+
     # --- workers
     def student_steps(self) -> list["_StudentStep"]:
         return [_StudentStep(self, s) for s in self.students]
@@ -277,6 +405,10 @@ class _StudentStep:
         if not self.student.can_attempt(les):
             return K.WorkResult(False, f"{self.name} cannot attempt this task")
         past = self.cur.log.lessons()
+        why = self.cur.router.skip_reason(past, self.name, les.task_kind, self.cur.log.reenabled().get((self.name, les.task_kind), ""))
+        if why:
+            self.cur.note_skip(self.name, les.task_kind, why)
+            return K.WorkResult(False, why)
         if not self.cur.router.handed_over(past, les.task_kind) and any(
                 p.package_id == les.package_id and p.solver == self.name and p.adopted is False and is_skill_signal(p) for p in past):
             return K.WorkResult(False, f"{self.name} was already rejected on {les.package_id}")      # Claude's turn

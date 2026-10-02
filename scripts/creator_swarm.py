@@ -142,6 +142,12 @@ def main(argv: list[str]) -> int:
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:
             n += 1
+            try:
+                rec = cur.reconcile()                                    # settle lessons left pending by a stopped swarm (never raises)
+                if rec.get("settled"):
+                    print("RECONCILED", json.dumps(rec), flush=True)
+            except Exception:                                            # noqa: BLE001
+                pass
             def on_report(r: K.CycleReport) -> None:
                 cur.resolve(r)
                 print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],

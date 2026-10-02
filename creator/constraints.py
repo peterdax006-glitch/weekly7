@@ -360,7 +360,7 @@ def _unmeasured_class(x: Any) -> str:
         return "model_timeouts"
     if "no usable" in v or "held no usable" in v:
         return "unusable_model_reply"
-    if v.startswith("cancelled") or v.startswith("error"):
+    if v.startswith(("cancelled", "error", "interrupted")):
         return "cancelled_unrecorded"
     if v == "":
         return "pending_no_verdict"
@@ -394,9 +394,15 @@ def learning_metrics(state: Path, now: dt.datetime, window_h: float) -> list[Met
         if not _measured(x):
             cls[_unmeasured_class(x)] = cls.get(_unmeasured_class(x), 0) + 1
     n = len(sc)
+    where: dict[str, dict[str, int]] = {}                 # per student|kind: where the signal is lost
+    for x in sc:
+        w = where.setdefault(f"{x.solver}|{x.task_kind}", {"attempts": 0, "with_verdict": 0, "adopted": 0})
+        w["attempts"] += 1
+        w["with_verdict"] += 1 if _measured(x) else 0
+        w["adopted"] += 1 if (_measured(x) and x.adopted) else 0
     out = [Metric("learning_signal", round(un, 4), "share of student attempts never measured", label, None if pun is None else round(pun, 4), _trend(un, pun), round(un, 4), "meta",
                   {"attempts": n, "measured": sum(1 for x in sc if _measured(x)), "measured_per_hour": round(sum(1 for x in sc if _measured(x)) / window_h, 3),
-                   "unmeasured_by_class": cls}, "goal")]
+                   "unmeasured_by_class": cls, "per_student_kind": dict(sorted(where.items()))}, "goal")]
     for k, v in sorted(cls.items(), key=lambda kv: -kv[1]):
         out.append(Metric(k, round(v / n, 4), "share of student attempts", label, None, "new", round(v / n, 4), "meta", {"attempts": v}, "goal", parent="learning_signal"))
     from creator import curriculum as CUR
