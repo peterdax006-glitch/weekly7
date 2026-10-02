@@ -694,6 +694,13 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             revert = S.rollback(cfg.repo, res.merge_commit, why)
             led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ROLLBACK,
                                   reason=f"{why}; reverted by {revert[:12]}"))
+            fid = led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(plan.work_package_id,), subject_id=plan.experiment_id,
+                                       symptom=f"post-merge rollback: {why}"[:500], classification="post-merge rollback",
+                                       reproduction=f"merge {res.merge_commit[:12]}, re-assess main"))
+            did = led.append(M.Diagnosis(created_by=M.Role.DEBUGGER, parents=(fid,), failure_id=fid, hypotheses=(why[:300],),
+                                         root_cause=why[:500], uncertainty=M.Uncertainty.LIKELY))
+            led.append(M.Repair(created_by=M.Role.KERNEL, parents=(did,), diagnosis_id=did,       # CR204: a rollback is never silent
+                                description=f"merge {res.merge_commit[:12]} reverted by {revert[:12]}"))
             P.record_outcome(led, plan, False, f"rolled back: {why}")
             rep.outcome, rep.reason = "ROLLED_BACK", why
         else:
