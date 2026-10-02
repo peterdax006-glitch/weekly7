@@ -1,0 +1,14 @@
+diff --git a/creator/kernel.py b/creator/kernel.py
+index 997eb101a..2e50bd96d 100644
+--- a/creator/kernel.py
++++ b/creator/kernel.py
+@@ -185,8 +185,7 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
+     model = SM.build(root, scope=cfg.scope, capabilities=specs, test_evidence=ev, ledger=led)
+     tmp = evd / "selfmodel.tmp.json"
+     SM.save(model, tmp)
+-    content = hashlib.sha256(tmp.read_bytes()).hexdigest()[:16]        # named by CONTENT: a cited snapshot is never rewritten
+-    snap = evd / f"selfmodel_{content}.json"                            # (2 Oct: digest-named snapshots were overwritten each
++    snap = evd / f"selfmodel_{hashlib.sha256(tmp.read_bytes()).hexdigest()[:16]}.json"                            # (2 Oct: digest-named snapshots were overwritten each
+     if snap.exists():                                                   # cycle with different non-digested fields, and the next
+         tmp.unlink()                                                    # cycle's audit went red with evidence drift)
+     else:

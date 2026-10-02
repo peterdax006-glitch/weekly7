@@ -1,0 +1,40 @@
+{
+ "base": {
+  "target": "creator/student.py",
+  "target_size": 5275,
+  "package_size": 117179,
+  "memory_mb": [
+   73.13408,
+   72.138752
+  ],
+  "test_cases": 5836,
+  "active_nodes": 55562,
+  "static_load": 801395
+ },
+ "candidate": [
+  {
+   "target": "creator/student.py",
+   "target_size": 5277,
+   "package_size": 117181,
+   "memory_mb": [
+    72.97024,
+    72.347648
+   ],
+   "test_cases": 5836,
+   "active_nodes": 55562,
+   "static_load": 801397
+  },
+  {
+   "target": "creator/student.py",
+   "target_size": 5277,
+   "package_size": 117181,
+   "memory_mb": [
+    72.97024,
+    72.347648
+   ],
+   "test_cases": 5836,
+   "active_nodes": 55562,
+   "static_load": 801397
+  }
+ ]
+}

@@ -1,0 +1,56 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0054",
+ "requirement": "EFF.size",
+ "reason": "claim REGRESSION: primary metric significantly worse",
+ "verdict": "REGRESSION",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 945.6,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "2 actions applied: lazy_import(json), lazy_import(re)",
+   "by": "nupen-model-v2"
+  },
+  "claim": "IC-e54f095e9aef9402c740",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": -2.0,
+   "se": 0.0,
+   "lo": -2.0,
+   "hi": -2.0,
+   "why": "primary metric significantly worse",
+   "target": "creator/student.py",
+   "size": [
+    5275,
+    5277
+   ],
+   "package": [
+    117179,
+    117181
+   ],
+   "memory_mb": [
+    72.64,
+    72.66
+   ],
+   "tests": [
+    5836,
+    5836
+   ],
+   "requirements_lost": [],
+   "active_nodes": [
+    55562,
+    55562
+   ]
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

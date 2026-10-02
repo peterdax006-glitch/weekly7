@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0051",
+ "requirement": "EFF.activation",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 538.5,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "1 actions applied: inline_temp(assess_tree,content)",
+   "by": "nupen-model-v2"
+  }
+ }
+}
