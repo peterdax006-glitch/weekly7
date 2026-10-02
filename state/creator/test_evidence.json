@@ -2,103 +2,175 @@
  "tests/test_creator_agents.py": {
   "test_file": "tests/test_creator_agents.py",
   "outcome": "PASS",
-  "source_digest": "e1d614f328bfb25b",
+  "source_digest": "bb4e83f64cfc3941",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_agents.py.xml"
  },
  "tests/test_creator_audit.py": {
   "test_file": "tests/test_creator_audit.py",
   "outcome": "PASS",
-  "source_digest": "556657230e76299c",
+  "source_digest": "498af40538c16eef",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_audit.py.xml"
+ },
+ "tests/test_creator_audit_recursion_failures.py": {
+  "test_file": "tests/test_creator_audit_recursion_failures.py",
+  "outcome": "PASS",
+  "source_digest": "5c2d0ac628521e21",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_audit_recursion_failures.py.xml"
+ },
+ "tests/test_creator_autotune.py": {
+  "test_file": "tests/test_creator_autotune.py",
+  "outcome": "PASS",
+  "source_digest": "8a8da1b1fae6786c",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_autotune.py.xml"
+ },
+ "tests/test_creator_claims.py": {
+  "test_file": "tests/test_creator_claims.py",
+  "outcome": "PASS",
+  "source_digest": "8ea0ef25d1a86a22",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_claims.py.xml"
  },
  "tests/test_creator_debug.py": {
   "test_file": "tests/test_creator_debug.py",
   "outcome": "PASS",
-  "source_digest": "4760391603758092",
+  "source_digest": "5217be0c558be06e",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_debug.py.xml"
  },
  "tests/test_creator_design.py": {
   "test_file": "tests/test_creator_design.py",
   "outcome": "PASS",
-  "source_digest": "a8647d683135b94c",
+  "source_digest": "e4431d5164f40469",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_design.py.xml"
  },
  "tests/test_creator_devbench.py": {
   "test_file": "tests/test_creator_devbench.py",
   "outcome": "PASS",
-  "source_digest": "fa5dd0be1395b2d1",
+  "source_digest": "b83b4354f67a8f2d",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_devbench.py.xml"
  },
  "tests/test_creator_efficiency.py": {
   "test_file": "tests/test_creator_efficiency.py",
   "outcome": "PASS",
-  "source_digest": "38f3387180abc53a",
+  "source_digest": "f31960bd2cf798d1",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_efficiency.py.xml"
  },
  "tests/test_creator_evaluate.py": {
   "test_file": "tests/test_creator_evaluate.py",
   "outcome": "PASS",
-  "source_digest": "0077b5107f6c5490",
+  "source_digest": "d27be2de55628559",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_evaluate.py.xml"
  },
  "tests/test_creator_gaps.py": {
   "test_file": "tests/test_creator_gaps.py",
   "outcome": "PASS",
-  "source_digest": "011f879f45649295",
+  "source_digest": "4abb05b0811edbcd",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_gaps.py.xml"
+ },
+ "tests/test_creator_generator.py": {
+  "test_file": "tests/test_creator_generator.py",
+  "outcome": "PASS",
+  "source_digest": "7a3c998074f2e429",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_generator.py.xml"
+ },
+ "tests/test_creator_integration.py": {
+  "test_file": "tests/test_creator_integration.py",
+  "outcome": "PASS",
+  "source_digest": "5148901151aa4a0b",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_integration.py.xml"
  },
  "tests/test_creator_kernel.py": {
   "test_file": "tests/test_creator_kernel.py",
   "outcome": "PASS",
-  "source_digest": "96283d025f1b9328",
+  "source_digest": "b7565a4c0567d98b",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_kernel.py.xml"
  },
  "tests/test_creator_ledger.py": {
   "test_file": "tests/test_creator_ledger.py",
   "outcome": "PASS",
-  "source_digest": "478f35fbb0cdc4c5",
+  "source_digest": "38b2c014d240fb61",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_ledger.py.xml"
+ },
+ "tests/test_creator_localworker.py": {
+  "test_file": "tests/test_creator_localworker.py",
+  "outcome": "PASS",
+  "source_digest": "f8838a7c0dc11e42",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_localworker.py.xml"
  },
  "tests/test_creator_memory.py": {
   "test_file": "tests/test_creator_memory.py",
   "outcome": "PASS",
-  "source_digest": "43b9261c7e0cce00",
+  "source_digest": "460c18060f98035a",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_memory.py.xml"
  },
  "tests/test_creator_meta.py": {
   "test_file": "tests/test_creator_meta.py",
   "outcome": "PASS",
-  "source_digest": "8098ae8d5adb0889",
+  "source_digest": "129e972e6899579d",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_meta.py.xml"
  },
  "tests/test_creator_objective.py": {
   "test_file": "tests/test_creator_objective.py",
   "outcome": "PASS",
-  "source_digest": "ba3b470ac9c3c364",
+  "source_digest": "4fd69591b494af30",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_objective.py.xml"
+ },
+ "tests/test_creator_oversight.py": {
+  "test_file": "tests/test_creator_oversight.py",
+  "outcome": "PASS",
+  "source_digest": "d5a6ceaf7ea16535",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_oversight.py.xml"
  },
  "tests/test_creator_planner.py": {
   "test_file": "tests/test_creator_planner.py",
   "outcome": "PASS",
-  "source_digest": "e5f43956664c0632",
+  "source_digest": "62881345cc5c045c",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_planner.py.xml"
+ },
+ "tests/test_creator_recursion.py": {
+  "test_file": "tests/test_creator_recursion.py",
+  "outcome": "PASS",
+  "source_digest": "d8c4da036d48d7a3",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_recursion.py.xml"
+ },
+ "tests/test_creator_reproduce.py": {
+  "test_file": "tests/test_creator_reproduce.py",
+  "outcome": "PASS",
+  "source_digest": "dc0066adae6972d0",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_reproduce.py.xml"
  },
  "tests/test_creator_research.py": {
   "test_file": "tests/test_creator_research.py",
   "outcome": "PASS",
-  "source_digest": "5465eb8109ed2566",
+  "source_digest": "daf164e01202f424",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_research.py.xml"
  },
  "tests/test_creator_sandbox.py": {
   "test_file": "tests/test_creator_sandbox.py",
   "outcome": "PASS",
-  "source_digest": "9183e939e618a356",
+  "source_digest": "85583564f8a1471f",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_sandbox.py.xml"
  },
  "tests/test_creator_selfmodel.py": {
   "test_file": "tests/test_creator_selfmodel.py",
   "outcome": "PASS",
-  "source_digest": "7cc3a85611ce151a",
+  "source_digest": "5109389f199b7bdf",
   "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_selfmodel.py.xml"
+ },
+ "tests/test_creator_selfworkers.py": {
+  "test_file": "tests/test_creator_selfworkers.py",
+  "outcome": "PASS",
+  "source_digest": "fe87c185fe6dc47e",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_selfworkers.py.xml"
+ },
+ "tests/test_creator_swarm.py": {
+  "test_file": "tests/test_creator_swarm.py",
+  "outcome": "PASS",
+  "source_digest": "56017d97e72f2889",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_swarm.py.xml"
+ },
+ "tests/test_creator_testgen.py": {
+  "test_file": "tests/test_creator_testgen.py",
+  "outcome": "PASS",
+  "source_digest": "909966367d3c2829",
+  "where": "C:\\Users\\Peter\\weekly7\\state\\creator\\junit\\tests__test_creator_testgen.py.xml"
  }
 }

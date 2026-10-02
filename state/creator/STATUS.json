@@ -1,10 +1,10 @@
 {
- "at": "2026-10-01T15:22:48Z",
- "selfmodel_digest": "73d44cfd5428dd97",
+ "at": "2026-10-02T08:12:14Z",
+ "selfmodel_digest": "ec2c2cc0d5769e92",
  "versions": {
-  "git_head": "e9d9cef65cb45ac1226ed79e6641f67ff609652f",
-  "dirty_files": 86,
-  "creator_tree": "8d489f730a1acf8c",
+  "git_head": "b4f584e0f8071da671d1def911108091ab0f1809",
+  "dirty_files": 122,
+  "creator_tree": "9076f5eb1cd60b67",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -13,7 +13,7 @@
    "name": "development ledger",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 1128,
+   "meaningful": 1223,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -22,7 +22,7 @@
    "name": "self-model",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 389,
+   "meaningful": 430,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -31,7 +31,7 @@
    "name": "objective and requirements",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 170,
+   "meaningful": 223,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -49,7 +49,7 @@
    "name": "agent runtime",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 231,
+   "meaningful": 236,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -58,7 +58,7 @@
    "name": "sandbox build test rollback",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 1128,
+   "meaningful": 1189,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -67,7 +67,7 @@
    "name": "research",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 139,
+   "meaningful": 143,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -85,7 +85,7 @@
    "name": "planner",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 262,
+   "meaningful": 479,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -94,7 +94,7 @@
    "name": "evaluation and improvement measurement",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 175,
+   "meaningful": 178,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -103,7 +103,7 @@
    "name": "debugging and repair",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 135,
+   "meaningful": 136,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -112,7 +112,7 @@
    "name": "development memory",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 71,
+   "meaningful": 73,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -130,7 +130,7 @@
    "name": "kernel loop, checkpoints, observability",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 486,
+   "meaningful": 640,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -139,7 +139,7 @@
    "name": "devbench sealed development-task suite",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 325,
+   "meaningful": 334,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -148,7 +148,7 @@
    "name": "audit and adversary",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 343,
+   "meaningful": 744,
    "floor": 0,
    "why": "every test file passed on the current source"
   },
@@ -157,37 +157,102 @@
    "name": "self-efficiency (shrink code and memory)",
    "state": "TESTED",
    "uncertainty": "LIKELY",
-   "meaningful": 83,
+   "meaningful": 180,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K18",
+   "name": "own generative worker (local model + search, no other AI)",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 671,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K19",
+   "name": "autotune: the Creator improves its own worker",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 133,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K20",
+   "name": "own worker inside the kernel (local model develops the Creator)",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 70,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K21",
+   "name": "own workers: the system works on itself with no AI",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 210,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K22",
+   "name": "swarm: own workers in parallel, sized by free RAM",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 343,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K23",
+   "name": "oversight: goal drift, knowledge gaps, critical path",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 120,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K24",
+   "name": "recursion: improves its own development process",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 251,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K25",
+   "name": "test generation by the system itself",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 318,
+   "floor": 0,
+   "why": "every test file passed on the current source"
+  },
+  {
+   "id": "K26",
+   "name": "independent reproduction of claims",
+   "state": "TESTED",
+   "uncertainty": "LIKELY",
+   "meaningful": 441,
    "floor": 0,
    "why": "every test file passed on the current source"
   }
  ],
  "requirements": {
-  "requirements": 101,
+  "requirements": 149,
   "by_status": {
-   "TESTED": 63,
+   "TESTED": 122,
    "REJECTED": 16,
-   "NOT_STARTED": 22
+   "NOT_STARTED": 11
   },
-  "open_gaps": 22,
-  "unblocked": 17,
+  "open_gaps": 45,
+  "unblocked": 45,
   "next": [
-   {
-    "gap_id": "GAP-ce23460e0c288a6c5bfb",
-    "requirement_key": "K01.validated",
-    "kind": "EVIDENCE",
-    "importance": 0.4,
-    "blocked_by": [],
-    "description": "K01.validated unmet: ledger state NOT_STARTED"
-   },
-   {
-    "gap_id": "GAP-43c609514e316a570313",
-    "requirement_key": "K07.integrated",
-    "kind": "INTEGRATION",
-    "importance": 0.363,
-    "blocked_by": [],
-    "description": "K07.integrated unmet: nothing to integrate"
-   },
    {
     "gap_id": "GAP-bb2be3547c9e24cceedf",
     "requirement_key": "K06.validated",
@@ -197,41 +262,310 @@
     "description": "K06.validated unmet: ledger state NOT_STARTED"
    },
    {
-    "gap_id": "GAP-243ece398fc6aa81ef86",
-    "requirement_key": "K08.integrated",
-    "kind": "INTEGRATION",
-    "importance": 0.3548,
+    "gap_id": "GAP-7c0b850c8ea26bcfcab2",
+    "requirement_key": "EFF.activation",
+    "kind": "ARCHITECTURE",
+    "importance": 0.3,
     "blocked_by": [],
-    "description": "K08.integrated unmet: nothing to integrate"
+    "description": "load less: creator/planner.py pulls 5 Creator imports in eagerly (kernel start loads 74% of the package)"
    },
    {
-    "gap_id": "GAP-5b161608ccd437dab404",
-    "requirement_key": "K11.integrated",
-    "kind": "INTEGRATION",
-    "importance": 0.33,
+    "gap_id": "GAP-f3bac3ff8cb748d6a99e",
+    "requirement_key": "EFF.activation",
+    "kind": "ARCHITECTURE",
+    "importance": 0.3,
     "blocked_by": [],
-    "description": "K11.integrated unmet: nothing to integrate"
+    "description": "load less: creator/gaps.py pulls 4 Creator imports in eagerly (kernel start loads 74% of the package)"
+   },
+   {
+    "gap_id": "GAP-d07f6894aa9c2b3b5d84",
+    "requirement_key": "EFF.activation",
+    "kind": "ARCHITECTURE",
+    "importance": 0.3,
+    "blocked_by": [],
+    "description": "load less: creator/planner.py pulls 5 Creator imports in eagerly (kernel start loads 74% of the package)"
+   },
+   {
+    "gap_id": "GAP-f2e1d076b906fa0ab070",
+    "requirement_key": "EFF.activation",
+    "kind": "ARCHITECTURE",
+    "importance": 0.3,
+    "blocked_by": [],
+    "description": "load less: creator/objective.py pulls 3 Creator imports in eagerly (kernel start loads 74% of the package)"
    }
   ],
-  "at": "2026-10-01T15:22:48Z"
+  "at": "2026-10-02T08:12:14Z"
  },
  "sync": {
-  "opened": 1,
-  "closed": 0,
+  "opened": 0,
+  "closed": 16,
   "regressed": []
  },
  "audit": {
-  "CRITICAL": 0,
-  "HIGH": 0,
+  "CRITICAL": 26,
+  "HIGH": 82,
   "MEDIUM": 0,
   "LOW": 0
  },
  "audit_errors": {},
  "adversary": {
-  "attacks": 8,
-  "caught": 8,
+  "attacks": 21,
+  "caught": 21,
   "uncaught": []
  },
- "ledger_records": 700,
- "seconds": 603.4
+ "efficiency": {
+  "package_ast_nodes": 150009,
+  "active_ast_nodes": 64242,
+  "active_fraction": 0.4283,
+  "peak_memory_mb": 73.805824
+ },
+ "claude_dependence": {
+  "adopted_by_worker": {
+   "agent-implementer-v1": 5,
+   "nupen-model-v2": 1
+  },
+  "claude_share": 0.833,
+  "self_share": 0.0,
+  "adopted": 6
+ },
+ "oversight": {
+  "goal_drift": {
+   "adopted": 6,
+   "traced_to_owner": 6,
+   "untraced": [],
+   "by_kind": {
+    "exists": 5,
+    "EFF.activation": 1
+   },
+   "concentrated": null,
+   "drifting": false,
+   "why": "every adoption serves an owner objective",
+   "metrics_stalled": false
+  },
+  "critical_path": [
+   {
+    "gap_id": "GAP-bb2be3547c9e24cceedf",
+    "requirement_key": "K06.validated",
+    "blocks": 0,
+    "importance": 0.36
+   },
+   {
+    "gap_id": "GAP-7c0b850c8ea26bcfcab2",
+    "requirement_key": "EFF.activation",
+    "blocks": 0,
+    "importance": 0.3
+   },
+   {
+    "gap_id": "GAP-f3bac3ff8cb748d6a99e",
+    "requirement_key": "EFF.activation",
+    "blocks": 0,
+    "importance": 0.3
+   },
+   {
+    "gap_id": "GAP-d07f6894aa9c2b3b5d84",
+    "requirement_key": "EFF.activation",
+    "blocks": 0,
+    "importance": 0.3
+   },
+   {
+    "gap_id": "GAP-f2e1d076b906fa0ab070",
+    "requirement_key": "EFF.activation",
+    "blocks": 0,
+    "importance": 0.3
+   }
+  ]
+ },
+ "failures": {
+  "total": 119,
+  "critical": 0,
+  "critical_resolved": 0,
+  "critical_unresolved": [],
+  "ordinary_open": 88
+ },
+ "curriculum": {
+  "cells": {
+   "claude|gap": {
+    "solver": "claude",
+    "task_kind": "gap",
+    "attempts": 6,
+    "adopted": 5,
+    "rate": 0.833
+   },
+   "nupen-model-v1|activation": {
+    "solver": "nupen-model-v1",
+    "task_kind": "activation",
+    "attempts": 5,
+    "adopted": 0,
+    "rate": 0.0
+   },
+   "nupen-model-v1|shrink": {
+    "solver": "nupen-model-v1",
+    "task_kind": "shrink",
+    "attempts": 6,
+    "adopted": 0,
+    "rate": 0.0
+   },
+   "nupen-model-v2|activation": {
+    "solver": "nupen-model-v2",
+    "task_kind": "activation",
+    "attempts": 2,
+    "adopted": 1,
+    "rate": 0.5
+   },
+   "nupen-model-v2|shrink": {
+    "solver": "nupen-model-v2",
+    "task_kind": "shrink",
+    "attempts": 2,
+    "adopted": 0,
+    "rate": 0.0
+   },
+   "self-student-v1|activation": {
+    "solver": "self-student-v1",
+    "task_kind": "activation",
+    "attempts": 1,
+    "adopted": 0,
+    "rate": 0.0
+   }
+  },
+  "adopted_total": 6,
+  "adopted_by": {
+   "claude": 5,
+   "nupen-model-v2": 1
+  },
+  "teacher_share": 0.833,
+  "claude_share": 0.833,
+  "lessons": 50,
+  "handed_over": {}
+ },
+ "plan": {
+  "at": "2026-10-02T06:56:07Z",
+  "critical_path_s": 300.0,
+  "critical_path": [
+   "GAP-ce23460e0c288a6c5bfb",
+   "GAP-bb2be3547c9e24cceedf",
+   "GAP-dbea47ba0cffd8c66082",
+   "GAP-17777d7cd39995983b36",
+   "GAP-3d2b562d46e62ab93804",
+   "GAP-2b65024653f9e69f4600",
+   "GAP-adfec93c0a4fc93e4081",
+   "GAP-1e41aa78b09cf67518b4",
+   "GAP-bf3060afcfdba440656e",
+   "GAP-f09efe7a2d5c30cf11d1",
+   "GAP-d0e518cd7936a5bb7f48",
+   "GAP-662162c54ecca831b425",
+   "GAP-e8b6a2c7a789d67a7118",
+   "GAP-70057efac01e3dae6cbe",
+   "GAP-7f1230156d6d1a15a8bb",
+   "GAP-887ae0857ba2e76724ab",
+   "GAP-3f0131eda4554437f0c4",
+   "GAP-76fc0454e77dd1f25996",
+   "GAP-87a72a269b26d2fb7190",
+   "GAP-f8fd307c2596d3b2c1d2",
+   "GAP-6bc56d144523268af910",
+   "GAP-dd8de63e321b49917fad",
+   "GAP-efe5b00a272534d26ae7",
+   "GAP-058f93da598d88c44879"
+  ],
+  "chosen": [],
+  "reasons": [
+   {
+    "node": "GAP-ce23460e0c288a6c5bfb",
+    "component": "K01",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-bb2be3547c9e24cceedf",
+    "component": "K06",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-dbea47ba0cffd8c66082",
+    "component": "K10",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-17777d7cd39995983b36",
+    "component": "K14",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-3d2b562d46e62ab93804",
+    "component": "K02",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-2b65024653f9e69f4600",
+    "component": "K03",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-adfec93c0a4fc93e4081",
+    "component": "K04",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-1e41aa78b09cf67518b4",
+    "component": "K05",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-bf3060afcfdba440656e",
+    "component": "K07",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-f09efe7a2d5c30cf11d1",
+    "component": "K08",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-d0e518cd7936a5bb7f48",
+    "component": "K09",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   },
+   {
+    "node": "GAP-662162c54ecca831b425",
+    "component": "K11",
+    "step": "validated",
+    "chosen": false,
+    "slack_s": 0.0,
+    "why": "not worker work: validated goes to its own role"
+   }
+  ]
+ },
+ "ledger_records": 1803,
+ "seconds": 777.9
 }

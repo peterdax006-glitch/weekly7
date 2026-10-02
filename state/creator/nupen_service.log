@@ -1,0 +1,5 @@
+2026-10-02T00:39:36 supervisor up pid=27548
+2026-10-02T00:39:36 swarm started pid=4480
+2026-10-02T00:57:17 NUPEN_STOP found: stopping the swarm
+2026-10-02T00:57:17 swarm exited code=1
+2026-10-02T00:57:17 supervisor down

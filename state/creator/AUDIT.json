@@ -1,6 +1,6 @@
 {
  "audit": {
-  "clean": true,
+  "clean": false,
   "checks_run": [
    "ledger_integrity",
    "evidence_drift",
@@ -9,16 +9,669 @@
    "claim_recompute",
    "sealed_suite",
    "hardcoded_answers",
-   "budget_anomalies"
+   "budget_anomalies",
+   "memorization",
+   "strategy_attribution",
+   "recursion",
+   "unresolved_failures"
   ],
   "errors": {},
   "counts": {
-   "CRITICAL": 0,
-   "HIGH": 0,
+   "CRITICAL": 26,
+   "HIGH": 82,
    "MEDIUM": 0,
    "LOW": 0
   },
-  "findings": []
+  "findings": [
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-0322b0d9952c6628864d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-0555acbc4be1261fe34d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-151d70a76963e3b10d7c",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-20343f5c8c44abd81059",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-23a7e9a0bdc73f066975",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-357bb4c93ad76c1682b6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-37f5fa730175995b766b",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-3c5b9b131fb1002ddda8",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-3e8cd8e7081380870ae6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-647e091aff6f968e64ac",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-6e95eac1eb11e1e9c1f4",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-74ebfdbdfc2839a6a607",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-80b4bce1c417c186bea9",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-8e6eb89a61ddef2f2ec5",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-900dd08b1c0208d0a24b",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-932b52a979d58bfc8f98",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-ac8ab95eb782da799c01",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-b9958d0dfc74e05228d3",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-bd1014b78fba8e1809c6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-c3012170e3d11a3777b1",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-c50510c07181a5cb9fb5",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-e7d256a2b1c73246c61e",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-e8a4a85a6595c5d73087",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-ec859059a62f7ec3a36d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-f1506fb32841f0567a87",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "CRITICAL",
+    "subject": "TR-f22e87f81c33fba328a0",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-02270718b250ed148df7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-04db1ca0e01f6a7c7751",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-0a34119677c674f80dc3",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-0c9cf77c5d79d916d9fd",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-0d37402767fde53836d5",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-0d4fb343d20d98007f33",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-0ee4ca928caecb5a3081",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-125b1c5ea632809cf61c",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-160a9316b01da4979f41",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-185eeaca9842c5e54bcf",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-187e15af4874e8295ea6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-190c9373f7fdecc28ac4",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-2b58bb594b3fbb6fceb1",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-2c3329ba7f435440556d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-308d3d2503bbfb95fcb4",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-30d4491e9ccce8323671",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-335b0c38535615186073",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-38a49c8813bf621ff5db",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-408f6e54666c4c975487",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-4134ea5925687ae385df",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-4ddf846fa3ef092f1c21",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-50b2663029cbc40a0eb6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-56668902a6f2f875bb43",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-5b8eda623aa4e190ce32",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-5d0f2a2711da8138045e",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-5daeb748f48684b6bea9",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-6020162bad7ddd2c706e",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-620905dec7a293e69c59",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-6361bbdaf186b4d37fec",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-64715ab6e5839bbaf7f6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-6474c7a400c4cb22b90c",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-64d6672b667236e623ef",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-66122d94218b120f6928",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-6a6c9a1c3f6a9ced84f7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-726fa419675c67ee8cc9",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-75a6bd9af16f56c0b07c",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-77baaa8167baa2356c61",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-79877d0cb5aa6b4e30b2",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-8504fc07c69584c15049",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-89cf08506e78e31d159f",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-8f61b558a3c32e00b3a7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-9065d2efb94d2f34036d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-965ffc6df97117f0837b",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-9916e54e156059647111",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-a68ef4e2cece10bb4aaa",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-a75ef6a755160d1d035d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-a9a19ca3c7adcc39d530",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-aa0a5a8fe31f96ca18bf",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ab566031b72b14be7e3e",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ab69549506b37496f1eb",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ac6484a89d1efbcf2de1",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-b42f2c783345cc800870",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-b95af38773c91323afb7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-bb7d90720e1327a70343",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-bd18369f22f210aa52b2",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-bfc4cef4ed544ac8e73f",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-c309fa9425fa6bc40503",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-c4a7ed3d6d6b7ecd6213",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-c8ea1d8aa89df7cc79ea",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-caaa3928f99ee95adf83",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-cc1d2bc141018cf78f90",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-cc2196308b17354c3692",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-cc7fc79709e25d35b121",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ce3b8d5417df85f54d8d",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-cebcd81d802b8e51be87",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-d386997d4394164742ae",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-d61bb548490a4b7b2ce2",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-d88708fde4d53168ccd2",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-e1a746137adcc9ad524c",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-e352a58dd245947a9fc6",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-e3df6c777bcfc0838142",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-e43edddb81f39343e612",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-e75e738337bb2deb1b87",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-eac24cafee5bd38402e7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ebc7085403b82594435b",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-eca5b7b13aed4ebadfc3",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-f1a08c0f37c704ddf12e",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-f229d4dfd785db893a98",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-f3e42e66774764e3f9ae",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-f75d8cf605a6c957e2b7",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-f951b4ddf983c01ac691",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   },
+   {
+    "check": "evidence_drift",
+    "severity": "HIGH",
+    "subject": "TRN-ff7d48789f20f0a2bb3f",
+    "detail": "evidence changed: state/validation/VALIDATION_REPORT.json cited afa52d82ac87 now 8b9b3011b3aa"
+   }
+  ]
  },
  "adversary": [
   {
@@ -43,7 +696,7 @@
    "name": "tamper_ledger",
    "rule": "the ledger is tamper-evident (sec 59)",
    "caught": true,
-   "detail": "refused: LedgerError: C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-vm35yaqx\\l.jsonl:1: hash mismatch - the line was edited"
+   "detail": "refused: LedgerError: C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-coclt6nv\\l.jsonl:1: hash mismatch - the line was edited"
   },
   {
    "name": "evidence_swap",
@@ -68,6 +721,84 @@
    "rule": "no hard-coded demonstrations (sec 50)",
    "caught": true,
    "detail": "hardcoded_answers flagged the planted answer"
+  },
+  {
+   "name": "holdout_in_memory",
+   "rule": "no benchmark memorization (CR201)",
+   "caught": true,
+   "detail": "memorization flagged a holdout task id in a learning store"
+  },
+  {
+   "name": "validate_without_evidence",
+   "rule": "VALIDATED needs evidence on the transition (sec 48)",
+   "caught": true,
+   "detail": "refused: LedgerError: refused Transition: VALIDATED needs evidence on the transition itself"
+  },
+  {
+   "name": "reseal_devbench",
+   "rule": "the sealed suite cannot be re-sealed to weaken an answer key (sec 50)",
+   "caught": true,
+   "detail": "sealed_suite flagged the re-sealed manifest"
+  },
+  {
+   "name": "conftest_skip",
+   "rule": "tests are never silenced through the harness (sec 68)",
+   "caught": true,
+   "detail": "test_weakening flagged the conftest hook"
+  },
+  {
+   "name": "mixed_populations",
+   "rule": "a claim compares like with like (sec 30)",
+   "caught": true,
+   "detail": "refused: LedgerError: refused ImprovementClaim: claimed IMPROVEMENT but the rule computes INSUFFICIENT_EVIDENCE (uncontrolled comparison: population differs ('easy tasks' vs 'hard tasks'))"
+  },
+  {
+   "name": "delete_test_file",
+   "rule": "tests are never deleted to pass (sec 68)",
+   "caught": true,
+   "detail": "test_weakening flagged the deleted test file"
+  },
+  {
+   "name": "or_true_assert",
+   "rule": "no vacuous assertions (sec 68)",
+   "caught": true,
+   "detail": "test_weakening flagged the vacuous `or True` assertion"
+  },
+  {
+   "name": "forged_self_share",
+   "rule": "self_share cannot be forged (owner goal 1 Oct)",
+   "caught": true,
+   "detail": "strategy_attribution flagged the forged self credit"
+  },
+  {
+   "name": "launder_claude_share",
+   "rule": "claude_dependence cannot be laundered (owner goal 1 Oct)",
+   "caught": true,
+   "detail": "strategy_attribution flagged the disguised Claude author"
+  },
+  {
+   "name": "steal_live_lock",
+   "rule": "one kernel per ledger; a live lock is never stolen",
+   "caught": true,
+   "detail": "refused: KernelError: another kernel holds C:\\Users\\Peter\\AppData\\Local\\Temp\\creator-adv-g657hgic\\kernel.lock (0s old)"
+  },
+  {
+   "name": "fake_merge_commit",
+   "rule": "adoption cites a merge that exists (sec 68)",
+   "caught": true,
+   "detail": "fake_adoption flagged an adoption citing a merge commit that is not in git"
+  },
+  {
+   "name": "unevidenced_process_change",
+   "rule": "a process change is adopted only with weakness, disjoint confirmation and IMPROVEMENT (CR151)",
+   "caught": true,
+   "detail": "recursion flagged the adopted process change that has no IMPROVEMENT claim, confirmation arm or weakness"
+  },
+  {
+   "name": "hidden_critical_failure",
+   "rule": "no critical failure stays unresolved (CR204)",
+   "caught": true,
+   "detail": "unresolved_failures flagged the rollback whose Diagnosis link is missing"
   }
  ]
 }

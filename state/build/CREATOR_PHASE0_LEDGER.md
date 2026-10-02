@@ -1,6 +1,6 @@
 # C77 Phase 0 - computed reconnaissance ledger
 
-Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 6123478bc6a5e65e, self-model digest ba04d3374d349d66.
+Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 6c5ecd9486b87d88, self-model digest 78e80a5e08f86e6f.
 
 ## CR001-004_documents
 
@@ -48,8 +48,8 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   "ULTIMATE_MASTER_CHECKLIST.json"
  ],
  "masterstock": "C:\\Users\\Peter\\Masterstock\\MASTERSTOCK.md",
- "masterstock_sha256": "469a05e8474ca134d75eb3c298c2e755e047d3d4ea46dede63074fc586343549",
- "masterstock_bytes": 1915515
+ "masterstock_sha256": "dd568e499b8613a7f1d7890a174ec9d607d8ed99b5ebbb87a17eb3d5dfdb810a",
+ "masterstock_bytes": 1917617
 }
 ```
 
@@ -57,7 +57,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "files": 662,
+ "files": 668,
  "file_list": [
   "canon/build_canon.py",
   "creator/__init__.py",
@@ -97,6 +97,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/objective.py",
   "creator/oversight.py",
   "creator/planner.py",
+  "creator/power.py",
   "creator/process_levers.py",
   "creator/recon.py",
   "creator/recursion.py",
@@ -109,6 +110,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/student.py",
   "creator/swarm.py",
   "creator/synth.py",
+  "creator/synth_tasks.py",
   "creator/testgen.py",
   "creator/testrun.py",
   "creator/treecache.py",
@@ -195,8 +197,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   "engine/learning/portfolio_value.py",
   "engine/learning/postmortem.py",
   "engine/learning/promotion.py",
-  "engine/learning/questions.py",
-  "engine/learning/redun
+  "engin
 ... (truncated; full in the .json)
 ```
 
@@ -204,9 +205,9 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "head": "ffedf0fadfacd8e9b68fdd538edb73a71bb9635d",
- "branch": "h8/recon",
- "dirty_files": 8,
+ "head": "b4f584e0f8071da671d1def911108091ab0f1809",
+ "branch": "main",
+ "dirty_files": 89,
  "sandbox_branches": [
   "creator/sbx-20261001T071030-385ad032",
   "creator/sbx-20261001T075726-0d5fe44e",
@@ -215,7 +216,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/sbx-20261001T100543-5325f45a",
   "creator/sbx-20261002T011717-90d2491d"
  ],
- "ahead_behind_origin": "3\t0"
+ "ahead_behind_origin": "1\t0"
 }
 ```
 
@@ -224,31 +225,10 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "running_python_processes": [
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scratch/pilot.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q ",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.p",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q -p no:cacheprovider",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 ",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2 --confirm 500 --min-effect 0.05 --initial 1,1,0,0 --ledger scratch/cold_l",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scratch/synth_probe2.py 70 200",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_audit.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 -",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 --lessons state/creator/lessons_contrast.jsonl --out state/creator/action_c",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -I -B -c \"import sys",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --rootdir C:\\Us
-... (truncated; full in the .json)
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py"
+ ],
+ "kernel_lock": false
+}
 ```
 
 ## CR008_integrations
@@ -304,11 +284,11 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "test_files": 235,
- "test_functions": 5950,
+ "test_files": 238,
+ "test_functions": 5981,
  "collect": "",
  "collection_errors": [],
- "modules_without_any_test": 111,
+ "modules_without_any_test": 112,
  "examples": [
   "canon/build_canon.py",
   "creator/lm/data.py",
@@ -664,6 +644,10 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
    "engine"
   ],
   [
+   "scripts.make_contrast_lessons",
+   "creator"
+  ],
+  [
    "scripts.miner_coverage",
    "engine"
   ],
@@ -749,11 +733,7 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
   ],
   [
    "scripts.run_b15_memory_adapter",
-   "engine"
-  ],
-  [
-   "scripts.run_exits_stops",
-   "engi
+ 
 ... (truncated; full in the .json)
 ```
 
@@ -816,8 +796,8 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "by_kind": {
-  "UNTESTED_MODULE": 111,
-  "UNREACHED": 96,
+  "UNTESTED_MODULE": 112,
+  "UNREACHED": 97,
   "STUB": 9
  },
  "stubs": [
@@ -841,9 +821,8 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
  "CREATOR_MASTER_CHECKLIST.json": {
   "items": 304,
   "status": {
-   "IN_PROGRESS": 42,
-   "TESTING": 166,
-   "IMPLEMENTED": 68,
+   "TESTING": 202,
+   "IMPLEMENTED": 74,
    "NOT_STARTED": 28
   },
   "done_without_evidence": 0,
@@ -982,9 +961,8 @@ Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "CREATOR_MASTER_CHECKLIST.json": {
-  "IN_PROGRESS": 42,
-  "TESTING": 166,
-  "IMPLEMENTED": 68,
+  "TESTING": 202,
+  "IMPLEMENTED": 74,
   "NOT_STARTED": 28
  },
  "MASTER_EXECUTION_CHECKLIST.json": {

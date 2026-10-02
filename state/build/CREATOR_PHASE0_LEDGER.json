@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-02T07:06:33Z",
+ "generated": "2026-10-02T07:59:23Z",
  "scope": [
   "engine",
   "scripts",
@@ -7,8 +7,8 @@
   "tests",
   "canon"
  ],
- "tree_hash": "6123478bc6a5e65e4cc94d6e115abc01991cf571a90980b9cd1556c720f801dc",
- "selfmodel_digest": "ba04d3374d349d66",
+ "tree_hash": "6c5ecd9486b87d88e785e9b50096c01518144a5fecad0cc0b869de79b666ed13",
+ "selfmodel_digest": "78e80a5e08f86e6f",
  "CR001-004_documents": {
   "authoritative": {
    "CREATOR_MASTER_PROMPT.md": "da7b9c4d6d8a694bc1b216968b6614f59bc1dd3cb07e88fcb35d676a758764c8",
@@ -52,11 +52,11 @@
    "ULTIMATE_MASTER_CHECKLIST.json"
   ],
   "masterstock": "C:\\Users\\Peter\\Masterstock\\MASTERSTOCK.md",
-  "masterstock_sha256": "469a05e8474ca134d75eb3c298c2e755e047d3d4ea46dede63074fc586343549",
-  "masterstock_bytes": 1915515
+  "masterstock_sha256": "dd568e499b8613a7f1d7890a174ec9d607d8ed99b5ebbb87a17eb3d5dfdb810a",
+  "masterstock_bytes": 1917617
  },
  "CR005_structure": {
-  "files": 662,
+  "files": 668,
   "file_list": [
    "canon/build_canon.py",
    "creator/__init__.py",
@@ -96,6 +96,7 @@
    "creator/objective.py",
    "creator/oversight.py",
    "creator/planner.py",
+   "creator/power.py",
    "creator/process_levers.py",
    "creator/recon.py",
    "creator/recursion.py",
@@ -108,6 +109,7 @@
    "creator/student.py",
    "creator/swarm.py",
    "creator/synth.py",
+   "creator/synth_tasks.py",
    "creator/testgen.py",
    "creator/testrun.py",
    "creator/treecache.py",
@@ -426,6 +428,7 @@
    "scripts/livesim_cycle.py",
    "scripts/livesim_loop2.py",
    "scripts/lowprio.py",
+   "scripts/make_contrast_lessons.py",
    "scripts/miner_coverage.py",
    "scripts/miner_tune_real.py",
    "scripts/movers.py",
@@ -543,6 +546,7 @@
    "tests/test_creator_objective.py",
    "tests/test_creator_oversight.py",
    "tests/test_creator_planner.py",
+   "tests/test_creator_power.py",
    "tests/test_creator_process_levers.py",
    "tests/test_creator_recon.py",
    "tests/test_creator_recursion.py",
@@ -556,9 +560,11 @@
    "tests/test_creator_student.py",
    "tests/test_creator_swarm.py",
    "tests/test_creator_swarm_scheduled.py",
+   "tests/test_creator_synth_tasks.py",
    "tests/test_creator_testgen.py",
    "tests/test_creator_treecache.py",
    "tests/test_creator_validator2_regressions.py",
+   "tests/test_creator_validator4_regressions.py",
    "tests/test_creator_validator_regressions.py",
    "tests/test_dashboard.py",
    "tests/test_data_sources.py",
@@ -722,28 +728,28 @@
    "tests/test_whole_cycle_replay_threads.py"
   ],
   "by_package_files": {
-   "tests": 233,
-   "scripts": 160,
+   "tests": 236,
+   "scripts": 161,
    "engine": 85,
    "engine/research": 66,
    "engine/learning": 65,
-   "creator": 52,
+   "creator": 54,
    "canon": 1
   },
   "by_package_meaningful_lines": {
    "engine/research": 76755,
-   "tests": 66006,
+   "tests": 66350,
    "engine/learning": 52970,
    "engine": 28791,
-   "scripts": 18644,
-   "creator": 12121,
+   "scripts": 18994,
+   "creator": 12402,
    "canon": 180
   }
  },
  "CR006_branch_state": {
-  "head": "ffedf0fadfacd8e9b68fdd538edb73a71bb9635d",
-  "branch": "h8/recon",
-  "dirty_files": 8,
+  "head": "b4f584e0f8071da671d1def911108091ab0f1809",
+  "branch": "main",
+  "dirty_files": 89,
   "sandbox_branches": [
    "creator/sbx-20261001T071030-385ad032",
    "creator/sbx-20261001T075726-0d5fe44e",
@@ -752,34 +758,11 @@
    "creator/sbx-20261001T100543-5325f45a",
    "creator/sbx-20261002T011717-90d2491d"
   ],
-  "ahead_behind_origin": "3\t0"
+  "ahead_behind_origin": "1\t0"
  },
  "CR007_builders": {
   "running_python_processes": [
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scratch/pilot.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q ",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.p",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q -p no:cacheprovider",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 ",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2 --confirm 500 --min-effect 0.05 --initial 1,1,0,0 --ledger scratch/cold_l",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scratch/synth_probe2.py 70 200",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_audit.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 -",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 --lessons state/creator/lessons_contrast.jsonl --out state/creator/action_c",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
-   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -I -B -c \"import sys",
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --rootdir C:\\Users\\Peter\\AppData\\Local\\Temp\\pytest-of-Peter\\pytest-2832\\test_little_ram_means_one_work0\\repo --junitxml"
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py"
   ],
   "kernel_lock": false
  },
@@ -828,11 +811,11 @@
   }
  },
  "CR009_tests": {
-  "test_files": 235,
-  "test_functions": 5950,
+  "test_files": 238,
+  "test_functions": 5981,
   "collect": "",
   "collection_errors": [],
-  "modules_without_any_test": 111,
+  "modules_without_any_test": 112,
   "examples": [
    "canon/build_canon.py",
    "creator/lm/data.py",
@@ -1158,6 +1141,10 @@
     "engine"
    ],
    [
+    "scripts.make_contrast_lessons",
+    "creator"
+   ],
+   [
     "scripts.miner_coverage",
     "engine"
    ],
@@ -1248,10 +1235,6 @@
    [
     "scripts.run_exits_stops",
     "engine"
-   ],
-   [
-    "scripts.run_gaprisk",
-    "engine"
    ]
   ]
  },
@@ -1291,8 +1274,8 @@
  },
  "CR020_known_limitations": {
   "by_kind": {
-   "UNTESTED_MODULE": 111,
-   "UNREACHED": 96,
+   "UNTESTED_MODULE": 112,
+   "UNREACHED": 97,
    "STUB": 9
   },
   "stubs": [
@@ -1311,9 +1294,8 @@
   "CREATOR_MASTER_CHECKLIST.json": {
    "items": 304,
    "status": {
-    "IN_PROGRESS": 42,
-    "TESTING": 166,
-    "IMPLEMENTED": 68,
+    "TESTING": 202,
+    "IMPLEMENTED": 74,
     "NOT_STARTED": 28
    },
    "done_without_evidence": 0,
@@ -1437,9 +1419,8 @@
  ],
  "CR024_implemented_not_validated": {
   "CREATOR_MASTER_CHECKLIST.json": {
-   "IN_PROGRESS": 42,
-   "TESTING": 166,
-   "IMPLEMENTED": 68,
+   "TESTING": 202,
+   "IMPLEMENTED": 74,
    "NOT_STARTED": 28
   },
   "MASTER_EXECUTION_CHECKLIST.json": {
@@ -1651,5 +1632,5 @@
   "engine/research/compute_manager.py",
   "engine/resources.py"
  ],
- "seconds": 21.2
+ "seconds": 20.8
 }
