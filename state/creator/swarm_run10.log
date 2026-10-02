@@ -1,0 +1,3 @@
+{"package": "CP0058", "req": "EFF.size", "outcome": "REJECTED", "reason": "claim NO_EFFECT: interval excludes a meaningful effect either way", "by": "nupen-model-v2"}
+{"package": "CP0057", "req": "EFF.activation", "outcome": "REJECTED", "reason": "claim REGRESSION: primary metric significantly worse", "by": "nupen-model-v2"}
+ROUND {"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 2, "pulled_back": 1, "by_outcome": {"REJECTED": 2}, "free_gb": 6.79, "at": "2026-10-01T23:54:13"}

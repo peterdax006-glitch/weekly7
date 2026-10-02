@@ -2,3 +2,4 @@
 {"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 42, "pulled_back": 2, "by_outcome": {"CANCELLED": 2}, "free_gb": 10.2, "at": "2026-10-01T18:24:44"}
 {"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 42, "pulled_back": 2, "by_outcome": {"CANCELLED": 2}, "free_gb": 9.96, "at": "2026-10-01T19:12:49"}
 {"round": 2, "outcome": "WORKED", "packages": 2, "peak_parallel": 5, "pulled_back": 0, "by_outcome": {"REJECTED": 1, "ADOPTED": 1}, "free_gb": 9.22, "at": "2026-10-01T20:04:06"}
+{"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 2, "pulled_back": 1, "by_outcome": {"REJECTED": 2}, "free_gb": 6.79, "at": "2026-10-01T23:54:13"}

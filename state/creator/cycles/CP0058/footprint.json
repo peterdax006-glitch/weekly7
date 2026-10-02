@@ -1,0 +1,40 @@
+{
+ "base": {
+  "target": "creator/generator.py",
+  "target_size": 7693,
+  "package_size": 117971,
+  "memory_mb": [
+   73.330688,
+   72.269824
+  ],
+  "test_cases": 5842,
+  "active_nodes": 55557,
+  "static_load": 801360
+ },
+ "candidate": [
+  {
+   "target": "creator/generator.py",
+   "target_size": 7693,
+   "package_size": 117971,
+   "memory_mb": [
+    73.322496,
+    72.003584
+   ],
+   "test_cases": 5842,
+   "active_nodes": 55557,
+   "static_load": 801360
+  },
+  {
+   "target": "creator/generator.py",
+   "target_size": 7693,
+   "package_size": 117971,
+   "memory_mb": [
+    73.322496,
+    72.003584
+   ],
+   "test_cases": 5842,
+   "active_nodes": 55557,
+   "static_load": 801360
+  }
+ ]
+}

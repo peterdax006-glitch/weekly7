@@ -1,0 +1,63 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0057",
+ "requirement": "EFF.activation",
+ "reason": "claim REGRESSION: primary metric significantly worse",
+ "verdict": "REGRESSION",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 3077.1,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "1 actions applied: lazy_import(hashlib)",
+   "by": "nupen-model-v2"
+  },
+  "claim": "IC-5ceb191e058c95bb9949",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": -2.0,
+   "se": 0.0,
+   "lo": -2.0,
+   "hi": -2.0,
+   "why": "primary metric significantly worse",
+   "target": "creator/kernel.py",
+   "size": [
+    8349,
+    8351
+   ],
+   "package": [
+    117971,
+    117973
+   ],
+   "memory_mb": [
+    72.37,
+    72.48
+   ],
+   "tests": [
+    5842,
+    5842
+   ],
+   "requirements_lost": [
+    "K09.tested",
+    "K10.tested",
+    "K14.tested",
+    "K18.tested",
+    "K19.tested",
+    "K23.tested"
+   ],
+   "active_nodes": [
+    55557,
+    55559
+   ]
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

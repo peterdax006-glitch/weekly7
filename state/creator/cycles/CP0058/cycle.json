@@ -1,0 +1,85 @@
+{
+ "cycle": 1,
+ "outcome": "REJECTED",
+ "package": "CP0058",
+ "requirement": "EFF.size",
+ "reason": "claim NO_EFFECT: interval excludes a meaningful effect either way",
+ "verdict": "NO_EFFECT",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 2440.8,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "2 actions applied: lazy_import(copy), lazy_import(itertools)",
+   "by": "nupen-model-v2"
+  },
+  "claim": "IC-a313bc59e83a6aa19ee1",
+  "detail": {
+   "min_effect": 0.0,
+   "z": 2.0,
+   "diff": -0.0,
+   "se": 0.0,
+   "lo": -0.0,
+   "hi": 0.0,
+   "regressions": [
+    {
+     "metric": "affected_tests_pass",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "requirements_kept",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "test_functions",
+     "diff": 0.0,
+     "se": 0.0
+    },
+    {
+     "metric": "peak_memory_mb",
+     "diff": 0.13721599999999512,
+     "se": 0.8463098265765294
+    },
+    {
+     "metric": "active_ast_nodes",
+     "diff": -0.0,
+     "se": 0.0
+    }
+   ],
+   "holdout_diff": -0.0,
+   "holdout_se": 0.0,
+   "why": "interval excludes a meaningful effect either way",
+   "target": "creator/generator.py",
+   "size": [
+    7693,
+    7693
+   ],
+   "package": [
+    117971,
+    117971
+   ],
+   "memory_mb": [
+    72.8,
+    72.66
+   ],
+   "tests": [
+    5842,
+    5842
+   ],
+   "requirements_lost": [],
+   "active_nodes": [
+    55557,
+    55557
+   ]
+  },
+  "regression": "CLEAN",
+  "builds": true,
+  "weakening": [],
+  "planted": []
+ }
+}

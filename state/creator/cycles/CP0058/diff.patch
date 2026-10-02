@@ -1,0 +1,30 @@
+diff --git a/creator/generator.py b/creator/generator.py
+index c1cb20314..5fc66e069 100644
+--- a/creator/generator.py
++++ b/creator/generator.py
+@@ -21,9 +21,7 @@ claimed_done and scored by the evaluator - overfitting to visible tests shows up
+ from __future__ import annotations
+ 
+ import ast
+-import copy
+ import dataclasses
+-import itertools
+ import json
+ import os
+ import re
+@@ -651,6 +649,7 @@ def generic_mutations(tree: ast.Module) -> Iterator[ast.Module]:
+ 
+ 
+ def _edit(tree: ast.Module, index: int, fn: Callable[[Any], None]) -> ast.Module:
++    import copy
+     t = copy.deepcopy(tree)
+     target = list(ast.walk(t))[index]
+     fn(target)
+@@ -754,6 +753,7 @@ def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120,
+     extra_budget more tries, never beyond budget) and the one that changes the program's behaviour least (auto-derived calls vs the
+     original) wins.
+     rank=False is the old first-found behaviour."""
++    import itertools
+     targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
+                and p.name not in ("__init__.py", "conftest.py") and "__pycache__" not in p.parts]
+     tried = 0
