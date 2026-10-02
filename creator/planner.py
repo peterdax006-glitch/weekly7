@@ -18,7 +18,9 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, Mapping, Optional, Sequence
 
+from creator import design as DS
 from creator import gaps as G
+from creator import memory as MEM
 from creator import model as M
 from creator import objective as O
 from creator import selfmodel as SM
@@ -102,6 +104,84 @@ STEP_TEXT: dict[str, dict[str, Any]] = {
 }
 
 
+# ------------------------------------------------------------------------------------------------ K08 / K12 / K07 in the loop
+
+def _approach_options(prior_n: int, fails: Sequence[str]) -> list[DS.DesignOption]:
+    """K08: the ways a worker could attack this package. Risk of the plain approach grows with every failed attempt, and
+    diagnosing first only pays once there is a failure to diagnose - so the choice changes with the history."""
+    return DS.generate_options("approach", [
+        {"name": "direct", "summary": "do exactly what the package says, in one pass", "assumptions": ("the instructions suffice",),
+         "failure_modes": tuple(fails[:1]) or ("the same mistake as last time",), "cost": 0.3, "risk": min(0.9, 0.25 + 0.25 * prior_n),
+         "benefit": 0.5},
+        {"name": "test-first", "summary": "write the failing test that proves the requirement first, then the smallest change that passes it",
+         "assumptions": ("the requirement can be expressed as a test",), "failure_modes": ("a test that passes without the change",),
+         "cost": 0.45, "risk": min(0.9, 0.3 + 0.1 * prior_n), "benefit": 0.65},
+        {"name": "diagnose-first", "summary": "reproduce the earlier failure, find its root cause, fix that and nothing else",
+         "assumptions": ("the failure reproduces",), "failure_modes": ("a root cause that is a symptom",), "cost": 0.6, "risk": 0.2,
+         "benefit": 0.8 if prior_n else 0.2}])
+
+
+def _history(ledger: Ledger) -> MEM.Memory:
+    """K12: what the ledger remembers of past development, by kind - failed packages (failure), diagnosed root causes (repair),
+    research findings (research). Rebuilt from the ledger, so it can never disagree with it."""
+    mem = MEM.Memory()
+    for e in ledger.of_type("WorkPackage"):
+        wp = e.record
+        for t in ledger.about(e.id):
+            if t.rtype == "Transition" and getattr(t.record, "to_state") in (M.Status.FAILED, M.Status.ROLLED_BACK, M.Status.REJECTED):
+                mem.remember("failure", getattr(wp, "objective"), getattr(t.record, "reason"), (getattr(wp, "package_id"),))
+    for e in ledger.of_type("Diagnosis"):
+        fail = ledger.get(getattr(e.record, "failure_id"))
+        sid = getattr(fail, "subject_id", "")
+        if sid in ledger.view.by_id and ledger.view.by_id[sid].rtype == "WorkPackage":
+            wp = ledger.get(sid)
+            mem.remember("repair", getattr(wp, "objective"), getattr(e.record, "root_cause"), (getattr(wp, "package_id"),))
+    for e in ledger.of_type("Finding"):
+        mem.remember("research", getattr(e.record, "statement")[:120], getattr(e.record, "statement"), ("finding",))
+    return mem
+
+
+def seen_before(ledger: Ledger, query: str, skip_packages: Sequence[str] = ()) -> list[str]:
+    """Lines for the package text: earlier failures / root causes / findings that resemble this package's objective."""
+    skip = {str(getattr(ledger.get(w), "package_id")) for w in skip_packages}
+    out = []
+    for _, en in _history(ledger).seen_before(query, limit=6, min_score=0.15):
+        if skip & set(en.tags):
+            continue                                                    # this gap's own attempts are already in `why`
+        label = {"failure": "failed before", "repair": "root cause found before", "research": "research found"}.get(en.kind, en.kind)
+        out.append(f"{label} ({', '.join(en.tags)}): {en.detail}"[:300])
+    return out[:3]
+
+
+def research_dossier(ledger: Ledger, gap_id: str) -> list[str]:
+    """Findings of the research questions opened for this gap when it was blocked (K07 -> the next package)."""
+    out = []
+    for q in ledger.view.children.get(gap_id, []):
+        if ledger.view.by_id[q].rtype == "ResearchQuestion":
+            out += [getattr(ledger.get(f), "statement") for f in ledger.view.children.get(q, []) if ledger.view.by_id[f].rtype == "Finding"]
+    return out
+
+
+def research_blocked(ledger: Ledger, gap_id: str, cid: str, step: str, modules: Sequence[str], reasons: Sequence[str]) -> str:
+    """K07: a gap that exhausted its attempts becomes a research question; repo evidence is gathered and weighed, and the question,
+    the confidence and the findings are recorded (ResearchQuestion + Finding) for the next package. Returns the question id."""
+    from pathlib import Path as _P
+    from creator import research as RS
+    desc = f"{cid} step '{step}' stays unmet after {len(reasons)} failed packages ({'; '.join(reasons)[:300]})"
+    q = RS.prioritise(RS.generate_questions([{"id": gap_id, "kind": "KNOWLEDGE", "description": desc, "importance": 0.8}]), budget=1)[0]
+    root = getattr(ledger, "evidence_root", None)
+    stems = [_P(m).stem for m in modules]
+    terms = [t for s in stems for t in (f"import {s}", f"creator.{s}", f"{s}.py")]
+    ev = RS.collect_repo_evidence(q.text, _P(root) / "creator", terms, max_hits=6) if root and (_P(root) / "creator").is_dir() else []
+    di = RS.to_design_input(q.text, ev)
+    rq = ledger.append(M.ResearchQuestion(created_by=M.Role.KERNEL, parents=(gap_id,), question=q.text[:500], priority=M.Priority.HIGH))
+    where = "; ".join(di.findings[:3]) or "no repo evidence found for the module names"
+    ledger.append(M.Finding(created_by=M.Role.KERNEL, parents=(rq,), uncertainty=M.Uncertainty.UNCERTAIN if di.open else M.Uncertainty.LIKELY,
+                            statement=f"{cid} {step}: research confidence {di.confidence:.2f} ({'open' if di.open else 'settled'}); "
+                                      f"where it is referenced: {where}", sources=tuple("creator/" + e.source for e in ev[:6])))
+    return rq
+
+
 def _fmt(items: Sequence[str], **kw: str) -> tuple[str, ...]:
     return tuple(s.format(**kw) for s in items)
 
@@ -163,19 +243,26 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
     if prior:
         why += f"; attempt {len(prior) + 1} after: " + "; ".join(failure_reasons(ledger, prior)[-2:])
     deps = tuple(getattr(ledger.get(d), "package_id") for d in prior[-1:]) if prior else ()
+    objective = t["effect"].format(**kw)
+    dec = DS.select(f"{cid}:{step}:attempt{len(prior) + 1}", _approach_options(len(prior), failure_reasons(ledger, prior)[-1:]))
+    sel = dec.selected
+    approach = (f"Approach chosen by design.select ({', '.join(f'{k} {v:.2f}' for k, v in dec.scores.items())}): {sel.name} - "
+                f"{sel.summary}; rejected: {'; '.join(f'{o.name} ({r})' for o, r in dec.rejected)}",) if sel else ()
+    lessons = tuple(f"Memory - {x}" for x in seen_before(ledger, objective, prior))
+    dossier = tuple(f"Research - {x}" for x in research_dossier(ledger, gap_id))
     return dict(
-        package_id=next_package_id(ledger), objective=t["effect"].format(**kw), why_it_exists=why,
+        package_id=next_package_id(ledger), objective=objective, why_it_exists=why,
         prerequisites=tuple(f"open gap {g} resolved" for g in getattr(gap, "depends_on")) or ("none",),
         inputs=(f"self-model {model.digest()}", f"requirement {getattr(req, 'key')}", *(spec.modules if spec else ())),
         outputs=(spec.modules if spec else ()) + (spec.tests if spec else ()),
-        implementation_requirements=_fmt(t["do"], **kw),
+        implementation_requirements=_fmt(t["do"], **kw) + approach + dossier,
         interfaces=tuple(f"{i.kind} {i.signature}" for m in (state.present_modules if state else ())
                          for i in model.components[m].interfaces[:12]) or ("as declared in creator/ARCHITECTURE.md",),
         data_flow=f"sandbox worktree -> build -> affected tests -> check:{step}:{cid} -> evaluate -> decision",
         dependencies=deps, test_requirements=_fmt(t["tests"], **kw),
         validation_requirements=(f"check:{step}:{cid} passes on the candidate", "audit clean on the candidate",
                                  "no regression in the affected tests versus the base commit"),
-        expected_failure_modes=_fmt(t["fail"], **kw),
+        expected_failure_modes=_fmt(t["fail"], **kw) + lessons,
         evidence_requirements=("sandbox build log", "junit of base and candidate", "self-model snapshot of the candidate",
                                "audit report"),
         failure_conditions=(f"check:{step}:{cid} still fails", "any regression", "any audit finding", "a protected path touched"),
@@ -187,7 +274,18 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
                                    "code that exists is not tested; tested is not validated (C77 sec 7)",
                                    "lines added without behaviour do not count"),
         meaningful_code_depth=max(0, spec.floor - (state.meaningful if state else 0)) if spec and step == "depth" else 0,
-    ), {"req_id": req_id, "step": step, "cid": cid, "key": getattr(req, "key"), "attempt": len(prior) + 1}
+    ), {"req_id": req_id, "step": step, "cid": cid, "key": getattr(req, "key"), "attempt": len(prior) + 1,
+                                                 "decision": dec, "modules": spec.modules if spec else ()}
+
+
+def record_decision(ledger: Ledger, wp: str, dec: DS.Decision) -> None:
+    """K08: every option stays in the ledger (DesignOption under the package); each rejected one gets a REJECT decision with its score."""
+    for o, why in [(dec.selected, "")] * (dec.selected is not None) + list(dec.rejected):
+        d = ledger.append(M.DesignOption(created_by=M.Role.KERNEL, parents=(wp,), decision_key=dec.question,
+                                         summary=f"{o.name}: {o.summary}", assumptions=tuple(o.assumptions),
+                                         failure_modes=tuple(o.failure_modes), cost_estimate=o.cost, risk_estimate=o.risk))
+        if why:
+            ledger.append(M.Decision(created_by=M.Role.KERNEL, subject_id=d, verdict=M.DecisionVerdict.REJECT, reason=why))
 
 
 def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optional[Sequence[SM.CapabilitySpec]] = None,
@@ -218,11 +316,14 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
             ledger.transition(g.gap_id, M.Status.NOT_STARTED, f"reopened: only {len(prior)} of {max_attempts} attempts were real "
                               "(the rest were interruptions)", M.Role.KERNEL)
         if len(prior) >= max_attempts:
+            reasons = failure_reasons(ledger, prior)[-3:]
+            rq = research_blocked(ledger, g.gap_id, cid, step, getattr(spec_map.get(cid), "modules", ()), reasons)
             ledger.transition(g.gap_id, M.Status.BLOCKED,
-                              f"{len(prior)} packages failed: " + "; ".join(failure_reasons(ledger, prior)[-3:]), M.Role.KERNEL)
+                              f"{len(prior)} packages failed: " + "; ".join(reasons) + f"; research question {rq} opened", M.Role.KERNEL)
             continue
         fields, meta = build_package(ledger, g.gap_id, model, spec_map)
         wp = ledger.append(M.WorkPackage(created_by=M.Role.KERNEL, parents=(g.gap_id,), **fields))
+        record_decision(ledger, wp, meta["decision"])
         cp = ledger.append(M.ChangeProposal(
             created_by=M.Role.KERNEL, parents=(wp,), reason=fields["why_it_exists"],
             parent_objective=objective_id or ledger.of_type("Objective")[0].id, originating_task=wp,
