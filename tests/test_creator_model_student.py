@@ -138,7 +138,8 @@ def test_swarm_wiring_has_a_flag() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     names = [s.name for s in mod.make_students()]
-    assert names[-1] == "nupen-model-v1" and "nupen-model-v1" not in [s.name for s in mod.make_students(model_student=False)]
+    assert names[-2:] == ["nupen-model-v1", "nupen-model-v2"]
+    assert not {"nupen-model-v1", "nupen-model-v2"} & {s.name for s in mod.make_students(model_student=False)}
 
 
 def test_one_retry_is_told_why_the_first_reply_failed(tmp_path: Path, work: Path) -> None:

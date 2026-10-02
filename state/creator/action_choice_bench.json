@@ -1,0 +1,138 @@
+{
+  "n_tasks": 30,
+  "seed": 7,
+  "correct_position_distribution": {
+    "1": 4,
+    "2": 8,
+    "3": 7,
+    "4": 5,
+    "5": 4
+  },
+  "mean_candidates": 5.333333333333333,
+  "baselines": {
+    "always_choose_1": 0.13333333333333333,
+    "uniform_random_expected": 0.19722222222222227,
+    "uniform_random_sampled": 0.2
+  },
+  "no_lessons": {
+    "accuracy": 0.7666666666666667,
+    "correct": 23,
+    "n": 30,
+    "none_rate": 0.0,
+    "invalid_rate": 0.0,
+    "accuracy_by_correct_position": {
+      "1": {
+        "n": 4,
+        "accuracy": 0.75
+      },
+      "2": {
+        "n": 8,
+        "accuracy": 0.75
+      },
+      "3": {
+        "n": 7,
+        "accuracy": 0.8571428571428571
+      },
+      "4": {
+        "n": 5,
+        "accuracy": 0.6
+      },
+      "5": {
+        "n": 4,
+        "accuracy": 1.0
+      },
+      "6": {
+        "n": 1,
+        "accuracy": 0.0
+      },
+      "7": {
+        "n": 1,
+        "accuracy": 1.0
+      }
+    },
+    "chosen_position_counts": {
+      "1": 5,
+      "2": 7,
+      "3": 6,
+      "4": 4,
+      "5": 5,
+      "6": 1,
+      "7": 2
+    },
+    "seconds": 97.2,
+    "by_kind": {
+      "lazy_import": 7,
+      "remove_unused": 3,
+      "inline_temp": 7,
+      "drop_unused_import": 6
+    },
+    "sample_replies": [
+      "CHOICE: 5\nWHY: Moving the top-level import of 'base64' into the function(s) that",
+      "CHOICE: 1, 2\nWHY: Removing the dead helper function merge_helper is what was ask",
+      "CHOICE: 2\nWHY: inlining 'acc' in 'load' is what was asked.",
+      "CHOICE: 3\nWHY: deleting the unused import 'html' is what was asked.",
+      "CHOICE: 4\nWHY: Moving the top-level import of 'textwrap' into the function(s) th"
+    ]
+  },
+  "with_lessons": {
+    "accuracy": 0.7,
+    "correct": 21,
+    "n": 30,
+    "none_rate": 0.0,
+    "invalid_rate": 0.0,
+    "accuracy_by_correct_position": {
+      "1": {
+        "n": 4,
+        "accuracy": 0.75
+      },
+      "2": {
+        "n": 8,
+        "accuracy": 0.625
+      },
+      "3": {
+        "n": 7,
+        "accuracy": 0.8571428571428571
+      },
+      "4": {
+        "n": 5,
+        "accuracy": 0.4
+      },
+      "5": {
+        "n": 4,
+        "accuracy": 1.0
+      },
+      "6": {
+        "n": 1,
+        "accuracy": 0.0
+      },
+      "7": {
+        "n": 1,
+        "accuracy": 1.0
+      }
+    },
+    "chosen_position_counts": {
+      "1": 5,
+      "2": 7,
+      "3": 8,
+      "4": 3,
+      "5": 5,
+      "6": 1,
+      "7": 1
+    },
+    "seconds": 100.8,
+    "by_kind": {
+      "lazy_import": 7,
+      "remove_unused": 1,
+      "inline_temp": 7,
+      "drop_unused_import": 6
+    },
+    "sample_replies": [
+      "CHOICE: 5\nWHY: Moving the top-level import of 'base64' into the function(s) that",
+      "CHOICE: 3\nWHY: lazy_import is what was asked.",
+      "CHOICE: 2\nWHY: inlining 'acc' in 'load' is what was asked.",
+      "CHOICE: 3\nWHY: Deleting the unused import 'html' is what was asked.",
+      "CHOICE: 4\nWHY: Moving the top-level import of 'textwrap' into the function(s) th"
+    ]
+  },
+  "wall_seconds": 200.4
+}

@@ -87,6 +87,8 @@ def rule_lazy_import(src: str, params: dict[str, Any]) -> Optional[str]:
         names = {_bound(a) for a in node.names}
         if any(a.name == "*" for a in node.names) or names & strings:
             continue
+        if params.get("alias") and params["alias"] not in names:
+            continue
         outside, users = _scopes(tree, names)
         if outside or not users or len(users) > 8:
             continue
@@ -131,6 +133,8 @@ def rule_remove_unused(src: str, params: dict[str, Any], elsewhere: Optional[Cal
             continue
         if node.name.startswith("__") or node.name == "main":
             continue
+        if params.get("name") and node.name != params["name"]:
+            continue
         start, end = node.lineno, node.end_lineno or node.lineno
         lines = src.split("\n")
         rest = "\n".join(lines[:start - 1] + lines[end:])
@@ -169,12 +173,16 @@ def rule_inline_temp(src: str, params: dict[str, Any]) -> Optional[str]:
                 (loads if isinstance(n.ctx, ast.Load) else stores)[n.id] = (loads if isinstance(n.ctx, ast.Load) else stores).get(n.id, 0) + 1
         if any(isinstance(g, (ast.Global, ast.Nonlocal)) for g in ast.walk(fn)):
             continue
+        if params.get("function") and fn.name != params["function"]:
+            continue
         for body in [fn.body]:
             for i in range(len(body) - 1):
                 a, b = body[i], body[i + 1]
                 if not (isinstance(a, ast.Assign) and len(a.targets) == 1 and isinstance(a.targets[0], ast.Name)):
                     continue
                 t = a.targets[0].id
+                if params.get("variable") and t != params["variable"]:
+                    continue
                 if loads.get(t) != 1 or stores.get(t) != 1 or not isinstance(b, (ast.Return, ast.Assign, ast.Expr)):
                     continue
                 if (a.end_lineno or 0) != a.lineno or b.lineno != (b.end_lineno or 0):
@@ -211,7 +219,7 @@ def rule_empty_guard(src: str, params: dict[str, Any]) -> Optional[str]:
     if tree is None:
         return None
     for fn in ast.walk(tree):
-        if not isinstance(fn, ast.FunctionDef):
+        if not isinstance(fn, ast.FunctionDef) or (params.get("function") and fn.name != params["function"]):
             continue
         body = fn.body[1:] if _is_doc(fn.body[0]) else fn.body
         if len(body) != 2:
