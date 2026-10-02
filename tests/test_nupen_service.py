@@ -106,3 +106,27 @@ def test_the_pidfile_is_claimed_exclusively(tmp_path: Path, monkeypatch: pytest.
         self.write_text("31337", encoding="utf-8")
     monkeypatch.setattr(Path, "unlink", rival)
     assert svc.claim_pidfile() is False and svc.PIDFILE.read_text(encoding="utf-8") == "31337"
+
+
+def test_the_off_switch_stops_the_swarm_and_everything_it_started(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """2 Oct: NUPEN_STOP terminated only the swarm; six pytest runs it had started kept running (with their model servers)."""
+    import subprocess
+    svc = _load("nupen_service")
+    for name in ("STATE", "STOP", "PIDFILE", "LOG"):
+        monkeypatch.setattr(svc, name, tmp_path / {"STATE": "", "STOP": "NUPEN_STOP", "PIDFILE": "svc.pid", "LOG": "svc.log"}[name])
+    marker = tmp_path / "grandchild.pid"
+    parent_code = ("import subprocess, sys, time; "
+                   "c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
+                   f"open(r'{marker}', 'w').write(str(c.pid)); time.sleep(120)")
+    monkeypatch.setattr(svc, "swarm_cmd", lambda py: [py, "-c", parent_code])
+    def stop_when_started() -> None:
+        while not marker.exists():
+            time.sleep(0.1)
+        time.sleep(0.5)
+        (tmp_path / "NUPEN_STOP").touch()
+    threading.Thread(target=stop_when_started, daemon=True).start()
+    assert svc.run(sys.executable, poll_s=0.2) == 0
+    gpid = int(marker.read_text(encoding="utf-8"))
+    time.sleep(1.0)
+    out = subprocess.run(["tasklist", "/FI", f"PID eq {gpid}", "/NH"], capture_output=True, text=True).stdout
+    assert str(gpid) not in out                                                  # the grandchild is gone too

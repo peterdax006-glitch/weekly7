@@ -94,6 +94,23 @@ def claim_pidfile() -> bool:
     return True
 
 
+def stop_tree(proc: subprocess.Popen) -> None:
+    """Stop the swarm AND everything it started (2 Oct: terminating only the swarm left six pytest runs - and their model
+    servers - running in its sandboxes). On Windows `taskkill /T` ends the whole tree by PID; elsewhere the process group."""
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except OSError:
+            proc.terminate()
+    try:
+        proc.wait(timeout=60)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 def swarm_cmd(python: str) -> list[str]:
     return [python, "-u", str(ROOT / "scripts" / "creator_swarm.py"), "--rounds", "0", "--packages", "24",
             "--user-aware", "--teacher-presence"]
@@ -110,16 +127,13 @@ def run(python: str, poll_s: float = 10.0) -> int:
             started = time.monotonic()
             with (STATE / "swarm_service.log").open("a", encoding="utf-8") as out:
                 flags = (BELOW_NORMAL | NO_WINDOW) if sys.platform == "win32" else 0
-                proc = subprocess.Popen(swarm_cmd(python), cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, creationflags=flags)
+                proc = subprocess.Popen(swarm_cmd(python), cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, creationflags=flags,
+                                        start_new_session=sys.platform != "win32")    # its own group: stop_tree ends it all
                 log(f"swarm started pid={proc.pid}")
                 while proc.poll() is None:
                     if STOP.exists():
                         log("NUPEN_STOP found: stopping the swarm")
-                        proc.terminate()
-                        try:
-                            proc.wait(timeout=60)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
+                        stop_tree(proc)
                         break
                     time.sleep(poll_s)
             log(f"swarm exited code={proc.returncode}")
