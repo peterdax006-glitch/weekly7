@@ -39,7 +39,7 @@ class Task:
     correct: int                           # 1-based index into candidates
 
 
-def _make_source(rng: random.Random, kind: str) -> tuple[str, str, str]:
+def _make_source(rng: random.Random, kind: str, hard: bool = False) -> tuple[str, str, str]:
     """(source, objective, short() of the one correct action). Distractor actions of other kinds appear at random."""
     lazy, top, unused = rng.sample(LIBS, 3)
     fn = rng.sample(NAMES, 4)
@@ -59,6 +59,12 @@ def _make_source(rng: random.Random, kind: str) -> tuple[str, str, str]:
         lines += ["", f"def {fn[2]}(xs):", f"    {var} = sum(xs)", f"    return {var} * 2", ""]
     lines += ["", f"def {fn[3]}(a, b):", "    return a + b + LIMIT", ""]
     src = "\n".join(lines).rstrip() + "\n"
+    if hard:                                       # same sources; the objective describes the role and never names the target
+        return src, {"lazy_import": "Make startup lighter: the one library that only a single function needs should be loaded there, not at the top.",
+                     "remove_unused": "Remove the dead helper function (its name ends in _helper); nothing calls it.",
+                     "inline_temp": "Inline the temporary variable that is used only once.",
+                     "drop_unused_import": "Delete the import that nothing in the module uses."}[kind],             {"lazy_import": f"lazy_import({lazy})", "remove_unused": f"remove_unused({fn[1]}_helper)",
+             "inline_temp": f"inline_temp({fn[2]},{var})", "drop_unused_import": f"drop_unused_import({unused})"}[kind]
     if kind == "lazy_import":
         return src, f"Load less code at start: defer the {lazy} import into the function that needs it.", f"lazy_import({lazy})"
     if kind == "remove_unused":
@@ -68,14 +74,14 @@ def _make_source(rng: random.Random, kind: str) -> tuple[str, str, str]:
     return src, f"Delete the unused import {unused}; the module never uses it.", f"drop_unused_import({unused})"
 
 
-def generate_tasks(n: int, seed: int) -> list[Task]:
+def generate_tasks(n: int, seed: int, hard: bool = False) -> list[Task]:
     rng = random.Random(seed)
     tasks: list[Task] = []
     tid = 0
     while len(tasks) < n:
         kind = KINDS[tid % len(KINDS)]
         tid += 1
-        src, objective, want = _make_source(rng, kind)
+        src, objective, want = _make_source(rng, kind, hard)
         cands = A.enumerate_actions(src, "mod.py")
         hits = [i for i, a in enumerate(cands) if a.short() == want]
         if len(hits) != 1 or len(cands) < 2:
@@ -101,6 +107,42 @@ def build_prompt(task: Task, lessons: bool) -> str:
     parts.append(f"Task (code_change):\n{task.objective}\n\n```python\n{task.src}```")
     parts.append("Candidate actions:\n" + "\n".join(f"{i}. [{a.path}] {a.label()}" for i, a in enumerate(task.candidates, 1)))
     return "\n\n".join(parts)
+
+
+def _evidence(task: Task, a: A.Action) -> str:
+    """Where the candidate's name is used in the task source (computed from the AST, never from the objective)."""
+    import ast
+    tree = ast.parse(task.src)
+    p = a.p
+    name = p.get("alias") or p.get("name") or p.get("variable")
+    if a.kind == "inline_temp":
+        fn = next(f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef) and f.name == p["function"])
+        n = sum(1 for x in ast.walk(fn) if isinstance(x, ast.Name) and x.id == name and isinstance(x.ctx, ast.Load))
+        return f"'{name}' is read {n} time(s) in {p['function']}"
+    users = [f.name for f in tree.body if isinstance(f, ast.FunctionDef) and f.name != name
+             and any(isinstance(x, ast.Name) and x.id == name for x in ast.walk(f))]
+    top = any(isinstance(x, ast.Name) and x.id == name for st in tree.body if not isinstance(st, (ast.FunctionDef, ast.Import, ast.ImportFrom))
+              for x in ast.walk(st))
+    if a.kind == "remove_unused":
+        return f"called by: {', '.join(users) or 'nobody'}" + ("; also used at module level" if top else "")
+    where = users + (["module-level code"] if top else [])
+    return f"'{name}' is used in: {', '.join(where) if where else 'nowhere'}"
+
+
+def _question(task: Task, rich: bool, evidence: bool) -> str:
+    cl = []
+    for i, a in enumerate(task.candidates, 1):
+        cl.append(f"{i}. [{a.path}] {a.label(rich)}" + (f"  (evidence: {_evidence(task, a)})" if evidence else ""))
+    return (f"Task (code_change):\n{task.objective}\n\n```python\n{task.src}```\n\nCandidate actions:\n" + "\n".join(cl))
+
+
+def shots(k: int, rich: bool, evidence: bool) -> list[dict[str, str]]:
+    """k worked examples in EXACTLY the real question layout (own seed, never a dev/held-out seed), as chat turns; kinds rotate."""
+    msgs: list[dict[str, str]] = []
+    for t in generate_tasks(k, 9999):
+        msgs += [{"role": "user", "content": _question(t, rich, evidence)},
+                 {"role": "assistant", "content": f"CHOICE: {t.correct}\nWHY: that action does what the task asks."}]
+    return msgs
 
 
 def classify(reply: str, n: int) -> tuple[str, Optional[list[int]]]:
@@ -157,6 +199,30 @@ def run_condition(tasks: list[Task], llm: Any, lessons: bool, max_tokens: int = 
     return out
 
 
+def run_variant(tasks: list[Task], llm: Any, rich: bool = False, evidence: bool = False, nshot: int = 0, votes: int = 1,
+                combined: bool = False, max_tokens: int = 60) -> dict[str, Any]:
+    """One prompt variant over `tasks`. votes>1 = self-consistency (temperature 0.7, distinct seeds, majority). Also scores the lexical
+    baseline and (combined=True) the lexical-prior+model policy from the same replies."""
+    pre = shots(nshot, rich, evidence) if nshot else []
+    model_p: list[Optional[int]] = []
+    t0 = time.monotonic()
+    for t in tasks:
+        msgs = [{"role": "system", "content": A.SYSTEM}, *pre, {"role": "user", "content": _question(t, rich, evidence)}]
+        ps = []
+        for v in range(votes):
+            r = str(llm.chat(msgs, max_tokens=max_tokens, temperature=0.0 if votes == 1 else 0.7, seed=v)) if votes > 1 else                 str(llm.chat(msgs, max_tokens=max_tokens, temperature=0.0))
+            st, pk = classify(r, len(t.candidates))
+            ps.append(pk[0] if pk else None)
+        model_p.append(A.majority_vote(ps))
+    n = len(tasks)
+    acc = lambda picks: round(sum(p == t.correct for t, p in zip(tasks, picks)) / n, 3)  # noqa: E731
+    lex = [A.lexical_pick(t.objective, t.candidates) for t in tasks]
+    out: dict[str, Any] = {"model": acc(model_p), "lexical": acc(lex), "seconds": round(time.monotonic() - t0, 1), "n": n,
+                           "by_kind": {k: sum(1 for t, p in zip(tasks, model_p) if t.kind == k and p == t.correct) for k in KINDS}}
+    out["combined"] = acc([A.combine_choice(p, t.objective, t.candidates) for t, p in zip(tasks, model_p)])
+    return out
+
+
 def run_bench(llm: Any, n: int = 30, seed: int = 7, with_lessons: bool = True) -> dict[str, Any]:
     tasks = generate_tasks(n, seed)
     res: dict[str, Any] = {"n_tasks": n, "seed": seed,
@@ -168,15 +234,40 @@ def run_bench(llm: Any, n: int = 30, seed: int = 7, with_lessons: bool = True) -
     return res
 
 
+VARIANTS: dict[str, dict[str, Any]] = {
+    "base": {}, "rich": {"rich": True}, "evidence": {"rich": True, "evidence": True},
+    "shots4": {"nshot": 4}, "rich_shots4": {"rich": True, "nshot": 4}, "evidence_shots4": {"rich": True, "evidence": True, "nshot": 4},
+    "rich_shots4_vote3": {"rich": True, "nshot": 4, "votes": 3},
+    "rich_vote3": {"rich": True, "votes": 3}, "evidence_vote3": {"rich": True, "evidence": True, "votes": 3},
+}
+
+
+def main_variants(seeds: list[int], n: int, configs: dict[str, dict[str, Any]], hard: bool = False) -> dict[str, Any]:
+    from creator import generator as G
+    res: dict[str, Any] = {}
+    with G.LocalModel(startup_s=120.0) as llm:
+        for name, cfg in configs.items():
+            res[name] = {str(sd): run_variant(generate_tasks(n, sd, hard), llm, **cfg) for sd in seeds}
+            print(name, {k: (v["model"], v["lexical"], v["combined"], v["seconds"]) for k, v in res[name].items()}, flush=True)
+    return res
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("-n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--no-lessons", action="store_true")
+    ap.add_argument("--variants", help="comma list of variant names (dev tuning) from VARIANTS; needs --seeds")
+    ap.add_argument("--hard", action="store_true", help="name-free objectives (role descriptions only)")
+    ap.add_argument("--seeds", default="101,102,103")
     ap.add_argument("--out", default=str(ROOT / "state/creator/action_choice_bench.json"))
     args = ap.parse_args()
     from creator import generator as G
     t0 = time.monotonic()
+    if args.variants:
+        res = main_variants([int(x) for x in args.seeds.split(",")], args.n, {k: VARIANTS[k] for k in args.variants.split(",")}, args.hard)
+        Path(args.out).write_text(json.dumps(res, indent=2), encoding="utf-8", newline="\n")
+        return 0
     with G.LocalModel(startup_s=120.0) as llm:
         res = run_bench(llm, args.n, args.seed, not args.no_lessons)
     res["wall_seconds"] = round(time.monotonic() - t0, 1)
