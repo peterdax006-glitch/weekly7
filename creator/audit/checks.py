@@ -14,6 +14,9 @@ with a severity; CRITICAL means a claim the system makes about itself is not bac
     sealed_suite         the devbench manifest and every task still hash to their sealed values
     hardcoded_answers    production code containing devbench task ids or answer-key literals (sec 50: no demonstrations)
     budget_anomalies     agent calls booked as free although they ran
+    recursion            every adopted process change traces to a weakness, a disjoint confirmation arm and an IMPROVEMENT claim;
+                         process.json equals the last adopted process (CR151)
+    unresolved_failures  every CRITICAL failure (rollback, audit/ledger/evidence breach) has a Diagnosis + fix or the owner's acceptance (CR204)
     test_weakening       (on a diff) fewer tests/asserts, new skip/xfail, loosened comparisons - usable by the sandbox too
 
 ADVERSARY (`adversary()`): attacks the integrity rules in throw-away directories and reports which ones were CAUGHT. A rule that is
@@ -383,11 +386,214 @@ def check_test_weakening(before: Mapping[str, str], after: Mapping[str, str]) ->
 
 # ------------------------------------------------------------------------------------------------ the audit
 
+# ------------------------------------------------------------------------------------------------ recursion audit (CR151)
+
+def _recursion_steps(led: Ledger) -> list[tuple[Any, Optional[dict[str, Any]]]]:
+    from creator.recursion import STEP_TAG
+    out: list[tuple[Any, Optional[dict[str, Any]]]] = []
+    for e in led.of_type("Finding"):
+        st = str(getattr(e.record, "statement", ""))
+        if st.startswith(STEP_TAG):
+            try:
+                out.append((e, json.loads(st[len(STEP_TAG):])))
+            except ValueError:
+                out.append((e, None))
+    return out
+
+
+def _config_of(d: Any) -> Any:
+    from creator.recursion import ProcessConfig
+    return ProcessConfig(**{k: int(v) for k, v in dict(d).items()})
+
+
+def _recursion_step_findings(led: Ledger) -> list[AuditFinding]:
+    """Every ADOPTED process change must trace to (1) a recorded weakness, (2) an A/B whose confirmation arm is disjoint from the
+    arms it was tuned on, and (3) a computed IMPROVEMENT claim with its ADOPT decision; steps must chain (before == previous after)."""
+    out: list[AuditFinding] = []
+    g = led.view.by_id
+    prev_after: Any = None
+    for e, s in _recursion_steps(led):
+        def bad(sev: str, why: str, eid: str = e.id) -> None:
+            out.append(AuditFinding("recursion", sev, eid, why))
+        if s is None:
+            bad("CRITICAL", "recorded recursion step is unreadable")
+            continue
+        try:
+            before, after = _config_of(s["process_before"]), _config_of(s["process_after"])
+            ch = s["change"]
+            adopted = bool(s["adopted"])
+            param, new = str(ch["param"]), int(ch["new"])
+        except (KeyError, TypeError, ValueError) as err:
+            bad("CRITICAL", f"recorded recursion step is malformed: {type(err).__name__}: {err}")
+            continue
+        if prev_after is not None and before != prev_after:
+            bad("CRITICAL", "process lineage broken: this step starts from a process no earlier step produced")
+        prev_after = after
+        if not adopted:
+            if after != before:
+                bad("CRITICAL", "step is recorded as not adopted but changes the process")
+            continue
+        if after == before or not hasattr(after, param) or getattr(after, param) != new:
+            bad("CRITICAL", "adopted step does not change the process by its recorded change")
+        w = s.get("weakness")
+        if not w:
+            bad("HIGH", "adopted process change has no recorded weakness (a forced/probe change)")
+        elif not w.get("evidence_ids") or any(i not in g for i in w["evidence_ids"]):
+            bad("CRITICAL", "recorded weakness cites records that do not exist in the ledger")
+        claim = g.get(str(s.get("claim")))
+        ex = g.get(str(s.get("experiment")))
+        if claim is None or not isinstance(claim.record, M.ImprovementClaim):
+            bad("CRITICAL", "adopted process change has no ImprovementClaim in the ledger")
+            continue
+        c = claim.record
+        if c.verdict is not M.Verdict.IMPROVEMENT:
+            bad("CRITICAL", f"adopted process change rests on a {c.verdict.value} claim, not IMPROVEMENT")
+        if ex is None or not isinstance(ex.record, M.Experiment) or c.subject_id != ex.id:
+            bad("CRITICAL", "the claim is not about the recorded experiment")
+        elif (ex.record.baseline_ref, ex.record.candidate_ref) != (before.digest(), after.digest()):
+            bad("CRITICAL", "the experiment measured different process configurations than the ones adopted")
+        if not any(isinstance(d.record, M.Decision) and d.record.verdict is M.DecisionVerdict.ADOPT and d.record.claim_id == claim.id
+                   and d.record.subject_id == c.subject_id for d in led.of_type("Decision")):
+            bad("CRITICAL", "no ADOPT decision cites the claim")
+        used = {*c.baseline_ids, *c.candidate_ids, *c.regression_baseline_ids, *c.regression_candidate_ids}
+        conf = [c.holdout_baseline_id, c.holdout_candidate_id]
+        ms = [g.get(str(i)) for i in conf]
+        if None in conf or any(m is None or not isinstance(m.record, M.Measurement) for m in ms):
+            bad("CRITICAL", "claim has no confirmation arm (holdout measurements missing)")
+        else:
+            recs = [m.record for m in ms if m is not None and isinstance(m.record, M.Measurement)]
+            tuned = [t for t in (g[i].record for i in used if i in g) if isinstance(t, M.Measurement)]
+            if used & {str(i) for i in conf}:
+                bad("CRITICAL", "the confirmation arm is not disjoint from the arms the change was tuned on")
+            elif any(r.split is not M.Split.HOLDOUT for r in recs) or {r.population for r in recs} & {t.population for t in tuned}:
+                bad("CRITICAL", "the confirmation arm is not a separate population from the tuning arms")
+    return out
+
+
+def check_recursion(led: Ledger, process_path: Optional[Path] = None, **_: Any) -> list[AuditFinding]:
+    """CR151: recursive improvement is audited. See `_recursion_step_findings`; additionally process.json (the process the system
+    really runs with) must equal the process after the last ADOPTED step - nobody can change the process outside the evidence."""
+    from creator.recursion import ProcessConfig
+    out = _recursion_step_findings(led)
+    sibling = Path(led.path).with_name("recursion_ledger.jsonl")         # scripts/creator_recurse.py keeps its steps in this ledger
+    source = led
+    if sibling.is_file() and sibling.resolve() != Path(led.path).resolve():
+        try:
+            other = Ledger(sibling, evidence_root=led.evidence_root)
+            out += _recursion_step_findings(other)
+            if not _recursion_steps(led):
+                source = other
+        except Exception as ex:                                          # noqa: BLE001 - an unreadable recursion ledger is a finding
+            out.append(AuditFinding("recursion", "HIGH", str(sibling), f"recursion ledger unreadable: {type(ex).__name__}: {ex}"))
+    path = Path(process_path) if process_path is not None else Path(led.path).with_name("process.json")
+    steps = [s for _e, s in _recursion_steps(source) if s is not None]
+    try:
+        expected = _config_of(steps[-1]["process_after"]) if steps else ProcessConfig()
+    except (KeyError, TypeError, ValueError):
+        return out                                                       # the malformed step is already a finding
+    if path.is_file():
+        actual: Any = None
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                actual = ProcessConfig(**{**dataclasses.asdict(expected), **{k: int(raw[k]) for k in dataclasses.asdict(expected) if k in raw}})
+        except (OSError, ValueError, TypeError):
+            actual = None
+        if actual is None:
+            out.append(AuditFinding("recursion", "HIGH", str(path), "process.json is unreadable"))
+        elif actual != expected:
+            out.append(AuditFinding("recursion", "CRITICAL", str(path),
+                                    f"process.json {dataclasses.asdict(actual)} is not the last adopted process {dataclasses.asdict(expected)}: "
+                                    "a process change with no adopted, measured step behind it"))
+    elif any(s.get("adopted") for s in steps):
+        out.append(AuditFinding("recursion", "HIGH", str(path), "an adopted process exists but process.json is missing"))
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ unresolved failures (CR204)
+
+CRITICAL_FAILURE_WORDS = ("audit", "ledger", "evidence", "integrity", "tamper", "chain", "rollback", "rolled back", "rolled_back")
+ACCEPTED = "ACCEPTED"          # an OWNER Finding whose statement starts with this and whose parents name the failure accepts it
+
+
+@dataclasses.dataclass(frozen=True)
+class FailureItem:
+    id: str
+    kind: str              # Failure | FAILED | REJECTED | ROLLED_BACK | ROLLBACK
+    critical: bool
+    resolved: bool
+    detail: str
+
+
+def _failure_resolution(led: Ledger, subject: str, after_seq: int) -> str:
+    """'' when unresolved, else how it was resolved. Resolved = (a Failure about `subject` + its Diagnosis + a fix: a Repair, or the
+    subject now in a done state through a later transition) or an explicit acceptance Finding written by the OWNER role."""
+    by = led.view.by_id
+    for e in led.of_type("Finding"):
+        r = e.record
+        if e.seq > after_seq and r.created_by is M.Role.OWNER and str(getattr(r, "statement", "")).startswith(ACCEPTED) \
+                and subject in r.parents:
+            return f"accepted by the owner ({e.id})"
+    fails = [subject] if subject in by and by[subject].rtype == "Failure" else \
+        [f.id for f in led.of_type("Failure") if getattr(f.record, "subject_id", None) == subject]
+    for fid in fails:
+        for d in led.of_type("Diagnosis"):
+            if getattr(d.record, "failure_id", None) != fid or d.seq <= by[fid].seq:
+                continue
+            if any(getattr(r.record, "diagnosis_id", None) == d.id for r in led.of_type("Repair")):
+                return f"diagnosed ({d.id}) and repaired"
+            tgt = str(getattr(by[fid].record, "subject_id", subject))
+            if led.view.status.get(tgt) in M.DONE_STATES and any(
+                    by[t].seq > d.seq and getattr(by[t].record, "to_state", None) in M.DONE_STATES
+                    for t in led.view.status_history.get(tgt, [])):
+                return f"diagnosed ({d.id}) and the subject was fixed afterwards"
+    return ""
+
+
+def enumerate_failures(led: Ledger) -> list[FailureItem]:
+    """Every Failure record, every record whose current status is FAILED/REJECTED/ROLLED_BACK, and every ROLLBACK decision.
+    CRITICAL (from the model): a post-merge rollback (a ROLLBACK Decision or a ROLLED_BACK record) and any Failure whose
+    classification names an audit / ledger / evidence integrity breach. Everything else is an ordinary, re-plannable failure."""
+    out: list[FailureItem] = []
+    for e in led.of_type("Failure"):
+        cls = str(getattr(e.record, "classification", "")).lower()
+        crit = any(w in cls for w in CRITICAL_FAILURE_WORDS)
+        how = _failure_resolution(led, e.id, e.seq)
+        out.append(FailureItem(e.id, "Failure", crit, bool(how), how or f"{cls}: {getattr(e.record, 'symptom', '')[:120]}"))
+    for e in led.of_type("Decision"):
+        if getattr(e.record, "verdict", None) is M.DecisionVerdict.ROLLBACK:
+            how = _failure_resolution(led, str(getattr(e.record, "subject_id")), e.seq)
+            out.append(FailureItem(e.id, "ROLLBACK", True, bool(how), how or str(getattr(e.record, "reason", ""))[:160]))
+    for rid, st in led.view.status.items():
+        if st in (M.Status.FAILED, M.Status.REJECTED, M.Status.ROLLED_BACK):
+            crit = st is M.Status.ROLLED_BACK
+            how = _failure_resolution(led, rid, led.view.by_id[rid].seq) if crit else ""
+            out.append(FailureItem(rid, st.value, crit, bool(how) or st is M.Status.REJECTED,
+                                   how or f"{led.view.by_id[rid].rtype} is {st.value}"))
+    return out
+
+
+def check_unresolved_failures(led: Ledger, **_: Any) -> list[AuditFinding]:
+    """CR204: no critical failure stays unresolved (Diagnosis + fix, or the owner's explicit acceptance)."""
+    return [AuditFinding("unresolved_failures", "CRITICAL", f.id, f"{f.kind} has no later resolution: {f.detail}")
+            for f in enumerate_failures(led) if f.critical and not f.resolved]
+
+
+def failure_report(led: Ledger) -> dict[str, Any]:
+    """For STATUS.json: how many failures exist, which critical ones are unresolved (listed by id), how many ordinary ones are open."""
+    items = enumerate_failures(led)
+    crit = [f for f in items if f.critical]
+    return {"total": len(items), "critical": len(crit), "critical_resolved": sum(f.resolved for f in crit),
+            "critical_unresolved": [{"id": f.id, "kind": f.kind, "detail": f.detail} for f in crit if not f.resolved],
+            "ordinary_open": sum(1 for f in items if not f.critical and not f.resolved)}
+
+
 CHECKS: dict[str, Callable[..., list[AuditFinding]]] = {
     "ledger_integrity": check_ledger_integrity, "evidence_drift": check_evidence_drift, "stale_done": check_stale_done,
     "fake_adoption": check_fake_adoption, "claim_recompute": check_claim_recompute, "sealed_suite": check_sealed_suite,
     "hardcoded_answers": check_hardcoded_answers, "budget_anomalies": check_budget_anomalies,
     "memorization": check_memorization, "strategy_attribution": check_strategy_attribution,
+    "recursion": check_recursion, "unresolved_failures": check_unresolved_failures,
 }
 
 
@@ -672,6 +878,44 @@ def _a_fake_merge_commit(d: Path) -> str:
     return "an ADOPT citing a merge commit that does not exist was accepted"
 
 
+def _a_unevidenced_process_change(d: Path) -> str:
+    """An adopted process change planted straight into the ledger and process.json: no claim, no confirmation arm, no weakness."""
+    from creator.recursion import STEP_TAG
+    led = Ledger(d / "l.jsonl", evidence_root=d)
+    o = _objective(led)
+    g = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(o,), kind=M.GapKind.CAPABILITY, description="g", importance=0.5))
+    ex = led.append(M.Experiment(created_by=M.Role.KERNEL, parents=(g,), hypothesis="h", design="d", metrics=("m",), seed=0,
+                                 baseline_ref="a", candidate_ref="b"))
+    before = {"research_budget": 3, "design_breadth": 2, "reviewer_depth": 1, "max_retries": 2}
+    after = {**before, "max_retries": 9}
+    rec = {"iteration": 1, "change": {"param": "max_retries", "old": 2, "new": 9, "rationale": "trust me"}, "verdict": "IMPROVEMENT",
+           "adopted": True, "weakness": None, "process_before": before, "process_after": after, "claim": "IC-forged", "experiment": ex}
+    led.append(M.Finding(created_by=M.Role.KERNEL, parents=(ex,), uncertainty=M.Uncertainty.LIKELY,
+                         statement=STEP_TAG + json.dumps(rec, sort_keys=True)))
+    (d / "process.json").write_text(json.dumps(after), encoding="utf-8")
+    if any(f.severity == "CRITICAL" for f in check_recursion(led, process_path=d / "process.json")):
+        raise _Caught("recursion flagged the adopted process change that has no IMPROVEMENT claim, confirmation arm or weakness")
+    return "an adopted process change without any evidence was accepted"
+
+
+def _a_hide_critical_failure(d: Path) -> str:
+    """A post-merge rollback whose Diagnosis was 'unlinked': the only Diagnosis in the ledger belongs to a decoy failure."""
+    led = Ledger(d / "l.jsonl", evidence_root=d)
+    o = _objective(led)
+    g = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(o,), kind=M.GapKind.CAPABILITY, description="g", importance=0.5))
+    ex = led.append(M.Experiment(created_by=M.Role.KERNEL, parents=(g,), hypothesis="h", design="d", metrics=("m",), seed=0,
+                                 baseline_ref="a", candidate_ref="b"))
+    led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ROLLBACK, reason="audit red after merge"))
+    led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(ex,), subject_id=ex, symptom="main broke after the merge",
+                         classification="post-merge rollback", reproduction="pytest"))
+    decoy = led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(g,), subject_id=g, symptom="unrelated flake",
+                                 classification="flaky", reproduction="pytest"))
+    led.append(M.Diagnosis(created_by=M.Role.DEBUGGER, parents=(decoy,), failure_id=decoy, hypotheses=("timing",), root_cause="timing"))
+    if any(f.severity == "CRITICAL" for f in check_unresolved_failures(led)):
+        raise _Caught("unresolved_failures flagged the rollback whose Diagnosis link is missing")
+    return "a critical failure with no diagnosis and no fix was hidden"
+
+
 NEW_ATTACKS = (
     ("holdout_in_memory", "no benchmark memorization (CR201)", _a_holdout_in_memory, r"memorization"),
     ("validate_without_evidence", "VALIDATED needs evidence on the transition (sec 48)", _a_validate_without_evidence,
@@ -687,6 +931,9 @@ NEW_ATTACKS = (
      r"strategy_attribution"),
     ("steal_live_lock", "one kernel per ledger; a live lock is never stolen", _a_steal_live_lock, r"another kernel holds"),
     ("fake_merge_commit", "adoption cites a merge that exists (sec 68)", _a_fake_merge_commit, r"fake_adoption"),
+    ("unevidenced_process_change", "a process change is adopted only with weakness, disjoint confirmation and IMPROVEMENT (CR151)",
+     _a_unevidenced_process_change, r"recursion flagged"),
+    ("hidden_critical_failure", "no critical failure stays unresolved (CR204)", _a_hide_critical_failure, r"unresolved_failures flagged"),
 )
 
 

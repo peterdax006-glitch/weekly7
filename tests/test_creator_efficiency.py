@@ -167,3 +167,15 @@ def test_uncovered_public_counts_names_no_test_names(tmp_path) -> None:
     assert E.uncovered_total(tmp_path) == 2
     (tmp_path / "tests" / "test_n.py").write_text("def test_u():\n    assert unseen and Klass\n", encoding="utf-8")
     assert E.uncovered_public(tmp_path, "creator/m.py") == []
+
+
+def test_a_name_in_a_comment_or_string_does_not_cover_it(tmp_path) -> None:
+    from creator import efficiency as E
+    (tmp_path / "creator").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "creator" / "m.py").write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n\n\ndef gamma():\n    return 3\n",
+                                               encoding="utf-8")
+    (tmp_path / "tests" / "test_m.py").write_text(
+        '"""alpha is mentioned here"""\nfrom creator import m\n\n\ndef test_x():\n    # alpha beta gamma\n    s = "alpha"\n'
+        '    assert m.beta() == 2 and getattr(m, "gamma")() == 3\n', encoding="utf-8")
+    assert E.uncovered_public(tmp_path, "creator/m.py") == ["alpha"]

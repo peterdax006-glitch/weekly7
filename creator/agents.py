@@ -27,6 +27,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
@@ -76,6 +77,9 @@ class BudgetPolicy:
                    per_job_calls=int(num("CREATOR_AGENT_JOB_CALLS", 2, 5)))
 
 
+_RECORD_LOCK = threading.Lock()
+
+
 class Budget:
     """Append-only record of every call; the caps are checked against it before each call (C77 sec 45 resource limits)."""
 
@@ -111,12 +115,13 @@ class Budget:
             raise BudgetError(f"per-job call cap reached for {job}")
 
     def record(self, job: str, usd: float, run_id: str, outcome: str) -> None:
-        calls = self._load()
-        calls.append({"at": self.clock().isoformat(), "job": job, "usd": round(float(usd), 4), "run": run_id, "outcome": outcome})
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"calls": calls}, indent=1), encoding="utf-8")
-        os.replace(tmp, self.path)
+        with _RECORD_LOCK:                                   # read-modify-write: two swarm threads must not lose a call record
+            calls = self._load()
+            calls.append({"at": self.clock().isoformat(), "job": job, "usd": round(float(usd), 4), "run": run_id, "outcome": outcome})
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+            tmp.write_text(json.dumps({"calls": calls}, indent=1), encoding="utf-8")
+            os.replace(tmp, self.path)
 
 
 # ------------------------------------------------------------------------------------------------ the call

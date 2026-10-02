@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 CHECK = ROOT / "state" / "build" / "CREATOR_MASTER_CHECKLIST.json"
 STATUS = ROOT / "state" / "creator" / "STATUS.json"
 AUDIT = ROOT / "state" / "creator" / "AUDIT.json"
@@ -47,10 +48,12 @@ CAP = {
     # 1 Oct 2026 evidence pass: each id below maps to the component whose OWN tests exercise it (citations in CITE)
     "CR057": ("K23",), "CR059": ("K23",), "CR083": ("K23",), "CR082": ("K22",), "CR096": ("K25",), "CR207": ("K26",),
     **{f"CR{n:03d}": ("K24",) for n in range(191, 197)},   # K24 recursion: weakness/design/implement/test/measure/use (mechanism)
+    # 2 Oct 2026 audit-completion pass: the four boxes that had no code or no check now have both, with tests
+    "CR098": ("K14", "K06"), "CR151": ("K16", "K24"), "CR204": ("K16",), "CR208": ("K26", "K16"),
 }
 # code exists and its component's tests pass, but the box asks for something those tests do not demonstrate (a real run, a
 # whole-system property): at most IMPLEMENTED, whatever the test state
-CODE_ONLY = {"CR142": ("K24",), "CR143": ("K24",), "CR197": ("K24",), "CR198": ("K24",), "CR204": ("K16",), "CR208": ("K26", "K16")}
+CODE_ONLY = {"CR142": ("K24",), "CR143": ("K24",), "CR197": ("K24",), "CR198": ("K24",)}
 CITE = {
     "CR057": "creator/oversight.py:60 goal_drift; tests/test_creator_oversight.py::test_an_adoption_under_a_non_owner_objective_is_drift, test_concentrated_work_with_a_flat_metric_level_is_flagged_as_stalled",
     "CR059": "creator/oversight.py:97 knowledge_gaps; tests/test_creator_oversight.py::test_unexplained_failures_become_knowledge_gaps_once",
@@ -66,13 +69,23 @@ CITE = {
     "CR143": "same as CR142: the mechanism is tested, no real recursive improvement has run",
     "CR197": "needs a real adopted recursion step with a measured improvement; none is in the ledger",
     "CR198": "needs a second real recursion step under different conditions; none is in the ledger",
-    "CR204": "creator/audit/checks.py (stale_done:88, fake_adoption:108) find hidden failures it knows of; no check enumerates unresolved FAILED records",
-    "CR208": "creator/audit/checks.py:132 check_claim_recompute + creator/reproduce.py; claims are recomputed, but 'all major claims' is not shown",
+    "CR098": "tests/test_creator_integration.py drives objective compile -> gap sync -> schedule -> planner -> kernel.execute (sandbox, evaluate, "
+             "improvement verdict, merge) -> post-merge audit -> curriculum lesson -> reproduce on a temporary git repo, plus a rejection path "
+             "(regressing change: nothing merges, ledger verifies), a post-merge rollback path and a tampered-ledger stop; worker is the only fake",
+    "CR151": "creator/audit/checks.py check_recursion (adopted process change needs a recorded weakness, a disjoint confirmation arm, an "
+             "IMPROVEMENT claim + ADOPT decision, an unbroken lineage; process.json == last adopted process) and adversary attack "
+             "unevidenced_process_change; tests/test_creator_audit_recursion_failures.py. Audits the mechanism: no real recursion step exists yet",
+    "CR204": "creator/audit/checks.py check_unresolved_failures + enumerate_failures/failure_report (STATUS 'failures'): a CRITICAL failure "
+             "(post-merge rollback, ledger/evidence/audit breach) needs Diagnosis + fix or the owner's ACCEPTED finding; adversary attack "
+             "hidden_critical_failure; kernel now records Failure+Diagnosis+Repair on a rollback; tests/test_creator_audit_recursion_failures.py",
+    "CR208": "creator/claims.py + scripts/claims_register.py -> state/build/CLAIMS.json: every ImprovementClaim, adoption and headline number with its "
+             "evidence refs and a recomputation (creator/reproduce.py); a claim without recomputable evidence is UNSUPPORTED; "
+             "tests/test_creator_claims.py::test_a_fabricated_claim_is_flagged_and_an_honest_one_is_not. Register lists its own UNSUPPORTED claims",
 }
 # boxes that need a demonstrated autonomous development result (an ADOPTED real cycle), not just code
 DEMO = {"CR137", "CR141", "CR169", "CR170", "CR179", "CR180", "CR181", "CR183", "CR184", "CR185", "CR186", "CR188", "CR189",
         "CR190"}
-RECURSIVE = {f"CR{n:03d}" for n in range(191, 199)} | {"CR142", "CR143", "CR151"}
+RECURSIVE = {f"CR{n:03d}" for n in range(191, 199)} | {"CR142", "CR143"}
 AUDIT_BOXES = {"CR146": "hardcoded_answers", "CR199": "ledger_integrity", "CR200": "hardcoded_answers",
                "CR202": "fake_adoption", "CR203": "claim_recompute", "CR205": "sealed_suite", "CR206": "*",
                "CR201": "memorization"}      # creator/audit/checks.py:248 check_memorization; test_creator_audit.py holdout/literal tests
@@ -140,6 +153,37 @@ def rollup(items: list[dict[str, Any]]) -> int:
             changed += 1
     return changed
 
+RECON_TESTS = "tests/test_creator_recon.py"
+RECON_EVIDENCE = ["state/build/CREATOR_PHASE0_LEDGER.json", "creator/recon.py", RECON_TESTS]
+# CR032-036 are conclusions drawn from the tested sections they name; each needs all of them present in a CURRENT ledger.
+DERIVED = {32: None, 33: ("CR005_structure", "CR015_data_flow"), 34: ("CR001-004_documents",),
+           35: ("CR027_self_learning_infra", "CR028_research_infra", "CR029_experiment_infra", "CR030_health_infra",
+                "CR031_compute_controls"), 36: ("CR015_data_flow", "CR017_research_boundary")}
+
+
+def phase0_status(n: int, p0: dict[str, Any], root: Path) -> tuple[str, list[str], str] | None:
+    """Status of reconnaissance box CRnnn (1..36). TESTING only when the section is computed by creator/recon.py (tested by
+    tests/test_creator_recon.py) on exactly the tree now on disk; a ledger of another tree is stale -> IN_PROGRESS."""
+    from creator import recon
+    if n <= 31:
+        key = next((k for k in p0 if k.startswith(f"CR{n:03d}") or (k.startswith("CR001-004") and n <= 4)), None)
+        needed: tuple[str, ...] = (key,) if key else ()
+    else:
+        needed = DERIVED[n] if DERIVED[n] is not None else tuple(k for k in p0 if k.startswith("CR"))
+    if not p0 or not needed or any(k not in p0 for k in needed):
+        return None
+    if not recon.is_current(p0, root):
+        return ("IN_PROGRESS", RECON_EVIDENCE[:1], f"reconnaissance is STALE: ledger tree {str(p0.get('tree_hash'))[:12]} is not the "
+                "tree on disk; rerun scripts/phase0_recon.py")
+    docs = p0.get("CR001-004_documents", {})
+    if n <= 3 or n == 34:
+        if docs.get("missing"):
+            return ("IMPLEMENTED", RECON_EVIDENCE, f"authoritative document(s) missing: {docs['missing']}")
+    if n == 4 and not docs.get("masterstock_sha256"):
+        return ("IMPLEMENTED", RECON_EVIDENCE, "Masterstock not found on this machine")
+    return ("TESTING", RECON_EVIDENCE, f"section {', '.join(needed)[:80]} computed by creator/recon.py on the current tree "
+            f"{str(p0.get('tree_hash'))[:12]}; tested by {RECON_TESTS}")
+
 
 def main() -> int:
     data = json.loads(CHECK.read_text(encoding="utf-8"))
@@ -156,14 +200,10 @@ def main() -> int:
         iid = it["id"]
         new: tuple[str, list[str], str] | None = None
         n = int(iid[2:]) if iid[2:].isdigit() else 0
-        if 1 <= n <= 31:
-            key = next((k for k in p0 if k.startswith(f"CR{n:03d}") or (k.startswith("CR001-004") and n <= 4)), None)
-            if key:
-                new = ("IMPLEMENTED", ["state/build/CREATOR_PHASE0_LEDGER.json", "scripts/phase0_recon.py"],
-                       f"computed reconnaissance section {key}")
-        elif 32 <= n <= 36:
-            new = ("IMPLEMENTED", ["state/build/CREATOR_PHASE0_LEDGER.json", "creator/ARCHITECTURE.md"],
-                   "mapped by the computed Phase-0 ledger and the architecture")
+        if 1 <= n <= 36:
+            new = phase0_status(n, p0, ROOT)
+            if new:
+                it["code_paths"], it["tests"] = ["creator/recon.py", "scripts/phase0_recon.py"], [RECON_TESTS]
         elif iid in CAP:
             ks = CAP[iid]
             states = [caps.get(k, {}).get("state", "NOT_STARTED") for k in ks]

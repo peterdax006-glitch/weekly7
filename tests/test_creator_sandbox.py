@@ -226,3 +226,23 @@ def test_the_sandbox_marker_never_reaches_main(repo: Path, scratch: Path) -> Non
     assert S.MARKER not in sh(repo, "ls-tree", "-r", "--name-only", res.merge_commit)
     assert not (repo / S.MARKER).exists()
     sb.close()
+
+
+def test_omitted_paths_stay_out_even_after_reveal_and_survive_the_merge(repo: Path, scratch: Path) -> None:
+    """2 Oct: state/research (44k of 47k tracked files) made every sandbox checkout time out under load. Omitted paths are never
+    checked out - not even after reveal(), unlike hidden ones - and are neither reported as deleted nor dropped by a merge."""
+    for d, f in (("secret", "answers.txt"), ("bulk", "data.txt")):
+        (repo / d).mkdir()
+        (repo / d / f).write_text("x\n", encoding="utf-8")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "data")
+    sb = S.Sandbox.open(repo, scratch=scratch, hide=("secret",), omit=("bulk",))
+    assert not (sb.path / "secret").exists() and not (sb.path / "bulk").exists()
+    sb.reveal()
+    assert (sb.path / "secret" / "answers.txt").is_file() and not (sb.path / "bulk").exists()
+    assert not sb.changes().paths                                                        # omitting is not a deletion
+    sb.write("pkg/other.py", "def name():\n    return 'changed'\n")
+    res = S.adopt(sb, adopt_decision(), "change with omitted paths")
+    assert "bulk/data.txt" in sh(repo, "ls-tree", "-r", "--name-only", res.merge_commit)
+    assert (repo / "bulk" / "data.txt").read_text(encoding="utf-8") == "x\n"
+    sb.close()

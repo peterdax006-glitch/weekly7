@@ -42,6 +42,15 @@ def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
 
 
+def explicit_commit(entry: dict[str, Any]) -> Optional[str]:
+    """The code commit a re-validation names (`validated_commit` in the report entry), if it is a real commit of this repository:
+    a component that was VALIDATED once and changed afterwards can only be re-validated against the commit the validator re-read."""
+    sha = str(entry.get("validated_commit") or "")
+    if len(sha) >= 7 and git("cat-file", "-e", f"{sha}^{{commit}}").returncode == 0:
+        return git("rev-parse", sha).stdout.strip()
+    return None
+
+
 def first_validated_commit(cid: str) -> Optional[str]:
     """The oldest commit of the report in which this component's verdict is VALIDATED (what the validator actually saw)."""
     for sha in reversed(git("log", "--format=%H", "--", REPORT).stdout.split()):
@@ -110,7 +119,7 @@ def main(argv: list[str]) -> int:
         tests_pass = bool(counts) and counts["passed"] > 0 and not counts["failed"] and not counts["errors"]
         if target and tests_pass:
             target = M.Status.TESTED
-        vsha = first_validated_commit(cid) if report.get(cid, {}).get("verdict") == "VALIDATED" else None
+        vsha = (explicit_commit(report[cid]) or first_validated_commit(cid)) if report.get(cid, {}).get("verdict") == "VALIDATED" else None
         fresh = vsha is not None and unchanged_since(vsha, [*spec.modules, *spec.tests])
         if target is M.Status.TESTED and checks["integrated"] and fresh:
             target = M.Status.VALIDATED

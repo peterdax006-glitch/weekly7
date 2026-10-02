@@ -177,6 +177,9 @@ def compare(ledger: Ledger, experiment_id: str, baseline: Arm, candidate: Arm, r
     conditions = f"devbench manifest {str(m['digest'])[:16]}; scorer {module_code_hash(D)[:16]}; tasks {len(ts)}"
     pop = {"dev": f"devbench:{str(m['digest'])[:16]}:dev", "holdout": f"devbench:{str(m['digest'])[:16]}:holdout"}
     if use_holdout:
+        for arm in (baseline, candidate):                                # C77 sec 32: the holdout is never learned from
+            if getattr(arm.solver, "learn", False) and getattr(arm.solver, "memory", None) is not None:
+                raise EvaluationError(f"arm {arm.name!r} learns from experience: set learn=False before it sees the holdout")
         D.freeze_config({"arm": baseline.name, **dict(baseline.config)}, frozen_path)
         D.freeze_config({"arm": candidate.name, **dict(candidate.config)}, frozen_path)
 
@@ -196,7 +199,7 @@ def compare(ledger: Ledger, experiment_id: str, baseline: Arm, candidate: Arm, r
     guard_c: list[str] = []
     for g in GUARDS:
         for key, sc, ids in (("base", pb, guard_b), ("cand", pc, guard_c)):
-            ev = _save(out / f"{key}_dev_pooled.json", [s.to_dict() for s in sc.scores])
+            ev = _save(out / f"{key}_dev_pooled_{g}.json", [s.to_dict() for s in sc.scores])
             v, se, n = metrics_of(sc)[g]
             ids.append(_measure(ledger, experiment_id, g, v, se, n, pop["dev"], conditions, M.Split.DEV, ev,
                                 {"arm": key, "guard": g}))

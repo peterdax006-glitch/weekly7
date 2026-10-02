@@ -67,7 +67,7 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "curriculum": _curriculum(), "plan": SCH.last_plan(LEDGER),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "failures": AUD.failure_report(led), "curriculum": _curriculum(), "plan": SCH.last_plan(LEDGER),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:

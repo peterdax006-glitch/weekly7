@@ -15,7 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from creator import power as PW  # noqa: E402
 from creator import process_levers as PL  # noqa: E402
+from creator import synth_tasks as ST  # noqa: E402
 from creator import recursion as R  # noqa: E402
 from creator.ledger import Ledger  # noqa: E402
 
@@ -46,6 +48,29 @@ def tune_worker(a: argparse.Namespace) -> int:
     return 0
 
 
+def summarize(rep: R.StepReport, wl: PL.DevWorkload, seed: int, min_effect: float = 0.0) -> dict:
+    """The step as one JSON line: the choice arm (primary chunks) and the disjoint confirmation arm, both with their intervals."""
+    d = rep.detail or {}
+    out: dict = {"iteration": rep.iteration, "seed": seed, "weakness": rep.weakness and [rep.weakness.kind, rep.weakness.key, rep.weakness.count],
+                 "change": rep.change and rep.change.rationale, "verdict": rep.verdict, "adopted": rep.adopted,
+                 "process": rep.process_after.__dict__, "task_runs": wl.runs, "tasks_per_arm": wl.chunk * wl.reps + wl.confirm,
+                 "reason": d.get("why")}
+    if rep.change is not None:
+        sb, sc = wl(rep.process_before), wl(rep.process_before.with_(rep.change.param, rep.change.new))
+        out["choice_arm"] = {"n": wl.chunk * wl.reps, "base": sb.dev, "cand": sc.dev, "diff": d.get("diff"), "se": d.get("se"),
+                             "ci": [d.get("lo"), d.get("hi")]}
+        pb = sum(sb.dev) / len(sb.dev)
+        n = wl.chunk                  # improvement_verdict does not shrink its SE with replicates: the chunk is the n that counts
+        if 0 < pb < 1:
+            out["power"] = {"p_base": pb, "n_per_chunk": n, "n_per_arm": wl.chunk * wl.reps, "detectable_effect_80pct": PW.detectable_effect(pb, n),
+                            "n_needed_for_min_effect": PW.required_n(pb, min_effect) if min_effect > 0 else None}
+        hd, hse = d.get("holdout_diff"), d.get("holdout_se")
+        out["confirm_arm"] = {"n": wl.confirm, "base": sb.holdout, "cand": sc.holdout, "diff": hd, "se": hse,
+                              "ci": [hd - 2 * hse, hd + 2 * hse] if hd is not None and hse is not None else None,
+                              "disjoint_from_choice": not set(wl.confirm_ids) & {t for c in wl.chunks for t in c}}
+    return out
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=1)
@@ -55,24 +80,31 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--confirm", type=int, default=4)
     ap.add_argument("--probe", action="store_true", help="when the ledger shows no weakness, try the next untried parameter")
     ap.add_argument("--tune", type=int, default=0, help="run N creator.autotune worker-configuration trials instead of process steps")
+    ap.add_argument("--synth", action="store_true", help="use the cheap in-process synthetic repair tasks (creator.synth_tasks) instead of devbench dev tasks")
+    ap.add_argument("--min-effect", type=float, default=0.0, help="smallest gain that matters (also lets NO_EFFECT be concluded)")
+    ap.add_argument("--initial", default=None, help="starting process as research_budget,design_breadth,reviewer_depth,max_retries (a different operating point)")
+    ap.add_argument("--nodes", default="14,90", help="synthetic tasks: size window of the functions, AST nodes lo,hi")
+    ap.add_argument("--cache", type=Path, default=None, help="jsonl of per-(process, task) results: resume after an interrupted run")
     ap.add_argument("--ledger", type=Path, default=STATE / "recursion_ledger.jsonl")
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)
     a = ap.parse_args(argv)
     if a.tune:
         return tune_worker(a)
     led = Ledger(a.ledger, evidence_root=a.ledger.parent)
+    initial = R.ProcessConfig(*map(int, a.initial.split(","))) if a.initial else None
+    bench = ST.SynthBench(lo=int(a.nodes.split(",")[0]), hi=int(a.nodes.split(",")[1])) if a.synth else None
     for _ in range(a.steps):
         it = len(R.recorded_steps(led)) + 1
-        wl = PL.DevWorkload(seed=a.seed + it - 1, chunk=a.chunk, reps=a.reps, confirm=a.confirm)
+        if a.synth:
+            wl = ST.workload(seed=a.seed + it - 1, chunk=a.chunk, reps=a.reps, confirm=a.confirm, cache_path=a.cache, bench=bench)
+        else:
+            wl = PL.DevWorkload(seed=a.seed + it - 1, chunk=a.chunk, reps=a.reps, confirm=a.confirm, cache_path=a.cache)
         forced = None
-        if a.probe and not any(R.design_change(w, R.current_process(led), R.tried_changes(led)) for w in R.find_weaknesses(led)):
-            forced = probe_change(R.current_process(led), R.tried_changes(led))
-        rep = R.step(led, wl, forced=forced)
-        PL.save_process(R.current_process(led), a.process_file)
-        print(json.dumps({"iteration": rep.iteration, "seed": a.seed + it - 1, "change": rep.change and rep.change.rationale,
-                          "verdict": rep.verdict, "adopted": rep.adopted, "process": rep.process_after.__dict__,
-                          "detail": {k: v for k, v in (rep.detail or {}).items() if k in ("diff", "se", "why", "holdout_diff")},
-                          "task_runs": wl.runs}), flush=True)
+        if a.probe and not any(R.design_change(w, R.current_process(led, initial), R.tried_changes(led)) for w in R.find_weaknesses(led)):
+            forced = probe_change(R.current_process(led, initial), R.tried_changes(led))
+        rep = R.step(led, wl, forced=forced, initial=initial, min_effect=a.min_effect)
+        PL.save_process(R.current_process(led, initial), a.process_file)
+        print(json.dumps(summarize(rep, wl, a.seed + it - 1, a.min_effect)), flush=True)
         if rep.change is None:
             break
     return 0

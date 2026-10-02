@@ -17,504 +17,720 @@
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Read the complete authoritative blueprint.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR001-004_documents"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR002",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Read all current contracts.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR001-004_documents"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR003",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Read all machine-readable checklists.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR001-004_documents"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR004",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Read the current Masterstock.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR001-004_documents"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR005",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect repository structure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR005_structure"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR005_structure computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR006",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect current branch/state.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR006_branch_state"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR006_branch_state computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR007",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect current builders.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR007_builders"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR007_builders computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR008",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect current integrations.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR008_integrations"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR008_integrations computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR009",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect tests.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR009_tests"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR009_tests computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR010",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect validation infrastructure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR010_validation_infra"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR010_validation_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR011",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect provenance.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR011_provenance"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR011_provenance computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR012",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect rollback.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR012_rollback"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR012_rollback computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR013",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect deterministic replay.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR013_deterministic_replay"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR013_deterministic_replay computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR014",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect reachability.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR014_reachability"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR014_reachability computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR015",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect data flow.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR015_data_flow"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR015_data_flow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR016",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect firewalls.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR016_firewalls"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR016_firewalls computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR017",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect research-only boundaries.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR017_research_boundary"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR017_research_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR018",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect learner/truth-world boundaries.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR018_learner_truth_boundary"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR018_learner_truth_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR019",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect known failures.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR019_known_failures"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR019_known_failures computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR020",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect known limitations.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR020_known_limitations"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR020_known_limitations computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR021",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect stale checklist states.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR021_stale_checklists"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR021_stale_checklists computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR022",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect duplicate implementations.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR022_duplicates"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR022_duplicates computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR023",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect disconnected implementations.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR023_disconnected"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR023_disconnected computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR024",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect implemented-but-not-validated capabilities.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR024_implemented_not_validated"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR024_implemented_not_validated computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR025",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect shallow implementations.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR025_shallow"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR025_shallow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR026",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect future-information leak risks.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR026_future_leak_risks"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR026_future_leak_risks computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR027",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect existing self-learning infrastructure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR027_self_learning_infra"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR027_self_learning_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR028",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect existing research infrastructure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR028_research_infra"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR028_research_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR029",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect existing experiment infrastructure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR029_experiment_infra"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR029_experiment_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR030",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect existing health/monitoring infrastructure.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR030_health_infra"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR030_health_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR031",
    "group": "6. PHASE 0 — COMPLETE RECONNAISSANCE",
    "description": "Inspect existing compute/resource controls.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
-   "evidence": [
-    "state/build/CREATOR_PHASE0_LEDGER.json",
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
     "scripts/phase0_recon.py"
    ],
-   "notes": "computed reconnaissance section CR031_compute_controls"
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
+   "evidence": [
+    "state/build/CREATOR_PHASE0_LEDGER.json",
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
+   ],
+   "notes": "section CR031_compute_controls computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR032",
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "repository understood",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
+    "scripts/phase0_recon.py"
+   ],
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
    "evidence": [
     "state/build/CREATOR_PHASE0_LEDGER.json",
-    "creator/ARCHITECTURE.md"
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
    ],
-   "notes": "mapped by the computed Phase-0 ledger and the architecture"
+   "notes": "section CR001-004_documents, CR005_structure, CR006_branch_state, CR007_builders, CR008_ computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR033",
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "architecture mapped",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
+    "scripts/phase0_recon.py"
+   ],
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
    "evidence": [
     "state/build/CREATOR_PHASE0_LEDGER.json",
-    "creator/ARCHITECTURE.md"
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
    ],
-   "notes": "mapped by the computed Phase-0 ledger and the architecture"
+   "notes": "section CR005_structure, CR015_data_flow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR034",
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "contracts mapped",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
+    "scripts/phase0_recon.py"
+   ],
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
    "evidence": [
     "state/build/CREATOR_PHASE0_LEDGER.json",
-    "creator/ARCHITECTURE.md"
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
    ],
-   "notes": "mapped by the computed Phase-0 ledger and the architecture"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR035",
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "existing systems mapped",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
+    "scripts/phase0_recon.py"
+   ],
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
    "evidence": [
     "state/build/CREATOR_PHASE0_LEDGER.json",
-    "creator/ARCHITECTURE.md"
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
    ],
-   "notes": "mapped by the computed Phase-0 ledger and the architecture"
+   "notes": "section CR027_self_learning_infra, CR028_research_infra, CR029_experiment_infra, CR030_h computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR036",
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "dependencies mapped",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
-   "code_paths": [],
-   "tests": [],
+   "status": "TESTING",
+   "code_paths": [
+    "creator/recon.py",
+    "scripts/phase0_recon.py"
+   ],
+   "tests": [
+    "tests/test_creator_recon.py"
+   ],
    "evidence": [
     "state/build/CREATOR_PHASE0_LEDGER.json",
-    "creator/ARCHITECTURE.md"
+    "creator/recon.py",
+    "tests/test_creator_recon.py"
    ],
-   "notes": "mapped by the computed Phase-0 ledger and the architecture"
+   "notes": "section CR015_data_flow, CR017_research_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR037",
@@ -1375,11 +1591,14 @@
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "integration testing",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K14=TESTED, K06=TESTED (computed from test evidence); tests/test_creator_integration.py drives objective compile -> gap sync -> schedule -> planner -> kernel.execute (sandbox, evaluate, improvement verdict, merge) -> post-merge audit -> curriculum lesson -> reproduce on a temporary git repo, plus a rejection path (regressing change: nothing merges, ledger verifies), a post-merge rollback path and a tampered-ledger stop; worker is the only fake"
   },
   {
    "id": "CR099",
@@ -2111,11 +2330,14 @@
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "recursive-improvement audit",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
-   "evidence": [],
-   "notes": ""
+   "evidence": [
+    "state/creator/STATUS.json",
+    "creator/capabilities.json"
+   ],
+   "notes": "capabilities K16=TESTED, K24=NOT_STARTED (computed from test evidence); creator/audit/checks.py check_recursion (adopted process change needs a recorded weakness, a disjoint confirmation arm, an IMPROVEMENT claim + ADOPT decision, an unbroken lineage; process.json == last adopted process) and adversary attack unevidenced_process_change; tests/test_creator_audit_recursion_failures.py. Audits the mechanism: no real recursion step exists yet"
   },
   {
    "id": "CR152",
@@ -2833,14 +3055,14 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "No unresolved critical failure hidden.",
    "owner": "Claude",
-   "status": "IMPLEMENTED",
+   "status": "TESTING",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED; capped at IMPLEMENTED: creator/audit/checks.py (stale_done:88, fake_adoption:108) find hidden failures it knows of; no check enumerates unresolved FAILED records"
+   "notes": "capabilities K16=TESTED (computed from test evidence); creator/audit/checks.py check_unresolved_failures + enumerate_failures/failure_report (STATUS 'failures'): a CRITICAL failure (post-merge rollback, ledger/evidence/audit breach) needs Diagnosis + fix or the owner's ACCEPTED finding; adversary attack hidden_critical_failure; kernel now records Failure+Diagnosis+Repair on a rollback; tests/test_creator_audit_recursion_failures.py"
   },
   {
    "id": "CR205",
@@ -2894,7 +3116,7 @@
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K26=TESTED, K16=TESTED; capped at IMPLEMENTED: creator/audit/checks.py:132 check_claim_recompute + creator/reproduce.py; claims are recomputed, but 'all major claims' is not shown"
+   "notes": "capabilities K26=NOT_STARTED, K16=TESTED (computed from test evidence); creator/claims.py + scripts/claims_register.py -> state/build/CLAIMS.json: every ImprovementClaim, adoption and headline number with its evidence refs and a recomputation (creator/reproduce.py); a claim without recomputable evidence is UNSUPPORTED; tests/test_creator_claims.py::test_a_fabricated_claim_is_flagged_and_an_honest_one_is_not. Register lists its own UNSUPPORTED claims"
   },
   {
    "id": "CR209",
@@ -2951,7 +3173,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR214",
@@ -3076,7 +3298,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR225",
@@ -3089,7 +3311,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR226",
@@ -3265,26 +3487,26 @@
    "group": "SECTION / 24. AUTONOMOUS TEST GENERATION",
    "description": "SECTION REQUIREMENT: 24. AUTONOMOUS TEST GENERATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (13 bullets: normal cases;; edge cases;; malformed inputs;; adversarial inputs;; regression cases;; integration;; persistence;; recovery;; determinism;; performance;; failure behavior;; security/firewall behavior;; intended behavior.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 TESTING is NOT_STARTED (CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 TESTING is TESTING (CR093, CR094, CR095, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR240",
    "group": "SECTION / 25. AUTONOMOUS TEST EXECUTION",
    "description": "SECTION REQUIREMENT: 25. AUTONOMOUS TEST EXECUTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: select relevant tests;; run them;; interpret results;; identify failures;; determine whether failures are new;; determine whether failures are regressions;; determine whether test coverage is sufficient.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 TESTING is NOT_STARTED (CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 TESTING is TESTING (CR093, CR094, CR095, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR241",
@@ -3395,52 +3617,52 @@
    "group": "SECTION / 33. NO FUTURE INFORMATION LEAKAGE",
    "description": "SECTION REQUIREMENT: 33. NO FUTURE INFORMATION LEAKAGE - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: future labels;; future outcomes;; hidden answer keys;; benchmark answers;; post-event metadata;; future-derived features;; hidden evaluator state)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR250",
    "group": "SECTION / 34. TRUTH WORLD VS LEARNER WORLD",
    "description": "SECTION REQUIREMENT: 34. TRUTH WORLD VS LEARNER WORLD - every requirement in this section of CREATOR_MASTER_PROMPT.md",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR251",
    "group": "SECTION / 35. PROVENANCE",
    "description": "SECTION REQUIREMENT: 35. PROVENANCE - every requirement in this section of CREATOR_MASTER_PROMPT.md (18 bullets: source;; version;; experiment;; code revision;; data revision;; configuration;; random seed where relevant;; timestamp where relevant;; test;; evaluator;; result.; PASS;; VALIDATED;; IMPROVED;; CLEAN;; NO LEAK;; PROMOTED;; SUCCESS)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR252",
    "group": "SECTION / 36. DETERMINISM AND REPRODUCTION",
    "description": "SECTION REQUIREMENT: 36. DETERMINISM AND REPRODUCTION - every requirement in this section of CREATOR_MASTER_PROMPT.md (10 bullets: control seeds;; control inputs;; preserve configuration;; preserve code version;; preserve environment assumptions;; reproduce results.; measure variance;; repeat experiments;; report distributions;; do not rely on one lucky run.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR253",
@@ -3577,26 +3799,26 @@
    "group": "SECTION / 47. ADVERSARIAL SELF-EVALUATION",
    "description": "SECTION REQUIREMENT: 47. ADVERSARIAL SELF-EVALUATION - every requirement in this section of CREATOR_MASTER_PROMPT.md (7 bullets: How could this claim be false?; How could this improvement be an artifact?; How could this test be fooled?; How could information have leaked?; How could the system have memorized the benchmark?; How could selection bias create this result?; How could the improvement fail on unseen conditions?)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR264",
    "group": "SECTION / 48. INDEPENDENT AUDIT",
    "description": "SECTION REQUIREMENT: 48. INDEPENDENT AUDIT - every requirement in this section of CREATOR_MASTER_PROMPT.md (9 bullets: implementation;; integration;; evidence;; provenance;; leakage;; test adequacy;; validation;; self-improvement claims;; recursive-development claims.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR265",
@@ -3700,7 +3922,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR273",
@@ -3713,7 +3935,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR274",
@@ -3726,7 +3948,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR275",
@@ -3739,7 +3961,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR276",
@@ -3752,20 +3974,20 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR032, CR033, CR034, CR035, CR036); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR277",
    "group": "SECTION / 61. DEVELOPMENT INTEGRITY",
    "description": "SECTION REQUIREMENT: 61. DEVELOPMENT INTEGRITY - every requirement in this section of CREATOR_MASTER_PROMPT.md (5 bullets: silent state mutation;; undocumented patches;; hidden temporary fixes;; manual state edits that bypass validation;; unexplained configuration changes.)",
    "owner": "Claude",
-   "status": "NOT_STARTED",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is NOT_STARTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR278",
@@ -3846,7 +4068,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR285",
@@ -3946,7 +4168,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR293",
@@ -3972,7 +4194,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR295",
@@ -3985,7 +4207,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR296",
@@ -4020,7 +4242,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 30 members in 79 TRUE AUTONOMY, 79 RECURSIVE IMPROVEMENT, 79 VALIDATION is IMPLEMENTED (CR197, CR198, CR204, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 30 members in 79 TRUE AUTONOMY, 79 RECURSIVE IMPROVEMENT, 79 VALIDATION is IMPLEMENTED (CR197, CR198, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR299",

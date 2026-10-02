@@ -72,7 +72,11 @@ def tuned_search_budget(process: R.ProcessConfig, worker_config: Optional[Path] 
     if not path.is_file():
         return lv.search_budget
     from creator import autotune as AT
-    return AT.load_active(path).search_budget
+    try:
+        budget = int(AT.load_active(path).search_budget)
+    except (OSError, ValueError, KeyError, TypeError):             # a damaged file must not stop the swarm building its worker
+        return lv.search_budget
+    return budget if budget >= 1 else lv.search_budget
 
 
 def build_worker(process: R.ProcessConfig, session: Any = None, worker_config: Optional[Path] = None) -> Any:
@@ -117,8 +121,9 @@ class DevWorkload:
     `confirm` more disjoint dev tasks (confirmation). Results are cached per (process, task) so the baseline is run once."""
 
     def __init__(self, seed: int = 1, chunk: int = 4, reps: int = 3, confirm: int = 4, evaluate: Optional[Evaluate] = None,
-                 dev_ids: Optional[Sequence[str]] = None) -> None:
+                 dev_ids: Optional[Sequence[str]] = None, cache_path: Optional[Path] = None) -> None:
         self.seed, self.chunk, self.reps, self.confirm = seed, chunk, reps, confirm
+        self.cache_path = cache_path
         self._tasks: dict[str, Any] = {}
         self._manifest: Optional[Mapping[str, Any]] = None
         self.evaluate = evaluate or self._real
@@ -134,6 +139,24 @@ class DevWorkload:
         self.confirm_ids = picked[chunk * reps:]
         self._cache: dict[tuple[str, str], tuple[bool, bool]] = {}
         self.runs = 0
+        self._load_cache()
+
+    def _load_cache(self) -> None:
+        """Resume after an interrupted run: per-(process, task) results are deterministic, so a file of them is a safe cache."""
+        if self.cache_path is None or not self.cache_path.exists():
+            return
+        for line in self.cache_path.read_text(encoding="utf-8").splitlines():
+            try:
+                d = json.loads(line)
+                self._cache[(str(d["p"]), str(d["t"]))] = (bool(d["s"]), bool(d["h"]))
+            except (ValueError, KeyError, TypeError):
+                continue                                              # a torn last line from a killed run
+
+    def _store(self, k: tuple[str, str], v: tuple[bool, bool]) -> None:
+        if self.cache_path is not None:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.cache_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps({"p": k[0], "t": k[1], "s": v[0], "h": v[1]}) + "\n")
 
     def _real(self, p: R.ProcessConfig, task_id: str) -> tuple[bool, bool]:
         from creator import devbench as D
@@ -149,6 +172,7 @@ class DevWorkload:
         if k not in self._cache:
             self.runs += 1
             self._cache[k] = self.evaluate(p, tid)
+            self._store(k, self._cache[k])
         return self._cache[k]
 
     def _rates(self, p: R.ProcessConfig, ids: Sequence[str]) -> tuple[float, float]:

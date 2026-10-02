@@ -278,13 +278,13 @@ class LocalModel:
         self._stop()
 
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
-             seed: int = 0) -> str:
+             seed: int = 0, timeout: float = 600.0) -> str:
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body,
                                      headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=600) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
         self.calls += 1
         self.seconds += time.monotonic() - t0
