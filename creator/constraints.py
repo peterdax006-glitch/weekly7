@@ -369,6 +369,24 @@ def _unmeasured_class(x: Any) -> str:
     return "other_unmeasured"
 
 
+def practice_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
+    """Offline practice measurements (state/creator/practice_rows.jsonl, scripts/practice.py) counted SEPARATELY from real kernel verdicts:
+    value = practice rows per hour in the window, detail carries the chooser's held-out accuracy from practice_log.jsonl (before/after
+    the latest retrain). Informational (loss 0): the headline learning_signal stays the share of REAL attempts with a kernel verdict."""
+    w = dt.timedelta(hours=window_h)
+    rows = [r for r in _jsonl(Path(state) / "practice_rows.jsonl") if r.get("source") == "prescreen"]
+    cur = sum(1 for r in rows if _in(_naive(str(r.get("at", ""))), now - w, now))
+    prev = sum(1 for r in rows if _in(_naive(str(r.get("at", ""))), now - 2 * w, now - w))
+    logs = _jsonl(Path(state) / "practice_log.jsonl")
+    last = logs[-1] if logs else {}
+    detail = {"practice_rows_total": len(rows), "practice_rows_in_window": cur, "real_verdicts_separate": True,
+              "chooser_holdout_before": (last.get("before") or {}).get("chooser_top1"), "chooser_holdout_after": (last.get("after") or {}).get("chooser_top1"),
+              "random_baseline": (last.get("after") or {}).get("random_top1"), "holdout_decisions": (last.get("after") or {}).get("decisions"),
+              "retrains": len(logs)}
+    return Metric("practice_signal", round(cur / window_h, 2), "practice measurements per hour (not real verdicts)", f"last {window_h:g}h",
+                  round(prev / window_h, 2), _trend(cur / window_h, prev / window_h, higher_is_worse=False), 0.0, "meta", detail, "goal", parent="learning_signal")
+
+
 def learning_metrics(state: Path, now: dt.datetime, window_h: float) -> list[Metric]:
     """Student attempts (non-teacher lessons) and what became of them. The three shares partition the attempts:
         learning_signal   loss = unmeasured / attempts   (no real kernel verdict: timed out, unusable reply, cancelled, nothing made)
@@ -405,6 +423,7 @@ def learning_metrics(state: Path, now: dt.datetime, window_h: float) -> list[Met
                    "unmeasured_by_class": cls, "per_student_kind": dict(sorted(where.items()))}, "goal")]
     for k, v in sorted(cls.items(), key=lambda kv: -kv[1]):
         out.append(Metric(k, round(v / n, 4), "share of student attempts", label, None, "new", round(v / n, 4), "meta", {"attempts": v}, "goal", parent="learning_signal"))
+    out.append(practice_metric(state, now, window_h))
     from creator import curriculum as CUR
     cells = CUR.student_scores(sc)["cells"]
     kinds: dict[str, list[int]] = {}

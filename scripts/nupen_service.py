@@ -13,6 +13,8 @@ shouldnt need to go to you to get it to start working as long as its capable of 
 - LM trainer (owner priority 3): while the owner has been idle for 10+ minutes and 3+ GB of RAM is free, Nupen's own language model
   trains (scripts/nupen_lm.py train --minutes 20) at IDLE priority, one run at a time. It is stopped through its STOP file (then as
   a process tree) when the owner returns or NUPEN_STOP appears. No lmenv: skipped silently. Log: state/creator/lm_service.log.
+- Practice (same idle/RAM rule, never alongside the LM trainer): scripts/practice.py on the current HEAD at IDLE priority, then a
+  chooser retrain on lessons + practice rows (only when new rows arrived). Log: state/creator/practice_service.log. NUPEN_PRACTICE=0 = off.
 - OFF SWITCH: create state/creator/NUPEN_STOP (the swarm is stopped and the supervisor exits); or
   `python scripts/nupen_autostart.py uninstall` to stop it starting with the computer.
 """
@@ -139,7 +141,7 @@ class LMTrainer:
 
     def __init__(self, python: Path = LM_PYTHON, idle=None, free_gb=None, spawn=None, stop_file: Path | None = None,
                  stop=None, clock=time.monotonic, log=_lm_log, idle_s: float = LM_IDLE_S, min_free_gb: float = LM_MIN_FREE_GB,
-                 grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S) -> None:    # type: ignore[no-untyped-def]
+                 grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S, blocked=None) -> None:    # type: ignore[no-untyped-def]
         if idle is None or free_gb is None:
             from creator import swarm as W
             idle, free_gb = idle or W.user_idle_seconds, free_gb or W.free_ram_gb
@@ -152,6 +154,7 @@ class LMTrainer:
         self.stopping_since: float | None = None
         self.last_start = -1e18
         self.warned = False
+        self.blocked = blocked or (lambda: False)          # another background job (practice) runs: one at a time
 
     def cmd(self) -> list[str]:
         return [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
@@ -190,7 +193,7 @@ class LMTrainer:
                 self.stop_tree(self.proc)
                 self.proc, self.stopping_since = None, None
             return
-        if halt or self.clock() - self.last_start < self.restart_gap_s:
+        if halt or self.clock() - self.last_start < self.restart_gap_s or self.blocked():
             return
         if not Path(self.python).is_file():
             if not self.warned:
@@ -215,6 +218,107 @@ class LMTrainer:
                 time.sleep(1.0)
             if self.proc.poll() is None:
                 self.stop_tree(self.proc)
+        self.proc = None
+
+
+PRACTICE_LOG = STATE / "practice_service.log"
+PRACTICE_ROWS = STATE / "practice_rows.jsonl"
+PRACTICE_MINUTES = 20
+PRACTICE_GAP_S = 300.0               # between practice runs
+PRACTICE_EMPTY_GAP_S = 1800.0        # a run that measured nothing new (every file at this revision is done): wait longer
+
+
+def _practice_log(msg: str) -> None:
+    PRACTICE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with PRACTICE_LOG.open("a", encoding="utf-8") as f:
+        f.write(f"{dt.datetime.now().isoformat(timespec='seconds')} {msg}\n")
+
+
+def _count_lines(path: Path) -> int:
+    try:
+        with path.open("rb") as f:
+            return sum(1 for _ in f)
+    except OSError:
+        return 0
+
+
+class PracticeRunner:
+    """Offline practice rounds (scripts/practice.py) on the CURRENT main revision, then a chooser retrain, only while the owner has
+    been idle 10+ min and RAM is free - modelled on LMTrainer, one background job at a time: it never starts while the LM trainer runs
+    (and the trainer is blocked while this runs). No STOP file: practice rows are appended and flushed one by one, so the process
+    tree is simply ended when the owner returns or NUPEN_STOP appears. Stages: 'practice', then 'retrain'
+    (scripts/train_chooser.py --practice, a no-op unless new rows arrived)."""
+
+    def __init__(self, python: str | None = None, idle=None, free_gb=None, spawn=None, stop=None, clock=time.monotonic,    # type: ignore[no-untyped-def]
+                 log=_practice_log, lm_running=None, rows_path: Path = PRACTICE_ROWS, idle_s: float = LM_IDLE_S,
+                 min_free_gb: float = LM_MIN_FREE_GB, gap_s: float = PRACTICE_GAP_S, empty_gap_s: float = PRACTICE_EMPTY_GAP_S,
+                 minutes: int = PRACTICE_MINUTES) -> None:
+        if idle is None or free_gb is None:
+            from creator import swarm as W
+            idle, free_gb = idle or W.user_idle_seconds, free_gb or W.free_ram_gb
+        venv = ROOT / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+        self.python = python or str(venv if venv.exists() else sys.executable)
+        self.idle, self.free_gb, self.clock, self.log = idle, free_gb, clock, log
+        self.spawn = spawn or self._spawn
+        self.stop_tree = stop or stop_tree
+        self.lm_running = lm_running or (lambda: False)
+        self.rows_path, self.idle_s, self.min_free_gb, self.minutes = rows_path, idle_s, min_free_gb, minutes
+        self.gap_s, self.empty_gap_s = gap_s, empty_gap_s
+        self.proc: Any = None
+        self.stage = ""
+        self.rows_before = 0
+        self.next_start = -1e18
+
+    def cmd(self, stage: str) -> list[str]:
+        if stage == "practice":
+            return [self.python, "-u", str(ROOT / "scripts" / "practice.py"), "--repo", str(ROOT), "--rev", "HEAD",
+                    "--minutes", str(self.minutes)]
+        return [self.python, "-u", str(ROOT / "scripts" / "train_chooser.py"), "--practice"]
+
+    def _spawn(self, cmd: list[str]) -> Any:
+        flags = (IDLE_PRIORITY | NO_WINDOW) if sys.platform == "win32" else 0
+        with (STATE / "practice_run.log").open("a", encoding="utf-8") as out:
+            return subprocess.Popen(cmd, cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, creationflags=flags,
+                                    start_new_session=sys.platform != "win32")
+
+    def running(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def _end(self, why: str) -> None:
+        self.log(f"ending the practice job ({self.stage}): {why}")
+        self.stop_tree(self.proc)
+        self.proc, self.stage = None, ""
+        self.next_start = self.clock() + self.gap_s
+
+    def tick(self, halt: bool = False) -> None:
+        if self.proc is not None and self.proc.poll() is not None:
+            self.log(f"practice job {self.stage} exited code={self.proc.returncode}")
+            stage, self.proc, self.stage = self.stage, None, ""
+            new = _count_lines(self.rows_path) - self.rows_before
+            if stage == "practice" and new > 0 and not halt:
+                self.stage = "retrain"
+                self.proc = self.spawn(self.cmd("retrain"))
+                self.log(f"{new} new practice rows: retraining the chooser")
+                return
+            self.next_start = self.clock() + (self.gap_s if new > 0 else self.empty_gap_s)
+        if self.proc is not None:
+            if halt:
+                self._end("NUPEN_STOP")
+            elif self.idle() < self.idle_s:
+                self._end("the owner is back")
+            return
+        if halt or self.lm_running() or self.clock() < self.next_start:
+            return
+        if self.idle() < self.idle_s or self.free_gb() < self.min_free_gb:
+            return
+        self.rows_before = _count_lines(self.rows_path)
+        self.stage = "practice"
+        self.proc = self.spawn(self.cmd("practice"))
+        self.log(f"practice started (idle {self.idle():.0f}s, free {self.free_gb():.1f} GB, {self.rows_before} rows so far)")
+
+    def shutdown(self) -> None:
+        if self.running():
+            self.stop_tree(self.proc)
         self.proc = None
 
 
@@ -304,7 +408,11 @@ def run(python: str, poll_s: float = 10.0) -> int:
 
 def _supervise(python: str, poll_s: float) -> None:
     backoff = 30.0
-    lm = _safe("LM trainer start", LMTrainer) if os.environ.get("NUPEN_LM", "1") != "0" else None
+    pr: Any = _safe("practice start", PracticeRunner) if os.environ.get("NUPEN_PRACTICE", "1") != "0" else None
+    lm: Any = _safe("LM trainer start", LMTrainer) if os.environ.get("NUPEN_LM", "1") != "0" else None
+    if pr and lm:
+        pr.lm_running = lm.running
+        lm.blocked = pr.running
     beat()
     _safe("watchdog check", ensure_watchdog)
     try:
@@ -322,6 +430,8 @@ def _supervise(python: str, poll_s: float) -> None:
                         break
                     if lm:
                         _safe("LM trainer tick", lm.tick, STOP.exists())
+                    if pr:
+                        _safe("practice tick", pr.tick, STOP.exists())
                     beat()
                     _safe("watchdog check", ensure_watchdog)
                     time.sleep(poll_s)
@@ -333,12 +443,16 @@ def _supervise(python: str, poll_s: float) -> None:
             while waited < backoff and not STOP.exists():               # the trainer keeps being supervised between swarm runs
                 if lm:
                     _safe("LM trainer tick", lm.tick, False)
+                if pr:
+                    _safe("practice tick", pr.tick, False)
                 beat()
                 time.sleep(min(poll_s, backoff - waited))
                 waited += poll_s
     finally:
         if lm:
             _safe("LM trainer shutdown", lm.shutdown)
+        if pr:
+            _safe("practice shutdown", pr.shutdown)
 
 
 if __name__ == "__main__":
