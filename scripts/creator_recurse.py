@@ -30,6 +30,22 @@ def probe_change(process: R.ProcessConfig, tried: set[tuple[str, int]]) -> R.Cha
     return None
 
 
+def tune_worker(a: argparse.Namespace) -> int:
+    """K19: propose and measure single-field changes of the own worker's configuration (creator.autotune.trial: devbench dev
+    replicates + frozen holdout); an IMPROVEMENT is written to state/creator/worker_config.json, which creator.process_levers
+    .build_worker (the swarm's worker) reads. Needs the local model server."""
+    from creator import autotune as AT
+    from creator import generator as G
+    led = Ledger(a.ledger, evidence_root=a.ledger.parent)
+    with G.LocalModel() as llm:
+        for _ in range(a.tune):
+            t = AT.trial(led, llm)
+            if t is None:
+                break
+            print(json.dumps({"tune": t.field, "verdict": t.verdict, "adopted": t.adopted, "seconds": t.seconds}), flush=True)
+    return 0
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=1)
@@ -38,9 +54,12 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--reps", type=int, default=3)
     ap.add_argument("--confirm", type=int, default=4)
     ap.add_argument("--probe", action="store_true", help="when the ledger shows no weakness, try the next untried parameter")
+    ap.add_argument("--tune", type=int, default=0, help="run N creator.autotune worker-configuration trials instead of process steps")
     ap.add_argument("--ledger", type=Path, default=STATE / "recursion_ledger.jsonl")
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)
     a = ap.parse_args(argv)
+    if a.tune:
+        return tune_worker(a)
     led = Ledger(a.ledger, evidence_root=a.ledger.parent)
     for _ in range(a.steps):
         it = len(R.recorded_steps(led)) + 1

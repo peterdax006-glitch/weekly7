@@ -139,3 +139,19 @@ def test_devworkload_with_too_few_dev_tasks_raises_clearly() -> None:
     """Regression (validator open issue 6): too few dev tasks silently produced empty chunks scored 0.0."""
     with pytest.raises(ValueError, match="needs"):
         PL.DevWorkload(seed=1, chunk=4, reps=3, confirm=4, evaluate=fake_eval, dev_ids=[f"t{i}" for i in range(10)])
+
+
+
+def test_an_adopted_worker_configuration_reaches_the_worker_the_swarm_builds(tmp_path: Path) -> None:
+    """K19 -> process: autotune's adopted WorkerConfig (worker_config.json) sets the search budget of the built worker."""
+    from creator import autotune as AT
+    from creator import generator as G
+    p = R.ProcessConfig()
+    absent = tmp_path / "none.json"
+    default_budget = PL.levers(p).search_budget
+    search = lambda w: next(x for x in w.own if hasattr(x, "budget"))     # noqa: E731
+    assert search(PL.build_worker(p, None, absent)).budget == default_budget
+    cfg = tmp_path / "worker_config.json"
+    AT.save_active(G.WorkerConfig(search_budget=480), "adopted by measured trial", cfg)
+    assert PL.tuned_search_budget(p, cfg) == 480 != default_budget
+    assert search(PL.build_worker(p, None, cfg)).budget == 480
