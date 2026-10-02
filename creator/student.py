@@ -305,7 +305,10 @@ class LessonStudent:
     name = "self-student-v1"
     steps = ("efficiency", "no_stubs", "integrated")
 
-    def __init__(self, lessons_path: Path, min_support: int = 1, max_templates: int = 6, max_files: int = 12) -> None:
+    def __init__(self, lessons_path: Path, min_support: int = 1, max_templates: int = 6, max_files: int = 12,
+                 prescreen: Optional[bool] = None) -> None:
+        self.prescreen = prescreen                                  # creator.prescreen: None = on exactly in a Creator tree
+        self.rejected: list[str] = []
         self.lessons_path, self.min_support = Path(lessons_path), min_support
         self.max_templates, self.max_files = max_templates, max_files
         self.templates: dict[str, dict[str, Any]] = {}
@@ -415,7 +418,10 @@ class LessonStudent:
         tk = str(getattr(package, "task_kind", "") or (task_kind(plan) if plan is not None else ""))   # packages carry no kind
         workdir = Path(workdir)
         applied: list[str] = []
+        self.rejected = []
         texts: Optional[list[tuple[str, str]]] = None
+        screen = self.prescreen if self.prescreen is not None else (workdir / "creator" / "kernel.py").is_file()
+        foot: Any = None
         for p in self._candidates(package, workdir):
             rel = p.relative_to(workdir).as_posix()
             if texts is None:
@@ -424,10 +430,17 @@ class LessonStudent:
             others = [t for r, t in texts if r != rel]
             start = p.read_text(encoding="utf-8")
             new, done = self.apply_source(start, tk, lambda name: any(_refs(t, name) for t in others))
+            if done and new != start and screen:
+                from creator import prescreen as PS
+                foot = foot or PS.Footing(workdir)
+                v = PS.prescreen(workdir, rel, new, PS.metric_for(plan), foot, run_tests=True)
+                if not v.ok:                                        # rejected by the student itself, never reaches the kernel
+                    self.rejected.append(f"{rel}: {v.reason}")
+                    continue
             if done and new != start:
                 eol = "\r\n" if b"\r\n" in p.read_bytes() else "\n"        # keep the file's line endings: no whole-file diff
                 p.write_text(new, encoding="utf-8", newline=eol)
                 applied.extend(f"{k}:{rel}" for k in done)
         if not applied:
-            return WorkResult(False, "no learned template applies")
+            return WorkResult(False, "no learned template applies" + (f"; prescreen rejected: {'; '.join(self.rejected)[:300]}" if self.rejected else ""))
         return WorkResult(True, f"{len(applied)} learned rewrites: {', '.join(applied[:12])}", by=self.name)

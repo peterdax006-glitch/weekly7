@@ -155,6 +155,71 @@ def lesson_rows(lessons: Iterable[Lesson], neg_weight: float = 0.5, teacher_nega
     return rows
 
 
+PRACTICE_SOURCE = "prescreen"
+PRACTICE_WEIGHT = 0.3                               # practice rows are real measurements but not kernel adoptions: a weaker, separate source
+
+
+def practice_rows(path: Path, src_dir: Path, weight: float = PRACTICE_WEIGHT, neg_weight: float = 0.5,
+                  exclude_paths: Iterable[str] = ()) -> list[Row]:
+    """state/creator/practice_rows.jsonl (scripts/practice.py) -> rows, one decision per (target file, source, metric): the good
+    candidates (measured delta < 0 and the direct tests pass) are a positive row, the measured-bad ones a negative row. These are
+    SEPARATE from `lesson_rows` (the shadow switch rule trains and scores on real kernel outcomes only): source = 'prescreen'.
+    Sources come from `src_dir/<src_hash>.py` (written once per file by the practice run)."""
+    skip = set(exclude_paths)
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("source") != PRACTICE_SOURCE or r.get("path") in skip or r.get("inconclusive"):         # a test timeout is no outcome
+            continue
+        groups.setdefault((r["path"], r["src_hash"], r["metric"]), []).append(r)
+    rows: list[Row] = []
+    for (_, h, _), g in sorted(groups.items()):
+        try:
+            src = (Path(src_dir) / f"{h}.py").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        cands = [A.Action(x["action"]["kind"], tuple(sorted(x["action"]["params"].items())), x["action"]["path"]) for x in g]
+        good = [i for i, x in enumerate(g) if x.get("good")]
+        bad = [i for i, x in enumerate(g) if not x.get("good")]
+        obj = str(g[0]["objective"])
+        if good:
+            rows.append(Row(obj, src, cands, good, 1, weight, PRACTICE_SOURCE))
+        if bad:
+            rows.append(Row(obj, src, cands, bad, -1, weight * neg_weight, PRACTICE_SOURCE))
+    return rows
+
+
+def practice_holdout(rows: list[Row], folds: int = 5, epochs: int = 200) -> dict[str, Any]:
+    """Held-out accuracy by target FILE (a file's rows are never in its own training fold): on each decision that has at least one
+    good and one bad candidate, does the chooser's top pick land on a candidate that is measured good (delta < 0, tests pass)?
+    Compared with picking at random (the share of good candidates) and with always picking the first candidate."""
+    pos = [r for r in rows if r.sign > 0]
+    files = sorted({r.cands[0].path for r in rows if r.cands})
+    fold_of = {f: i % folds for i, f in enumerate(files)}
+    hit = rand = first = n = 0.0
+    for k in range(folds):
+        train = [r for r in rows if fold_of.get(r.cands[0].path) != k]
+        test = [r for r in pos if fold_of.get(r.cands[0].path) == k and len(r.chosen) < len(r.cands)]
+        if not test or not train:
+            continue
+        ch = Chooser().fit(train, epochs=epochs)
+        for r in test:
+            p = ch.pick(r.objective, r.cands, {c.path: r.src for c in r.cands})
+            hit += p is not None and (p - 1) in r.chosen
+            rand += len(r.chosen) / len(r.cands)
+            first += 0 in r.chosen
+            n += 1
+    return {"decisions": int(n), "chooser_top1": hit / n if n else None, "random_top1": rand / n if n else None,
+            "first_candidate_top1": first / n if n else None, "folds": folds, "train_rows": len(rows)}
+
+
 # ------------------------------------------------------------------------------------------------ the policy
 
 
