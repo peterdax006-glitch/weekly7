@@ -31,6 +31,8 @@ CAPABILITIES: dict[str, str] = {
     "efficiency": "creator.efficiency",
     "swarm": "creator.swarm",
     "schedule": "creator.schedule",
+    "reasoning": "creator.reasoning",
+    "device": "creator.device",
     "tools": "creator.tools.toolbox",
 }
 

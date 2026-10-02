@@ -22,12 +22,16 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from creator import device
-
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MB = device.TEST_MB                     # until a real launch has been measured: a pytest tree (launcher + interpreter + plugins)
 MIN_MB = 20.0
-DEFAULT_CAP = int(device.settings()["test_slots"])      # machine-derived; creator/device.py is the one source of truth
+
+
+def _device() -> Any:
+    """creator/device.py is the one source of truth for the cap and the per-test MB; loaded on demand (sparse activation)."""
+    from creator import device
+    return device
+
+
 RESERVE_FRACTION, RESERVE_MIN_GB = 0.07, 0.8          # same reserve the Governor keeps free
 
 
@@ -41,9 +45,9 @@ def mb_file() -> Path:
 
 def slot_cap() -> int:
     try:
-        return max(1, int(os.environ.get("NUPEN_TEST_SLOTS_MAX", DEFAULT_CAP)))
+        return max(1, int(os.environ.get("NUPEN_TEST_SLOTS_MAX", _device().settings()["test_slots"])))
     except ValueError:
-        return DEFAULT_CAP
+        return int(_device().settings()["test_slots"])
 
 
 def _mem() -> tuple[float, float]:
@@ -61,7 +65,7 @@ def per_test_mb() -> float:
         d = json.loads(mb_file().read_text(encoding="utf-8"))
         return max(MIN_MB, float(d["mb"]))
     except (OSError, ValueError, KeyError, TypeError):
-        return DEFAULT_MB
+        return float(_device().TEST_MB)       # until a real launch has been measured
 
 
 def record_mb(peak_mb: float) -> None:

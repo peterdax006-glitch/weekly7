@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING  # noqa: E402
 
 from creator import kernel as K  # noqa: E402   (the core; everything else is loaded on demand through the registry)
 from creator import registry as REG  # noqa: E402
-from creator import device as DEV  # noqa: E402
 from creator import swarm as W  # noqa: E402
 
 if TYPE_CHECKING:
@@ -121,6 +120,7 @@ def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool 
 
 
 def main(argv: list[str]) -> int:
+    DEV = REG.get("device")
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--max-workers", type=int, default=int(DEV.settings()["max_workers"]))   # RAM-derived (32 on 16 GB)

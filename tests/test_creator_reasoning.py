@@ -63,6 +63,8 @@ def test_the_package_carries_the_procedure_and_the_recalled_lessons(world) -> No
 
 def test_optional_modules_are_used_when_present_and_skipped_when_absent_or_broken(world, monkeypatch) -> None:
     led, model, _ = world
+    monkeypatch.setitem(sys.modules, "creator.fundamentals", None)       # simulate absence: both modules now exist in the tree
+    monkeypatch.setitem(sys.modules, "creator.registry", None)
     plan = P.plan_next(led, model, "b", SPECS3, steps=("exists",))
     assert plan is not None and "principles:" not in text_of(led, plan) and "sparse rule:" not in text_of(led, plan)     # absent
     fund = types.ModuleType("creator.fundamentals")

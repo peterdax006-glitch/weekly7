@@ -23,7 +23,7 @@ from creator import gaps as G
 from creator import memory as MEM
 from creator import model as M
 from creator import objective as O
-from creator import reasoning as RE
+from creator import registry as REG
 from creator import selfmodel as SM
 from creator.ledger import Ledger
 
@@ -252,7 +252,7 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
                 f"{sel.summary}; rejected: {'; '.join(f'{o.name} ({r})' for o, r in dec.rejected)}",) if sel else ()
     lessons = tuple(f"Memory - {x}" for x in seen_before(ledger, objective, prior))
     dossier = tuple(f"Research - {x}" for x in research_dossier(ledger, gap_id))
-    how = RE.how_to_approach(ledger, cid, CUR_KIND.get(step, "gap"), objective, prior)
+    how = REG.get("reasoning").how_to_approach(ledger, cid, CUR_KIND.get(step, "gap"), objective, prior)
     return dict(
         package_id=next_package_id(ledger), objective=objective, why_it_exists=why,
         prerequisites=tuple(f"open gap {g} resolved" for g in getattr(gap, "depends_on")) or ("none",),
@@ -316,7 +316,7 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
         if ledger.view.status[g.gap_id] is M.Status.BLOCKED:
             blocks = [str(getattr(t.record, "reason", "")) for t in ledger.about(g.gap_id)
                       if t.rtype == "Transition" and getattr(t.record, "to_state") is M.Status.BLOCKED]
-            if len(prior) >= max_attempts or (blocks and RE.NEEDS_TEACHER in blocks[-1]):
+            if len(prior) >= max_attempts or (blocks and REG.get("reasoning").NEEDS_TEACHER in blocks[-1]):
                 continue                                                # still genuinely exhausted / escalated until unblock()
             ledger.transition(g.gap_id, M.Status.NOT_STARTED, f"reopened: only {len(prior)} of {max_attempts} attempts were real "
                               "(the rest were interruptions)", M.Role.KERNEL)
@@ -326,7 +326,7 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
             ledger.transition(g.gap_id, M.Status.BLOCKED,
                               f"{len(prior)} packages failed: " + "; ".join(reasons) + f"; research question {rq} opened", M.Role.KERNEL)
             continue
-        stall = RE.stalled(ledger, prior) if prior else ""
+        stall = REG.get("reasoning").stalled(ledger, prior) if prior else ""
         if stall:                                                       # stop rule: same failure, nothing learned -> teacher, not a 3rd try
             rq = research_blocked(ledger, g.gap_id, cid, step, getattr(spec_map.get(cid), "modules", ()), failure_reasons(ledger, prior)[-3:])
             ledger.transition(g.gap_id, M.Status.BLOCKED, f"{stall}; research question {rq} opened", M.Role.KERNEL)
