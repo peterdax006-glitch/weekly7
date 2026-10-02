@@ -246,3 +246,23 @@ def test_superseded_evidence_preserved_in_git_history_is_not_drift_but_uncommitt
     rep.write_bytes(b'{"round": 4}\n')                   # round-3 bytes exist nowhere now
     found = A.check_evidence_drift(led)
     assert len(found) == 1 and found[0].severity == "CRITICAL" and "changed" in found[0].detail
+
+
+def test_history_evidence_never_accepts_the_empty_hash_for_a_path_that_was_merely_deleted(tmp_path: Path) -> None:
+    """Validator round 5: `git show <deleting commit>:path` fails with empty output, and that empty output hashed to the sha256 of
+    zero bytes - so any evidence citing the empty-file hash was 'preserved in history' for every path ever deleted."""
+    import hashlib
+    import subprocess
+
+    def g(*a: str) -> None:
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
+    g("init", "-q")
+    g("config", "core.autocrlf", "false")
+    (tmp_path / "ev.txt").write_bytes(b"real bytes\n")
+    g("add", "ev.txt")
+    g("commit", "-q", "-m", "add")
+    g("rm", "-q", "ev.txt")
+    g("commit", "-q", "-m", "delete")                                      # the path now has a commit that deletes it
+    ref = M.EvidenceRef("ev.txt", hashlib.sha256(b"").hexdigest(), "t")    # cites 'an empty file' that never existed
+    assert not A._in_history(tmp_path, ref, {})
+    assert A._in_history(tmp_path, M.EvidenceRef("ev.txt", hashlib.sha256(b"real bytes\n").hexdigest(), "t"), {})

@@ -14,3 +14,7 @@ state/creator/lessons.jsonl
 state/creator/lessons_backfill.jsonl
 state/creator/deferred.jsonl
 state/creator/sft/
+state/creator/practice_rows.jsonl
+state/creator/practice_src/
+state/creator/prescreen_log.jsonl
+state/creator/shadow_choices.jsonl

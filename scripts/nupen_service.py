@@ -33,6 +33,9 @@ STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
 PIDFILE = STATE / "nupen_service.pid"
 LOG = STATE / "nupen_service.log"
+HEARTBEAT = STATE / "nupen_service.heartbeat"          # touched every poll; the watchdog restarts a supervisor whose beat goes stale
+CRASHLOG = STATE / "nupen_service.crash.log"           # faulthandler output: hard crashes leave a trace (pythonw has no console)
+WATCHDOG_PIDFILE = STATE / "nupen_watchdog.pid"
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 IDLE_PRIORITY = 0x00000040
@@ -220,13 +223,83 @@ def swarm_cmd(python: str) -> list[str]:
             "--user-aware", "--teacher-presence"]
 
 
+def beat() -> None:
+    try:
+        HEARTBEAT.write_text(f"{os.getpid()} {time.time():.0f}", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def ensure_watchdog() -> None:
+    """Keep the watchdog alive (2 Oct, owner: 'ensure whenever Nupen is supposed to be running it is running'): the supervisor
+    and the watchdog each restart the other, so one dying - or being killed - never leaves Nupen down."""
+    if os.environ.get("NUPEN_WATCHDOG", "1") == "0":
+        return
+    try:
+        pid = int(WATCHDOG_PIDFILE.read_text(encoding="utf-8").strip() or 0)
+    except (OSError, ValueError):
+        pid = 0
+    if pid and alive(pid):
+        return
+    pyw = ROOT / ".venv" / ("Scripts/pythonw.exe" if sys.platform == "win32" else "bin/python")
+    exe = str(pyw if pyw.exists() else sys.executable)
+    flags = (0x00000008 | 0x00000200 | NO_WINDOW) if sys.platform == "win32" else 0     # detached, own group, no window
+    try:
+        subprocess.Popen([exe, str(ROOT / "scripts" / "nupen_watchdog.py")], cwd=ROOT, creationflags=flags, close_fds=True,
+                         start_new_session=sys.platform != "win32")
+        log("watchdog (re)started")
+    except OSError as e:
+        log(f"watchdog could not start: {e}")
+
+
+def _safe(what: str, fn: Any, *a: Any) -> Any:
+    """An optional part (the LM trainer, the watchdog) must never take the supervisor down with it."""
+    try:
+        return fn(*a)
+    except Exception:                                                   # noqa: BLE001 - logged in full, never silent
+        import traceback
+        log(f"{what} failed (supervisor continues):\n{traceback.format_exc()}")
+        return None
+
+
 def run(python: str, poll_s: float = 10.0) -> int:
     if not claim_pidfile():
         log("another supervisor is alive; exiting")
         return 0
     log(f"supervisor up pid={os.getpid()}")
+    try:
+        import faulthandler
+        faulthandler.enable(open(CRASHLOG, "a", encoding="utf-8"))     # noqa: SIM115 - must stay open for the process lifetime
+    except OSError:
+        pass
+    try:
+        while not STOP.exists():
+            try:
+                _supervise(python, poll_s)
+                return 0
+            except Exception:                                           # noqa: BLE001 - the supervisor never dies on an error
+                import traceback
+                log(f"supervisor error, retrying in 30 s:\n{traceback.format_exc()}")
+                for _ in range(3):
+                    if STOP.exists():
+                        break
+                    beat()
+                    time.sleep(min(poll_s, 10.0))
+    finally:
+        try:
+            if PIDFILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
+                PIDFILE.unlink()
+        except OSError:
+            pass
+        log("supervisor down")
+    return 0
+
+
+def _supervise(python: str, poll_s: float) -> None:
     backoff = 30.0
-    lm = LMTrainer() if os.environ.get("NUPEN_LM", "1") != "0" else None
+    lm = _safe("LM trainer start", LMTrainer) if os.environ.get("NUPEN_LM", "1") != "0" else None
+    beat()
+    _safe("watchdog check", ensure_watchdog)
     try:
         while not STOP.exists():
             started = time.monotonic()
@@ -241,7 +314,9 @@ def run(python: str, poll_s: float = 10.0) -> int:
                         stop_tree(proc)
                         break
                     if lm:
-                        lm.tick(STOP.exists())
+                        _safe("LM trainer tick", lm.tick, STOP.exists())
+                    beat()
+                    _safe("watchdog check", ensure_watchdog)
                     time.sleep(poll_s)
             log(f"swarm exited code={proc.returncode}")
             if STOP.exists():
@@ -250,19 +325,13 @@ def run(python: str, poll_s: float = 10.0) -> int:
             waited = 0.0
             while waited < backoff and not STOP.exists():               # the trainer keeps being supervised between swarm runs
                 if lm:
-                    lm.tick(False)
+                    _safe("LM trainer tick", lm.tick, False)
+                beat()
                 time.sleep(min(poll_s, backoff - waited))
                 waited += poll_s
     finally:
         if lm:
-            lm.shutdown()
-        try:
-            if PIDFILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
-                PIDFILE.unlink()
-        except OSError:
-            pass
-        log("supervisor down")
-    return 0
+            _safe("LM trainer shutdown", lm.shutdown)
 
 
 if __name__ == "__main__":

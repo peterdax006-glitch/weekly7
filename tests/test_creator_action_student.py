@@ -190,3 +190,15 @@ def test_prompt_example_shows_the_teachers_reasoning(work: Path, tmp_path: Path)
     line = next(ln for ln in prompt.splitlines() if ln.startswith("Why: "))
     assert "importing it lazily keeps start-up light" in line and len(line) <= len("Why: ") + A.WHY_CHARS
     assert "Chosen actions: lazy_import(csv)" in prompt
+
+
+def test_bench_lesson_examples_why_flag_matches_student_rendering() -> None:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import action_choice_bench as B
+    from creator.curriculum import LessonLog
+    lessons = LessonLog(Path(__file__).resolve().parent.parent / "state/creator/lessons_contrast.jsonl").lessons()
+    obj = lessons[0].objective
+    off, on = B.lesson_examples(lessons, obj), B.lesson_examples(lessons, obj, why_chars=A.WHY_CHARS)
+    assert "Why:" not in off and "Why:" in on
+    assert [ln for ln in on.splitlines() if not ln.startswith("Why: ")] == off.splitlines()

@@ -43,6 +43,15 @@ def _curriculum() -> dict:
             "handed_over": {k: r.owners(lessons, k) for k in kinds if r.handed_over(lessons, k)}}
 
 
+def _shadow() -> dict:
+    """Shadow evaluation of the trained chooser vs the default policy on REAL outcomes, and the pre-registered switch rule."""
+    try:
+        from creator import shadow as SH
+        return SH.update_policy(STATE)
+    except Exception as e:  # noqa: BLE001 - status never dies on an optional section
+        return {"error": f"{type(e).__name__}: {str(e)[:120]}"}
+
+
 def _goals() -> dict:
     from creator import goals as GO
     pend = GO.pending(STATE)
@@ -73,7 +82,7 @@ def main(argv: list[str]) -> int:
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "failures": AUD.failure_report(led), "curriculum": _curriculum(), "goal_proposals": _goals(), "plan": SCH.last_plan(LEDGER),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "failures": AUD.failure_report(led), "curriculum": _curriculum(), "goal_proposals": _goals(), "chooser_shadow": _shadow(), "plan": SCH.last_plan(LEDGER),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
@@ -83,6 +92,17 @@ def main(argv: list[str]) -> int:
     print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
     print("CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall)", status["curriculum"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
+    sh = status["chooser_shadow"]
+    if "error" in sh:
+        print("CHOOSER SHADOW unavailable:", sh["error"])
+    else:
+        print(f"CHOOSER SHADOW policy={'chooser' if sh['use_chooser'] else 'default'} real decisions n={sh['n']} (rule needs 30) "
+              f"resolved shadow rows={sh['shadow_resolved']} agreement={sh['agreement']} "
+              f"chooser acc={sh['chooser_acc']} CI{sh['chooser_ci']} vs default acc={sh['default_acc']} CI{sh['default_ci']} "
+              f"disagreements tested={sh['disagree_tested']}")
+    from creator import constraints as CON
+    for i, m in enumerate(CON.top_constraints(STATE), 1):
+        print(f"CONSTRAINT {i}: {m['name']} loss {m['loss']} score {m['score']} ({m['value']} {m['unit']}) remedy={m['remedy']}")
     gp = status["goal_proposals"]
     print(f"GOAL PROPOSALS pending approval: {gp['pending']} (python scripts/nupen_goals.py list)")
     for g in gp["items"][:5]:

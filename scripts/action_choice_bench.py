@@ -317,18 +317,19 @@ def main_heldout(seeds: list[int], n: int, hard: bool, call_timeout: float, out_
     return res
 
 
-def lesson_examples(lessons: list[Any], objective: str, k: int = 3) -> str:
+def lesson_examples(lessons: list[Any], objective: str, k: int = 3, why_chars: int = 0) -> str:
     """Examples exactly as ActionStudent.build_prompt renders them: retrieved ADOPTED lessons as (objective, chosen actions)."""
     from creator import model_student as MS
     parts: list[str] = []
     for les in MS.retrieve(lessons, "shrink", objective, "", 6):
         acts = A.lesson_actions(les)
         if acts and len(parts) < k:
-            parts.append(f"Example task: {les.objective[:300]}\nChosen actions: " + "; ".join(a.short() for a in acts[:4]))
+            parts.append(f"Example task: {les.objective[:300]}\nChosen actions: " + "; ".join(a.short() for a in acts[:4])
+                         + (f"\nWhy: {' '.join(les.reasoning.split())[:why_chars]}" if why_chars > 0 and les.reasoning.strip() else ""))
     return "\n\n".join(parts)
 
 
-def main_lessons(seeds: list[int], n: int, hard: bool, call_timeout: float, out_path: Path, lessons_path: Path) -> dict[str, Any]:
+def main_lessons(seeds: list[int], n: int, hard: bool, call_timeout: float, out_path: Path, lessons_path: Path, why_ab: bool = False) -> dict[str, Any]:
     """Same tasks, same rich-label question, same lexical-prior combination; only the retrieved lesson examples differ (with vs without)."""
     from creator import generator as G
     from creator.curriculum import LessonLog
@@ -356,10 +357,12 @@ def main_lessons(seeds: list[int], n: int, hard: bool, call_timeout: float, out_
 
     dump()
     with G.LocalModel(startup_s=300.0) as llm:
-        for name, use in {"model_no_lessons": False, "model_with_lessons": True}.items():
+        arms: dict[str, tuple[bool, int]] = ({"model_lessons_no_why": (True, 0), "model_lessons_why": (True, A.WHY_CHARS)} if why_ab
+                                             else {"model_no_lessons": (False, 0), "model_with_lessons": (True, 0)})
+        for name, (use, why) in arms.items():
             out: list[Optional[int]] = []
             for i, t in enumerate(tasks):
-                ex = lesson_examples(lessons, t.objective) if use else ""
+                ex = lesson_examples(lessons, t.objective, why_chars=why) if use else ""
                 q = (ex + "\n\n" if ex else "") + _question(t, True, False)
                 try:
                     r = str(llm.chat([{"role": "system", "content": A.SYSTEM}, {"role": "user", "content": q}], max_tokens=60,
@@ -370,6 +373,7 @@ def main_lessons(seeds: list[int], n: int, hard: bool, call_timeout: float, out_
                     print(f"  [{name}] task {i} failed: {type(e).__name__}", flush=True)
                     out.append(None)
                 print(f"  [{name}] {i + 1}/{N} pick={out[-1]} want={t.correct}", flush=True)
+            res.setdefault("timeouts", {})[name] = sum(p is None for p in out)
             pols[name] = out
             pols["combined_" + name] = [A.combine_choice(p, t.objective, t.candidates) for t, p in zip(tasks, out)]
             dump()
@@ -397,13 +401,14 @@ def main() -> int:
     ap.add_argument("--seeds", default="101,102,103")
     ap.add_argument("--heldout", action="store_true", help="one-shot held-out measurement of all policies with CIs (use with --seeds, --hard)")
     ap.add_argument("--lessons", help="with --heldout: compare the model with vs without examples retrieved from this lesson JSONL")
+    ap.add_argument("--why-ab", action="store_true", help="with --lessons: two arms that differ only in the Why line (WHY_CHARS vs 0)")
     ap.add_argument("--call-timeout", type=float, default=90.0)
     ap.add_argument("--out", default=str(ROOT / "state/creator/action_choice_bench.json"))
     args = ap.parse_args()
     from creator import generator as G
     t0 = time.monotonic()
     if args.heldout and args.lessons:
-        main_lessons([int(x) for x in args.seeds.split(",")], args.n, args.hard, args.call_timeout, Path(args.out), Path(args.lessons))
+        main_lessons([int(x) for x in args.seeds.split(",")], args.n, args.hard, args.call_timeout, Path(args.out), Path(args.lessons), args.why_ab)
         return 0
     if args.heldout:
         main_heldout([int(x) for x in args.seeds.split(",")], args.n, args.hard, args.call_timeout, Path(args.out))

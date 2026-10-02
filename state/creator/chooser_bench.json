@@ -1,0 +1,145 @@
+{
+ "seeds": [
+  401,
+  402,
+  403
+ ],
+ "N": 90,
+ "chooser_meta": {
+  "dim": 32768,
+  "epochs": 300,
+  "l2": 0.001,
+  "lr": 0.05,
+  "negative": 3,
+  "positive": 161,
+  "rows": 164,
+  "sources": {
+   "contrast_x4": 136,
+   "deduped": 164,
+   "disjoint": {
+    "heldout_tasks": 180,
+    "overlap_objectives": 0,
+    "overlap_sources": 0
+   },
+   "lessons.jsonl": 4,
+   "lessons_contrast.jsonl": 34,
+   "lessons_integration.jsonl": 0,
+   "total_rows": 174
+  }
+ },
+ "by_weight": {
+  "0.0": {
+   "chooser+model": {
+    "correct": 75,
+    "n": 90,
+    "acc": 0.833,
+    "ci95": [
+     0.743,
+     0.896
+    ]
+   }
+  },
+  "0.5": {
+   "chooser+model": {
+    "correct": 78,
+    "n": 90,
+    "acc": 0.867,
+    "ci95": [
+     0.781,
+     0.922
+    ]
+   }
+  },
+  "1.0": {
+   "chooser+model": {
+    "correct": 78,
+    "n": 90,
+    "acc": 0.867,
+    "ci95": [
+     0.781,
+     0.922
+    ]
+   }
+  },
+  "1.5": {
+   "chooser+model": {
+    "correct": 76,
+    "n": 90,
+    "acc": 0.844,
+    "ci95": [
+     0.756,
+     0.905
+    ]
+   }
+  },
+  "2.0": {
+   "chooser+model": {
+    "correct": 72,
+    "n": 90,
+    "acc": 0.8,
+    "ci95": [
+     0.706,
+     0.87
+    ]
+   }
+  },
+  "3.0": {
+   "chooser+model": {
+    "correct": 70,
+    "n": 90,
+    "acc": 0.778,
+    "ci95": [
+     0.682,
+     0.851
+    ]
+   }
+  }
+ },
+ "policies": {
+  "lexical": {
+   "correct": 58,
+   "n": 90,
+   "acc": 0.644,
+   "ci95": [
+    0.541,
+    0.736
+   ]
+  },
+  "model": {
+   "correct": 65,
+   "n": 90,
+   "acc": 0.722,
+   "ci95": [
+    0.622,
+    0.804
+   ]
+  },
+  "model+lexical (current default)": {
+   "correct": 70,
+   "n": 90,
+   "acc": 0.778,
+   "ci95": [
+    0.682,
+    0.851
+   ]
+  },
+  "chooser alone": {
+   "correct": 75,
+   "n": 90,
+   "acc": 0.833,
+   "ci95": [
+    0.743,
+    0.896
+   ]
+  },
+  "chooser+model (w=1.5)": {
+   "correct": 76,
+   "n": 90,
+   "acc": 0.844,
+   "ci95": [
+    0.756,
+    0.905
+   ]
+  }
+ }
+}

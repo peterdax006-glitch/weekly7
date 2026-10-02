@@ -37,7 +37,7 @@ RUN_FILE = "goal_proposals_run.json"
 CHECKLIST_REL = "state/build/CREATOR_MASTER_CHECKLIST.json"
 MIN_N = 3                                     # a recurring class needs at least this many records
 PER_SOURCE = 3                                # at most this many NEW proposals per source per run
-SOURCES = ("failure", "weakness", "section", "student", "knowledge")
+SOURCES = ("failure", "weakness", "section", "student", "knowledge", "constraint")   # constraint proposals: creator.constraints.act()
 OPEN_STATES = ("NOT_STARTED", "IN_PROGRESS")
 META_PREFIX = "SECTION REQUIREMENT"            # doctrine/process-rule meta items: computed compliance checks, not buildable code
 STOP_WORDS = frozenset({"the", "and", "for", "of", "to", "a", "in", "is", "not", "do", "it", "that", "with", "every", "section",
@@ -236,7 +236,7 @@ def propose(led: Ledger, state: Path, repo: Path, specs: Optional[Sequence[SM.Ca
     lessons = CUR.LessonLog(Path(state) / "lessons.jsonl").lessons()
     by_source = {"failure": from_failures(led, specs, now), "weakness": from_weaknesses(led, specs, now),
                  "section": from_sections(Path(repo) / CHECKLIST_REL, specs, now), "student": from_students(lessons, now),
-                 "knowledge": from_knowledge(led, now)}
+                 "knowledge": from_knowledge(led, now), "constraint": []}
     new: list[Proposal] = []
     for source in SOURCES:
         taken = 0

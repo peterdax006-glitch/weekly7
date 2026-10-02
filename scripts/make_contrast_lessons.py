@@ -140,11 +140,11 @@ VARS = ["tmp", "acc", "res", "val", "buf", "out", "cur", "tot", "n", "size", "pe
 DEADN = ["{w}_helper", "old_{w}", "legacy_{w}", "{w}_v1", "debug_{w}", "unused_{w}", "{w}_compat"]
 
 
-def make() -> list[Lesson]:
+def make(scale: int = 1) -> list[Lesson]:
     out: list[Lesson] = []
     i = 0
     for wanted, other, count in PAIRS:
-        for j in range(count):
+        for j in range(count * scale):
             i += 1
             L = [LIBL[(i * 3 + k * 5) % len(LIBL)] for k in range(3)]
             while len(set(L)) < 3:
