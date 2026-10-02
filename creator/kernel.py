@@ -45,6 +45,7 @@ from creator.audit import checks as AUD
 from creator.ledger import Ledger
 
 HIDE = ("creator/devbench/sealed",)
+OMIT = ("state/research",)                          # never checked out in a sandbox (44k of 47k tracked files; 2 Oct timeout)
 
 
 class KernelError(RuntimeError):
@@ -61,6 +62,7 @@ class KernelConfig:
     capabilities: Optional[Sequence[SM.CapabilitySpec]] = None
     scope: tuple[str, ...] = ("creator", "tests", "scripts")   # scripts are real callers (integration), not just entry points
     hide: tuple[str, ...] = HIDE
+    omit: tuple[str, ...] = OMIT
     build: B.BuildConfig = dataclasses.field(default_factory=B.BuildConfig)
     pytest: T.PytestConfig = dataclasses.field(default_factory=T.PytestConfig)
     test_timeout: float = 3600.0                        # a full suite under swarm contention took 1205 s (1 Oct)
@@ -592,7 +594,8 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
     rep = CycleReport(n, "ERROR", plan.package_id, plan.requirement_key, details={"recovered": list(recovered)})
     with guard:
-        sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide)   # 3 SANDBOX
+        sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide,
+                             omit=cfg.omit)   # 3 SANDBOX
     locked = False
     ev: Optional[S.Evaluation] = None
     try:
@@ -618,7 +621,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         if not change.paths:
             raise _Reject("the worker changed nothing")
         frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
-        if cfg.hide:
+        if cfg.hide or cfg.omit:
             sb.reveal()                                                 # the Creator's own tests need the sealed suite back
         pcfg = sandbox_pytest(cfg)
         served = TC.TreeCache(cfg.state / "evidence" / "tree_cache").lookup(TC.tree_key(cfg.repo, pcfg.python, rev=base_sha,

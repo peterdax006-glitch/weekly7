@@ -148,12 +148,13 @@ class Sandbox:
     def __init__(self, repo: Path, sid: str, base: str, path: Path, branch: str, scratch: Path):
         self.repo, self.id, self.base, self.path, self.branch, self.scratch = repo, sid, base, path, branch, scratch
         self.closed = False
+        self.omit: tuple[str, ...] = ()
 
     # ---------------------------------------------------------------- lifecycle
 
     @classmethod
     def open(cls, repo: str | Path, base: str = "HEAD", scratch: str | Path | None = None, label: str = "",
-             hide: Sequence[str] = ()) -> "Sandbox":
+             hide: Sequence[str] = (), omit: Sequence[str] = ()) -> "Sandbox":
         repo = Path(repo).resolve()
         if not commit_exists(repo, base):
             raise SandboxError(f"base {base!r} is not a known commit - a sandbox never starts from an unknown state")
@@ -166,14 +167,16 @@ class Sandbox:
         sid = f"{stamp}-{hashlib.sha256(f'{base_sha}{label}{time.time_ns()}'.encode()).hexdigest()[:8]}"
         path = scratch_dir / sid
         branch = f"{SANDBOX_PREFIX}{sid}"
-        if hide:
+        if hide or omit:
+            # omit (2 Oct): paths never needed to develop or test the Creator - state/research holds 44k of the repo's 47k
+            # tracked files, and checking them out timed out (120 s) under load; unlike `hide` they stay out after reveal().
             # a worker developing the Creator must not see the sealed answer keys (1 Oct): the hidden paths are left out of the
             # worktree by a per-worktree sparse checkout; they stay in the index (skip-worktree), so they are neither shown as
             # deleted nor dropped from the sandbox's commits, and the main worktree is not affected
             git(repo, "worktree", "add", "--no-checkout", "-b", branch, str(path), base_sha)
-            git(path, "sparse-checkout", "set", "--no-cone", "/*", *[f"!/{h.strip('/')}/" for h in hide])
+            git(path, "sparse-checkout", "set", "--no-cone", "/*", *[f"!/{h.strip('/')}/" for h in (*hide, *omit)])
             git(path, "checkout", "-q", branch)
-            for h in hide:
+            for h in (*hide, *omit):
                 if (path / h).exists():
                     raise SandboxError(f"hidden path {h} is still present in the sandbox")
         else:
@@ -181,11 +184,17 @@ class Sandbox:
         (path / ".creator_sandbox.json").write_text(json.dumps({"id": sid, "base": base_sha, "branch": branch, "label": label,
                                                                 "opened": stamp, "state": "OPEN"}), encoding="utf-8")
         _exclude_marker(path)
-        return cls(repo, sid, base_sha, path, branch, scratch_dir)
+        sb = cls(repo, sid, base_sha, path, branch, scratch_dir)
+        sb.omit = tuple(omit)
+        return sb
 
     def reveal(self) -> None:
-        """Bring hidden paths back (after the worker is done; the evaluation and the Creator's own tests need the full tree)."""
-        git(self.path, "sparse-checkout", "disable")
+        """Bring hidden paths back (after the worker is done; the evaluation and the Creator's own tests need the full tree).
+        Omitted paths stay out: nothing in the Creator's development or tests uses them."""
+        if self.omit:
+            git(self.path, "sparse-checkout", "set", "--no-cone", "/*", *[f"!/{h.strip('/')}/" for h in self.omit])
+        else:
+            git(self.path, "sparse-checkout", "disable")
 
     def close(self, delete_branch: bool = False) -> None:
         """Remove the worktree (idempotent). The branch is kept unless asked, so an adopted or audited change stays inspectable."""
