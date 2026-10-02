@@ -24,3 +24,12 @@ def test_tasks_have_one_correct_and_are_deterministic() -> None:
     a, b = B.generate_tasks(10, 5), B.generate_tasks(10, 5)
     assert [t.correct for t in a] == [t.correct for t in b]
     assert all(2 <= len(t.candidates) and 1 <= t.correct <= len(t.candidates) for t in a)
+
+
+def test_hard_objectives_never_name_the_target_and_wilson_is_sane() -> None:
+    for t in B.generate_tasks(24, 5, hard=True):
+        name = t.candidates[t.correct - 1].short().split("(")[1].rstrip(")").split(",")[0]
+        assert name not in t.objective
+    lo, hi = B._wilson(45, 90)
+    assert 0.39 < lo < 0.5 < hi < 0.61
+    assert B._wilson(0, 0) == (0.0, 0.0)
