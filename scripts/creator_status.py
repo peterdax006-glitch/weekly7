@@ -43,6 +43,12 @@ def _curriculum() -> dict:
             "handed_over": {k: r.owners(lessons, k) for k in kinds if r.handed_over(lessons, k)}}
 
 
+def _goals() -> dict:
+    from creator import goals as GO
+    pend = GO.pending(STATE)
+    return {"pending": len(pend), "items": [{"id": p["id"], "source": p["source"], "title": p["title"], "value": p["value"]} for p in pend]}
+
+
 def main(argv: list[str]) -> int:
     t0 = time.time()
     specs = SM.load_capabilities()
@@ -61,21 +67,26 @@ def main(argv: list[str]) -> int:
     (STATE / "AUDIT.json").write_text(json.dumps({"audit": aud.to_dict(), "adversary": [a.__dict__ for a in attacks]}, indent=1),
                                       encoding="utf-8")
     caps = [{"id": c.id, "name": c.name, "state": c.state, "uncertainty": c.uncertainty, "meaningful": c.meaningful,
-             "floor": c.floor, "why": c.why} for c in model.capabilities]
+             "floor": c.floor, "why": c.why, "retired": O.retired_reason(c.id)} for c in model.capabilities]
     status = {"at": summ["at"], "selfmodel_digest": model.digest(), "versions": dict(model.versions), "capabilities": caps,
               "requirements": summ, "sync": {"opened": len(rep.opened), "closed": len(rep.closed), "regressed": list(rep.regressed)},
               "audit": aud.to_dict()["counts"], "audit_errors": dict(aud.errors),
               "adversary": {"attacks": len(attacks), "caught": sum(a.caught for a in attacks),
                             "uncaught": [a.name for a in attacks if not a.caught]},
-              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "failures": AUD.failure_report(led), "curriculum": _curriculum(), "plan": SCH.last_plan(LEDGER),
+              "efficiency": _efficiency(), "claude_dependence": O.claude_dependence(led), "oversight": _oversight(led), "failures": AUD.failure_report(led), "curriculum": _curriculum(), "goal_proposals": _goals(), "plan": SCH.last_plan(LEDGER),
               "ledger_records": led.verify(), "seconds": round(time.time() - t0, 1)}
     (STATE / "STATUS.json").write_text(json.dumps(status, indent=1, default=str), encoding="utf-8")
     for c in caps:
-        print(f"{c['id']} {c['state']:<12} {c['uncertainty']:<9} {c['meaningful']:>5}/{c['floor']:<5} {c['name']}")
+        print(f"{c['id']} {c['state']:<12} {c['uncertainty']:<9} {c['meaningful']:>5}/{c['floor']:<5} {c['name']}"
+              + (f" [RETIRED: {c['retired']}]" if c["retired"] else ""))
     print(json.dumps({k: summ[k] for k in ("requirements", "by_status", "open_gaps", "unblocked")}))
     print("EFFICIENCY", status["efficiency"], "CLAUDE DEPENDENCE", status["claude_dependence"])
     print("CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall)", status["curriculum"])
     print("SYNC", status["sync"], "AUDIT", status["audit"], aud.errors or "", "ADVERSARY", status["adversary"])
+    gp = status["goal_proposals"]
+    print(f"GOAL PROPOSALS pending approval: {gp['pending']} (python scripts/nupen_goals.py list)")
+    for g in gp["items"][:5]:
+        print(f"  {g['id']} ({g['source']}, value {g['value']}) {g['title']}")
     plan = status["plan"]
     if plan["at"]:
         print(f"PLAN {plan['at']} critical path {plan['critical_path_s']:.0f}s: {' -> '.join(plan['critical_path']) or '-'}; chosen {plan['chosen']}")

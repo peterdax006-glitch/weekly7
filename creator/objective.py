@@ -51,7 +51,7 @@ COMPONENT_DEPENDS = {"K02": ("K01",), "K03": ("K01", "K02"), "K04": ("K02", "K03
                      "K17": ("K06",), "K18": ("K15", "K25"), "K19": ("K03", "K10", "K15", "K18"),
                      "K20": ("K09", "K14", "K18"), "K21": ("K09", "K14", "K18", "K20"),
                      "K22": ("K01", "K06", "K14", "K15", "K18"), "K23": ("K01", "K03", "K04"), "K24": ("K01", "K13"),
-                     "K25": ("K09", "K14"), "K26": ("K01",)}
+                     "K25": ("K09", "K14"), "K26": ("K01",), "K27": ("K01", "K03", "K24")}
 PRIORITY_WEIGHT = {M.Priority.CRITICAL: 1.0, M.Priority.HIGH: 0.75, M.Priority.MEDIUM: 0.5, M.Priority.LOW: 0.25}
 CRITICAL_COMPONENTS = frozenset({"K01", "K06", "K10", "K14", "K15", "K16"})       # integrity, measurement and the loop itself
 
@@ -90,15 +90,55 @@ def _depth(model: SM.SelfModel, c: SM.CapabilityState, led: Optional[Ledger], ca
     return (bool(c.present_modules) and not c.below_floor), f"{c.meaningful} meaningful lines, floor {c.floor}"
 
 
+# Owner ruling, 2 Oct 2026, on "imported by production code, not only by its tests": orchestration components that Nupen RUNS through a
+# scripts/ entry point count as integrated when that entry point imports them. Deliberately an explicit list, not a general rule:
+# an ordinary component imported only by a script is still NOT integrated.
+ENTRY_POINTS: dict[str, tuple[str, ...]] = {"K22": ("scripts/creator_swarm.py",),
+                                            "K26": ("scripts/reproduce.py", "scripts/claims_register.py")}
+# Owner rulings that close the 'integrated' and 'validated' requirements of a component for good (shown as retired, no work planned).
+RETIRED: dict[str, str] = {"K05": "owner 1 Oct: Claude workers hard-disabled"}
+RETIRED_STEPS = ("integrated", "validated")
+
+
+def retired_reason(cap_id: Optional[str]) -> Optional[str]:
+    return RETIRED.get(cap_id) if cap_id else None
+
+
+def _script_imports(root: str, script: str) -> set[str]:
+    """Repo-relative module paths (creator/x.py) that `script` imports; empty when the script is missing or unparsable."""
+    import ast
+    from pathlib import Path
+    try:
+        tree = ast.parse((Path(root) / script).read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.module and n.level == 0:
+            out.add(n.module.replace(".", "/") + ".py")
+            out.update(f"{n.module.replace('.', '/')}/{a.name}.py" for a in n.names)
+        elif isinstance(n, ast.Import):
+            out.update(a.name.replace(".", "/") + ".py" for a in n.names)
+    return out
+
+
 def _integrated(model: SM.SelfModel, c: SM.CapabilityState, led: Optional[Ledger], cap_id: Optional[str]) -> tuple[bool, str]:
+    if c.id in RETIRED:
+        return True, f"retired: {RETIRED[c.id]}"
     if not c.present_modules:
         return False, "nothing to integrate"
-    orphans = [m for m in c.present_modules
-               if not any(not d.startswith("tests/") and d not in c.present_modules for d in model.dependents.get(m, ()))]
-    return (not orphans), (f"not imported by production code: {', '.join(orphans)}" if orphans else "imported by production code")
+    entry: set[str] = set()
+    for s in ENTRY_POINTS.get(c.id, ()):
+        entry |= _script_imports(model.root, s)
+    orphans = [m for m in c.present_modules if m not in entry
+               and not any(not d.startswith("tests/") and d not in c.present_modules for d in model.dependents.get(m, ()))]
+    return (not orphans), (f"not imported by production code: {', '.join(orphans)}" if orphans else
+                           "imported by production code" + (" (entry point)" if entry else ""))
 
 
 def _validated(model: SM.SelfModel, c: SM.CapabilityState, led: Optional[Ledger], cap_id: Optional[str]) -> tuple[bool, str]:
+    if c.id in RETIRED:
+        return True, f"retired: {RETIRED[c.id]}"
     if led is None or cap_id is None:
         return False, "no ledger"
     st = led.view.status.get(cap_id)

@@ -64,3 +64,47 @@ def test_importance_orders_priority_step_and_build_order() -> None:
     assert O.importance(M.Priority.CRITICAL, "exists", "K01") > O.importance(M.Priority.HIGH, "exists", "K01")
     assert O.importance(M.Priority.HIGH, "exists", "K02") > O.importance(M.Priority.HIGH, "validated", "K02")
     assert O.importance(M.Priority.HIGH, "tested", "K02") > O.importance(M.Priority.HIGH, "tested", "K09")
+
+
+# ---- owner ruling 2 Oct: entry-point integration and retired components -------------------------------------------------
+
+def _mini_repo(tmp_path: Path) -> Path:
+    (tmp_path / "creator").mkdir()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "creator" / "__init__.py").write_text("", encoding="utf-8")
+    for name in ("swarm", "ordinary", "agents"):
+        (tmp_path / "creator" / f"{name}.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "scripts" / "creator_swarm.py").write_text("from creator import swarm as W\n", encoding="utf-8")
+    (tmp_path / "scripts" / "other.py").write_text("from creator import ordinary\n", encoding="utf-8")
+    return tmp_path
+
+
+def _states(tmp_path: Path) -> SM.SelfModel:
+    specs = [SM.CapabilitySpec("K22", "swarm", ("creator/swarm.py",), (), 1),
+             SM.CapabilitySpec("K99", "ordinary", ("creator/ordinary.py",), (), 1),
+             SM.CapabilitySpec("K05", "agents", ("creator/agents.py",), (), 1)]
+    return SM.build(_mini_repo(tmp_path), scope=("creator",), capabilities=specs, include_versions=False)
+
+
+def test_entry_point_script_integrates_listed_components_only(tmp_path: Path) -> None:
+    model = _states(tmp_path)
+    ok, detail = O._integrated(model, model.capability("K22"), None, None)
+    assert ok and "entry point" in detail
+    ok, detail = O._integrated(model, model.capability("K99"), None, None)       # imported only by a script, not listed
+    assert not ok and "creator/ordinary.py" in detail
+
+
+def test_entry_point_must_actually_import_the_module(tmp_path: Path) -> None:
+    model = _states(tmp_path)
+    (tmp_path / "scripts" / "creator_swarm.py").write_text("import os\n", encoding="utf-8")
+    assert not O._integrated(model, model.capability("K22"), None, None)[0]
+
+
+def test_retired_component_closes_integrated_and_validated(tmp_path: Path) -> None:
+    model = _states(tmp_path)
+    c = model.capability("K05")
+    for fn in (O._integrated, O._validated):
+        ok, detail = fn(model, c, None, None)
+        assert ok and detail.startswith("retired: ")
+    assert O.retired_reason("K05") and O.retired_reason("K22") is None
+    assert not O._validated(model, model.capability("K22"), None, None)[0]

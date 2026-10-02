@@ -246,3 +246,16 @@ def test_omitted_paths_stay_out_even_after_reveal_and_survive_the_merge(repo: Pa
     assert "bulk/data.txt" in sh(repo, "ls-tree", "-r", "--name-only", res.merge_commit)
     assert (repo / "bulk" / "data.txt").read_text(encoding="utf-8") == "x\n"
     sb.close()
+
+
+def test_the_evaluation_base_tree_omits_the_same_paths(repo: Path, scratch: Path) -> None:
+    """2 Oct, CP0091: the sandbox omitted state/research but the evaluation's base worktree still checked out all 47k files and
+    timed out. The base tree must leave out the same omitted paths."""
+    (repo / "bulk").mkdir()
+    (repo / "bulk" / "data.txt").write_text("x\n", encoding="utf-8")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    sh(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "data")
+    sb = S.Sandbox.open(repo, scratch=scratch, omit=("bulk",))
+    base = sb._base_tree()
+    assert (base / "pkg" / "mathx.py").is_file() and not (base / "bulk").exists()
+    sb.close()

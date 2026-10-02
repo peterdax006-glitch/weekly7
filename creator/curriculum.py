@@ -271,7 +271,8 @@ class _StudentStep:
 
     def __call__(self, plan: Any, package: Any, workdir: Path) -> K.WorkResult:
         les = self.cur._draft(plan, package, self.student.name)
-        if les.task_kind == "tests" and not any(p.task_kind == "tests" and p.adopted for p in self.cur.log.lessons()):
+        if (les.task_kind == "tests" and self.name not in TEACHER          # a replay IS the teacher's example (2 Oct, CP0091)
+                and not any(p.task_kind == "tests" and p.adopted for p in self.cur.log.lessons())):
             return K.WorkResult(False, f"{self.name}: no adopted example of writing tests yet - the teacher shows first")
         if not self.student.can_attempt(les):
             return K.WorkResult(False, f"{self.name} cannot attempt this task")

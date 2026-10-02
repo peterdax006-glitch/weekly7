@@ -38,6 +38,7 @@ from creator.build import module_name_for
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CAPABILITIES_FILE = Path(__file__).resolve().parent / "capabilities.json"
+APPROVED_FILE = "capabilities_approved.json"        # written only by creator.goals.approve (an owner or teacher decision)
 SKIP_DIRS = frozenset({".git", ".venv", "venv", "__pycache__", "node_modules", "state", "data", ".mypy_cache", ".pytest_cache"})
 STUB_TODO_MARKERS = ("TODO", "FIXME", "XXX")
 
@@ -235,12 +236,21 @@ class CapabilityState:
     why: str
 
 
-def load_capabilities(path: Path = CAPABILITIES_FILE) -> list[CapabilitySpec]:
+def _read_specs(path: Path) -> list[CapabilitySpec]:
     if not path.is_file():
         return []
     data = json.loads(path.read_text(encoding="utf-8"))
     return [CapabilitySpec(c["id"], c["name"], tuple(c.get("modules", ())), tuple(c.get("tests", ())), int(c.get("floor", 0)))
             for c in data.get("capabilities", [])]
+
+
+def load_capabilities(path: Path = CAPABILITIES_FILE) -> list[CapabilitySpec]:
+    """The declared capabilities; for the default file, plus those the owner or teacher approved (creator/goals.py)."""
+    specs = _read_specs(path)
+    if path == CAPABILITIES_FILE:
+        have = {s.id for s in specs}
+        specs += [s for s in _read_specs(path.with_name(APPROVED_FILE)) if s.id not in have]
+    return specs
 
 
 @dataclasses.dataclass(frozen=True)

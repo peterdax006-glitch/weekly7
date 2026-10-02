@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-02T08:18:03Z",
+ "generated": "2026-10-02T14:20:04Z",
  "scope": [
   "engine",
   "scripts",
@@ -7,8 +7,8 @@
   "tests",
   "canon"
  ],
- "tree_hash": "83a6a383971733f99283349813ac9412d9192421d8bc478a1562a1dc45b5c664",
- "selfmodel_digest": "7bb5329316d5a4b9",
+ "tree_hash": "190d6e23cbea43ed04a4752135926e6681c04750873f3fcc6cacde8d26c22659",
+ "selfmodel_digest": "be19e43de304cc75",
  "CR001-004_documents": {
   "authoritative": {
    "CREATOR_MASTER_PROMPT.md": "da7b9c4d6d8a694bc1b216968b6614f59bc1dd3cb07e88fcb35d676a758764c8",
@@ -52,11 +52,11 @@
    "ULTIMATE_MASTER_CHECKLIST.json"
   ],
   "masterstock": "C:\\Users\\Peter\\Masterstock\\MASTERSTOCK.md",
-  "masterstock_sha256": "dd568e499b8613a7f1d7890a174ec9d607d8ed99b5ebbb87a17eb3d5dfdb810a",
-  "masterstock_bytes": 1917617
+  "masterstock_sha256": "5b2c81de4fb1a28e221213ae53feaa2bb2f5dde9fecabe5f4ab4977062001ca1",
+  "masterstock_bytes": 1921700
  },
  "CR005_structure": {
-  "files": 668,
+  "files": 672,
   "file_list": [
    "canon/build_canon.py",
    "creator/__init__.py",
@@ -72,6 +72,7 @@
    "creator/design.py",
    "creator/devbench.py",
    "creator/diskcache.py",
+   "creator/doctrine.py",
    "creator/efficiency.py",
    "creator/evaluate.py",
    "creator/gaps.py",
@@ -100,6 +101,7 @@
    "creator/process_levers.py",
    "creator/recon.py",
    "creator/recursion.py",
+   "creator/replay_student.py",
    "creator/reproduce.py",
    "creator/research.py",
    "creator/sandbox.py",
@@ -530,6 +532,7 @@
    "tests/test_creator_design.py",
    "tests/test_creator_devbench.py",
    "tests/test_creator_diskcache.py",
+   "tests/test_creator_doctrine.py",
    "tests/test_creator_efficiency.py",
    "tests/test_creator_evaluate.py",
    "tests/test_creator_flaky_rerun.py",
@@ -550,6 +553,7 @@
    "tests/test_creator_process_levers.py",
    "tests/test_creator_recon.py",
    "tests/test_creator_recursion.py",
+   "tests/test_creator_replay_student.py",
    "tests/test_creator_reproduce.py",
    "tests/test_creator_research.py",
    "tests/test_creator_sandbox.py",
@@ -728,41 +732,71 @@
    "tests/test_whole_cycle_replay_threads.py"
   ],
   "by_package_files": {
-   "tests": 236,
+   "tests": 238,
    "scripts": 161,
    "engine": 85,
    "engine/research": 66,
    "engine/learning": 65,
-   "creator": 54,
+   "creator": 56,
    "canon": 1
   },
   "by_package_meaningful_lines": {
    "engine/research": 76755,
-   "tests": 66402,
+   "tests": 66855,
    "engine/learning": 52970,
    "engine": 28791,
-   "scripts": 19005,
-   "creator": 12418,
+   "scripts": 19135,
+   "creator": 13185,
    "canon": 180
   }
  },
  "CR006_branch_state": {
-  "head": "bc69fe298b44108cf9472b37c1137e9172244fc5",
-  "branch": "main",
-  "dirty_files": 58,
+  "head": "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+  "branch": "h9/doctrine",
+  "dirty_files": 9,
   "sandbox_branches": [
    "creator/sbx-20261001T071030-385ad032",
    "creator/sbx-20261001T075726-0d5fe44e",
    "creator/sbx-20261001T083319-2724895c",
    "creator/sbx-20261001T092843-d32db545",
    "creator/sbx-20261001T100543-5325f45a",
-   "creator/sbx-20261002T011717-90d2491d"
+   "creator/sbx-20261002T011717-90d2491d",
+   "+ creator/sbx-20261002T134857-848f24c9",
+   "+ creator/sbx-20261002T134916-ea2a49d2",
+   "+ creator/sbx-20261002T135004-498fbb77",
+   "+ creator/sbx-20261002T135332-ffc184b4",
+   "+ creator/sbx-20261002T135558-20c384dd",
+   "+ creator/sbx-20261002T135636-7f93ac26",
+   "+ creator/sbx-20261002T135702-ac14f75a",
+   "+ creator/sbx-20261002T135752-98a33f31",
+   "+ creator/sbx-20261002T135823-b0493efe",
+   "+ creator/sbx-20261002T140437-28cc9ba5",
+   "+ creator/sbx-20261002T140632-c7848236",
+   "+ creator/sbx-20261002T140717-a485a72d",
+   "+ creator/sbx-20261002T140901-ff16c433",
+   "+ creator/sbx-20261002T140943-11968179",
+   "+ creator/sbx-20261002T141024-8a2dca0c",
+   "+ creator/sbx-20261002T141103-cd97ec09",
+   "+ creator/sbx-20261002T141133-0f1325b5",
+   "+ creator/sbx-20261002T141223-50921379",
+   "+ creator/sbx-20261002T141253-dbfab817",
+   "+ creator/sbx-20261002T141322-0ffd2cdc",
+   "+ creator/sbx-20261002T141421-f3b79a0c"
   ],
-  "ahead_behind_origin": "0\t0"
+  "ahead_behind_origin": "3\t0"
  },
  "CR007_builders": {
   "running_python_processes": [
-   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py"
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 --picks-only",
+   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 -",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 --picks-only",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_integration.py",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
+   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk 1200 --reps 3 --con",
+   "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk",
+   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk 1200 --reps 3 --confirm 1200 --cache C:/Users/Peter/AppData/Local/Temp/rl/cache.jsonl "
   ],
   "kernel_lock": false
  },
@@ -811,8 +845,8 @@
   }
  },
  "CR009_tests": {
-  "test_files": 238,
-  "test_functions": 5983,
+  "test_files": 240,
+  "test_functions": 6026,
   "collect": "",
   "collection_errors": [],
   "modules_without_any_test": 112,
@@ -884,6 +918,7 @@
   "engine/learning/checkpoints.py"
  ],
  "CR013_deterministic_replay": [
+  "creator/replay_student.py",
   "creator/reproduce.py",
   "engine/learning/reproducibility.py",
   "engine/parity.py",
@@ -1169,6 +1204,10 @@
     "creator"
    ],
    [
+    "scripts.nupen_service",
+    "creator"
+   ],
+   [
     "scripts.pattern_benchmark",
     "engine"
    ],
@@ -1231,10 +1270,6 @@
    [
     "scripts.run_b15_memory_adapter",
     "engine"
-   ],
-   [
-    "scripts.run_exits_stops",
-    "engine"
    ]
   ]
  },
@@ -1294,11 +1329,9 @@
   "CREATOR_MASTER_CHECKLIST.json": {
    "items": 304,
    "status": {
-    "IN_PROGRESS": 42,
-    "TESTING": 167,
-    "IMPLEMENTED": 59,
-    "FAILED": 8,
-    "NOT_STARTED": 28
+    "IN_PROGRESS": 49,
+    "TESTING": 149,
+    "IMPLEMENTED": 106
    },
    "done_without_evidence": 0,
    "examples": []
@@ -1421,11 +1454,9 @@
  ],
  "CR024_implemented_not_validated": {
   "CREATOR_MASTER_CHECKLIST.json": {
-   "IN_PROGRESS": 42,
-   "TESTING": 167,
-   "IMPLEMENTED": 59,
-   "FAILED": 8,
-   "NOT_STARTED": 28
+   "IN_PROGRESS": 49,
+   "TESTING": 149,
+   "IMPLEMENTED": 106
   },
   "MASTER_EXECUTION_CHECKLIST.json": {
    "NOT_STARTED": 585
@@ -1636,5 +1667,5 @@
   "engine/research/compute_manager.py",
   "engine/resources.py"
  ],
- "seconds": 14.2
+ "seconds": 50.3
 }

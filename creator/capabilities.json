@@ -293,6 +293,17 @@
     "tests/test_creator_claims.py"
    ],
    "floor": 0
+  },
+  {
+   "id": "K27",
+   "name": "goal generation (proposals from evidence, approved by owner or teacher)",
+   "modules": [
+    "creator/goals.py"
+   ],
+   "tests": [
+    "tests/test_creator_goals.py"
+   ],
+   "floor": 0
   }
  ]
 }
