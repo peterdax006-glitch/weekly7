@@ -1,19 +1,43 @@
 """K22: several of the system's own workers in parallel on disjoint parts, sized by free RAM (owner, 1 Oct 2026)."""
 from __future__ import annotations
 
+import dataclasses
+import datetime as dt
 import subprocess
 from pathlib import Path
+from typing import Any, Iterator, Mapping, Optional
 
 import pytest
 
 from creator import build as B
 from creator import kernel as K
+from creator import model as M
 from creator import objective as O
 from creator import planner as P
 from creator import selfmodel as SM
 from creator import selfworkers as SW
 from creator import swarm as W
+from creator import ledger as LG
 from creator.ledger import Ledger
+
+
+@pytest.fixture(scope="module", autouse=True)
+def cached_provenance() -> Iterator[None]:
+    """Ledger.append recomputes provenance (tree hashes of creator/ and engine/, git state of the real checkout) for every record,
+    ~0.17 s x hundreds of appends. No test here edits that checkout, so the real value is computed once per module and reused
+    with a fresh seed, config hash and timestamp; the ledger's own computation is covered by tests/test_creator_ledger.py."""
+    base = LG.current_provenance()
+
+    def cached(seed: Optional[int] = None, config: Optional[Mapping[str, Any]] = None, *a: Any, **k: Any) -> M.Provenance:
+        cfg_hash = LG.sha256_text(LG.canonical(dict(config)))[:16] if config is not None else None
+        return dataclasses.replace(base, seed=seed, config_hash=cfg_hash,
+                                   timestamp=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"))
+    mp = pytest.MonkeyPatch()
+    mp.setattr(LG, "current_provenance", cached)
+    try:
+        yield
+    finally:
+        mp.undo()
 
 
 def put(root: Path, rel: str, text: str) -> None:
