@@ -93,6 +93,12 @@ def make_students(model_student: bool = True) -> list:      # type: ignore[type-
         students.insert(0, ReplayStudent(LESSONS))           # an unmeasured teacher solution first: measure it, don't redo it
     except ImportError:
         pass
+    try:
+        from creator.pending import ResumeStudent
+        students.insert(1 if students and students[0].name == "claude-replay" else 0,
+                        ResumeStudent(LESSONS))              # then pending diffs / unmeasured lessons, re-applied to the current tree
+    except ImportError:
+        pass
     if model_student:
         try:
             from creator.model_student import ModelStudent

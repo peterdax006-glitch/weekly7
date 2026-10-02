@@ -377,6 +377,10 @@ class Curriculum:
                 self.log.outcome(lid, False, f"{NO_SIGNAL[outcome]}: {str(getattr(report, 'reason', ''))[:500]}")
             else:
                 self.log.outcome(lid, None, f"{outcome}: undecided")
+        for s in self.students:                                 # a resume student retires the pending item the kernel just measured
+            hook = getattr(s, "resolved", None)
+            if hook is not None:
+                hook(str(getattr(report, "package", "")), ADJUDICATED.get(outcome), f"{outcome}: {str(getattr(report, 'reason', ''))[:300]}")
 
     def note_skip(self, solver: str, kind: str, why: str) -> None:
         """Record why a student stopped being tried on a kind (once per (student, kind) per process) in skips.jsonl."""
@@ -435,6 +439,8 @@ class _StudentStep:
                 _restore(workdir, before, after)
                 res = K.WorkResult(False, f"{self.name}: identical to rejected lesson {dup.lesson_id} ({dup.package_id}): not retried; "
                                           f"{RE.NEEDS_TEACHER}", calls=res.calls)
+        if getattr(self.student, "credits_original", False) and res.by:       # a resume credits the ORIGINAL solver (teacher stays teacher)
+            les.solver = res.by
         self.cur._record(les, res, workdir)
         return dataclasses.replace(res, by=res.by or self.name)
 
