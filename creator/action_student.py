@@ -13,6 +13,7 @@ import ast
 import dataclasses
 import difflib
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -337,6 +338,20 @@ def parse_choice(reply: str, n: int) -> Optional[list[int]]:
     return list(dict.fromkeys(nums))
 
 
+def _py_texts(workdir: Path) -> dict[str, str]:
+    """Every .py file of the work tree (posix path -> text), pruning .git, virtualenvs, caches and the root state/ (run artefacts:
+    tens of thousands of directories nothing imports)."""
+    out: dict[str, str] = {}
+    for dirpath, dirnames, filenames in os.walk(workdir):
+        at_root = Path(dirpath) == workdir
+        dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git", ".venv", "node_modules") and not (at_root and d == "state")]
+        for fn in filenames:
+            if fn.endswith(".py"):
+                q = Path(dirpath) / fn
+                out[q.relative_to(workdir).as_posix()] = q.read_text(encoding="utf-8", errors="replace")
+    return out
+
+
 class ActionStudent:
     name = "nupen-model-v2"
 
@@ -360,8 +375,7 @@ class ActionStudent:
 
     def candidates(self, package: Any, workdir: Path) -> list[Action]:
         rels = self.targets(package, workdir)
-        texts = {q.relative_to(workdir).as_posix(): q.read_text(encoding="utf-8", errors="replace")
-                 for q in workdir.rglob("*.py") if "__pycache__" not in q.parts and ".venv" not in q.parts}
+        texts = _py_texts(workdir)
         out: list[Action] = []
         for rel in rels:
             others = [t for r, t in texts.items() if r != rel]
@@ -418,8 +432,7 @@ class ActionStudent:
 
     def _apply(self, chosen: list[Action], package: Any, workdir: Path, reasoning: str) -> "WorkResult":
         from creator.kernel import WorkResult
-        texts = {q.relative_to(workdir).as_posix(): q.read_text(encoding="utf-8", errors="replace")
-                 for q in workdir.rglob("*.py") if "__pycache__" not in q.parts and ".venv" not in q.parts}
+        texts = _py_texts(workdir)
         saved = {a.path: texts[a.path] for a in chosen if a.path in texts}
         cur, done = dict(saved), []
         for a in chosen:

@@ -150,3 +150,11 @@ def test_a_crlf_file_stays_crlf_after_an_action(work: Path) -> None:
     assert res.claimed_done, res.detail if hasattr(res, "detail") else res
     raw = (work / "app/u.py").read_bytes()
     assert b"import os" not in raw and raw.count(b"\r\n") == raw.count(b"\n") > 5
+
+
+def test_candidates_ignore_the_root_state_directory(work: Path) -> None:
+    (work / "state" / "run1").mkdir(parents=True)
+    (work / "state" / "run1" / "junk.py").write_text("import os\n\n\ndef _gone():\n    return 1\n", encoding="utf-8")
+    st = A.ActionStudent(work / "none.jsonl", llm=FakeLLM(""))
+    assert all(not a.path.startswith("state") for a in st.candidates(PKG, work))
+    assert "state/run1/junk.py" not in A._py_texts(work) and "app/u.py" in A._py_texts(work)
