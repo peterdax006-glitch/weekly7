@@ -17,6 +17,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -135,6 +136,34 @@ def test_count(root: Path, scope: str = "tests") -> int:
     return n
 
 
+def _test_text(root: Path, scope: str = "tests") -> str:
+    return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted((root / scope).rglob("test_*.py")))
+
+
+def public_names(src: str) -> list[str]:
+    """Top-level public functions and classes of a module's source ([] when it does not parse)."""
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return []
+    return [n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and not n.name.startswith("_")]
+
+
+def uncovered_public(root: Path, rel: str, tests: Optional[str] = None) -> list[str]:
+    """Public functions/classes of `rel` that no test file names (a whole-word match): the measurable test gap. Coverage work adds
+    tests until this list shrinks; it never touches production code."""
+    tests = _test_text(root) if tests is None else tests
+    src = (root / rel).read_text(encoding="utf-8", errors="replace") if (root / rel).is_file() else ""
+    return [n for n in public_names(src) if not re.search(rf"\b{re.escape(n)}\b", tests)]
+
+
+def uncovered_total(root: Path) -> int:
+    """The test gap over every module the Creator may edit (the coverage holdout: tests for one module do not hide another's gap)."""
+    tests = _test_text(root)
+    return sum(len(uncovered_public(root, f, tests)) for f in production_files(root) if editable(f))
+
+
 @dataclasses.dataclass(frozen=True)
 class Footprint:
     target: str
@@ -144,6 +173,8 @@ class Footprint:
     test_cases: int
     active_nodes: int = -1                      # AST nodes the kernel loads at start (-1 = not measured)
     static_load: int = 0                        # sum over modules of the Creator code each one imports eagerly
+    uncovered: int = 0                          # public names of the target no test names / the same over the whole package
+    uncovered_package: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -204,4 +235,4 @@ def footprint(root: Path, target: str, memory: bool = True, activation_: Optiona
     want = memory if activation_ is None else activation_
     act = activation(root)["active_nodes"] if want and (root / "creator" / "kernel.py").is_file() else -1
     return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root), act,
-                     static_load(root))
+                     static_load(root), len(uncovered_public(root, target)), uncovered_total(root))

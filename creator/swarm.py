@@ -222,6 +222,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     fill_left = filler_budget
     starved = False
     last_start = -1e9
+    nothing_while: Optional[tuple[str, ...]] = None                     # running set for which planning found nothing
 
     def finish(r: _Running) -> None:
         if r.result:
@@ -233,6 +234,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         for r in [r for r in running if not r.thread.is_alive()]:
             running.remove(r)
             finish(r)
+        key = tuple(sorted(r.plan.package_id for r in running))
         active = [r for r in running if r.plan.package_id not in WAITING]
         fillers[:] = [f for f in fillers if f.is_alive()]
         load = len(active) + len(fillers)                               # fillers use memory too (1 Oct run9: uncounted, peak 42 > 32)
@@ -248,10 +250,11 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
                                       youngest.plan.package_id)
                 pulled += 1
-        elif not exhausted and planned < max_packages and ramped and gov.can_start(load):
+        elif (not exhausted and planned < max_packages and ramped and gov.can_start(load)
+              and nothing_while != key):
             with lock:
                 held = [r.plan.component for r in running]
-                held_paths = [r.plan.component for r in running if r.plan.step == "efficiency"]
+                held_paths = [r.plan.component for r in running if r.plan.step in K.P.EFFICIENCY_STEPS]
                 order = [cfg]
                 if cfg.mode == "auto":                                  # shrink work runs ALONGSIDE gap work, not only after it
                     order = [dataclasses.replace(cfg, mode="efficiency"), dataclasses.replace(cfg, mode="gaps")]
@@ -262,8 +265,11 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                     plan = K.plan_one(c, led, main, base_sha, exclude_components=held, exclude_paths=held_paths)
                     if plan is not None:
                         break
-            if plan is None:
-                exhausted = True
+            if plan is None:                                            # a target held by a running worker may free up: wait for
+                if running:                                             # the running set to change before planning again (1 Oct:
+                    nothing_while = key   # one held target ended the round at 2)
+                else:
+                    exhausted = True
             else:
                 planned += 1
                 ev = threading.Event()
@@ -288,7 +294,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 last_start = time.monotonic()
                 peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
                 continue
-        if ((exhausted or planned >= max_packages) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
+        if ((exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
                 and gov.can_start(load)):
             job_fn = filler()                                           # leftover memory: useful measurement work
             if job_fn is not None:

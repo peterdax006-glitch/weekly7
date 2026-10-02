@@ -53,7 +53,7 @@ class Lesson:
     lesson_id: str
     package_id: str
     component: str
-    task_kind: str                                  # gap | bugfix | shrink | activation
+    task_kind: str                                  # gap | bugfix | shrink | activation | tests
     objective: str                                  # the task text (the package objective)
     context: str = ""                               # what the system knew: the .creator_task.md text
     files_before: dict[str, str] = dataclasses.field(default_factory=dict)   # changed files only: path -> text before ("" if new)
@@ -90,6 +90,8 @@ def task_kind(plan: Any) -> str:
     code under test (bugfix), everything else closes a gap."""
     step = str(getattr(plan, "step", ""))
     key = str(getattr(plan, "requirement_key", ""))
+    if step == "coverage":
+        return "tests"
     if step == "efficiency":
         return "activation" if key.endswith("activation") else "shrink"
     if step == "tested":
@@ -267,6 +269,8 @@ class _StudentStep:
 
     def __call__(self, plan: Any, package: Any, workdir: Path) -> K.WorkResult:
         les = self.cur._draft(plan, package, self.student.name)
+        if les.task_kind == "tests" and not any(p.task_kind == "tests" and p.adopted for p in self.cur.log.lessons()):
+            return K.WorkResult(False, f"{self.name}: no adopted example of writing tests yet - the teacher shows first")
         if not self.student.can_attempt(les):
             return K.WorkResult(False, f"{self.name} cannot attempt this task")
         past = self.cur.log.lessons()

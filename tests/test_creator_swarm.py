@@ -285,3 +285,68 @@ def test_fillers_count_toward_the_worker_cap_and_start_after_a_ramp(cfg: K.Kerne
     W.run_round(cfg, lambda: None, gov, max_packages=0, poll_s=0.05, filler=filler, filler_budget=4)
     assert live["max"] <= 2                                                         # the cap holds with fillers alone
     assert all(b - a >= 0.29 for a, b in zip(starts, starts[1:]))                   # spaced by the ramp
+
+
+def test_a_target_held_by_a_running_worker_pauses_planning_instead_of_ending_the_round(cfg: K.KernelConfig,
+                                                                                         monkeypatch: pytest.MonkeyPatch) -> None:
+    """1 Oct: plan_one returned None while one package held the only free target, so the round ended with 2 packages although
+    more work became plannable seconds later. Planning waits for the running set to change, and does not spin meanwhile."""
+    import time
+    from creator import planner as P2
+    seen: list[tuple[str, ...]] = []
+    state = {"calls": 0}
+
+    def plan_one(c, led, main, base, exclude_components=(), exclude_paths=()):
+        state["calls"] += 1
+        seen.append(tuple(exclude_components))
+        return P2.Plan("g1", "K", "c1", "efficiency", None, "w1", "CPA", "x", "e", 1) if state["calls"] == 1 else \
+            (P2.Plan("g2", "K", "c2", "efficiency", None, "w2", "CPB", "x", "e", 1) if state["calls"] == 3 else None)
+    monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
+    monkeypatch.setattr(K, "plan_one", plan_one)
+
+    def fake_execute(cfg, worker, plan, *a, **k):
+        time.sleep(0.6)
+        return K.CycleReport(1, "ADOPTED", plan.package_id, "K")
+    monkeypatch.setattr(K, "execute", fake_execute)
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=2, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, lambda: None, gov, max_packages=5, poll_s=0.05)
+    assert sorted(r.package for r in rnd.reports) == ["CPA", "CPB"]
+    assert state["calls"] == 5                  # A; none while A runs (asked once, not every poll); B; none while B runs; none, idle: end
+
+
+def test_coverage_package_is_planned_worked_by_testgen_measured_and_adopted(cfg: K.KernelConfig,
+                                                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    """The test-gap work source end to end: the kernel plans the module with the most untested public names, the system's own
+    TestGenWorker writes tests, and the claim is the COMPUTED fall of the untested-name count (target and package)."""
+    from creator import efficiency as E
+    from creator import testgen as TG
+    monkeypatch.setattr(P, "plan_efficiency", lambda led, root, base, avoid=(), kind=None: P._plan_coverage(led, root, base, avoid))
+    before = E.uncovered_total(cfg.repo)
+    assert before > 0 and "f3_0" in E.uncovered_public(cfg.repo, "creator/m3.py")
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, lambda: SW.SelfFirst([TG.TestGenWorker()], None), gov, max_packages=1, poll_s=0.2)
+    assert [r.outcome for r in rnd.reports] == ["ADOPTED"], [(r.package, r.outcome, r.reason) for r in rnd.reports]
+    assert rnd.reports[0].requirement == P.COVERAGE_KEY
+    assert rnd.reports[0].details["detail"]["uncovered"][0] > rnd.reports[0].details["detail"]["uncovered"][1]
+    assert E.uncovered_total(cfg.repo) < before
+    assert any((cfg.repo / "tests").glob("test_gen_m*.py"))                  # tests were added, production untouched
+    assert (cfg.repo / "creator/m3.py").read_text(encoding="utf-8") == module(3)
+
+
+def test_a_coverage_package_that_edits_production_code_is_rejected(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    from creator import selfworkers as SW2
+    monkeypatch.setattr(P, "plan_efficiency", lambda led, root, base, avoid=(), kind=None: P._plan_coverage(led, root, base, avoid))
+
+    class Sneaky:
+        name = "sneaky"
+
+        def __call__(self, plan, package, workdir):
+            put(workdir, "creator/m3.py", module(3) + "\n\ndef extra():\n    return 1\n")
+            put(workdir, "tests/test_extra.py", "from creator.m3 import extra, f3_0\n\n\ndef test_x():\n    assert extra() == 1 and f3_0(1) == 1\n")
+            return K.WorkResult(True, "edited production", by="sneaky")
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, lambda: SW2.SelfFirst([Sneaky()], None), gov, max_packages=1, poll_s=0.2)
+    assert [r.outcome for r in rnd.reports] == ["REJECTED"] and "may only add tests" in rnd.reports[0].reason

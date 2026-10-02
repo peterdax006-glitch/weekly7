@@ -119,3 +119,92 @@ def test_the_package_states_the_current_check_not_the_gap_text(world) -> None:
     assert "nothing to integrate" in led.get(plan.gap_id).description          # the frozen text
     why = led.get(plan.work_package_id).why_it_exists
     assert "not imported by production code" in why and "nothing to integrate" not in why
+
+
+def _stop(led: Ledger, plan: P.Plan, reason: str) -> None:
+    P.record_outcome(led, plan, False, reason)
+
+
+def test_interruptions_are_not_attempts_so_a_gap_is_never_blocked_by_stops(world) -> None:
+    """1 Oct: K07/K08/K12/K19 were BLOCKED after three host stops / pull-backs / pauses although no work of theirs was judged."""
+    led, model = world
+    for why in ("interrupted: host stopped the swarm", "stopped by the owner during evaluation", "paused: owner restarting",
+                "pulled back before work (RAM tight)"):
+        plan = P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2)
+        assert plan is not None
+        _stop(led, plan, why)
+    assert led.view.status[plan.gap_id] is M.Status.FAILED
+    assert len(P.attempts_for(led, plan.gap_id)) == 0
+    real = P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2)
+    assert real is not None and real.gap_id == plan.gap_id and real.attempt == 1       # stops left the count at zero
+
+
+def test_a_gap_blocked_by_stops_is_reopened_but_a_really_exhausted_one_stays_blocked(world) -> None:
+    led, model = world
+    plan = P.plan_next(led, model, "b", SPECS, steps=("exists",))
+    assert plan is not None
+    _stop(led, plan, "interrupted: host stop")
+    led.transition(plan.gap_id, M.Status.BLOCKED, "3 packages failed: (old count included stops)", M.Role.KERNEL)
+    again = P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2)
+    assert again is not None and again.gap_id == plan.gap_id and led.view.status[again.gap_id] is M.Status.IN_PROGRESS
+    _stop(led, again, "tests failed")
+    third = P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2)
+    assert third is not None and third.gap_id == plan.gap_id
+    _stop(led, third, "tests failed again")
+    other = P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2)
+    assert other is None or other.gap_id != plan.gap_id
+    assert led.view.status[plan.gap_id] is M.Status.BLOCKED                  # two real failures: blocked, not retried forever
+    assert P.plan_next(led, model, "b", SPECS, steps=("exists",), max_attempts=2) is None
+
+
+def test_efficiency_falls_back_to_the_other_kind_when_the_preferred_one_has_no_target(monkeypatch, tmp_path: Path) -> None:
+    """1 Oct: the preferred kind's only target (kernel.py activation) was held, so the round ended at 2 packages."""
+    led = Ledger(tmp_path / "l.jsonl", evidence_root=tmp_path)
+    calls: list[str] = []
+    monkeypatch.setattr(P, "_plan_activation", lambda *a, **k: calls.append("activation"))
+    monkeypatch.setattr(P, "_plan_size", lambda *a, **k: calls.append("size") or "SIZE-PLAN")
+    assert P.plan_efficiency(led, tmp_path, "b") == "SIZE-PLAN" and calls == ["size"]
+    calls.clear()
+    monkeypatch.setattr(P, "_plan_size", lambda *a, **k: calls.append("size"))
+    monkeypatch.setattr(P, "_plan_activation", lambda *a, **k: calls.append("activation") or "ACT-PLAN")
+    assert P.plan_efficiency(led, tmp_path, "b") == "ACT-PLAN" and calls == ["size", "activation"]
+    calls.clear()
+    assert P.plan_efficiency(led, tmp_path, "b", kind="size") is None and calls == ["size"]       # an explicit kind never falls back
+
+
+def test_a_pulled_back_target_is_not_skipped_but_a_failed_one_is(world) -> None:
+    """recent_failed_targets skips targets whose shrink FAILED; a RAM pull-back judged nothing, so it must stay plannable."""
+    led, model = world
+    objective_id = next(e.id for e in led.of_type("Objective") if e.record.statement == O.SELF_STATEMENT)
+    req = P.efficiency_requirement(led, objective_id)
+    out = {}
+    for path, why in (("pkg/a.py", "pulled back before evaluation (RAM tight)"), ("pkg/b.py", "claim REGRESSION")):
+        gap = led.append(M.Gap(created_by=M.Role.KERNEL, parents=(req,), kind=M.GapKind.ARCHITECTURE, description=f"shrink {path}",
+                               importance=0.3))
+        wp = led.append(M.WorkPackage(created_by=M.Role.KERNEL, parents=(gap,), package_id=P.next_package_id(led),
+                                      objective=f"shrink {path} without losing capability", why_it_exists="t", prerequisites=("none",),
+                                      inputs=(path,), outputs=(path,), implementation_requirements=("x",), interfaces=("x",),
+                                      data_flow="x", dependencies=(), test_requirements=("x",), validation_requirements=("x",),
+                                      expected_failure_modes=("x",), evidence_requirements=("x",), failure_conditions=("x",),
+                                      rollback_requirements=("x",), completion_criteria=("x",), anti_premature_completion=("x",),
+                                      meaningful_code_depth=0))
+        led.transition(wp, M.Status.IN_PROGRESS, "go", M.Role.KERNEL)
+        led.transition(wp, M.Status.FAILED, why, M.Role.KERNEL)
+        out[path] = wp
+    assert P.recent_failed_targets(led) == ["pkg/b.py"]
+
+
+def test_the_coverage_planner_picks_the_module_with_the_biggest_test_gap(tmp_path: Path) -> None:
+    put(tmp_path, "creator/__init__.py", "")
+    put(tmp_path, "creator/a.py", "def one():\n    return 1\n")
+    put(tmp_path, "creator/b.py", "def two():\n    return 2\n\n\ndef three():\n    return 3\n")
+    put(tmp_path, "tests/test_a.py", "def test_x():\n    assert True\n")
+    led = Ledger(tmp_path / "l.jsonl", evidence_root=tmp_path)
+    O.self_objective(led)
+    plan = P._plan_coverage(led, tmp_path, "base")
+    assert plan is not None and plan.step == "coverage" and plan.requirement_key == P.COVERAGE_KEY
+    wp = led.get(plan.work_package_id)
+    assert plan.component == "creator/b.py" and "two, three" in wp.implementation_requirements[0]
+    assert P._plan_coverage(led, tmp_path, "base", avoid=("creator/b.py",)).component == "creator/a.py"
+    put(tmp_path, "tests/test_all.py", "import creator\none, two, three\n")
+    assert P._plan_coverage(led, tmp_path, "base") is None                    # nothing left to cover
