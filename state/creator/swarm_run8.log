@@ -1,0 +1,3 @@
+{"package": "CP0049", "req": "EFF.activation", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "nupen-model-v2"}
+{"package": "CP0050", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "nupen-model-v2"}
+ROUND {"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 42, "pulled_back": 2, "by_outcome": {"CANCELLED": 2}, "free_gb": 10.2, "at": "2026-10-01T18:24:44"}

@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0050",
+ "requirement": "EFF.size",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 388.9,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "2 actions applied: lazy_import(hashlib), lazy_import(os)",
+   "by": "nupen-model-v2"
+  }
+ }
+}

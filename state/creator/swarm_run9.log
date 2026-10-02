@@ -1,0 +1,6 @@
+{"package": "CP0051", "req": "EFF.activation", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "nupen-model-v2"}
+{"package": "CP0052", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "nupen-model-v2"}
+ROUND {"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 42, "pulled_back": 2, "by_outcome": {"CANCELLED": 2}, "free_gb": 9.96, "at": "2026-10-01T19:12:49"}
+{"package": "CP0054", "req": "EFF.size", "outcome": "REJECTED", "reason": "claim REGRESSION: primary metric significantly worse", "by": "nupen-model-v2"}
+{"package": "CP0053", "req": "EFF.activation", "outcome": "ADOPTED", "reason": "merged 42a2630ab7f1", "by": "nupen-model-v2"}
+ROUND {"round": 2, "outcome": "WORKED", "packages": 2, "peak_parallel": 5, "pulled_back": 0, "by_outcome": {"REJECTED": 1, "ADOPTED": 1}, "free_gb": 9.22, "at": "2026-10-01T20:04:06"}

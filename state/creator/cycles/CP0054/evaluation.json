@@ -1,0 +1,134 @@
+{
+ "base": "c85b07f96d6a92e07c81c1eb364cc234b2c8e8e2",
+ "changed": {
+  "creator/student.py": "M"
+ },
+ "change_digest": "9ca4adc97d3df692",
+ "builds": true,
+ "build": {
+  "tree": "candidate",
+  "ok": true,
+  "kinds": [],
+  "new_issues": 0,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.0,
+    "checked": [
+     "creator/student.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.125,
+    "checked": [
+     "creator.student"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T011755-68da42a8",
+      "creator.student"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T011755-68da42a8",
+     "returncode": 0,
+     "seconds": 0.125,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"creator.student\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T011755-68da42a8\\\\creator\\\\student.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 61.938,
+    "checked": [],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T011755-68da42a8",
+     "returncode": 0,
+     "seconds": 61.938,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Success: no issues found in 161 source files\n",
+     "stderr": ""
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_action_choice_bench.py",
+   "tests/test_creator_action_student.py",
+   "tests/test_creator_student.py"
+  ],
+  "reasons": {
+   "tests/test_action_choice_bench.py": "imports a changed module (transitively)",
+   "tests/test_creator_action_student.py": "imports a changed module (transitively)",
+   "tests/test_creator_student.py": "imports a changed module (transitively)"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "24e11432fa4cbae0"
+ },
+ "report": {
+  "verdict": "CLEAN",
+  "summary": {
+   "PASS": 13,
+   "FIXED": 0,
+   "REGRESSION": 0,
+   "PREEXISTING": 0,
+   "NEW_FAILING": 0,
+   "NEW_PASSING": 0,
+   "REMOVED": 0,
+   "SKIPPED": 0,
+   "FLAKY": 0
+  },
+  "reasons": [],
+  "blocking": [],
+  "classes": {
+   "tests/test_action_choice_bench.py::test_bench_catches_position_bias": "PASS",
+   "tests/test_action_choice_bench.py::test_tasks_have_one_correct_and_are_deterministic": "PASS",
+   "tests/test_creator_action_student.py::test_candidates_are_valid_and_never_invent_names": "PASS",
+   "tests/test_creator_action_student.py::test_choice_applies_exactly_that_action_and_preserves_behaviour": "PASS",
+   "tests/test_creator_action_student.py::test_export_choices_maps_lessons_onto_actions": "PASS",
+   "tests/test_creator_action_student.py::test_garbage_and_out_of_range_replies_fail": "PASS",
+   "tests/test_creator_action_student.py::test_missing_runtime_cannot_attempt": "PASS",
+   "tests/test_creator_action_student.py::test_parse_choice": "PASS",
+   "tests/test_creator_student.py::test_learns_from_the_real_lesson_log_format": "PASS",
+   "tests/test_creator_student.py::test_learns_lazy_import_and_applies_to_unseen": "PASS",
+   "tests/test_creator_student.py::test_nothing_matches_and_non_adopted_ignored": "PASS",
+   "tests/test_creator_student.py::test_other_templates": "PASS",
+   "tests/test_creator_student.py::test_real_packages_get_their_kind_from_the_plan_and_keep_lf_endings": "PASS"
+  },
+  "flaky_history": {},
+  "timing": {
+   "baseline_s": 1.015,
+   "candidate_s": 1.891
+  }
+ },
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T011755-68da42a8-evidence"
+}
