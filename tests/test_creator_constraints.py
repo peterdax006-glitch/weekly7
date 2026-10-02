@@ -38,6 +38,18 @@ def by_name(rep: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {m["name"]: m for m in rep["ranked"] + rep["drivers"]}
 
 
+def test_cycle_time_names_the_dominant_recorded_stage(tmp_path: Path) -> None:
+    for i, (cand, post) in enumerate([(700.0, 300.0), (800.0, 350.0)]):
+        cycle(tmp_path, f"CP{i}", "ADOPTED", 1800, 2)
+        p = tmp_path / "cycles" / f"CP{i}" / "cycle.json"
+        j = json.loads(p.read_text(encoding="utf-8"))
+        j["details"]["stages"] = {"worker": 100.0, "cand_assessment_0": cand, "cand_assessment_1": cand, "post_merge": post}
+        p.write_text(json.dumps(j), encoding="utf-8")
+        os.utime(p, ((NOW - dt.timedelta(hours=2)).timestamp(),) * 2)
+    d = CON.cycle_time_metric(tmp_path, NOW, 24.0).detail
+    assert d["dominant_stage"].startswith("cand_assessment") and d["stage_breakdown_seconds"]["post_merge"] == 650.0
+
+
 def test_every_metric_is_computed_from_planted_records(tmp_path: Path) -> None:
     s = tmp_path
     cycle(s, "CP1", "ADOPTED", 1800, 2, changed=["creator/kernel.py"], eval_s=120)

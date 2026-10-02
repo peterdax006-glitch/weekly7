@@ -107,6 +107,19 @@ class Cycle:
     requirement: str
     eval_seconds: float = 0.0
     changed: tuple[str, ...] = ()
+    stages: dict[str, float] = dataclasses.field(default_factory=dict)   # kernel per-stage wall seconds (CycleReport.details['stages'])
+
+
+def _stage_seconds(cj: dict[str, Any]) -> dict[str, float]:
+    raw = (cj.get("details") or {}).get("stages") or {}
+    out: dict[str, float] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                continue
+    return out
 
 
 def read_cycles(state: Path) -> list[Cycle]:
@@ -130,7 +143,7 @@ def read_cycles(state: Path) -> list[Cycle]:
         worker = (cj.get("details") or {}).get("worker") or {}
         out.append(Cycle(str(cj.get("package", d.name)), str(cj.get("outcome", "")), str(cj.get("reason", "")),
                          float(cj.get("seconds") or 0.0), at, str(worker.get("by") or ""), str(cj.get("requirement", "")), es,
-                         tuple(sorted((ev.get("changed") or {}).keys()))))
+                         tuple(sorted((ev.get("changed") or {}).keys())), _stage_seconds(cj)))
     return out
 
 
@@ -270,10 +283,17 @@ def cycle_time_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
     ev = sum(c.eval_seconds for c in cur if c.outcome in ("ADOPTED", "REJECTED"))
     tot = sum(done)
     stages = {"evaluation_build": round(ev, 1), "worker_sandbox_tests_merge": round(max(tot - ev, 0.0), 1)}
+    fine: dict[str, float] = {}
+    for c in cur:
+        if c.outcome in ("ADOPTED", "REJECTED"):
+            for k, v in c.stages.items():
+                fine[k] = fine.get(k, 0.0) + v
     loss = max(0.0, 1.0 - p25 / m)
     return Metric("cycle_time", round(m / 60.0, 2), "median minutes", f"last {window_h:g}h", None if pm is None else round(pm / 60.0, 2),
                   _trend(m, pm), round(loss, 4), "meta",
-                  {"p25_minutes": round(p25 / 60.0, 2), "stage_seconds": stages, "dominant_stage": max(stages, key=lambda k: stages[k]), "n": len(done)}, "process")
+                  {"p25_minutes": round(p25 / 60.0, 2), "stage_seconds": stages, "dominant_stage": max(stages, key=lambda k: stages[k]), "n": len(done),
+                   **({"stage_breakdown_seconds": {k: round(v, 1) for k, v in sorted(fine.items(), key=lambda kv: -kv[1])},
+                       "dominant_stage": max(fine, key=lambda k: fine[k])} if fine else {})}, "process")
 
 
 def eval_cost_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:

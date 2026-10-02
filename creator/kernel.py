@@ -22,6 +22,7 @@ One CYCLE, every step recorded in the development ledger and in state/creator/cy
 never pushes to a remote and never touches protected paths (the sandbox refuses them)."""
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import json
@@ -30,7 +31,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Protocol, Sequence
+from typing import Any, Callable, Iterator, Mapping, Optional, Protocol, Sequence
 
 from creator import build as B
 from creator import fundamentals as FU
@@ -72,6 +73,7 @@ class KernelConfig:
     steps: tuple[str, ...] = P.WORKER_STEPS             # which requirement steps workers may be planned for (never 'validated')
     mode: str = "auto"                                  # auto: gaps, then shrink when none | gaps | efficiency (shrink only)
     measure_memory: bool = True
+    reuse_candidate_tests: bool = True                  # 2nd candidate replicate / post-merge check serve PASS files of cand0 (same reach digest)
 
     @property
     def ledger_path(self) -> Path:
@@ -174,10 +176,17 @@ class Assessed:
     rows: tuple[G.Assessment, ...]
     audit: AUD.AuditReport
     snapshot: Path
+    tests: Mapping[str, SM.TestEvidence] = dataclasses.field(default_factory=dict, compare=False)
+
+
+def pass_reuse(a: Assessed) -> dict[str, tuple[str, str]]:
+    """test file -> (reach digest, junit xml) for every file that PASSED in `a`; collect_test_evidence serves a file from it only
+    when its reach digest on the tree being assessed equals the recorded one (failures always re-run)."""
+    return {t: (e.source_digest, e.where) for t, e in a.tests.items() if e.outcome == "PASS" and e.where}
 
 
 def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_tests: bool = True,
-                audit: bool = True) -> Assessed:
+                audit: bool = True, reuse: Optional[Mapping[str, tuple[str, str]]] = None) -> Assessed:
     """Fresh evidence for `root` (main or a sandbox): run the declared tests, build the self-model, re-check every requirement.
     Main's round assessment (label "main") serves passing files from an earlier assessment of the byte-identical clean tree;
     every other label (the candidate replicates, the post-merge check) runs everything."""
@@ -188,7 +197,7 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
     cache = TC.TreeCache(cfg.state / "evidence" / "tree_cache")
     key = TC.tree_key(root, T.PytestConfig().python) if run_tests and tests else None   # None: dirty or sandbox tree -> all fresh
     ev = SM.collect_test_evidence(root, tests, evd / "test_evidence.json", timeout=cfg.test_timeout, junit_dir=evd / "junit",
-                                  parallel=cfg.test_parallel, reuse=cache.lookup(key) if label == "main" else None) \
+                                  parallel=cfg.test_parallel, reuse=(cache.lookup(key) if label == "main" else reuse)) \
         if run_tests and tests else {}
     if key and TC.tree_key(root, T.PytestConfig().python) == key:       # the tests left the tree as they found it
         cache.store(key, {t: ev[t] for t in tests if t in ev})
@@ -202,7 +211,7 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
         tmp.replace(snap)
     rows = tuple(G.assess(led, model))
     rep = AUD.audit(led, model, repo=cfg.repo) if audit else AUD.AuditReport((), (), {})
-    return Assessed(model, rows, rep, snap)
+    return Assessed(model, rows, rep, snap, {t: ev[t] for t in tests if t in ev})
 
 
 def sandbox_pytest(cfg: KernelConfig) -> T.PytestConfig:
@@ -573,6 +582,22 @@ def diagnose_rejection(led: Ledger, plan: P.Plan, ev: Optional[S.Evaluation]) ->
             "failure_id": fid}
 
 
+class _Stages:
+    """Per-stage wall seconds of one cycle (time.monotonic stamps only; never changes what runs). Recorded as
+    CycleReport.details["stages"]; constraints.cycle_time_metric names the dominant stage from it."""
+
+    def __init__(self) -> None:
+        self.sec: dict[str, float] = {}
+
+    @contextlib.contextmanager
+    def __call__(self, name: str) -> Iterator[None]:
+        t = time.monotonic()
+        try:
+            yield
+        finally:
+            self.sec[name] = round(self.sec.get(name, 0.0) + time.monotonic() - t, 3)
+
+
 class Cancelled(Exception):
     """The swarm pulled this worker back (RAM tight): its sandbox is discarded, nothing is adopted."""
 
@@ -582,8 +607,10 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             checkpoint: bool = True, t0: Optional[float] = None) -> CycleReport:
     """3-8 for one planned package. `lock` serialises everything that changes the repository itself (sandbox creation, merge,
     post-merge verification, rollback) when several run in parallel; `cancel` (an Event) is checked between phases."""
-    import contextlib
-    t0 = time.monotonic() if t0 is None else t0
+    t_start = time.monotonic()
+    t0 = t_start if t0 is None else t0
+    stage = _Stages()
+    stage.sec["before_execute"] = round(t_start - t0, 3)         # prepare + curriculum/student planning (the caller's stamp)
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     guard = lock if lock is not None else contextlib.nullcontext()
 
@@ -593,15 +620,16 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     wp = led.get(plan.work_package_id)
     assert isinstance(wp, M.WorkPackage)
     led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
-    rep = CycleReport(n, "ERROR", plan.package_id, plan.requirement_key, details={"recovered": list(recovered)})
-    with guard:
+    rep = CycleReport(n, "ERROR", plan.package_id, plan.requirement_key, details={"recovered": list(recovered), "stages": stage.sec})
+    with stage("sandbox_open"), guard:
         sb = S.Sandbox.open(cfg.repo, base_sha, cfg.scratch, label=plan.package_id, hide=cfg.hide,
                              omit=cfg.omit)   # 3 SANDBOX
     locked = False
     ev: Optional[S.Evaluation] = None
     try:
         checkpoint_cancel("work")
-        work = worker(plan, wp, sb.path)                                # 4 WORK
+        with stage("worker"):
+            work = worker(plan, wp, sb.path)                            # 4 WORK
         rep.calls, rep.usd = work.calls, work.usd
         rep.details["worker"] = {"claimed_done": work.claimed_done, "notes": work.notes, "by": work.by}
         if work.refused:
@@ -627,12 +655,22 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         pcfg = sandbox_pytest(cfg)
         served = TC.TreeCache(cfg.state / "evidence" / "tree_cache").lookup(TC.tree_key(cfg.repo, pcfg.python, rev=base_sha,
                                                                                          require_clean=False))
-        ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()})
-        before, after = _test_sources(sb.path, base_sha, change.files)
-        weak = AUD.check_test_weakening(before, after)
-        planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
-        fund = FU.evaluate_candidate(sb.path, base_sha, list(change.paths), plan.step, work.notes)   # advisory: recorded, never blocking
-        cand = [assess_tree(cfg, led, sb.path, f"{plan.package_id}_cand{r}", audit=False) for r in range(2)]
+        with stage("evaluation"):
+            ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()})
+        _eval_stages(stage.sec, ev)
+        with stage("audit_checks"):
+            before, after = _test_sources(sb.path, base_sha, change.files)
+            weak = AUD.check_test_weakening(before, after)
+            planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
+        with stage("fundamentals"):
+            fund = FU.evaluate_candidate(sb.path, base_sha, list(change.paths), plan.step, work.notes)   # advisory: recorded, never blocking
+        cand: list[Assessed] = []
+        for r in range(2):
+            with stage(f"cand_assessment_{r}"):
+                # replicate 1 re-derives every requirement check on the candidate tree; the declared test files that PASSED in
+                # replicate 0 are served from it when their reach digest (test + every module it reaches) is unchanged.
+                cand.append(assess_tree(cfg, led, sb.path, f"{plan.package_id}_cand{r}", audit=False,
+                                        reuse=(pass_reuse(cand[0]) if r and cfg.reuse_candidate_tests else None)))
         evid = [_evidence_file(cfg, plan.package_id, "evaluation.json", ev.to_record()),
                 M.EvidenceRef.of(main.snapshot, cfg.repo, "selfmodel"), M.EvidenceRef.of(cand[0].snapshot, cfg.repo, "selfmodel"),
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
@@ -675,18 +713,25 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         decision = M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ADOPT,
                               reason=f"{plan.requirement_key} closed with no regression", claim_id=cid)
         checkpoint_cancel("adoption")
-        guard.__enter__()                                               # one adoption + verification at a time
+        with stage("lock_wait"):
+            guard.__enter__()                                           # one adoption + verification at a time
         locked = True
         problems = led.problems(decision)                               # 6 DECIDE (validated before the merge)
         if problems:
             raise _Reject(f"ledger refuses the ADOPT decision: {problems}")
-        res = S.adopt(sb, decision, f"{plan.package_id} {plan.requirement_key}")
+        with stage("merge"):
+            res = S.adopt(sb, decision, f"{plan.package_id} {plan.requirement_key}")
         merge_ev = _evidence_file(cfg, plan.package_id, res.merge_commit, f"{res.merge_commit}\n")
         led.append(dataclasses.replace(decision, evidence=(dataclasses.replace(merge_ev, kind="merge_commit"),)))
         rep.merge_commit = res.merge_commit
         sb.cleanup_base()
         sb.close()
-        after_main = assess_tree(cfg, led, cfg.repo, f"{plan.package_id}_main_after")   # 7 VERIFY
+        post_reuse: dict[str, tuple[str, str]] = {}
+        if cfg.reuse_candidate_tests and _same_tree(cfg.repo, res.merge_commit, res.sandbox_commit):
+            post_reuse = pass_reuse(cand[0])                            # merged tree is byte-identical to the one cand0 tested
+        with stage("post_merge"):
+            after_main = assess_tree(cfg, led, cfg.repo, f"{plan.package_id}_main_after",     # 7 VERIFY
+                                     reuse=post_reuse or None)
         G.sync(led, after_main.model)
         lost_after = sorted({r.key for r in main.rows if r.met} - {r.key for r in after_main.rows if r.met})
         still = plan.step in P.EFFICIENCY_STEPS or next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
@@ -694,7 +739,8 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             why = ("requirement not met on main after merge" if not still else
                    f"requirements lost on main after merge: {lost_after}" if lost_after else
                    f"audit red after merge: {[f.check for f in after_main.audit.findings[:5]]}")
-            revert = S.rollback(cfg.repo, res.merge_commit, why)
+            with stage("rollback"):
+                revert = S.rollback(cfg.repo, res.merge_commit, why)
             led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ROLLBACK,
                                   reason=f"{why}; reverted by {revert[:12]}"))
             fid = led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(plan.work_package_id,), subject_id=plan.experiment_id,
@@ -749,6 +795,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         if locked:
             guard.__exit__(None, None, None)
         rep.seconds = round(time.monotonic() - t0, 1)                   # 8 RECORD
+        t_rec = time.monotonic()
         led.append(M.StrategyOutcome(created_by=M.Role.KERNEL, parents=(plan.work_package_id,),
                                      strategy_id=(rep.details.get("worker", {}).get("by") or getattr(worker, "name", "worker")),
                                      problem_class=plan.step,
@@ -756,9 +803,33 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
                                      duration_s=rep.seconds))
         if checkpoint:
             led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
+        stage.sec["record"] = round(time.monotonic() - t_rec, 3)
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
         _append_log_line(cfg.state / "kernel_log.jsonl", json.dumps(dataclasses.asdict(rep), default=str))
     return rep
+
+
+def _same_tree(repo: Path, a: str, b: str) -> bool:
+    """True when commits `a` and `b` have the identical git tree (so identical bytes in every tracked file)."""
+    try:
+        ta, tb = (S.git(repo, "rev-parse", f"{c}^{{tree}}", check=False) for c in (a, b))
+    except Exception:                                                   # noqa: BLE001 - unknown means "run everything"
+        return False
+    return ta.returncode == 0 and tb.returncode == 0 and bool(ta.stdout.strip()) and ta.stdout.strip() == tb.stdout.strip()
+
+
+def _eval_stages(sec: dict[str, float], ev: Optional[S.Evaluation]) -> None:
+    """Split the sandbox evaluation's wall time into its timed parts; the remainder (selection, the base/candidate setup,
+    flaky reruns, report assembly) stays in evaluation_other."""
+    total = sec.get("evaluation", 0.0)
+    try:
+        build: float = sum((float(getattr(st, "seconds", 0.0) or 0.0) for st in (ev.build.steps if ev and ev.build else ())), 0.0)
+        tm = (ev.report.timing if ev and ev.report else None) or {}
+        base_s, cand_s = float(tm.get("baseline_s", 0.0) or 0.0), float(tm.get("candidate_s", 0.0) or 0.0)
+    except (AttributeError, TypeError, ValueError):
+        return
+    sec["evaluation_build"], sec["evaluation_base"], sec["evaluation_candidate"] = round(build, 3), round(base_s, 3), round(cand_s, 3)
+    sec["evaluation_other"] = round(max(total - build - base_s - cand_s, 0.0), 3)
 
 
 def _save_pending(cfg: KernelConfig, plan: P.Plan, sb: S.Sandbox, rep: CycleReport) -> None:
