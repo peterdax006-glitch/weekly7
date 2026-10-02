@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
 from creator import generator as G
+from creator import reasoning as RE
 from creator.curriculum import Lesson, LessonLog
 
 if TYPE_CHECKING:
@@ -213,7 +214,8 @@ class ModelStudent:
             why = f"files no longer parse: {bad}" if bad else f"no edit applied: {'; '.join(refused)[:300]}"
             return WorkResult(False, why, calls=1, reasoning=reasoning)
         note = f"{len(applied)} edits applied to {', '.join(sorted(set(changed)))}" + (f"; refused: {len(refused)}" if refused else "")
-        return WorkResult(True, note, calls=1, by=self.name, reasoning=reasoning)
+        predicted = {"size_delta": float(sum(RE.nodes(e[2]) - RE.nodes(e[1]) for e in edits if e[0] in changed))}       # what the edits themselves say
+        return WorkResult(True, note, calls=1, by=self.name, reasoning=reasoning, predicted=predicted)
 
 
 def _is_test(path: str) -> bool:

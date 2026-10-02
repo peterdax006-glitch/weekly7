@@ -94,6 +94,7 @@ class WorkResult:
     by: str = ""                                        # which worker actually made the change (self_share counts it)
     reasoning: str = ""                                 # free-text reasoning of the solver (curriculum lesson); optional
     deferred: bool = False                              # handed over, not attempted: no attempt is used up (planner.attempts_for)
+    predicted: Optional[dict[str, float]] = None        # the solver's predicted effect of its change, e.g. {'size_delta': -12} (creator.reasoning)
 
 
 class Worker(Protocol):

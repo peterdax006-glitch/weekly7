@@ -434,6 +434,14 @@ def learning_metrics(state: Path, now: dt.datetime, window_h: float) -> list[Met
     out.append(Metric("student_skill", round(ad, 4), "student adopted share of attempts", label, None, "new", round(sk, 4), "meta",
                       {"measured_not_adopted_share": round(sk, 4), "per_kind": {k: {"attempts": a, "adopted": d} for k, (a, d) in sorted(kinds.items())},
                        "kinds_every_student_fails": sorted(k for k, (a, d) in kinds.items() if a >= 3 and d == 0)}, "goal"))
+    from creator import reasoning as RE
+    cal = RE.calibration(sc)
+    claimed = sum(c["claimed"] for c in cal.values())
+    if claimed:                                                          # a student that cannot predict its own change is a constraint
+        well = sum(c["well_calibrated"] for c in cal.values())
+        out.append(Metric("calibration", round(well / claimed, 4), "student claimed changes whose predicted effect matched the measured one", label, None, "new",
+                          round(1.0 - well / claimed, 4), "information", {"per_student": cal, "claimed": claimed, "well_calibrated": well,
+                                                                          "formula": "loss = 1 - well calibrated / claimed (no prediction counts as a miss)"}, "goal"))
     # teacher dependence: improvements only the teacher can make
     sc_all = CUR.student_scores(cur)
     ts = sc_all.get("teacher_share")
