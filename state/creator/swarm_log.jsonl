@@ -1,1 +1,2 @@
 {"round": 1, "outcome": "WORKED", "packages": 3, "peak_parallel": 35, "pulled_back": 0, "by_outcome": {"REJECTED": 3}, "free_gb": 8.29, "at": "2026-10-01T17:58:16"}
+{"round": 1, "outcome": "WORKED", "packages": 2, "peak_parallel": 42, "pulled_back": 2, "by_outcome": {"CANCELLED": 2}, "free_gb": 10.2, "at": "2026-10-01T18:24:44"}
