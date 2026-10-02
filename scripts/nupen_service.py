@@ -80,7 +80,17 @@ def claim_pidfile() -> bool:
         old = 0
     if old and old != os.getpid() and alive(old):
         return False                                                        # never displace a live supervisor
-    PIDFILE.write_text(str(os.getpid()), encoding="utf-8")
+    PIDFILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        PIDFILE.unlink()                                                    # absent, ours, or judged stale above
+    except OSError:
+        pass
+    try:
+        fd = os.open(str(PIDFILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY)    # exclusive: of two supervisors starting together, one loses
+    except OSError:
+        return False
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
     return True
 
 

@@ -158,3 +158,11 @@ def test_candidates_ignore_the_root_state_directory(work: Path) -> None:
     st = A.ActionStudent(work / "none.jsonl", llm=FakeLLM(""))
     assert all(not a.path.startswith("state") for a in st.candidates(PKG, work))
     assert "state/run1/junk.py" not in A._py_texts(work) and "app/u.py" in A._py_texts(work)
+
+
+def test_parse_choice_accepts_only_numbers_and_separators() -> None:
+    assert A.parse_choice("CHOICE: 1, 3\nWHY: x", 5) == [1, 3]
+    assert A.parse_choice("CHOICE: 2 and 4.", 5) == [2, 4]
+    assert A.parse_choice("CHOICE: 1 2", 5) == [1, 2]
+    for junk in ("CHOICE: 1 dnn 2", "CHOICE: a1", "CHOICE: and", "CHOICE: 1,", "CHOICE: 9"):
+        assert A.parse_choice(junk, 5) is None, junk

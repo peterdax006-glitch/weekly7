@@ -330,7 +330,7 @@ def parse_choice(reply: str, n: int) -> Optional[list[int]]:
     line = m.group(1).strip()
     if re.fullmatch(r"none\.?", line, re.I):
         return None
-    if not re.fullmatch(r"[\d\s,;and]*", line, re.I) or not re.search(r"\d", line):
+    if not re.fullmatch(r"\d+(?:(?:\s*[,;]\s*|\s+and\s+|\s+)\d+)*\s*\.?", line, re.I):
         return None
     nums = [int(x) for x in re.findall(r"\d+", line)]
     if any(not 1 <= x <= n for x in nums):
