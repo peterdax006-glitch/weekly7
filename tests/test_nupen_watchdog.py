@@ -95,3 +95,28 @@ def test_the_supervisor_survives_an_error_and_keeps_the_watchdog(tmp_path: Path,
     text = (tmp_path / "svc.log").read_text(encoding="utf-8")
     assert calls["n"] == 2 and "supervisor error, retrying" in text and "RuntimeError: boom" in text
     assert (tmp_path / "svc.heartbeat").exists()
+
+
+def test_two_starters_racing_produce_one_watchdog(wd, tmp_path: Path) -> None:   # type: ignore[no-untyped-def]
+    """2 Oct: two watchdogs started in the same second both claimed with read-then-write. The exclusive create lets one win."""
+    assert wd.claim() is True
+    other_pid = os.getppid()                                                # pretend a second, live process tries next
+    real_getpid = os.getpid
+    try:
+        wd.os.getpid = lambda: other_pid                                    # type: ignore[assignment]
+        assert wd.claim() is False                                          # the live holder is never displaced
+    finally:
+        wd.os.getpid = real_getpid                                          # type: ignore[assignment]
+    (tmp_path / "wd.pid").write_text("999999", encoding="utf-8")             # a dead holder's leftover is taken over
+    assert wd.claim() is True and (tmp_path / "wd.pid").read_text(encoding="utf-8") == str(os.getpid())
+
+
+def test_the_supervisor_does_not_spawn_a_second_watchdog_while_the_first_starts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    monkeypatch.setattr(svc, "WATCHDOG_PIDFILE", tmp_path / "wd.pid")
+    monkeypatch.setattr(svc, "LOG", tmp_path / "svc.log")
+    spawned: list[int] = []
+    monkeypatch.setattr(svc.subprocess, "Popen", lambda *a, **k: spawned.append(1))
+    svc.ensure_watchdog()
+    svc.ensure_watchdog()                                                   # same second, pidfile not written yet
+    assert spawned == [1]

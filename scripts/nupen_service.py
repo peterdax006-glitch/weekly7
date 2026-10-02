@@ -230,6 +230,9 @@ def beat() -> None:
         pass
 
 
+_WATCHDOG_SPAWNED = -1e9
+
+
 def ensure_watchdog() -> None:
     """Keep the watchdog alive (2 Oct, owner: 'ensure whenever Nupen is supposed to be running it is running'): the supervisor
     and the watchdog each restart the other, so one dying - or being killed - never leaves Nupen down."""
@@ -241,6 +244,10 @@ def ensure_watchdog() -> None:
         pid = 0
     if pid and alive(pid):
         return
+    global _WATCHDOG_SPAWNED
+    if time.monotonic() - _WATCHDOG_SPAWNED < 120.0:                    # a just-started watchdog has not claimed its pidfile yet
+        return
+    _WATCHDOG_SPAWNED = time.monotonic()
     pyw = ROOT / ".venv" / ("Scripts/pythonw.exe" if sys.platform == "win32" else "bin/python")
     exe = str(pyw if pyw.exists() else sys.executable)
     flags = (0x00000008 | 0x00000200 | NO_WINDOW) if sys.platform == "win32" else 0     # detached, own group, no window

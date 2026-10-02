@@ -116,10 +116,24 @@ def check_once(now: Optional[float] = None, last_start: float = 0.0) -> str:
 
 
 def claim() -> bool:
+    """Exactly one watchdog: an EXCLUSIVE create of the pidfile decides (2 Oct: two watchdogs started in the same second both
+    'claimed' with a read-then-write). A pidfile left by a dead holder is removed first; a live holder is never displaced."""
     old = _read_pid(PIDFILE)
-    if old and old != os.getpid() and _alive(old):
+    if old == os.getpid():
+        return True
+    if old and _alive(old):
         return False
-    PIDFILE.write_text(str(os.getpid()), encoding="utf-8")
+    if old:
+        try:
+            PIDFILE.unlink()
+        except OSError:
+            pass
+    try:
+        fd = os.open(PIDFILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False                                                      # another starter won the race
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
     return True
 
 
