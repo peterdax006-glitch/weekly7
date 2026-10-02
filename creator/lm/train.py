@@ -11,17 +11,18 @@ from creator.lm.paths import ckpt_dir, data_dir
 STOP_FILE = "STOP"
 
 
-def _batch(data: Any, rng: Any, bs: int, ctx: int) -> tuple[Any, Any]:
+def _batch(data: Any, rng: Any, bs: int, ctx: int, device: str = "cpu") -> tuple[Any, Any]:
     import numpy as np
     import torch
     ix = rng.integers(0, len(data) - ctx - 1, size=bs)
     x = np.stack([data[i: i + ctx] for i in ix]).astype(np.int64)
     y = np.stack([data[i + 1: i + 1 + ctx] for i in ix]).astype(np.int64)
-    return torch.from_numpy(x), torch.from_numpy(y)
+    return torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
 
 
 def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: float = 2e-3,
-          cfg: LMConfig | None = None, save_every_min: float = 5.0, log: Any = print) -> dict[str, Any]:
+          cfg: LMConfig | None = None, save_every_min: float = 5.0, log: Any = print,
+          device: str = "cpu") -> dict[str, Any]:
     import numpy as np
     import torch
     torch.set_num_threads(threads)
@@ -36,7 +37,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
     step, tokens_seen, elapsed_total = 0, 0, 0.0
     blob = torch.load(str(resume), map_location="cpu", weights_only=True) if resume.exists() else None
     cfg = LMConfig(**blob["cfg"]) if blob else (cfg or LMConfig(vocab_size=tok.vocab_size))
-    model = build_model(cfg)
+    model = build_model(cfg).to(device)                              # device: 'cuda' on a machine whose LM env has a CUDA torch
     opt = torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.9, 0.95), weight_decay=0.1)
     if blob:
         model.load_state_dict(blob["model"])
@@ -47,7 +48,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
     n_params = count_params(model)
 
     def save(final_name: str | None = None) -> None:
-        state = {"cfg": cfg.to_dict(), "model": model.state_dict()}
+        state = {"cfg": cfg.to_dict(), "model": {k: v.cpu() for k, v in model.state_dict().items()}}   # checkpoints are device-free
         torch.save({**state, "opt": opt.state_dict(), "step": step, "tokens": tokens_seen, "elapsed": elapsed_total + time.time() - t0},
                    str(resume) + ".tmp")
         (ck / "resume.pt.tmp").replace(resume)
@@ -70,7 +71,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         for g in opt.param_groups:
             g["lr"] = cur_lr
         for _ in range(accum):
-            x, y = _batch(data, rng, batch, cfg.ctx)
+            x, y = _batch(data, rng, batch, cfg.ctx, device)
             _, loss = model(x, y)
             (loss / accum).backward()
             losses.append(float(loss))

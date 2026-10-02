@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from creator import constraints as CONSTRAINTS
+from creator import device
 from creator import goals as GOALS
 from creator import kernel as K
 from creator import model as M
@@ -147,7 +149,9 @@ class waiting_on_thinker:
 
 def user_idle_seconds() -> float:
     """Seconds since the owner last touched keyboard or mouse (Windows GetLastInputInfo). Unknown = 0 (assume the owner is
-    there: the cautious answer)."""
+    there: the cautious answer). Linux: xprintidle, macOS: ioreg (creator/device.py)."""
+    if sys.platform != "win32":
+        return device.idle_seconds_unix()
     try:
         import ctypes
 
@@ -262,7 +266,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     """`scheduled` (default): gap work is chosen as a batch by creator.schedule (dependency graph, critical path, no two plans on
     one component/file); False keeps the old one-package-at-a-time K.plan_one path."""
     gov = governor or Governor()
-    scratch_dir = cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
+    scratch_dir = cfg.scratch or device.sandbox_root(cfg.repo)
     if gov.observe is None:                                             # measure what workers really use
         mem_peak = {"gb": 0.0}
 
@@ -338,7 +342,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             youngest = max(cheap, key=lambda r: r.started, default=None)
             if youngest is not None:
                 youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
-                stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
+                stop_worker_processes(cfg.scratch or device.sandbox_root(cfg.repo),
                                       youngest.plan.package_id)
                 pulled += 1
         elif queue and ramped and gov.can_start(load):                  # a planned package starts once the ramp allows

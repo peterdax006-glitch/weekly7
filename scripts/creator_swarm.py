@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from creator import curriculum as CUR  # noqa: E402
+from creator import device as DEV  # noqa: E402
 from creator import kernel as K  # noqa: E402
 from creator import process_levers as PL  # noqa: E402
 from creator import selfworkers as SW  # noqa: E402
@@ -114,10 +115,10 @@ def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
-    ap.add_argument("--max-workers", type=int, default=32)
+    ap.add_argument("--max-workers", type=int, default=int(DEV.settings()["max_workers"]))   # RAM-derived (32 on 16 GB)
     ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
     ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
-    ap.add_argument("--test-parallel", type=int, default=6)
+    ap.add_argument("--test-parallel", type=int, default=int(DEV.settings()["test_slots"]))   # RAM-derived (6 on 16 GB)
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
@@ -128,6 +129,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--teacher-presence", action="store_true")      # hand off only while the teacher's heartbeat is fresh
     ap.add_argument("--user-aware", action="store_true")            # keep 25% of RAM free while the owner is at the keyboard
     a = ap.parse_args(argv)
+    DEV.write_snapshot(log=print)                                   # state/creator/device.json; a changed machine shows in the log
     session = None if a.no_session else SerialSession(a.handoff_hours, HEARTBEAT if a.teacher_presence else None)
 
     cur = make_curriculum(model_student=not a.no_model_student)

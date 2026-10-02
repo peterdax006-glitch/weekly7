@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator, Mapping, Optional, Sequence
 
 from creator import build as B
+from creator import device
 from creator import testrun as T
 
 PROTECTED: tuple[str, ...] = (
@@ -159,7 +160,7 @@ class Sandbox:
         if not commit_exists(repo, base):
             raise SandboxError(f"base {base!r} is not a known commit - a sandbox never starts from an unknown state")
         base_sha = git(repo, "rev-parse", base).stdout.strip()
-        scratch_dir = Path(scratch).resolve() if scratch else repo.parent / f".{repo.name}_creator_sandboxes"
+        scratch_dir = Path(scratch).resolve() if scratch else device.sandbox_root(repo)
         if scratch_dir == repo or repo in scratch_dir.parents:
             raise SandboxError("the scratch directory must be OUTSIDE the main working tree")
         scratch_dir.mkdir(parents=True, exist_ok=True)
@@ -446,7 +447,7 @@ def recover(repo: str | Path, scratch: str | Path | None = None) -> list[dict[st
     change was never adopted unless a merge commit names it; nothing is assumed to have succeeded."""
     repo = Path(repo).resolve()
     git(repo, "worktree", "prune", check=False)
-    scratch_dir = Path(scratch).resolve() if scratch else repo.parent / f".{repo.name}_creator_sandboxes"
+    scratch_dir = Path(scratch).resolve() if scratch else device.sandbox_root(repo)
     found: list[dict[str, Any]] = []
     branches = {b.strip().lstrip("*+ ").strip() for b in git(repo, "branch", "--list", f"{SANDBOX_PREFIX}*").stdout.splitlines()}
     merged = git(repo, "log", "--merges", "--format=%s", "-n", "500", check=False).stdout

@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine import config as K
 
-GH = r"C:\Users\Peter\tools\gh\bin\gh.exe"
+GH = str(Path.home() / "tools" / "gh" / "bin" / "gh.exe")      # falls back to gh on PATH
 OUT = K.DATA / "intraday"
 
 

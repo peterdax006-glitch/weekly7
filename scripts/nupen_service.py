@@ -29,6 +29,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:                     # launched as a script its path starts at scripts/: 2 Oct, the LM trainer's
     sys.path.insert(0, str(ROOT))                 # `from creator import swarm` killed the supervisor right after 'up'
+
+from creator import device as DEV  # noqa: E402
 STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
 PIDFILE = STATE / "nupen_service.pid"
@@ -40,9 +42,9 @@ BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 IDLE_PRIORITY = 0x00000040
 LM_LOG = STATE / "lm_service.log"
-LM_PYTHON = Path.home() / "creator_runtime" / "lmenv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+LM_PYTHON = DEV.lm_python()
 LM_IDLE_S = 600.0                    # the owner must have been away this long before training starts
-LM_MIN_FREE_GB = 3.0
+LM_MIN_FREE_GB = float(DEV.settings()["lm_min_free_gb"])    # 3.0 on the 16 GB development machine; scales with RAM
 LM_MINUTES = 20
 LM_GRACE_S = 90.0                    # how long a run gets to stop itself via its STOP file before the process tree is ended
 LM_RESTART_GAP_S = 60.0              # never relaunch faster than this (a crashing trainer must not spin)
@@ -146,7 +148,7 @@ class LMTrainer:
         self.python, self.idle, self.free_gb, self.clock, self.log = python, idle, free_gb, clock, log
         self.spawn = spawn or self._spawn
         self.stop_tree = stop or stop_tree
-        self.stop_file = stop_file if stop_file is not None else Path.home() / "creator_runtime" / "lmckpt" / "STOP"
+        self.stop_file = stop_file if stop_file is not None else DEV.runtime_dir() / "lmckpt" / "STOP"
         self.idle_s, self.min_free_gb, self.grace_s, self.restart_gap_s = idle_s, min_free_gb, grace_s, restart_gap_s
         self.proc: Any = None
         self.stopping_since: float | None = None
@@ -248,7 +250,7 @@ def ensure_watchdog() -> None:
     if time.monotonic() - _WATCHDOG_SPAWNED < 120.0:                    # a just-started watchdog has not claimed its pidfile yet
         return
     _WATCHDOG_SPAWNED = time.monotonic()
-    pyw = ROOT / ".venv" / ("Scripts/pythonw.exe" if sys.platform == "win32" else "bin/python")
+    pyw = DEV.venv_python(ROOT / ".venv", windowless=True)
     exe = str(pyw if pyw.exists() else sys.executable)
     flags = (0x00000008 | 0x00000200 | NO_WINDOW) if sys.platform == "win32" else 0     # detached, own group, no window
     try:
@@ -274,6 +276,7 @@ def run(python: str, poll_s: float = 10.0) -> int:
         log("another supervisor is alive; exiting")
         return 0
     log(f"supervisor up pid={os.getpid()}")
+    DEV.write_snapshot(log=log)                                         # state/creator/device.json; a changed machine is logged
     try:
         import faulthandler
         faulthandler.enable(open(CRASHLOG, "a", encoding="utf-8"))     # noqa: SIM115 - must stay open for the process lifetime
@@ -342,5 +345,5 @@ def _supervise(python: str, poll_s: float) -> None:
 
 
 if __name__ == "__main__":
-    venv = ROOT / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    venv = DEV.venv_python(ROOT / ".venv")
     raise SystemExit(run(str(venv if venv.exists() else sys.executable)))
