@@ -34,6 +34,7 @@ SYSTEM = ("You choose code transformations. Read the task, then pick the numbere
           "CHOICE: 1\nWHY: inlining x in f is what was asked.")
 KINDS = ("lazy_import", "remove_unused", "inline_temp", "drop_unused_import", "add_empty_guard")
 Elsewhere = Optional[Callable[[str], bool]]
+CHOOSER_DEFAULT = False                  # flipped only when the held-out measurement shows the chooser beats model+lexical (see chooser_bench)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -359,8 +360,13 @@ class ActionStudent:
     name = "nupen-model-v2"
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
-                 max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True) -> None:
+                 max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True,
+                 use_chooser: Optional[bool] = None, chooser: Any = None) -> None:
         self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
+        # learned chooser (creator.chooser): None = the module default CHOOSER_DEFAULT; when on and trained it replaces the lexical stage
+        self.use_chooser = CHOOSER_DEFAULT if use_chooser is None else use_chooser
+        self.chooser = chooser
+        self._texts: dict[str, str] = {}
         self.lessons_path, self.llm, self.k = Path(lessons_path), llm, k
         self.max_tokens, self.max_candidates, self.max_files, self.timeout_s = max_tokens, max_candidates, max_files, timeout_s
         self.last_prompt, self.last_reply, self.last_seconds, self.last_calls = "", "", 0.0, 0
@@ -378,7 +384,7 @@ class ActionStudent:
 
     def candidates(self, package: Any, workdir: Path) -> list[Action]:
         rels = self.targets(package, workdir)
-        texts = _py_texts(workdir)
+        texts = self._texts = _py_texts(workdir)
         out: list[Action] = []
         for rel in rels:
             others = [t for r, t in texts.items() if r != rel]
@@ -399,6 +405,12 @@ class ActionStudent:
         parts.append(f"Task ({kind}):\n{text[:1500]}")
         parts.append("Candidate actions:\n" + "\n".join(f"{i}. [{a.path}] {a.label(self.rich_labels)}" for i, a in enumerate(cands, 1)))
         return "\n\n".join(parts)
+
+    def _chooser(self) -> Any:
+        if self.chooser is None:
+            from creator import chooser as CH
+            self.chooser = CH.Chooser.load() or False
+        return self.chooser if self.chooser and self.chooser.trained else None
 
     def _ask(self, messages: list[dict[str, str]]) -> str:
         self.last_calls += 1
@@ -425,7 +437,11 @@ class ActionStudent:
             why = (re.search(r"WHY:\s*(.*)", reply) or re.search(r"(.*)", reply))
             reasoning = (why.group(1).strip() if why else "")[:500]
             picks = parse_choice(reply, len(cands))
-            if self.lexical_prior and (picks is None or len(picks) == 1):
+            ch = self._chooser() if self.use_chooser else None
+            if ch is not None and (picks is None or len(picks) == 1):
+                alt = ch.pick(str(getattr(package, "objective", "")), cands, self._texts, picks[0] if picks else None)
+                picks = [alt] if alt else picks
+            elif self.lexical_prior and (picks is None or len(picks) == 1):
                 alt = combine_choice(picks[0] if picks else None, str(getattr(package, "objective", "")), cands)
                 picks = [alt] if alt else picks
             if not picks:
