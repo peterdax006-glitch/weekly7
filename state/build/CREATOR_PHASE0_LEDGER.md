@@ -1,6 +1,6 @@
 # C77 Phase 0 - computed reconnaissance ledger
 
-Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 83a6a383971733f9, self-model digest 7bb5329316d5a4b9.
+Generated 2026-10-02T14:20:04Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 190d6e23cbea43ed, self-model digest be19e43de304cc75.
 
 ## CR001-004_documents
 
@@ -48,8 +48,8 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
   "ULTIMATE_MASTER_CHECKLIST.json"
  ],
  "masterstock": "C:\\Users\\Peter\\Masterstock\\MASTERSTOCK.md",
- "masterstock_sha256": "dd568e499b8613a7f1d7890a174ec9d607d8ed99b5ebbb87a17eb3d5dfdb810a",
- "masterstock_bytes": 1917617
+ "masterstock_sha256": "5b2c81de4fb1a28e221213ae53feaa2bb2f5dde9fecabe5f4ab4977062001ca1",
+ "masterstock_bytes": 1921700
 }
 ```
 
@@ -57,7 +57,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "files": 668,
+ "files": 672,
  "file_list": [
   "canon/build_canon.py",
   "creator/__init__.py",
@@ -73,6 +73,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/design.py",
   "creator/devbench.py",
   "creator/diskcache.py",
+  "creator/doctrine.py",
   "creator/efficiency.py",
   "creator/evaluate.py",
   "creator/gaps.py",
@@ -101,6 +102,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/process_levers.py",
   "creator/recon.py",
   "creator/recursion.py",
+  "creator/replay_student.py",
   "creator/reproduce.py",
   "creator/research.py",
   "creator/sandbox.py",
@@ -195,9 +197,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
   "engine/learning/missed_winners.py",
   "engine/learning/planted_world.py",
   "engine/learning/portfolio_value.py",
-  "engine/learning/postmortem.py",
-  "engine/learning/promotion.py",
-  "engin
+  "engine/learning/po
 ... (truncated; full in the .json)
 ```
 
@@ -205,18 +205,39 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "head": "bc69fe298b44108cf9472b37c1137e9172244fc5",
- "branch": "main",
- "dirty_files": 58,
+ "head": "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+ "branch": "h9/doctrine",
+ "dirty_files": 9,
  "sandbox_branches": [
   "creator/sbx-20261001T071030-385ad032",
   "creator/sbx-20261001T075726-0d5fe44e",
   "creator/sbx-20261001T083319-2724895c",
   "creator/sbx-20261001T092843-d32db545",
   "creator/sbx-20261001T100543-5325f45a",
-  "creator/sbx-20261002T011717-90d2491d"
+  "creator/sbx-20261002T011717-90d2491d",
+  "+ creator/sbx-20261002T134857-848f24c9",
+  "+ creator/sbx-20261002T134916-ea2a49d2",
+  "+ creator/sbx-20261002T135004-498fbb77",
+  "+ creator/sbx-20261002T135332-ffc184b4",
+  "+ creator/sbx-20261002T135558-20c384dd",
+  "+ creator/sbx-20261002T135636-7f93ac26",
+  "+ creator/sbx-20261002T135702-ac14f75a",
+  "+ creator/sbx-20261002T135752-98a33f31",
+  "+ creator/sbx-20261002T135823-b0493efe",
+  "+ creator/sbx-20261002T140437-28cc9ba5",
+  "+ creator/sbx-20261002T140632-c7848236",
+  "+ creator/sbx-20261002T140717-a485a72d",
+  "+ creator/sbx-20261002T140901-ff16c433",
+  "+ creator/sbx-20261002T140943-11968179",
+  "+ creator/sbx-20261002T141024-8a2dca0c",
+  "+ creator/sbx-20261002T141103-cd97ec09",
+  "+ creator/sbx-20261002T141133-0f1325b5",
+  "+ creator/sbx-20261002T141223-50921379",
+  "+ creator/sbx-20261002T141253-dbfab817",
+  "+ creator/sbx-20261002T141322-0ffd2cdc",
+  "+ creator/sbx-20261002T141421-f3b79a0c"
  ],
- "ahead_behind_origin": "0\t0"
+ "ahead_behind_origin": "3\t0"
 }
 ```
 
@@ -225,7 +246,16 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "running_python_processes": [
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py"
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 --picks-only",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 -",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/chooser_bench.py --seeds 401,402,403,101,102,103 --picks-only",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_integration.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk 1200 --reps 3 --con",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_recurse.py --synth --steps 1 --seed 31 --chunk 1200 --reps 3 --confirm 1200 --cache C:/Users/Peter/AppData/Local/Temp/rl/cache.jsonl "
  ],
  "kernel_lock": false
 }
@@ -284,8 +314,8 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "test_files": 238,
- "test_functions": 5983,
+ "test_files": 240,
+ "test_functions": 6026,
  "collect": "",
  "collection_errors": [],
  "modules_without_any_test": 112,
@@ -377,6 +407,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 [
+ "creator/replay_student.py",
  "creator/reproduce.py",
  "engine/learning/reproducibility.py",
  "engine/parity.py",
@@ -672,6 +703,10 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
    "creator"
   ],
   [
+   "scripts.nupen_service",
+   "creator"
+  ],
+  [
    "scripts.pattern_benchmark",
    "engine"
   ],
@@ -729,11 +764,7 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
   ],
   [
    "scripts.run_analogs_ext",
-   "engine"
-  ],
-  [
-   "scripts.run_b15_memory_adapter",
- 
+   "engin
 ... (truncated; full in the .json)
 ```
 
@@ -821,11 +852,9 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
  "CREATOR_MASTER_CHECKLIST.json": {
   "items": 304,
   "status": {
-   "IN_PROGRESS": 42,
-   "TESTING": 167,
-   "IMPLEMENTED": 59,
-   "FAILED": 8,
-   "NOT_STARTED": 28
+   "IN_PROGRESS": 49,
+   "TESTING": 149,
+   "IMPLEMENTED": 106
   },
   "done_without_evidence": 0,
   "examples": []
@@ -963,11 +992,9 @@ Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "CREATOR_MASTER_CHECKLIST.json": {
-  "IN_PROGRESS": 42,
-  "TESTING": 167,
-  "IMPLEMENTED": 59,
-  "FAILED": 8,
-  "NOT_STARTED": 28
+  "IN_PROGRESS": 49,
+  "TESTING": 149,
+  "IMPLEMENTED": 106
  },
  "MASTER_EXECUTION_CHECKLIST.json": {
   "NOT_STARTED": 585
