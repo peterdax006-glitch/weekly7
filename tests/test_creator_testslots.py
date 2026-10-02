@@ -137,3 +137,33 @@ def test_governor_refuses_a_worker_whose_evaluation_reservation_does_not_fit(mon
     # the second worker shares the slots (cap 4): its marginal reservation is zero, only its own memory counts
     monkeypatch.setenv("NUPEN_TEST_SLOTS_MAX", "4")
     assert budgeted.reservation(1) == 0.0 and budgeted.reservation(0) > 3.0
+
+
+def test_a_nested_test_launch_runs_under_its_ancestors_slot_instead_of_deadlocking(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """2 Oct 2026, new PC: 8 outer test files held all 8 machine slots while the test runs they started internally waited
+    for a slot - nothing moved for 30 minutes. A launch now marks its children; a nested launch on the machine pool takes
+    nothing and returns at once, so the cap still counts every top-level run."""
+    import subprocess
+    import sys
+    import time
+
+    from creator import testslots as TS
+    pool = tmp_path / "pool"
+    monkeypatch.setattr(TS, "slot_dir", lambda: pool)
+    monkeypatch.setattr(TS, "slot_cap", lambda: 1)
+    monkeypatch.delenv(TS.HELD_ENV, raising=False)
+    child = ("import os, sys, time; sys.path.insert(0, %r); from creator import testslots as TS; "
+             "TS.slot_dir = lambda: __import__('pathlib').Path(%r); TS.slot_cap = lambda: 1; "
+             "t = time.monotonic(); s = TS.Slot(wait_s=20); s.__enter__(); "
+             "print(os.environ.get(TS.HELD_ENV), s.nested, s.index, round(time.monotonic() - t, 1))") % (str(TS.ROOT), str(pool))
+    t0 = time.monotonic()
+    out = TS.run([sys.executable, "-c", child], timeout=60)                  # holds the ONLY slot while the child asks for one
+    text = out.stdout.decode() if isinstance(out.stdout, bytes) else out.stdout
+    held, nested, index, waited = text.split()
+    assert (held, nested, index) == ("1", "True", "None"), text
+    assert float(waited) < 5 and time.monotonic() - t0 < 30                 # before the fix: waited the full wait_s
+    with TS.Slot(wait_s=5) as s:                                              # the parent's slot was released afterwards
+        assert s.index == 0 and not s.nested
+    monkeypatch.setenv(TS.HELD_ENV, "1")                                      # a private pool is never skipped
+    with TS.Slot(wait_s=5, directory=tmp_path / "private", cap=1) as s:
+        assert s.index == 0 and not s.nested

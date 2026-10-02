@@ -35,6 +35,9 @@ def _device() -> Any:
 RESERVE_FRACTION, RESERVE_MIN_GB = 0.07, 0.8          # same reserve the Governor keeps free
 
 
+HELD_ENV = "NUPEN_TEST_SLOT_HELD"                       # set in every budgeted test launch's environment
+
+
 def slot_dir() -> Path:
     return Path(os.environ.get("NUPEN_TEST_SLOTS_DIR") or Path(tempfile.gettempdir()) / "nupen_test_slots")
 
@@ -157,6 +160,7 @@ class Slot:
                  directory: Optional[Path] = None) -> None:
         self.wait_s, self.poll_s, self.cap, self.mem, self.mb, self.dir = wait_s, poll_s, cap, mem, mb, directory
         self.index: Optional[int] = None
+        self.nested = False                             # True: covered by an ancestor's slot (HELD_ENV), nothing taken
         self.waited = 0.0
         self._file: Optional[_SlotFile] = None
 
@@ -178,6 +182,11 @@ class Slot:
 
     def __enter__(self) -> "Slot":
         t0 = time.monotonic()
+        if self.dir is None and os.environ.get(HELD_ENV) == "1":
+            # An ancestor test launch already holds a slot in the machine pool: run under it. Waiting here deadlocked the
+            # new PC on 2 Oct 2026 - 8 outer test files held all 8 slots while their nested test runs queued behind them.
+            self.nested = True
+            return self
         while not self._attempt():
             if time.monotonic() - t0 > self.wait_s:
                 break
@@ -230,6 +239,7 @@ def run(argv: list[str], *, timeout: float, input: Optional[str] = None, slot: O
         t0 = time.monotonic()
         peak = [0.0]
         done = threading.Event()
+        kw["env"] = {**(kw.get("env") or os.environ), HELD_ENV: "1"}      # nested test launches run under this slot
         with subprocess.Popen(argv, stdin=subprocess.PIPE if input is not None else None, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, **kw) as p:
             def sample() -> None:
