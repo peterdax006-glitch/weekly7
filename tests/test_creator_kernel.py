@@ -300,3 +300,61 @@ def test_a_failing_candidate_is_diagnosed_and_the_next_attempt_sees_the_root_cau
     assert second.package, (second.outcome, second.reason)            # 2 Oct: went AUDIT_RED on evidence drift
     wp = led.__class__(cfg.ledger_path, evidence_root=cfg.repo).of_type("WorkPackage")[-1].record
     assert "diagnosis ASSERTION" in wp.why_it_exists                        # the second attempt starts from the diagnosis
+
+
+def test_a_deferred_package_is_not_a_failed_attempt_and_is_never_blocked_away(cfg: K.KernelConfig) -> None:
+    """Regression (validator round 3): a worker that hands a package over (WorkResult.deferred) must not use up the gap's
+    MAX_ATTEMPTS; before the fix three deferrals BLOCKED the gap and the handed-over task was silently dropped."""
+    import dataclasses
+
+    class Defers:
+        name = "defers"
+
+        def __call__(self, plan, package, workdir: Path) -> K.WorkResult:
+            return dataclasses.replace(K.WorkResult(False, "handed over to a student; retry later"), deferred=True)
+
+    for _ in range(4):                                                  # more than planner.MAX_ATTEMPTS
+        rep = K.cycle(cfg, Defers())
+        assert rep.outcome == "DEFERRED", (rep.outcome, rep.reason)
+    led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    gap = [e.id for e in led.of_type("Gap") if "K02.exists" in getattr(e.record, "description")][0]
+    assert led.view.status[gap] is not M.Status.BLOCKED
+    good = Scripted("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST})
+    assert K.cycle(cfg, good).outcome == "ADOPTED"                      # still plannable, and only the measurement adopts
+
+
+def test_the_sandbox_comparison_gets_the_suite_timeout_unless_set(tmp_path: Path) -> None:
+    """CP0047 (1 Oct): base and candidate runs both hit the 600 s pytest default under load -> INCONCLUSIVE for a sound change."""
+    import dataclasses as dc
+    from creator import testrun as TR
+    cfg = K.KernelConfig(repo=tmp_path, state=tmp_path / "s")
+    assert K.sandbox_pytest(cfg).timeout == cfg.test_timeout >= 3600
+    explicit = dc.replace(cfg, pytest=TR.PytestConfig(timeout=30.0))
+    assert K.sandbox_pytest(explicit).timeout == 30.0                                 # an explicit choice is kept
+
+
+def test_concurrent_kernel_log_appends_never_interleave(tmp_path: Path) -> None:
+    """Regression (validator open issue 1): every swarm thread appends its cycle record to one kernel_log.jsonl; an unlocked
+    text-mode append of a large record interleaves with another thread's, corrupting both lines."""
+    import json
+    import threading
+    path = tmp_path / "kernel_log.jsonl"
+    big = "reason " * 60000
+
+    def work(w: int) -> None:
+        for i in range(10):
+            K._append_log_line(path, json.dumps({"w": w, "i": i, "reason": big}))
+    ts = [threading.Thread(target=work, args=(w,)) for w in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 80 and {(r["w"], r["i"]) for r in rows} == {(w, i) for w in range(8) for i in range(10)}
+
+
+def test_cycle_record_goes_through_the_locked_appender() -> None:
+    """The cycle's own kernel_log write must use the locked appender, not an ad-hoc open(...'a')."""
+    src = Path(K.__file__).read_text(encoding="utf-8")
+    assert '_append_log_line(cfg.state / "kernel_log.jsonl"' in src
+    assert 'open("a", encoding="utf-8") as fh:\n            fh.write(json.dumps(dataclasses.asdict(rep)' not in src

@@ -7,7 +7,7 @@ A worker is one headless Claude Code call (`claude -p`) doing one bounded job in
                  daily call cap, the daily dollar cap or the per-job cap would be exceeded, and when agent calls are not ENABLED
                  at all (owner, 30 Sep: "usage credits is to much of a limiting factor"; the default is off).
     CONFINEMENT  cwd = the job directory (outside the repository), --permission-mode dontAsk with an explicit tool allow-list
-                 (no web, no subagents, shell limited to running pytest), no user/project settings or MCP servers loaded,
+                 (no web, no subagents, shell limited to running pytest), only the job directory's own project settings (--setting-sources project; no user settings) and no MCP servers loaded,
                  --max-budget-usd per call. What the CLI cannot enforce (a test file the worker writes can read any path) is
                  checked afterwards: CONTAMINATION scans the transcript and the job directory for protected paths and answer-key
                  names; a contaminated run is reported as such and must never be scored as a success.
@@ -101,7 +101,7 @@ class Budget:
     def check(self, job: str) -> None:
         p = self.policy
         if not p.enabled:
-            raise BudgetError("agent calls are disabled (set CREATOR_AGENT_CALLS=1 to allow a budgeted run)")
+            raise BudgetError("agent calls are disabled (hard-disabled by the owner: the Creator uses no outside agent)")
         n, usd = self.today()
         if n + 1 > p.daily_calls:
             raise BudgetError(f"daily call cap reached ({n}/{p.daily_calls})")
@@ -242,6 +242,8 @@ def run_agent(spec: AgentSpec, job: str, prompt: str, workdir: Path, budget: Bud
         data = {}
     if isinstance(data, list):                                          # stream form: take the final result event
         data = next((x for x in reversed(data) if isinstance(x, dict) and x.get("type") == "result"), {})
+    if not isinstance(data, dict):                                      # valid JSON that is not an object (a bare string, a number)
+        data = {}
     text = str(data.get("result", ""))
     usd = float(data.get("total_cost_usd", 0.0) or 0.0)
     turns = int(data.get("num_turns", 0) or 0)

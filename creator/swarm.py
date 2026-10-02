@@ -20,6 +20,7 @@ import time
 from typing import Any, Callable, Optional
 
 from creator import kernel as K
+from creator import model as M
 from creator import sandbox as S
 from creator.ledger import Ledger
 
@@ -240,8 +241,17 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
 
                 def job(plan: Any = plan, ev: threading.Event = ev, box: list[K.CycleReport] = box) -> None:
                     own = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-                    box.append(K.execute(cfg, make_worker(), plan, main, base_sha, len(reports) + 1, own, recovered,
-                                         lock=lock, cancel=ev, checkpoint=False))
+                    try:
+                        box.append(K.execute(cfg, make_worker(), plan, main, base_sha, len(reports) + 1, own, recovered,
+                                             lock=lock, cancel=ev, checkpoint=False))
+                    except Exception as e:                              # noqa: BLE001 - a dead job thread must leave a report, not a hole
+                        why = f"{type(e).__name__}: {e}"
+                        try:
+                            if own.view.status[plan.work_package_id] not in (M.Status.FAILED, M.Status.IMPLEMENTED):
+                                K.P.record_outcome(own, plan, False, f"swarm job crashed: {why}"[:500])
+                        except Exception:                               # noqa: BLE001 - the report below is what matters
+                            pass
+                        box.append(K.CycleReport(len(reports) + 1, "ERROR", plan.package_id, plan.requirement_key, reason=why))
                 t = threading.Thread(target=job, name=f"swarm-{plan.package_id}", daemon=True)
                 running.append(_Running(plan, t, ev, time.monotonic(), box))
                 t.start()

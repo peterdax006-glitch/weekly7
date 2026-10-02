@@ -30,6 +30,7 @@ import re
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -53,46 +54,228 @@ def free_port() -> int:
         return int(s.getsockname()[1])
 
 
+# ---- keeping the server from outliving its owner (a llama-server was found running an hour after its parent died) --------
+_WIN = sys.platform == "win32"
+_PROCESS_QUERY_LIMITED = 0x1000
+_STILL_ACTIVE = 259
+
+
+def _pid_image(pid: int) -> Optional[str]:
+    """Full image path of a live process; None when the pid is not running. Off Windows only liveness is known ('')."""
+    if not _WIN:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return None
+        return ""
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    k32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    k32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    h = k32.OpenProcess(_PROCESS_QUERY_LIMITED, False, pid)
+    if not h:
+        return None
+    try:
+        code = wintypes.DWORD()
+        if not k32.GetExitCodeProcess(h, ctypes.byref(code)) or code.value != _STILL_ACTIVE:
+            return None
+        buf = ctypes.create_unicode_buffer(1024)
+        n = wintypes.DWORD(1024)
+        return buf.value if k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)) else ""
+    finally:
+        k32.CloseHandle(h)
+
+
+def _kill_pid(pid: int) -> None:
+    if _WIN:
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        k32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        h = k32.OpenProcess(0x0001, False, pid)               # PROCESS_TERMINATE
+        if h:
+            k32.TerminateProcess(h, 1)
+            k32.CloseHandle(h)
+    else:
+        try:
+            os.kill(pid, 9)
+        except OSError:
+            pass
+
+
+def reap_stale_server(pidfile: Path, exe: Path) -> Optional[int]:
+    """If `pidfile` records a server whose recorded parent is dead, kill THAT pid (only while it still runs our exe) and return
+    it. Never matches by image name alone: only the recorded pid, and only when its image path is the server we launched."""
+    try:
+        rec = json.loads(pidfile.read_text(encoding="utf-8"))
+        pid, parent = int(rec["pid"]), int(rec["parent"])
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, KeyError, TypeError):
+        pidfile.unlink(missing_ok=True)
+        return None
+    killed: Optional[int] = None
+    if pid != os.getpid() and _pid_image(parent) is None:
+        img = _pid_image(pid)
+        if img is not None and (img == "" or os.path.normcase(img) == os.path.normcase(str(exe))):
+            _kill_pid(pid)
+            killed = pid
+    if killed is not None or _pid_image(pid) is None:
+        pidfile.unlink(missing_ok=True)
+    return killed
+
+
+class _KillOnCloseJob:
+    """Windows Job Object with KILL_ON_JOB_CLOSE: every process assigned to it dies when the last handle closes, which the OS
+    does when the owner process dies for any reason (including a hard kill). A no-op elsewhere."""
+
+    def __init__(self) -> None:
+        self.handle: Any = None
+        if not _WIN:
+            return
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateJobObjectW.restype = wintypes.HANDLE
+        k32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        k32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        k32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+        class _Basic(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", wintypes.DWORD), ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t), ("PriorityClass", wintypes.DWORD), ("SchedulingClass", wintypes.DWORD)]
+
+        class _Io(ctypes.Structure):
+            _fields_ = [(n, ctypes.c_uint64) for n in ("ro", "wo", "oo", "rb", "wb", "ob")]
+
+        class _Ext(ctypes.Structure):
+            _fields_ = [("Basic", _Basic), ("Io", _Io), ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t), ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                        ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        job = k32.CreateJobObjectW(None, None)
+        if not job:
+            return
+        info = _Ext()
+        info.Basic.LimitFlags = 0x2000                            # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not k32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):   # ExtendedLimitInformation
+            k32.CloseHandle(job)
+            return
+        self.handle = job
+
+    def adopt(self, proc: "subprocess.Popen[bytes]") -> bool:
+        if not _WIN or self.handle is None:
+            return False
+        import ctypes
+        from ctypes import wintypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        return bool(k32.AssignProcessToJobObject(self.handle, int(getattr(proc, "_handle"))))
+
+    def close(self) -> None:
+        if _WIN and self.handle is not None:
+            import ctypes
+            from ctypes import wintypes
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.CloseHandle.argtypes = [wintypes.HANDLE]
+            k32.CloseHandle(self.handle)
+        self.handle = None
+
+
+PIDFILE = RUNTIME / "llama_server.pid"
+
+
 class LocalModel:
-    """A llama.cpp server bound to 127.0.0.1 for the life of the context. Nothing leaves this machine."""
+    """A llama.cpp server bound to 127.0.0.1 for the life of the context. Nothing leaves this machine.
+
+    The server cannot outlive its owner: it is terminated on every exit path (including a failed or interrupted start-up), it
+    runs inside a kill-on-close Job Object (so a hard kill of this process takes it down too), and its pid is recorded in
+    `pidfile` so that a later start reaps a server whose recorded owner is dead."""
 
     def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: int = 6,
-                 startup_s: float = 120.0) -> None:
+                 startup_s: float = 120.0, pidfile: Path = PIDFILE) -> None:
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
+        self.pidfile = pidfile
         self.port = 0
         self.proc: Optional[subprocess.Popen[bytes]] = None
+        self.job: Optional[_KillOnCloseJob] = None
         self.calls = 0
         self.seconds = 0.0
+
+    def _command(self) -> list[str]:
+        return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
+                "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"]
 
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
+        try:
+            reap_stale_server(self.pidfile, self.exe)
+        except OSError:
+            pass
         self.port = free_port()
-        self.proc = subprocess.Popen([str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
-                                      "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"],
-                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.job = _KillOnCloseJob()
+            self.proc = subprocess.Popen(self._command(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.job.adopt(self.proc)
+            try:
+                self.pidfile.parent.mkdir(parents=True, exist_ok=True)
+                self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "parent": os.getpid()}), encoding="utf-8")
+            except OSError:
+                pass
+            self._wait_healthy()
+        except BaseException:                                  # incl. KeyboardInterrupt: nothing is left running
+            self._stop()
+            raise
+        return self
+
+    def _wait_healthy(self) -> None:
+        assert self.proc is not None
         t0 = time.monotonic()
         while time.monotonic() - t0 < self.startup_s:
             try:
                 with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/health", timeout=2) as r:
                     if r.status == 200:
-                        return self
+                        return
             except (urllib.error.URLError, OSError):
                 pass
             if self.proc.poll() is not None:
                 raise RuntimeError("local model server exited during start-up")
-            time.sleep(0.5)
-        self.__exit__()
+            time.sleep(0.2)
         raise TimeoutError("local model server did not become healthy")
 
+    def _stop(self) -> None:
+        proc, self.proc = self.proc, None
+        try:
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+        finally:
+            if self.job is not None:
+                self.job.close()
+                self.job = None
+            if proc is not None:
+                try:
+                    if json.loads(self.pidfile.read_text(encoding="utf-8")).get("pid") == proc.pid:
+                        self.pidfile.unlink(missing_ok=True)
+                except (OSError, ValueError):
+                    pass
+
     def __exit__(self, *exc: Any) -> None:
-        if self.proc is not None and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-        self.proc = None
+        self._stop()
 
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
              seed: int = 0) -> str:
@@ -225,6 +408,9 @@ class Experience:
     seconds: float
 
 
+_MEMORY_LOCK = threading.Lock()
+
+
 class ExperienceMemory:
     """Append-only experience log. Learns only from what it is given - the caller never records holdout tasks."""
 
@@ -244,8 +430,10 @@ class ExperienceMemory:
 
     def add(self, e: Experience) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(dataclasses.asdict(e)) + "\n")
+        data = (json.dumps(dataclasses.asdict(e)) + "\n").encode("utf-8")
+        with _MEMORY_LOCK, self.path.open("ab") as fh:            # one whole record per write: threads must not interleave
+            fh.write(data)
+            fh.flush()
 
     def strategy_order(self, category: str) -> list[str]:
         """Strategies ranked by Laplace-smoothed success rate in this category (ties keep the default order)."""
@@ -469,32 +657,146 @@ def _edit(tree: ast.Module, index: int, fn: Callable[[Any], None]) -> ast.Module
     return ast.fix_missing_locations(t)
 
 
-def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True) -> tuple[bool, dict[str, str], int]:
-    """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried)."""
+_DIVERGENCE_RUNNER = r"""
+import contextlib, io, json, sys
+sys.path.insert(0, ROOT)
+def load(src):
+    ns = {"__name__": "_ovf_probe"}
+    with contextlib.redirect_stdout(io.StringIO()):
+        exec(compile(src, "<probe>", "exec"), ns)
+    return ns
+def run(fn, args):
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return repr(fn(*[eval(a) for a in args]))
+    except BaseException as e:
+        return "exc:" + type(e).__name__
+a, b = load(ORIG), load(CAND)
+bad = 0
+for name, calls in PLAN:
+    fa, fb = a.get(name), b.get(name)
+    if fa is None or fb is None:
+        bad += len(calls)
+        continue
+    for c in calls:
+        bad += run(fa, c) != run(fb, c)
+print(json.dumps(bad))
+"""
+
+
+def _variants(args: tuple[Any, ...]) -> list[tuple[Any, ...]]:
+    """The harvested call plus small perturbations of its sequence arguments (shorter, reversed, one element longer)."""
+    out = [args]
+    for i, a in enumerate(args):
+        if isinstance(a, (list, tuple)) and a:
+            for v in (a[:-1], a[::-1], type(a)(list(a) + list(a[:1]))):
+                out.append(args[:i] + (v,) + args[i + 1:])
+    return out
+
+
+def _test_call_args(workdir: Path, names: set[str]) -> dict[str, list[tuple[Any, ...]]]:
+    """Literal argument tuples that the VISIBLE tests pass to the named functions: realistic inputs the program must keep handling the same way."""
+    found: dict[str, list[tuple[Any, ...]]] = {}
+    for tp in sorted((workdir / "tests").rglob("*.py"))[:20]:
+        try:
+            t = ast.parse(tp.read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            continue
+        for n in ast.walk(t):
+            if not isinstance(n, ast.Call) or n.keywords:
+                continue
+            f = n.func
+            name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+            if name not in names:
+                continue
+            try:
+                args = tuple(ast.literal_eval(a) for a in n.args)
+            except (ValueError, SyntaxError, TypeError):
+                continue
+            for v in _variants(args):
+                if v not in found.setdefault(name, []) and len(found[name]) < 12:
+                    found[name].append(v)
+    return found
+
+
+def behavioural_divergence(workdir: Path, original: str, candidate: str, timeout: int = 20) -> int:
+    """Number of auto-derived calls (testgen.candidate_calls over every top-level function) on which the candidate's outcome differs
+    from the original's. Fewer = a smaller behavioural change. A probe that cannot run counts as maximally divergent."""
+    from creator import testgen as T
+    big = 10 ** 6
+    try:
+        tree = ast.parse(original)
+    except SyntaxError:
+        return big
+    seen = _test_call_args(workdir, {f.name for f in tree.body if isinstance(f, ast.FunctionDef)})
+    plan = [(fn.name, [[repr(a) for a in c] for c in T.candidate_calls(fn)] + [[repr(a) for a in c] for c in seen.get(fn.name, [])])
+            for fn in tree.body if isinstance(fn, ast.FunctionDef)]
+    plan = [(n, c) for n, c in plan if c]
+    if not plan:
+        return 0
+    script = (f"ROOT = {str(workdir)!r}\nORIG = {original!r}\nCAND = {candidate!r}\nPLAN = {plan!r}\n" + _DIVERGENCE_RUNNER)
+    try:
+        p = subprocess.run([sys.executable, "-B", "-c", script], cwd=workdir, capture_output=True, text=True, timeout=timeout)
+        return int(json.loads(p.stdout.strip().splitlines()[-1]))
+    except (subprocess.TimeoutExpired, ValueError, IndexError, OSError):
+        return big
+
+
+def _edit_size(original: str, candidate: str) -> int:
+    return sum(1 for a, b in zip(ast.unparse(ast.parse(original)).splitlines(), candidate.splitlines()) if a != b) + abs(len(original.splitlines()) - len(candidate.splitlines()))
+
+
+def solve_with_search(task: Mapping[str, Any], workdir: Path, budget: int = 120, pairs: bool = True,
+                      rank: bool = True, extra_passes: int = 5, extra_budget: int = 40,
+                      per_family: int = 40, pair_width: int = 12) -> tuple[bool, dict[str, str], int]:
+    """Test-guided mutation repair over the non-test code. Returns (visible tests pass, files written, candidates tried).
+    With rank=True the first visible-passing candidate is not trusted: further passing candidates are collected (up to extra_passes /
+    extra_budget more tries, never beyond budget) and the one that changes the program's behaviour least (auto-derived calls vs the
+    original) wins.
+    rank=False is the old first-found behaviour."""
     targets = [p for p in sorted(workdir.rglob("*.py")) if "tests" not in p.relative_to(workdir).parts
                and p.name not in ("__init__.py", "conftest.py") and "__pycache__" not in p.parts]
     tried = 0
     for path in targets:
         original = path.read_text(encoding="utf-8")
         try:
-            tree = ast.parse(original)
-        except SyntaxError:
-            continue
-        legacy = list(generic_mutations(tree))
-        singles = list(targeted_mutations(tree)) + legacy
-        cands: Iterator[ast.Module] = iter(singles)
-        if pairs:
-            cands = itertools.chain(singles, (m2 for m1 in legacy[:12] for m2 in itertools.islice(mutations(m1), 12)))
-        for cand in cands:
-            if tried >= budget:
-                path.write_text(original, encoding="utf-8")
-                return False, {}, tried
-            tried += 1
-            src = ast.unparse(cand) + "\n"
-            path.write_text(src, encoding="utf-8")
-            if visible_tests(workdir).ok:
-                return True, {path.relative_to(workdir).as_posix(): src}, tried
-        path.write_text(original, encoding="utf-8")
+            try:
+                tree = ast.parse(original)
+            except SyntaxError:
+                continue
+            legacy = list(generic_mutations(tree))
+            singles = list(targeted_mutations(tree, per_family)) + legacy
+            cands: Iterator[ast.Module] = iter(singles)
+            if pairs and pair_width > 0:
+                cands = itertools.chain(singles, (m2 for m1 in legacy[:pair_width] for m2 in itertools.islice(mutations(m1), pair_width)))
+            passing: list[str] = []
+            first_at = 0
+            for cand in cands:
+                if tried >= budget and not passing:
+                    path.write_text(original, encoding="utf-8")
+                    return False, {}, tried
+                if passing and (tried - first_at >= extra_budget or len(passing) >= extra_passes or tried >= budget):   # budget is a hard cap
+                    break
+                tried += 1
+                src = ast.unparse(cand) + "\n"
+                if src in passing:
+                    continue
+                path.write_text(src, encoding="utf-8")
+                if visible_tests(workdir).ok:
+                    passing.append(src)
+                    if not rank:
+                        break
+                    first_at = first_at or tried
+            if passing:
+                best = passing[0]
+                if len(passing) > 1:
+                    best = min(passing, key=lambda s: (behavioural_divergence(workdir, original, s), _edit_size(original, s)))
+                path.write_text(best, encoding="utf-8")
+                return True, {path.relative_to(workdir).as_posix(): best}, tried
+            path.write_text(original, encoding="utf-8")
+        except BaseException:                                # e.g. visible_tests raised: never leave a mutant on disk
+            path.write_text(original, encoding="utf-8")
+            raise
     return False, {}, tried
 
 
@@ -503,11 +805,12 @@ class SearchSolver:
     already do by itself."""
     name = "self-search"
 
-    def __init__(self, budget: int = 120) -> None:
+    def __init__(self, budget: int = 120, rank: bool = True) -> None:
         self.budget = budget
+        self.rank = rank
 
     def __call__(self, task: Mapping[str, Any], workdir: Path) -> D.SolverResult:
-        ok, _, n = solve_with_search(task, workdir, self.budget)
+        ok, _, n = solve_with_search(task, workdir, self.budget, rank=self.rank)
         return D.SolverResult(ok, 0, f"search {'passed' if ok else 'failed'} the visible tests after {n} candidates")
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -167,3 +168,100 @@ def test_targeted_families_are_bounded() -> None:
     import ast
     big = "def f(a, b, c, d):\n" + "".join(f"    t{i} = max(a, b) + sum(c)\n" for i in range(60)) + "    return a\n"
     assert len(list(G.targeted_mutations(ast.parse(big), 40))) <= 5 * 40
+
+
+OVERFIT_SRC = "def f(n: int) -> int:\n    if n > 3:\n        return n * 2\n    else:\n        return n\n"
+
+
+def _fast_visible(workdir: Path) -> D.TestCounts:
+    """Stands in for pytest: the single visible test is f(3) == 6 (fast, deterministic)."""
+    ns: dict = {}
+    try:
+        exec((workdir / "app/f.py").read_text(encoding="utf-8"), ns)
+        ok = ns["f"](3) == 6
+    except Exception:
+        ok = False
+    return D.TestCounts(1 if ok else 0, 0 if ok else 1, 0, 0 if ok else 1)
+
+
+def test_ranking_prefers_the_minimal_behaviour_change(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # the first visible-passing mutant swaps the branches (overfits f(3)); the right fix is the boundary, which changes nothing else
+    monkeypatch.setattr(G, "visible_tests", _fast_visible)
+    put(tmp_path, "app/f.py", OVERFIT_SRC)
+    first = G.solve_with_search({"id": "t"}, tmp_path, budget=200, rank=False)
+    put(tmp_path, "app/f.py", OVERFIT_SRC)
+    ranked = G.solve_with_search({"id": "t"}, tmp_path, budget=200, rank=True)
+    assert first[0] and ranked[0]
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, first[1]["app/f.py"]) > 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, ranked[1]["app/f.py"]) == 0
+    assert "n >= 3" in ranked[1]["app/f.py"]
+
+
+def test_divergence_counts_changed_calls_and_survives_broken_candidates(tmp_path: Path) -> None:
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, OVERFIT_SRC) == 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, "def f(n: int) -> int:\n    return 0\n") > 0
+    assert G.behavioural_divergence(tmp_path, OVERFIT_SRC, "def f(:\n") > 0
+
+
+def test_experience_memory_concurrent_adds_never_interleave(tmp_path: Path) -> None:
+    """Regression (validator open issue 2): swarm threads share one experience file; a large record is written to the OS in several
+    pieces, so unlocked appends interleave. The file here writes every record in small pieces, yielding between them."""
+    import threading
+    import time
+    real = tmp_path / "mem.jsonl"
+
+    class Piecewise:
+        def __init__(self, fh: Any) -> None:
+            self.fh = fh
+
+        def __enter__(self) -> "Piecewise":
+            self.fh.__enter__()
+            return self
+
+        def __exit__(self, *a: Any) -> None:
+            self.fh.__exit__(*a)
+
+        def write(self, data: Any) -> None:
+            for k in range(0, len(data), 64):
+                self.fh.write(data[k:k + 64])
+                self.fh.flush()
+                time.sleep(0.0005)
+
+        def flush(self) -> None:
+            self.fh.flush()
+
+    class SlowPath:
+        parent = tmp_path
+
+        def open(self, mode: str = "r", **kw: Any) -> Piecewise:
+            return Piecewise(real.open(mode, **kw))
+
+    mem = G.ExperienceMemory(SlowPath())  # type: ignore[arg-type]
+
+    def work(w: int) -> None:
+        for i in range(4):
+            mem.add(G.Experience("bugfix", f"obj {w} {i}", "search", True, {"app/a.py": "x = 1\n" * 300}, 1.0))
+    ts = [threading.Thread(target=work, args=(w,)) for w in range(6)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    lines = real.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 24 and len(G.ExperienceMemory(real).load()) == 24
+
+
+def test_search_restores_the_file_when_visible_tests_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression (validator open issue 3): an exception from visible_tests used to leave the last mutated candidate on disk."""
+    put(tmp_path, "app/x.py", "def f(n):\n    return n + 1\n")
+    put(tmp_path, "tests/test_x.py", "from app.x import f\n\n\ndef test_f():\n    assert f(1) == 5\n")
+    before = (tmp_path / "app/x.py").read_text(encoding="utf-8")
+    calls = {"n": 0}
+
+    def boom(workdir: Path) -> object:
+        calls["n"] += 1
+        assert (tmp_path / "app/x.py").read_text(encoding="utf-8") != before        # a mutant is on disk when it raises
+        raise RuntimeError("test runner died")
+    monkeypatch.setattr(G, "visible_tests", boom)
+    with pytest.raises(RuntimeError):
+        G.solve_with_search({"id": "t", "objective": "x"}, tmp_path, budget=20)
+    assert calls["n"] == 1 and (tmp_path / "app/x.py").read_text(encoding="utf-8") == before

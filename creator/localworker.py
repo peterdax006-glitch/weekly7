@@ -47,8 +47,11 @@ def run_tests(workdir: Path, tests: Sequence[str], timeout: float = 900.0) -> tu
         return False, "no test reaches the change - add a test for it"
     from creator import devbench as D
     D.purge_bytecode(workdir)                    # rewrites of the same size in the same second must not run stale bytecode
-    p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests], cwd=workdir,
-                       capture_output=True, text=True, timeout=timeout)
+    try:
+        p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests], cwd=workdir,
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False, f"the tests timed out after {timeout:.0f}s - make the change cheaper or fix a hang"
     return p.returncode == 0, (p.stdout + p.stderr)[-3000:]
 
 

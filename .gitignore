@@ -9,3 +9,8 @@ state/research/tuning/
 state/movers/
 state/research/pattern_bank/
 state/pattern_memory/
+# Nupen curriculum data (whole file texts per lesson; regenerable training data, too large for the public repo)
+state/creator/lessons.jsonl
+state/creator/lessons_backfill.jsonl
+state/creator/deferred.jsonl
+state/creator/sft/

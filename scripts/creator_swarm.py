@@ -19,13 +19,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from creator import curriculum as CUR  # noqa: E402
 from creator import kernel as K  # noqa: E402
+from creator import process_levers as PL  # noqa: E402
 from creator import selfworkers as SW  # noqa: E402
 from creator import swarm as W  # noqa: E402
 
 STATE = ROOT / "state" / "creator"
 HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
 LOG = STATE / "swarm_log.jsonl"
+LESSONS = STATE / "lessons.jsonl"                        # the curriculum: every handoff and student attempt as a lesson
 
 
 def announce(workdir: Path, package_id: str) -> None:
@@ -56,6 +59,37 @@ class SerialSession:
                 (HANDOFFS / f"{plan.package_id}.json").unlink(missing_ok=True)
 
 
+def make_process_worker(session, process_file: Path = PL.DEFAULT_PATH):      # type: ignore[no-untyped-def]
+    """The worker built from the process the recursion adopted (defaults when none): the read path of creator_recurse.py."""
+    return PL.build_worker(PL.load_process(process_file), session)
+
+
+def make_students(model_student: bool = True) -> list:      # type: ignore[type-arg]
+    """The curriculum's students: creator.student.LessonStudent when that module exists (absent = no students), then the
+    model-backed ModelStudent (local qwen, server started lazily per attempt) unless model_student is False."""
+    try:
+        from creator.student import LessonStudent
+    except ImportError:
+        return []
+    students: list = [LessonStudent(LESSONS)]                # type: ignore[type-arg]
+    if model_student:
+        try:
+            from creator.model_student import ModelStudent
+            students.append(ModelStudent(LESSONS))
+        except ImportError:
+            pass
+        try:
+            from creator.action_student import ActionStudent
+            students.append(ActionStudent(LESSONS))
+        except Exception:                                     # noqa: BLE001 - a missing student never crashes the swarm
+            pass
+    return students
+
+
+def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool = True) -> CUR.Curriculum:    # type: ignore[no-untyped-def]
+    return CUR.Curriculum(lessons, make_students(model_student) if students is None else students)
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
@@ -67,14 +101,16 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
     ap.add_argument("--no-session", action="store_true")
+    ap.add_argument("--no-model-student", action="store_true")      # skip the local-model student (nupen-model-v1)
+    ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)   # the process the recursion adopted (CR196-198)
     ap.add_argument("--handoff-hours", type=float, default=6.0)
     a = ap.parse_args(argv)
     session = None if a.no_session else SerialSession(a.handoff_hours)
 
-    from creator import testgen as TG
+    cur = make_curriculum(model_student=not a.no_model_student)
 
-    def make_worker() -> SW.SelfFirst:                                   # own workers first: rules, generated tests, search
-        return SW.SelfFirst([SW.RuleWorker(), TG.TestGenWorker(), SW.SearchWorker()], session)
+    def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
+        return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
@@ -82,11 +118,12 @@ def main(argv: list[str]) -> int:
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:
             n += 1
+            def on_report(r: K.CycleReport) -> None:
+                cur.resolve(r)
+                print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],
+                                  "by": r.details.get("worker", {}).get("by")}), flush=True)
             rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
-                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"),
-                              on_report=lambda r: print(json.dumps({"package": r.package, "req": r.requirement,
-                                                                    "outcome": r.outcome, "reason": r.reason[:200],
-                                                                    "by": r.details.get("worker", {}).get("by")}), flush=True))
+                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"), on_report=on_report)
             line = {"round": n, "outcome": rnd.outcome, "packages": len(rnd.reports), "peak_parallel": rnd.peak_parallel,
                     "pulled_back": rnd.pulled_back, "by_outcome": K.summary(rnd.reports)["by_outcome"],
                     "free_gb": round(W.free_ram_gb(), 2), "at": dt.datetime.now().isoformat(timespec="seconds")}

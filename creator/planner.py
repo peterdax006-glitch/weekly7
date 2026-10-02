@@ -26,6 +26,7 @@ from creator.ledger import Ledger
 
 PREFIX = "CP"
 MAX_ATTEMPTS = 3
+DEFERRED_PREFIX = "deferred:"
 WORKER_STEPS = ("exists", "tested", "no_stubs", "integrated")
 EFFICIENCY_KEY = "EFF.size"
 ACTIVATION_KEY = "EFF.activation"
@@ -112,8 +113,11 @@ def next_package_id(ledger: Ledger) -> str:
 
 
 def attempts_for(ledger: Ledger, gap_id: str) -> list[str]:
-    """Work packages already planned for this gap, oldest first."""
-    return [c for c in ledger.view.children.get(gap_id, []) if ledger.view.by_id[c].rtype == "WorkPackage"]
+    """Work packages already planned for this gap, oldest first. A package that was only DEFERRED (handed over to a student that
+    owns its kind, never attempted) is not an attempt: counting it let three deferrals BLOCK the gap and drop the task."""
+    wps = [c for c in ledger.view.children.get(gap_id, []) if ledger.view.by_id[c].rtype == "WorkPackage"]
+    return [w for w in wps if not any(t.rtype == "Transition" and str(getattr(t.record, "reason", "")).startswith(DEFERRED_PREFIX)
+                                      for t in ledger.about(w))]
 
 
 def failure_reasons(ledger: Ledger, wp_ids: Sequence[str]) -> list[str]:

@@ -46,7 +46,12 @@ SUPERSEDED_STEPS = ("depth",)
 COMPONENT_DEPENDS = {"K02": ("K01",), "K03": ("K01", "K02"), "K04": ("K02", "K03"), "K05": ("K01",), "K06": ("K01",),
                      "K07": ("K05",), "K08": ("K05", "K07"), "K09": ("K04",), "K10": ("K06", "K15"), "K11": ("K06", "K05"),
                      "K12": ("K01",), "K13": ("K12", "K10"), "K14": ("K09", "K10", "K06", "K05"), "K15": ("K06",),
-                     "K16": ("K01", "K10")}
+                     "K16": ("K01", "K10"),
+                     # K17-K26, from what each module imports
+                     "K17": ("K06",), "K18": ("K15", "K25"), "K19": ("K03", "K10", "K15", "K18"),
+                     "K20": ("K09", "K14", "K18"), "K21": ("K09", "K14", "K18", "K20"),
+                     "K22": ("K01", "K06", "K14", "K15", "K18"), "K23": ("K01", "K03", "K04"), "K24": ("K01", "K13"),
+                     "K25": ("K09", "K14"), "K26": ("K01",)}
 PRIORITY_WEIGHT = {M.Priority.CRITICAL: 1.0, M.Priority.HIGH: 0.75, M.Priority.MEDIUM: 0.5, M.Priority.LOW: 0.25}
 CRITICAL_COMPONENTS = frozenset({"K01", "K06", "K10", "K14", "K15", "K16"})       # integrity, measurement and the loop itself
 
@@ -237,6 +242,26 @@ def _find_capability(ledger: Ledger, component: str) -> Optional[str]:
     return None
 
 
+def _build_order(specs: Sequence[SM.CapabilitySpec]) -> list[SM.CapabilitySpec]:
+    """Specs with every component after the components it is built on (COMPONENT_DEPENDS), ties by id. K10 is built on K15, so id
+    order alone silently dropped that dependency."""
+    by_id = {s.id: s for s in specs}
+    out: list[SM.CapabilitySpec] = []
+    seen: set[str] = set()
+
+    def visit(cid: str) -> None:
+        if cid in seen:
+            return
+        seen.add(cid)
+        for d in COMPONENT_DEPENDS.get(cid, ()):
+            if d in by_id:
+                visit(d)
+        out.append(by_id[cid])
+    for cid in sorted(by_id):
+        visit(cid)
+    return out
+
+
 def compile_capabilities(ledger: Ledger, objective_id: str, specs: Sequence[SM.CapabilitySpec],
                          created_by: M.Role = M.Role.KERNEL) -> Compiled:
     """Register a Capability and the requirement ladder for every declared component. Idempotent and dependency-ordered."""
@@ -252,7 +277,7 @@ def compile_capabilities(ledger: Ledger, objective_id: str, specs: Sequence[SM.C
                                                          f"{', '.join(spec.tests) or 'none'}; floor {spec.floor}"))
             created += 1
         caps[spec.id] = cid
-    for spec in order:
+    for spec in _build_order(order):
         prio = M.Priority.CRITICAL if spec.id in CRITICAL_COMPONENTS else M.Priority.HIGH
         for step, _kind, _w, desc in LADDER:
             key = f"{spec.id}.{step}"

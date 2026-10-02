@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
+from creator import diskcache as DC
 from creator import testrun as T
 from creator.build import module_name_for
 
@@ -123,9 +124,39 @@ def _is_stub(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> Optional[str]:
     return None
 
 
+_COMPONENT_CACHE: dict[tuple[str, bytes], Component] = {}          # (rel, sha256 of the raw bytes) -> Component (frozen)
+
+
 def scan_component(root: Path, rel: str) -> Component:
+    """Cached by CONTENT hash: the Component is a pure function of (rel, bytes) and the ruler, so a cache hit is exact."""
     full = root / rel
     raw = full.read_bytes()
+    key = (rel, hashlib.sha256(raw).digest())
+    hit = _COMPONENT_CACHE.get(key)
+    if hit is None:
+        dkey = DC.key_of(rel, key[1])                                  # persisted across processes (creator/diskcache.py)
+        hit = DC.get("component", _component_salt(), dkey)
+        if not isinstance(hit, Component):
+            hit = _scan_component_uncached(full, rel, raw)
+            DC.put("component", _component_salt(), dkey, hit)
+        _COMPONENT_CACHE[key] = hit
+    return hit
+
+
+_COMPONENT_SALT: list[str] = []
+
+
+def _component_salt() -> str:
+    """Code-version salt: the analysis functions' source, the external ruler file and the interpreter version."""
+    if not _COMPONENT_SALT:
+        ruler = REPO_ROOT / "scripts" / "contract_lines.py"
+        extra = [sys.version.encode(), ruler.read_bytes() if ruler.is_file() else b""]
+        _COMPONENT_SALT.append(DC.salt_of((_scan_component_uncached, _signature, _first_doc, _is_stub, meaningful_lines,
+                                           module_name_for), extra))
+    return _COMPONENT_SALT[0]
+
+
+def _scan_component_uncached(full: Path, rel: str, raw: bytes) -> Component:
     source = raw.decode("utf-8", errors="replace")
     module = module_name_for(rel) or rel[:-3].replace("/", ".")
     sha = hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
@@ -329,7 +360,8 @@ def versions(root: Path) -> dict[str, Any]:
             "engine_tree": tree_hash(root / "engine") if (root / "engine").is_dir() else "absent"}
 
 
-def reach_digest(graph: T.ImportGraph, test_file: str, comps: Mapping[str, Component]) -> str:
+def reach_digest(graph: T.ImportGraph, test_file: str, comps: Mapping[str, Component],
+                 _bytes: Optional[dict[str, bytes]] = None) -> str:
     """Digest of a test file plus every module it reaches (transitively) inside the tree: a recorded result is valid only while
     this digest is unchanged."""
     mod_of_path = {p: m for m, p in graph.modules.items()}
@@ -352,8 +384,13 @@ def reach_digest(graph: T.ImportGraph, test_file: str, comps: Mapping[str, Compo
     h = hashlib.sha256()
     for f in files:                       # hashed from disk, so the digest does not depend on which folders were scanned (30 Sep)
         h.update(f.encode())
-        fp = root / f
-        h.update(fp.read_bytes().replace(b"\r\n", b"\n") if fp.is_file() else b"<missing>")
+        data = _bytes.get(f) if _bytes is not None else None
+        if data is None:                  # one read per file per build when the caller passes a memo (same bytes, same digest)
+            fp = root / f
+            data = fp.read_bytes().replace(b"\r\n", b"\n") if fp.is_file() else b"<missing>"
+            if _bytes is not None:
+                _bytes[f] = data
+        h.update(data)
     return h.hexdigest()[:16]
 
 
@@ -384,7 +421,8 @@ def build(root: str | Path = REPO_ROOT, scope: Sequence[str] = ("creator", "test
             for d in deps.get(path, ()):
                 if not T.is_test_file(d):
                     tests_of.setdefault(d, set()).add(path)
-    current_digest = {p: reach_digest(graph, p, comps) for p in comps if T.is_test_file(p)}
+    memo: dict[str, bytes] = {}
+    current_digest = {p: reach_digest(graph, p, comps, memo) for p in comps if T.is_test_file(p)}
     specs = list(capabilities) if capabilities is not None else load_capabilities()
     tev = dict(test_evidence or {})
     caps = tuple(compute_capability(s, comps, tev, current_digest) for s in specs)

@@ -27,6 +27,7 @@ import hashlib
 import json
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Protocol, Sequence
@@ -87,6 +88,8 @@ class WorkResult:
     refused: bool = False                               # the budget refused: nothing was attempted
     contaminated: tuple[str, ...] = ()                  # protected / answer-key references in what the worker said or wrote
     by: str = ""                                        # which worker actually made the change (self_share counts it)
+    reasoning: str = ""                                 # free-text reasoning of the solver (curriculum lesson); optional
+    deferred: bool = False                              # handed over, not attempted: no attempt is used up (planner.attempts_for)
 
 
 class Worker(Protocol):
@@ -128,7 +131,7 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
 class HandoffWorker:
     """The ONLY real worker (owner, 1 Oct 2026: "you should be the only claude worker working on it"): the kernel writes the
     package into the sandbox as .creator_task.md and waits for the Claude session to implement it there and write
-    .creator_done.json ({"claimed_done": bool, "notes": str}). The claim is recorded and ignored; the kernel still measures,
+    .creator_done.json ({"claimed_done": bool, "notes": str, optional "reasoning": str}). The claim is recorded and ignored; the kernel still measures,
     decides, merges or rejects. A handoff that is not answered within `timeout_s` returns not-done (the kernel then sees an
     empty or partial change and rejects it)."""
     name = "claude-session"
@@ -155,7 +158,8 @@ class HandoffWorker:
             ans = {"claimed_done": False, "notes": f"unreadable .creator_done.json: {e}"}
         task.unlink(missing_ok=True)
         done.unlink(missing_ok=True)
-        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name)
+        return WorkResult(bool(ans.get("claimed_done")), str(ans.get("notes", ""))[:2000], 0, 0.0, by=self.name,
+                          reasoning=str(ans.get("reasoning", ""))[:20000])
 
 
 # ------------------------------------------------------------------------------------------------ assessment
@@ -192,6 +196,15 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
     return Assessed(model, rows, rep, snap)
 
 
+def sandbox_pytest(cfg: KernelConfig) -> T.PytestConfig:
+    """The sandbox comparison's pytest config. Left at its default, its timeout follows the suite timeout: CP0047 (1 Oct) touched
+    kernel.py, its selected tests outran the 600 s default under swarm load on base AND candidate, and a sound change came back
+    INCONCLUSIVE although main's own assessment allows test_timeout for the same tests."""
+    if cfg.pytest.timeout == T.PytestConfig().timeout:
+        return dataclasses.replace(cfg.pytest, timeout=max(cfg.pytest.timeout, cfg.test_timeout))
+    return cfg.pytest
+
+
 def red(report: AUD.AuditReport) -> bool:
     return bool(report.errors) or report.count("CRITICAL") > 0
 
@@ -208,11 +221,14 @@ def _measure(led: Ledger, ex: str, metric: str, value: float, split: M.Split, po
                                     evidence=tuple(evidence)))
 
 
-def _pass_fraction(run: Optional[T.TestRun], default: float) -> float:
-    """Passed / all cases; `default` when nothing ran (no affected tests at that tree = nothing there to regress)."""
-    if run is None or not run.cases:
+def _pass_fraction(run: Optional[T.TestRun], default: float, ev: Optional[S.Evaluation] = None) -> float:
+    """Passed / all cases; `default` when nothing ran (no affected tests at that tree = nothing there to regress). Cases the
+    post-re-run report classed FLAKY are excluded: a coin-flip outcome must not move the guard either way."""
+    flaky = set(ev.report.ids(T.CaseClass.FLAKY)) if ev is not None and ev.report is not None else set()
+    cases = [c for k, c in run.cases.items() if k not in flaky] if run is not None else []
+    if not cases:
         return default
-    return sum(1 for c in run.cases.values() if c.outcome is T.Outcome.PASSED) / len(run.cases)
+    return sum(1 for c in cases if c.outcome is T.Outcome.PASSED) / len(cases)
 
 
 def gap_closure_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[Assessed], ev: Optional[S.Evaluation],
@@ -240,10 +256,10 @@ def gap_closure_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[
                          {"tree": "base", "r": r}) for r in range(len(cand))]
     cand_ids = [_measure(led, plan.experiment_id, metric, met(c, key), M.Split.DEV, pop, conditions, evidence,
                          {"tree": "candidate", "r": r}) for r, c in enumerate(cand)]
-    gb = _measure(led, plan.experiment_id, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0),
+    gb = _measure(led, plan.experiment_id, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0, ev),
                   M.Split.DEV, pop, conditions, evidence, {"guard": "base"})
     gc = _measure(led, plan.experiment_id, "affected_tests_pass",
-                  _pass_fraction(ev.candidate_run if ev else None, 1.0 if ev is not None and ev.builds else 0.0),
+                  _pass_fraction(ev.candidate_run if ev else None, 1.0 if ev is not None and ev.builds else 0.0, ev),
                   M.Split.DEV, pop, conditions, evidence, {"guard": "candidate"})
     base_met = {r.key for r in base.rows if r.met}
 
@@ -303,10 +319,10 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
     bm, bse = mem(base_fp)
     cm, cse = mem(cand_fps[0])
     guards = [
-        (_measure(led, ex, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0), M.Split.DEV, pop, cond,
+        (_measure(led, ex, "affected_tests_pass", _pass_fraction(ev.base_run if ev else None, 1.0, ev), M.Split.DEV, pop, cond,
                   evidence, {"guard": "base"}),
          _measure(led, ex, "affected_tests_pass", _pass_fraction(ev.candidate_run if ev else None,
-                                                                 1.0 if ev is not None and ev.builds else 0.0),
+                                                                 1.0 if ev is not None and ev.builds else 0.0, ev),
                   M.Split.DEV, pop, cond, evidence, {"guard": "candidate"})),
         (_measure(led, ex, "requirements_kept", 1.0, M.Split.DEV, pop, cond, evidence, {"guard": "base"}),
          _measure(led, ex, "requirements_kept", (len(base_met) - len(lost)) / len(base_met) if base_met else 1.0,
@@ -571,6 +587,11 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             led.transition(plan.gap_id, M.Status.FAILED, f"{plan.package_id} not attempted: {work.notes}", M.Role.KERNEL)
             rep.outcome, rep.reason = "BUDGET", work.notes
             return rep
+        if work.deferred:                                               # handed over to its owner: nothing adopted, no attempt used
+            S.discard(sb)
+            P.record_outcome(led, plan, False, f"{P.DEFERRED_PREFIX} {work.notes}"[:500])
+            rep.outcome, rep.reason = "DEFERRED", work.notes
+            return rep
         if work.contaminated:
             raise _Reject(f"worker run contaminated: {list(work.contaminated)[:5]}")
         checkpoint_cancel("evaluation")
@@ -580,7 +601,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
         if cfg.hide:
             sb.reveal()                                                 # the Creator's own tests need the sealed suite back
-        ev = sb.evaluate(build_config=cfg.build, pytest_config=cfg.pytest)
+        ev = sb.evaluate(build_config=cfg.build, pytest_config=sandbox_pytest(cfg))
         before, after = _test_sources(sb.path, base_sha, change.files)
         weak = AUD.check_test_weakening(before, after)
         planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
@@ -695,9 +716,20 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         if checkpoint:
             led.checkpoint(f"cycle {n} {plan.package_id} {rep.outcome}")
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
-        with (cfg.state / "kernel_log.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(dataclasses.asdict(rep), default=str) + "\n")
+        _append_log_line(cfg.state / "kernel_log.jsonl", json.dumps(dataclasses.asdict(rep), default=str))
     return rep
+
+
+_LOG_LOCK = threading.Lock()                        # swarm workers (threads) share one kernel_log.jsonl
+
+
+def _append_log_line(path: Path, text: str) -> None:
+    """One whole line per binary write under a lock, so concurrent cycle records never interleave."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = (text + "\n").encode("utf-8")
+    with _LOG_LOCK, path.open("ab") as fh:
+        fh.write(data)
+        fh.flush()
 
 
 class _Reject(Exception):
@@ -713,7 +745,7 @@ def run(cfg: KernelConfig, worker: Worker, max_cycles: int = 1, on_cycle: Option
         out.append(r)
         if on_cycle:
             on_cycle(r)
-        if r.outcome in ("NOTHING_TO_DO", "AUDIT_RED", "BUDGET"):
+        if r.outcome in ("NOTHING_TO_DO", "AUDIT_RED", "BUDGET", "DEFERRED"):
             break
     return out
 
