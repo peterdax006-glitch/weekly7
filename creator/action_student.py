@@ -388,10 +388,11 @@ class ActionStudent:
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
                  max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True,
                  use_chooser: Optional[bool] = None, chooser: Any = None, state_dir: Optional[Path] = None,
-                 prescreen: Optional[bool] = None, prescreen_tests: bool = True, max_screened: int = 3) -> None:
+                 prescreen: Optional[bool] = None, prescreen_tests: bool = True, max_screened: int = 3, use_tools: bool = False) -> None:
         # prescreen (creator.prescreen): None = on exactly when the work tree is a Creator tree (has creator/kernel.py)
         self.prescreen, self.prescreen_tests, self.max_screened = prescreen, prescreen_tests, max_screened
         self.last_prescreen: list[dict[str, Any]] = []
+        self.use_tools = use_tools                          # opt-in: the model may investigate through tool calls first (creator.tools, loaded only then)
         self._metric = "size"
         self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
         # learned chooser (creator.chooser): None = the module default CHOOSER_DEFAULT; when on and trained it replaces the lexical stage
@@ -444,6 +445,15 @@ class ActionStudent:
             self.chooser = CH.Chooser.load() or False
         return self.chooser if self.chooser and self.chooser.trained else None
 
+    def _ask_tools(self, messages: list[dict[str, str]], package: Any, workdir: Path) -> str:
+        if not self.use_tools:
+            return self._ask(messages)
+        import importlib
+        TB = importlib.import_module("creator.tools.toolbox")
+        with TB.open_for(workdir, self.state_dir, str(getattr(package, "package_id", "pkg"))) as box:
+            messages = [{**messages[0], "content": messages[0]["content"] + "\n\n" + box.describe()}] + messages[1:]
+            return str(TB.ask_with_tools(self._ask, messages, box))
+
     def _ask(self, messages: list[dict[str, str]]) -> str:
         self.last_calls += 1
         if self.llm is not None:
@@ -470,7 +480,7 @@ class ActionStudent:
                                       + "; ".join(r["reason"] for r in self.last_prescreen[:3]), calls=0)
             self.last_prompt = self.build_prompt(plan, package, cands, workdir)
             t0 = time.monotonic()
-            reply = self._ask([{"role": "system", "content": SYSTEM}, {"role": "user", "content": self.last_prompt}])
+            reply = self._ask_tools([{"role": "system", "content": SYSTEM}, {"role": "user", "content": self.last_prompt}], package, workdir)
             self.last_seconds, self.last_reply = time.monotonic() - t0, reply
             why = (re.search(r"WHY:\s*(.*)", reply) or re.search(r"(.*)", reply))
             reasoning = (why.group(1).strip() if why else "")[:500]

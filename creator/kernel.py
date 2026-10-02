@@ -119,6 +119,15 @@ def git_changed_files(workdir: Path) -> list[Path]:
     return files
 
 
+def _tools_rule() -> str:
+    """The tools a worker may call and the policy in plain words (creator.tools, loaded on demand - never imported at start)."""
+    try:
+        import importlib
+        return "- " + importlib.import_module("creator.tools.toolbox").policy_text()
+    except ImportError:
+        return "- Run tests as `python -m pytest -q <files>`; the tools are not available in this tree."
+
+
 def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S.PROTECTED) -> str:
     """The worker's prompt: the work package, verbatim fields only (no ledger internals, no answer keys)."""
     lines = [f"You are working in a git worktree of a Python project (the Creator). Package {wp.package_id}.",
@@ -130,8 +139,7 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
     lines += ["", REG.sparse_rule_text()]
     lines += ["", "Ways this commonly goes wrong (avoid them):"] + [f"- {s}" for s in wp.expected_failure_modes]
     lines += ["", "Done means (computed by the system, not by you):"] + [f"- {s}" for s in wp.completion_criteria]
-    lines += ["", "Rules:", "- Python 3.11. Run tests exactly as `python -m pytest -q <files>` - no `cd`, pipes or redirects "
-              "(other shell commands are refused).",
+    lines += ["", "Rules:", "- Python 3.11.", _tools_rule(),
               "- Never edit these protected paths: " + ", ".join(p for p in protected if "*" not in p or p.endswith("/*")),
               "- Never weaken, skip or delete tests to make them pass.", "- Keep changes small and focused on this package."]
     return "\n".join(lines)
