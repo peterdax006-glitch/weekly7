@@ -111,10 +111,12 @@ class ModelStudent:
     name = "nupen-model-v1"
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 2, max_tokens: int = 700, max_file_chars: int = 9000,
-                 timeout_s: float = 600.0, max_files: int = 2, attempts: int = 2) -> None:
+                 timeout_s: float = 600.0, max_files: int = 2, attempts: int = 2, use_tools: bool = False) -> None:
         self.lessons_path, self.llm, self.k = Path(lessons_path), llm, k
         self.max_tokens, self.max_file_chars, self.timeout_s, self.max_files = max_tokens, max_file_chars, timeout_s, max_files
         self.attempts, self.last_calls = attempts, 0
+        self.use_tools = use_tools                          # opt-in: the model may request tool calls (creator.tools, loaded only then)
+        self._box: Any = None
         self.last_prompt = ""
         self.last_seconds = 0.0
 
@@ -158,10 +160,10 @@ class ModelStudent:
             prompt = self.build_prompt(plan, package, workdir)
             self.last_prompt = prompt
             t0 = time.monotonic()
-            messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}]
+            messages = [{"role": "system", "content": SYSTEM + self._tools_text(workdir, package)}, {"role": "user", "content": prompt}]
             res = WorkResult(False, "no attempt")
             for attempt in range(self.attempts):            # one retry, told exactly why the first reply was unusable
-                reply = self._ask(messages, 0.2 + 0.3 * attempt)
+                reply = self._ask_tools(messages, 0.2 + 0.3 * attempt)
                 res = self._apply(reply, workdir)
                 if res.claimed_done or time.monotonic() - t0 > self.timeout_s:
                     break
@@ -171,7 +173,25 @@ class ModelStudent:
             self.last_seconds = time.monotonic() - t0
         except Exception as e:                              # noqa: BLE001 - a student never crashes the swarm
             return WorkResult(False, f"model call failed: {type(e).__name__}: {str(e)[:200]}", calls=1)
+        finally:
+            if self._box is not None:
+                self._box.close()
+                self._box = None
         return dataclasses.replace(res, calls=self.last_calls)
+
+    def _tools_text(self, workdir: Path, package: Any) -> str:
+        if not self.use_tools:
+            return ""
+        import importlib
+        TB = importlib.import_module("creator.tools.toolbox")
+        self._box = TB.open_for(workdir, self.lessons_path.parent, str(getattr(package, "package_id", "pkg")))
+        return "\n\n" + self._box.describe()
+
+    def _ask_tools(self, messages: list[dict[str, str]], temperature: float) -> str:
+        if self._box is None:
+            return self._ask(messages, temperature)
+        import importlib
+        return str(importlib.import_module("creator.tools.toolbox").ask_with_tools(lambda m: self._ask(m, temperature), messages, self._box))
 
     def _ask(self, messages: list[dict[str, str]], temperature: float = 0.2) -> str:
         self.last_calls += 1
