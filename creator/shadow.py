@@ -103,13 +103,26 @@ def resolve(state: Path, lessons: list[Any]) -> list[dict[str, Any]]:
     only rows with a real outcome (adopted True/False, not no-signal) are returned, with 'adopted' filled in."""
     from creator.curriculum import is_skill_signal
     by_id = {les.lesson_id: les for les in lessons}
-    by_pkg: dict[str, Any] = {}
+    by_pkg: dict[str, list[Any]] = {}
     for les in lessons:
         if les.solver == STUDENT:
-            by_pkg[les.package_id] = les
+            by_pkg.setdefault(les.package_id, []).append(les)
+    for lst in by_pkg.values():
+        lst.sort(key=lambda x: x.at or "")                              # stable: lessons without a stamp keep their log order
+    used: set[str] = set()
     out = []
     for r in _rows(state):
-        les = by_id.get(r.get("lesson_id") or "") or by_pkg.get(str(r.get("package_id")))
+        les = by_id.get(r.get("lesson_id") or "")
+        if les is None:
+            # A package retried several times has several rows and several lessons: a row belongs to the FIRST lesson written at or
+            # after the decision and not yet claimed, never to the package's latest lesson (that fed one attempt's outcome to all).
+            for x in by_pkg.get(str(r.get("package_id")), []):
+                if x.lesson_id in used or (x.at and r.get("at") and x.at < str(r["at"])):
+                    continue
+                les = x
+                if x.at:
+                    used.add(x.lesson_id)
+                break
         if les is None or les.adopted is None or not is_skill_signal(les):
             continue
         out.append({**r, "adopted": bool(les.adopted)})

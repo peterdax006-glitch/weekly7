@@ -103,3 +103,17 @@ def test_loo_runs_on_real_lessons_only(tmp_path: Path) -> None:
     log = LessonLog(tmp_path / "l.jsonl")
     assert SH.loo(log.lessons()) == {"n": 0, "chooser_hits": 0, "default_hits": 0}
     assert SH.wilson(0, 0) == (0.0, 1.0) and SH.wilson(30, 30)[0] > 0.88
+
+
+def test_a_retried_package_does_not_feed_one_outcome_to_every_attempt(tmp_path: Path) -> None:
+    """Validator 6: shadow rows carry no lesson id, so every row of a retried package was joined to the package's LATEST lesson; the
+    first attempt's rejected row was scored with the second attempt's adoption (evidence for the pre-registered switch rule)."""
+    rows = [{"package_id": "P1", "lesson_id": "", "candidates": [], "default_pick": 1, "chooser_pick": 2, "model_pick": None,
+             "applied": "chooser", "at": "2026-10-02T10:00:00"},
+            {"package_id": "P1", "lesson_id": "", "candidates": [], "default_pick": 1, "chooser_pick": 2, "model_pick": None,
+             "applied": "default", "at": "2026-10-02T11:00:00"}]
+    (tmp_path / "shadow_choices.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    l1 = Lesson("L1", "P1", "c", "gap", "o", solver=A.ActionStudent.name, adopted=False, verdict="REJECTED: worse", at="2026-10-02T10:00:05")
+    l2 = Lesson("L2", "P1", "c", "gap", "o", solver=A.ActionStudent.name, adopted=True, verdict="ADOPTED: ok", at="2026-10-02T11:00:05")
+    res = SH.resolve(tmp_path, [l1, l2])
+    assert [(r["applied"], r["adopted"]) for r in res] == [("chooser", False), ("default", True)]

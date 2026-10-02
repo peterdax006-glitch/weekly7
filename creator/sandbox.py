@@ -38,7 +38,9 @@ PROTECTED: tuple[str, ...] = (
     "creator/evaluate_thresholds.json",
     # the measuring sticks (1 Oct): the Creator may PROPOSE changes to these, but only the owner adopts them - otherwise it could
     # make itself look better by lowering its floors, softening the scorer, the verdict/status rules or the ledger's integrity
-    "creator/capabilities.json", "creator/devbench.py", "creator/model.py", "creator/ledger.py", "creator/sandbox.py",
+    # capabilities_approved.json is written only by creator.goals.approve (owner/teacher): a worker editing it would turn a goal into
+    # work, or lower an approved capability's floor, without any approval (validator 6)
+    "creator/capabilities.json", "creator/capabilities_approved.json", "creator/devbench.py", "creator/model.py", "creator/ledger.py", "creator/sandbox.py",
     "state/creator/ledger.jsonl",
     "state/livesim/*", "state/livesim/**",
 )
