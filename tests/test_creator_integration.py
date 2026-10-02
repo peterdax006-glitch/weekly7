@@ -72,7 +72,10 @@ class Scripted:
 
 
 def decisions(led: Ledger, verdict: M.DecisionVerdict) -> list[str]:
-    return [e.id for e in led.of_type("Decision") if getattr(e.record, "verdict") is verdict]
+    """Decisions about CHANGES (subject = the Experiment). Since K08 design was integrated, the planner also records a REJECT for
+    every design option it did not choose (subject = a DesignOption); those are not decisions about the change."""
+    return [e.id for e in led.of_type("Decision") if getattr(e.record, "verdict") is verdict
+            and str(getattr(e.record, "subject_id")).startswith(M.Experiment.PREFIX)]
 
 
 def test_the_whole_pipeline_from_objective_to_resolved_lesson(cfg: K.KernelConfig, tmp_path: Path) -> None:
