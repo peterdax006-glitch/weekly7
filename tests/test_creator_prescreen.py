@@ -115,3 +115,22 @@ def test_a_practice_run_without_tests_gives_the_chooser_no_positive_label(tmp_pa
     rows = [json.loads(x) for x in out.read_text(encoding="utf-8").splitlines()]
     assert rows and all(r["inconclusive"] for r in rows)
     assert CH.practice_rows(out, out.parent / "practice_src") == []
+
+
+def test_only_one_practice_run_writes_at_a_time(tmp_path: Path) -> None:
+    """Two concurrent practice runs appended to one jsonl and could interleave rows: a second run must not write while the first
+    holds the lock, and must run again once it is released (an OS lock, so a killed holder never blocks it)."""
+    from creator.generator import MachineLock
+    w = tree(tmp_path, DEAD, "from app import u\n\n\ndef test_used():\n    assert u.used() == 1\n")
+    out = tmp_path / "state/creator/practice_rows.jsonl"
+    out.parent.mkdir(parents=True)
+    holder = MachineLock(out.with_name(out.name + ".lock"))
+    holder.acquire()
+    try:
+        with pytest.raises(TimeoutError):
+            PR.practice(w, out, out.parent / "practice_src", minutes=2, run_tests=False, files=["app/u.py"])
+        assert not out.exists() or out.read_text(encoding="utf-8") == ""
+    finally:
+        holder.release()
+    res = PR.practice(w, out, out.parent / "practice_src", minutes=2, run_tests=False, files=["app/u.py"])
+    assert res["rows"] >= 1

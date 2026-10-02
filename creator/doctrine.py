@@ -353,7 +353,7 @@ def _ref_exists(root: Path, ref: str) -> bool:
     return re.search(rf"^\s*(?:async\s+def|def|class)\s+{re.escape(sym)}\b|^{re.escape(sym)}\s*[:=]", text, re.M) is not None
 
 
-def _junit(root: Path, test_file: str, memo: dict[str, Optional[dict[str, bool]]]) -> Optional[dict[str, bool]]:
+def _junit(root: Path, test_file: str, memo: dict[str, Any]) -> Optional[dict[str, bool]]:
     if test_file not in memo:
         p = root / JUNIT / (test_file.replace("/", "__") + ".xml")
         cases: Optional[dict[str, bool]] = None
@@ -371,7 +371,38 @@ def _junit(root: Path, test_file: str, memo: dict[str, Optional[dict[str, bool]]
     return memo[test_file]
 
 
-def _resolve_ref(root: Path, ref: str, memo: dict[str, Optional[dict[str, bool]]]) -> tuple[str, str]:
+EVIDENCE_STORE = Path("state") / "creator" / "test_evidence.json"
+
+
+def _source_bound(root: Path, test_file: str, memo: dict[str, Any]) -> tuple[bool, str]:
+    """A junit result counts only for the code it ran against: the evidence store records the reach digest (test file + every
+    module it reaches, creator.selfmodel.reach_digest) at run time; it must equal the digest of the tree now, and the recorded
+    outcome must be PASS. No record, or a different digest (the code changed since), is stale: UNPROVEN."""
+    key = "@bound:" + test_file
+    if key in memo:
+        return memo[key]  # type: ignore[no-any-return]
+    ok, why = False, f"no source-bound evidence record for {test_file}"
+    try:
+        rec = json.loads((root / EVIDENCE_STORE).read_text(encoding="utf-8")).get(test_file)
+    except (OSError, ValueError, AttributeError):
+        rec = None
+    if isinstance(rec, dict) and rec.get("source_digest"):
+        from creator import selfmodel as SM
+        from creator import testrun as TR
+        if "@graph" not in memo:
+            memo["@graph"] = TR.ImportGraph.build(root)
+        now = SM.reach_digest(memo["@graph"], test_file, {})
+        if rec.get("outcome") != "PASS":
+            why = f"recorded outcome for {test_file} is {rec.get('outcome')}"
+        elif now != rec["source_digest"]:
+            why = f"stale junit evidence for {test_file}: code changed since it ran (digest {rec['source_digest']} != {now})"
+        else:
+            ok, why = True, ""
+    memo[key] = (ok, why)
+    return ok, why
+
+
+def _resolve_ref(root: Path, ref: str, memo: dict[str, Any]) -> tuple[str, str]:
     if not _ref_exists(root, ref):
         return FAIL, f"{ref} does not exist"
     path, _, sym = ref.partition("::")
@@ -385,6 +416,9 @@ def _resolve_ref(root: Path, ref: str, memo: dict[str, Optional[dict[str, bool]]
         return UNPROVEN, f"{ref}: not in the junit result"
     if not all(hits.values()):
         return FAIL, f"{ref}: failing or skipped in the junit result"
+    bound, why = _source_bound(root, path, memo)
+    if not bound:
+        return UNPROVEN, f"{ref}: {why}"
     return PASS, ref
 
 
@@ -395,7 +429,7 @@ def _worst(statuses: list[str]) -> str:
     return PASS
 
 
-def evaluate_rule(root: Path, rule: Rule, memo: Optional[dict[str, Optional[dict[str, bool]]]] = None) -> Result:
+def evaluate_rule(root: Path, rule: Rule, memo: Optional[dict[str, Any]] = None) -> Result:
     memo = {} if memo is None else memo
     if rule.kind == INTENT:
         return Result(rule, NOT_CHECKABLE, rule.note)
@@ -417,7 +451,7 @@ def evaluate_rule(root: Path, rule: Rule, memo: Optional[dict[str, Optional[dict
 
 
 def evaluate(root: Path = ROOT, only: Optional[tuple[str, ...]] = None) -> list[Result]:
-    memo: dict[str, Optional[dict[str, bool]]] = {}
+    memo: dict[str, Any] = {}
     return [evaluate_rule(root, r, memo) for r in RULES if only is None or r.section in only]
 
 

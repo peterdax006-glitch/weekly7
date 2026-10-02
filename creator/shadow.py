@@ -12,8 +12,13 @@ PRE-REGISTERED SWITCH RULE (fixed 2 Oct 2026, before any data; do not edit the t
   pick lands in the adopted action set. n = number of such real decisions. Wilson 95% intervals (z = 1.96) everywhere.
   FLIP TO THE CHOOSER when the policy is currently the default AND n >= 30 AND either
      (A) wilson_lower(chooser hits, n) >= default hits / n, or
-     (B) among resolved SHADOW decisions where the two picks differed and the applied pick was ADOPTED, tested disagreements
-         t = (chooser-applied adopted) + (default-applied adopted) >= 10 and wilson_lower(chooser-applied adopted, t) > 0.5.
+     (B) among resolved SHADOW decisions where the two picks differed: each arm has >= 10 ATTEMPTS (rows where that policy's pick
+         was applied; denominator = attempts, adopted or not) and the chooser's adoption RATE beats the default's by a one-sided
+         two-proportion z-test (pooled, z >= 1.96).
+     CORRECTION OF RULE B, 2 Oct 2026, "corrected before any data (n=0)": the first text counted only ADOPTED outcomes among
+         disagreements (t = adopted_chooser + adopted_default, wilson_lower(adopted_chooser, t) > 0.5), so a policy applied far more
+         often won on raw counts alone. No real shadow decision or outcome had been recorded (n=0 real rows) when this was
+         corrected, so it is a pre-data correction, not a post-hoc fit. Rule A and every threshold are unchanged.
   FLIP BACK TO THE DEFAULT when the policy is currently the chooser AND n >= 30 AND chooser hits / n < wilson_lower(default hits, n).
   Each flip is appended as a JSON event (with the numbers) to state/creator/policy_events.jsonl and the decision persisted in
   state/creator/policy.json {"use_chooser": bool}; ActionStudent reads it when use_chooser is not given explicitly.
@@ -163,11 +168,23 @@ def stats(state: Path, lessons: list[Any]) -> dict[str, Any]:
     diff = [r for r in res if r.get("default_pick") != r.get("chooser_pick") and r.get("chooser_pick") is not None]
     c_adopt = sum(1 for r in diff if r["adopted"] and r.get("applied") == "chooser")
     d_adopt = sum(1 for r in diff if r["adopted"] and r.get("applied") != "chooser")
+    c_tried = sum(1 for r in diff if r.get("applied") == "chooser")
+    d_tried = len(diff) - c_tried
     both = [r for r in res if r.get("chooser_pick") is not None]
     return {**st, "chooser_acc": st["chooser_hits"] / n if n else None, "default_acc": st["default_hits"] / n if n else None,
             "chooser_ci": [round(cl, 3), round(cu, 3)], "default_ci": [round(dl, 3), round(du, 3)],
             "shadow_resolved": len(res), "agreement": (sum(1 for r in both if r["default_pick"] == r["chooser_pick"]) / len(both)) if both else None,
-            "disagree_tested": c_adopt + d_adopt, "disagree_chooser_adopted": c_adopt, "disagree_default_adopted": d_adopt}
+            "disagree_tested": c_tried + d_tried, "disagree_chooser_adopted": c_adopt, "disagree_default_adopted": d_adopt,
+            "disagree_chooser_tested": c_tried, "disagree_default_tested": d_tried}
+
+
+def two_prop_z(k1: int, n1: int, k2: int, n2: int) -> float:
+    """Pooled two-proportion z for p1 - p2 (0.0 when undefined)."""
+    if n1 <= 0 or n2 <= 0:
+        return 0.0
+    p = (k1 + k2) / (n1 + n2)
+    se = math.sqrt(p * (1 - p) * (1 / n1 + 1 / n2))
+    return (k1 / n1 - k2 / n2) / se if se > 0 else 0.0
 
 
 def decide(s: dict[str, Any], use_chooser: bool) -> Optional[bool]:
@@ -177,8 +194,9 @@ def decide(s: dict[str, Any], use_chooser: bool) -> Optional[bool]:
         return None
     if not use_chooser:
         a = wilson(int(s["chooser_hits"]), n)[0] >= int(s["default_hits"]) / n
-        t = int(s["disagree_tested"])
-        b = t >= MIN_TESTED and wilson(int(s["disagree_chooser_adopted"]), t)[0] > 0.5
+        ct, dt_ = int(s.get("disagree_chooser_tested", 0)), int(s.get("disagree_default_tested", 0))
+        ca, da = int(s.get("disagree_chooser_adopted", 0)), int(s.get("disagree_default_adopted", 0))
+        b = ct >= MIN_TESTED and dt_ >= MIN_TESTED and two_prop_z(ca, ct, da, dt_) >= Z
         return True if (a or b) else None
     return False if int(s["chooser_hits"]) / n < wilson(int(s["default_hits"]), n)[0] else None
 
