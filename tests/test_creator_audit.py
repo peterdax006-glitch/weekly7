@@ -219,3 +219,30 @@ def test_every_real_own_worker_is_a_registered_self_worker() -> None:
     from creator import selfworkers as SW
     from creator import testgen as TG
     assert {SW.RuleWorker.name, SW.SearchWorker.name, TG.TestGenWorker.name} <= set(A.SELF_WORKERS)
+
+
+def test_superseded_evidence_preserved_in_git_history_is_not_drift_but_uncommitted_change_is(tmp_path: Path) -> None:
+    """2 Oct: validation round 4 rewrote VALIDATION_REPORT.json and 10 earlier TestRuns citing the old bytes went CRITICAL although
+    git held those exact bytes. Superseded-but-committed evidence is verifiable; bytes that were never committed are not."""
+    import subprocess
+
+    def g(*a: str) -> None:
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
+    g("init", "-q")
+    g("config", "core.autocrlf", "false")                                  # as in the real repo: blobs are the disk bytes
+    led = Ledger(tmp_path / "dev.jsonl", evidence_root=tmp_path)
+    rep = tmp_path / "report.json"
+    rep.write_bytes(b'{"round": 1}\n')
+    g("add", "report.json")
+    g("commit", "-q", "-m", "round 1")
+    led.append(M.TestRun(created_by=M.Role.VALIDATOR, command="t", passed=1, failed=0, errors=0, skipped=0, duration_s=0.1,
+                         evidence=(M.EvidenceRef.of(rep, tmp_path),)))
+    rep.write_bytes(b'{"round": 2}\n')                   # superseded in place, old bytes committed
+    g("commit", "-q", "-am", "round 2")
+    assert A.check_evidence_drift(led) == []
+    rep.write_bytes(b'{"round": 3, "never": "committed"}\n')
+    led.append(M.TestRun(created_by=M.Role.VALIDATOR, command="t", passed=1, failed=0, errors=0, skipped=0, duration_s=0.1,
+                         evidence=(M.EvidenceRef.of(rep, tmp_path),)))
+    rep.write_bytes(b'{"round": 4}\n')                   # round-3 bytes exist nowhere now
+    found = A.check_evidence_drift(led)
+    assert len(found) == 1 and found[0].severity == "CRITICAL" and "changed" in found[0].detail

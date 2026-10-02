@@ -6,7 +6,8 @@ AUDIT (`audit()`): computed checks over the development ledger, the repository a
 with a severity; CRITICAL means a claim the system makes about itself is not backed by evidence.
 
     ledger_integrity     the hash chain verifies from disk
-    evidence_drift       every cited evidence file still exists with the cited sha256
+    evidence_drift       every cited evidence file still exists with the cited sha256 - in the working tree, or (superseded
+                         in place) byte-for-byte in the repository's committed history at that path
     stale_done           a requirement TESTED in the ledger whose computed check fails on the current source
     fake_adoption        an ADOPT decision without an IMPROVEMENT claim, a merge commit in git, or measurement evidence (sec 68)
     claim_recompute      every ImprovementClaim's verdict recomputed with the CURRENT rule (a rule change cannot silently bless
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import hashlib
 import json
 import re
 import subprocess
@@ -74,14 +76,34 @@ def check_ledger_integrity(led: Ledger, **_: Any) -> list[AuditFinding]:
         return [AuditFinding("ledger_integrity", "CRITICAL", str(led.path), str(e))]
 
 
+def _in_history(root: Path, ref: M.EvidenceRef, memo: dict[str, set[str]]) -> bool:
+    """The cited bytes are preserved in a commit of this repository at the cited path (2 Oct: a report re-written by a later
+    validation round superseded evidence an earlier TestRun cited; git still holds those exact bytes, so the evidence is verifiable,
+    while content that was never committed - a planted or tampered file - is not found here)."""
+    if ref.path not in memo:
+        seen: set[str] = set()
+        code, out = _git(root, "log", "--format=%H", "--", ref.path)
+        for sha in (out.split() if code == 0 else [])[:200]:
+            try:
+                blob = subprocess.run(["git", "show", f"{sha}:{ref.path}"], cwd=root, capture_output=True, timeout=60).stdout
+            except (OSError, subprocess.SubprocessError):
+                continue
+            seen.add(hashlib.sha256(blob).hexdigest())                         # exact bytes only (core.autocrlf is off)
+        memo[ref.path] = seen
+    return ref.sha256 in memo[ref.path]
+
+
 def check_evidence_drift(led: Ledger, **_: Any) -> list[AuditFinding]:
     out = []
+    memo: dict[str, set[str]] = {}
     for e in led.view.entries:
         refs = list(e.record.evidence)
         if isinstance(e.record, M.Transition):
             refs += list(e.record.evidence)
         for ref in dict.fromkeys(refs):
             prob = ref.problem(led.evidence_root)
+            if prob and _in_history(Path(led.evidence_root), ref, memo):
+                continue
             if prob:
                 sev = "CRITICAL" if e.rtype in ("Measurement", "TestRun", "ImprovementClaim", "Decision") else "HIGH"
                 out.append(AuditFinding("evidence_drift", sev, e.id, prob))

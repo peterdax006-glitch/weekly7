@@ -96,6 +96,18 @@ def ref(path: Path) -> M.EvidenceRef:
     return M.EvidenceRef(path.relative_to(ROOT).as_posix(), M.sha256_file(path), "validation")
 
 
+def report_snapshot() -> Path:
+    """An immutable, content-named copy of the report to cite (2 Oct: citing the live report made every earlier TestRun's evidence
+    drift as soon as a later validation round rewrote it)."""
+    src = ROOT / REPORT
+    digest = M.sha256_file(src)
+    snap = ROOT / "state" / "validation" / "snapshots" / f"VALIDATION_REPORT_{digest[:16]}.json"
+    if not snap.exists():
+        snap.parent.mkdir(parents=True, exist_ok=True)
+        snap.write_bytes(src.read_bytes())
+    return snap
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -134,7 +146,7 @@ def main(argv: list[str]) -> int:
             summary.append({**row, "result": "dry run" if a.dry_run else "nothing to record"})
             continue
         assert log is not None
-        evidence = [ref(log), ref(ROOT / REPORT)]
+        evidence = [ref(log), ref(report_snapshot())]
         tr = led.append(M.TestRun(created_by=M.Role.VALIDATOR, command=" ".join(["pytest", *spec.tests]),
                                   passed=counts["passed"], failed=counts["failed"], errors=counts["errors"],
                                   skipped=counts["skipped"], duration_s=round(dur, 2), subject_ids=(cap,), evidence=tuple(evidence)))
