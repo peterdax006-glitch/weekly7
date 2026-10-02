@@ -281,7 +281,12 @@ class Sandbox:
         """A read-only worktree at the base commit, for the baseline build/test on the SAME selection."""
         p = self.scratch / f"{self.id}-base"
         if not p.exists():
-            git(self.repo, "worktree", "add", "--detach", str(p), self.base)
+            if self.omit:                                     # 2 Oct, CP0091: the base tree checked out all 47k files and timed out
+                git(self.repo, "worktree", "add", "--detach", "--no-checkout", str(p), self.base)
+                git(p, "sparse-checkout", "set", "--no-cone", "/*", *[f"!/{h.strip('/')}/" for h in self.omit])
+                git(p, "checkout", "-q", "--detach", self.base)
+            else:
+                git(self.repo, "worktree", "add", "--detach", str(p), self.base)
         return p
 
     def evaluate(self, smoke: Iterable[str] = (), build_config: Optional[B.BuildConfig] = None,
