@@ -184,11 +184,13 @@ def build_package(ledger: Ledger, gap_id: str, model: SM.SelfModel,
 
 def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optional[Sequence[SM.CapabilitySpec]] = None,
               max_attempts: int = MAX_ATTEMPTS, steps: Sequence[str] = WORKER_STEPS + VALIDATOR_STEPS,
-              exclude_components: Sequence[str] = ()) -> Optional[Plan]:
-    """Plan the top unblocked gap whose step is in `steps`. Returns None when nothing is plannable."""
+              exclude_components: Sequence[str] = (), prefer: Sequence[str] = ()) -> Optional[Plan]:
+    """Plan the top unblocked gap whose step is in `steps`; gaps named in `prefer` come first (creator.schedule's order).
+    Returns None when nothing is plannable."""
     spec_map = {s.id: s for s in (specs if specs is not None else SM.load_capabilities())}
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
-    for g in G.ranked(ledger):
+    rank = {gid: i for i, gid in enumerate(prefer)}
+    for g in sorted(G.ranked(ledger), key=lambda x: rank.get(x.gap_id, len(rank))):     # stable: the rest keep gaps.ranked order
         if g.blocked_by or ledger.view.status.get(g.gap_id) not in (M.Status.NOT_STARTED, M.Status.FAILED):
             continue
         gap = ledger.get(g.gap_id)
