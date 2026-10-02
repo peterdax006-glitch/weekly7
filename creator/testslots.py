@@ -22,10 +22,12 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from creator import device
+
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MB = 120.0                     # until a real launch has been measured: a pytest tree (launcher + interpreter + plugins)
+DEFAULT_MB = device.TEST_MB                     # until a real launch has been measured: a pytest tree (launcher + interpreter + plugins)
 MIN_MB = 20.0
-DEFAULT_CAP = 4
+DEFAULT_CAP = int(device.settings()["test_slots"])      # machine-derived; creator/device.py is the one source of truth
 RESERVE_FRACTION, RESERVE_MIN_GB = 0.07, 0.8          # same reserve the Governor keeps free
 
 

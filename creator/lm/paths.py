@@ -1,12 +1,12 @@
 """Where the LM keeps its data and checkpoints - outside the repo (override with CREATOR_RUNTIME)."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 
 def runtime_dir() -> Path:
-    return Path(os.environ.get("CREATOR_RUNTIME", r"C:\Users\Peter\creator_runtime"))
+    from creator import device
+    return device.runtime_dir()
 
 
 def data_dir() -> Path:

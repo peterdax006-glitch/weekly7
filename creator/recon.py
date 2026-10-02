@@ -172,6 +172,13 @@ def known_failures(root: Path, collection_errors: list[str]) -> dict[str, Any]:
 
 
 def processes() -> list[str]:
+    if sys.platform != "win32":                                       # no PowerShell/CIM off Windows: psutil's command lines
+        try:
+            import psutil
+            return [" ".join(p.info["cmdline"] or [])[:200] for p in psutil.process_iter(["cmdline"])
+                    if "weekly7" in " ".join(p.info["cmdline"] or []).lower()]
+        except Exception:                                             # noqa: BLE001 - a probe, never fatal
+            return []
     ps = sh(Path.cwd(), "powershell", "-NoProfile", "-Command",
             "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | Select-Object -ExpandProperty CommandLine")
     return [ln.strip()[:200] for ln in ps.splitlines() if "weekly7" in ln.lower()]

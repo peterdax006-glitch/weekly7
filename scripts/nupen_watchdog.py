@@ -19,6 +19,8 @@ from typing import Any, Optional
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from creator import device as DEV  # noqa: E402
 STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
 PIDFILE = STATE / "nupen_watchdog.pid"
@@ -98,7 +100,7 @@ def kill_tree(pid: int) -> None:
 
 
 def start_supervisor() -> None:
-    pyw = ROOT / ".venv" / ("Scripts/pythonw.exe" if sys.platform == "win32" else "bin/python")
+    pyw = DEV.venv_python(ROOT / ".venv", windowless=True)
     exe = str(pyw if pyw.exists() else sys.executable)
     subprocess.Popen([exe, str(ROOT / "scripts" / "nupen_service.py")], cwd=ROOT,
                      creationflags=DETACHED if sys.platform == "win32" else 0, close_fds=True,

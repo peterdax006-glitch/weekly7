@@ -7,7 +7,6 @@ The model is addressed through a tiny protocol (`generate`, `bits_per_byte`) so 
 from __future__ import annotations
 
 import json
-import os
 import random
 import re
 import time
@@ -15,12 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from creator import device
 from creator.lm.dialogue_seed import seed_items
 
 EOT = "<|eot|>"
 ROLE_NAMES = {"user": "User", "nupen": "Nupen"}
 
-RUNTIME = Path(os.environ.get("NUPEN_RUNTIME", r"C:\Users\Peter\creator_runtime"))
+RUNTIME = device.runtime_dir()
 TEACHER_FILE = RUNTIME / "lmdata" / "teacher_dialogues.jsonl"
 TRANSCRIPTS_FILE = RUNTIME / "lmdata" / "chat_transcripts.jsonl"
 STAGES_FILE = RUNTIME / "lmckpt" / "stages.json"

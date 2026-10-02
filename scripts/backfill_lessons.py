@@ -303,7 +303,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     root = Path(__file__).resolve().parent.parent
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("output", nargs="?", default=str(root / "state" / "creator" / "lessons_backfill.jsonl"))
-    ap.add_argument("--repo", default=r"C:\Users\Peter\weekly7")
+    ap.add_argument("--repo", default=str(root))
     ap.add_argument("--state", default=None, help="state/creator directory (default <repo>/state/creator)")
     ap.add_argument("--infer-adopted-from-git", action="store_true")
     a = ap.parse_args(argv)

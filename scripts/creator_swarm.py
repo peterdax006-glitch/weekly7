@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING  # noqa: E402
 
 from creator import kernel as K  # noqa: E402   (the core; everything else is loaded on demand through the registry)
 from creator import registry as REG  # noqa: E402
+from creator import device as DEV  # noqa: E402
 from creator import swarm as W  # noqa: E402
 
 if TYPE_CHECKING:
@@ -122,10 +123,10 @@ def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
-    ap.add_argument("--max-workers", type=int, default=32)
+    ap.add_argument("--max-workers", type=int, default=int(DEV.settings()["max_workers"]))   # RAM-derived (32 on 16 GB)
     ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
     ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
-    ap.add_argument("--test-parallel", type=int, default=4)       # per evaluation; the machine-wide test-slot cap (creator.testslots) binds across all
+    ap.add_argument("--test-parallel", type=int, default=int(DEV.settings()["test_slots"]))   # machine-derived (4 on 16 GB); creator.testslots caps across all evaluations
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
@@ -136,6 +137,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--teacher-presence", action="store_true")      # hand off only while the teacher's heartbeat is fresh
     ap.add_argument("--user-aware", action="store_true")            # keep 25% of RAM free while the owner is at the keyboard
     a = ap.parse_args(argv)
+    DEV.write_snapshot(log=print)                                   # state/creator/device.json; a changed machine shows in the log
     session = None if a.no_session else SerialSession(a.handoff_hours, HEARTBEAT if a.teacher_presence else None)
 
     cur = make_curriculum(model_student=not a.no_model_student)

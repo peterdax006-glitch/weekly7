@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Optional, Protocol, Sequence
 
 from creator import build as B
+from creator import device
 from creator import fundamentals as FU
 from creator import gaps as G
 from creator import model as M
@@ -460,7 +461,7 @@ def _evidence_file(cfg: KernelConfig, pkg: str, name: str, payload: Any) -> M.Ev
 def recover(cfg: KernelConfig) -> list[str]:
     """Discard every sandbox a crashed cycle left behind (never adopted unless a merge names it) - worktree and branch."""
     gone = []
-    scratch = cfg.scratch.resolve() if cfg.scratch else cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
+    scratch = cfg.scratch.resolve() if cfg.scratch else device.sandbox_root(cfg.repo)
     for leftover in scratch.glob("*-evidence") if scratch.is_dir() else ():
         shutil.rmtree(leftover, ignore_errors=True)
     for r in S.recover(cfg.repo, cfg.scratch):
