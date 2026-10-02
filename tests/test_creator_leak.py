@@ -155,3 +155,33 @@ def test_a_stale_server_whose_owner_is_dead_is_reaped_by_pid_only(tmp_path: Path
         for q in (orphan, bystander):
             if q.poll() is None:
                 q.kill()
+
+
+def test_one_local_model_per_machine_lock_waits_times_out_and_survives_a_killed_holder(tmp_path: Path) -> None:
+    """2 Oct: three llama servers (~1 GB each) ran at once. MachineLock lets one holder per machine, across processes."""
+    import subprocess
+    import sys
+    import time
+    from creator import generator as G
+    lock = tmp_path / "llama_server.lock"
+    holder = [sys.executable, "-c",
+              "import sys, time; sys.path.insert(0, sys.argv[1]); from pathlib import Path; from creator import generator as G; "
+              "m = G.MachineLock(Path(sys.argv[2])); m.acquire(); print('held', flush=True); time.sleep(float(sys.argv[3])); m.release()",
+              str(Path(__file__).resolve().parents[1]), str(lock)]
+    p = subprocess.Popen(holder + ["2.5"], stdout=subprocess.PIPE, text=True)
+    assert p.stdout is not None and p.stdout.readline().strip() == "held"
+    with pytest.raises(TimeoutError):
+        G.MachineLock(lock, wait_s=0.3, poll_s=0.05).acquire()              # held elsewhere: no second server
+    t0 = time.monotonic()
+    m = G.MachineLock(lock, wait_s=20, poll_s=0.05)
+    m.acquire()                                                              # waits for the holder to release
+    assert time.monotonic() - t0 > 0.5
+    m.release()
+    p.wait(10)
+    q = subprocess.Popen(holder + ["60"], stdout=subprocess.PIPE, text=True)
+    assert q.stdout is not None and q.stdout.readline().strip() == "held"
+    q.kill()                                                                 # a hard-killed holder must not leave it locked
+    q.wait(10)
+    m2 = G.MachineLock(lock, wait_s=5, poll_s=0.05)
+    m2.acquire()
+    m2.release()

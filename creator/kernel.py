@@ -713,6 +713,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             rep.outcome, rep.reason = "ADOPTED", f"merged {res.merge_commit[:12]}"
     except Cancelled as c:
         if not sb.closed:
+            _save_pending(cfg, plan, sb, rep)
             S.discard(sb)
         P.record_outcome(led, plan, False, str(c))
         rep.outcome, rep.reason = "CANCELLED", str(c)
@@ -732,6 +733,8 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         rep.outcome, rep.reason = "REJECTED", reason
     except Exception as e:                                              # noqa: BLE001 - recorded, sandbox discarded, never adopted
         if not sb.closed:
+            if cancel is not None and cancel.is_set():
+                _save_pending(cfg, plan, sb, rep)
             S.discard(sb)
         if cancel is not None and cancel.is_set():                      # its processes were killed by the swarm's pull-back
             P.record_outcome(led, plan, False, "pulled back: RAM tight (processes stopped mid-phase)")
@@ -753,6 +756,20 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
         _append_log_line(cfg.state / "kernel_log.jsonl", json.dumps(dataclasses.asdict(rep), default=str))
     return rep
+
+
+def _save_pending(cfg: KernelConfig, plan: P.Plan, sb: S.Sandbox, rep: CycleReport) -> None:
+    """A pulled-back package keeps its work: the sandbox diff is saved to state/creator/pending/ before the sandbox goes (2 Oct:
+    CP0065, a finished -136-node shrink, was pulled back for RAM and its sandbox deleted with nothing saved). Never raises."""
+    try:
+        diff = sb.diff()
+        if diff.strip():
+            out = cfg.state / "pending" / f"{plan.package_id}_{sb.id}.patch"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(diff, encoding="utf-8", newline="\n")
+            rep.details["saved_diff"] = str(out)
+    except Exception as e:                                              # noqa: BLE001 - saving is best effort, the cancel proceeds
+        rep.details["saved_diff_error"] = f"{type(e).__name__}: {e}"[:300]
 
 
 _LOG_LOCK = threading.Lock()                        # swarm workers (threads) share one kernel_log.jsonl

@@ -194,17 +194,72 @@ class _KillOnCloseJob:
 PIDFILE = RUNTIME / "llama_server.pid"
 
 
+class MachineLock:
+    """One holder on this machine at a time, across processes: an OS byte-range lock on `path` (msvcrt on Windows, fcntl
+    elsewhere). The OS drops it when the holder exits or is killed, so a crash can never leave a stale lock behind.
+    2 Oct: three llama servers (~1 GB each) ran at once - two started by concurrent kernel test runs, one by a student - and the
+    governor pulled finished work back for the RAM they took."""
+
+    def __init__(self, path: Path, wait_s: float = 1800.0, poll_s: float = 0.5) -> None:
+        self.path, self.wait_s, self.poll_s = path, wait_s, poll_s
+        self.fh: Optional[Any] = None
+
+    def _try(self) -> bool:
+        assert self.fh is not None
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                self.fh.seek(0)
+                msvcrt.locking(self.fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+
+    def acquire(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.fh = open(self.path, "a+b")
+        t0 = time.monotonic()
+        while not self._try():
+            if time.monotonic() - t0 > self.wait_s:
+                self.fh.close()
+                self.fh = None
+                raise TimeoutError(f"another holder kept {self.path.name} for {self.wait_s:.0f}s")
+            time.sleep(self.poll_s)
+
+    def release(self) -> None:
+        fh, self.fh = self.fh, None
+        if fh is None:
+            return
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            fh.close()
+
+
 class LocalModel:
     """A llama.cpp server bound to 127.0.0.1 for the life of the context. Nothing leaves this machine.
 
     The server cannot outlive its owner: it is terminated on every exit path (including a failed or interrupted start-up), it
     runs inside a kill-on-close Job Object (so a hard kill of this process takes it down too), and its pid is recorded in
-    `pidfile` so that a later start reaps a server whose recorded owner is dead."""
+    `pidfile` so that a later start reaps a server whose recorded owner is dead. Only ONE server runs on the machine at a time
+    (MachineLock next to the pidfile): a second LocalModel waits for the first to finish instead of loading another copy."""
 
     def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: int = 6,
                  startup_s: float = 120.0, pidfile: Path = PIDFILE) -> None:
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
         self.pidfile = pidfile
+        self.lock = MachineLock(pidfile.with_name("llama_server.lock"))
         self.port = 0
         self.proc: Optional[subprocess.Popen[bytes]] = None
         self.job: Optional[_KillOnCloseJob] = None
@@ -218,6 +273,7 @@ class LocalModel:
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
+        self.lock.acquire()                                    # one local model per machine: wait for the current one
         try:
             reap_stale_server(self.pidfile, self.exe)
         except OSError:
@@ -264,6 +320,7 @@ class LocalModel:
                     proc.kill()
                     proc.wait(timeout=10)
         finally:
+            self.lock.release()
             if self.job is not None:
                 self.job.close()
                 self.job = None
