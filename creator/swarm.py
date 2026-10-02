@@ -20,8 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from creator import constraints as CONSTRAINTS
-from creator import goals as GOALS
+from creator import registry as REG                                   # goals/constraints load on demand (sparse activation)
 from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
@@ -272,8 +271,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             return mem_peak["gb"] or None
         gov.observe = observe
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-    GOALS.maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
-    CONSTRAINTS.maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
+    REG.get("goals").maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
+    REG.get("constraints").maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
     main, recovered, stop = K.prepare(cfg, led)
     if stop is not None or main is None:
         return RoundReport("AUDIT_RED", [], 0, 0, stop or "")

@@ -124,6 +124,8 @@ def render_package(plan: P.Plan, wp: M.WorkPackage, protected: Sequence[str] = S
     lines += [f"- {s}" for s in wp.implementation_requirements]
     lines += ["", "Tests:"] + [f"- {s}" for s in wp.test_requirements]
     lines += ["", "Known interfaces:"] + [f"- {s}" for s in wp.interfaces[:20]]
+    from creator import registry as REG                                  # the sparse-activation rule reaches every package
+    lines += ["", REG.sparse_rule_text()]
     lines += ["", "Ways this commonly goes wrong (avoid them):"] + [f"- {s}" for s in wp.expected_failure_modes]
     lines += ["", "Done means (computed by the system, not by you):"] + [f"- {s}" for s in wp.completion_criteria]
     lines += ["", "Rules:", "- Python 3.11. Run tests exactly as `python -m pytest -q <files>` - no `cd`, pipes or redirects "
@@ -671,6 +673,12 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             reasons.append(f"tests weakened: {[f.detail for f in weak]}")
         if planted:
             reasons.append(f"hard-coded answers: {[f.subject for f in planted]}")
+        from creator import efficiency as E                              # SPARSE-ACTIVATION GUARD (like 'requirements kept'):
+        base_tree = sb.scratch / f"{sb.id}-base"                         # an adopted change may not grow what start loads eagerly
+        sparse = E.start_load_regression(base_tree if base_tree.is_dir() else cfg.repo, sb.path, plan.requirement_key)
+        if sparse:
+            rep.details["start_load"] = sparse
+            reasons.append("start-time load grew: " + "; ".join(sparse))
         if reasons:
             raise _Reject("; ".join(reasons))
         decision = M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ADOPT,
