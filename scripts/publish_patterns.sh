@@ -1,6 +1,6 @@
 #!/bin/bash
 # After every simulation round: rebuild the Pattern Explorer data from revealed years and publish it.
-cd /c/Users/Peter/weekly7
+cd "$(dirname "$0")/.."
 last=""
 while true; do
   cur=$(stat -c %Y state/livesim/cycles.json 2>/dev/null)

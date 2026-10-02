@@ -152,12 +152,13 @@ def test_plan_batch_never_orphans_a_package_it_planned(tmp_path: Path, monkeypat
     model = SM.build(r, scope=("pkg", "tests"), capabilities=specs, test_evidence={}, include_versions=False)
     G.sync(led, model)
     first = next(g for g in G.ranked(led) if not g.blocked_by)
-    for _ in range(P.MAX_ATTEMPTS):
+    causes = ("claim REGRESSION in the parser", "claim REGRESSION in the writer", "claim REGRESSION in the loader")   # distinct: identical failures stall (reasoning.stalled)
+    for cause in causes[:P.MAX_ATTEMPTS]:
         plan = P.plan_next(led, model, "b", specs, prefer=(first.gap_id,))
         assert plan is not None and plan.gap_id == first.gap_id
         led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
-        led.transition(plan.work_package_id, M.Status.FAILED, "claim REGRESSION", M.Role.KERNEL)
-        led.transition(plan.gap_id, M.Status.FAILED, "claim REGRESSION", M.Role.KERNEL)
+        led.transition(plan.work_package_id, M.Status.FAILED, cause, M.Role.KERNEL)
+        led.transition(plan.gap_id, M.Status.FAILED, cause, M.Role.KERNEL)
     cfg = SimpleNamespace(specs=lambda: specs, steps=P.WORKER_STEPS, mode="gaps", ledger_path=led.path, repo=tmp_path)
     plans = S.plan_batch(cfg, led, SimpleNamespace(model=model), "b", 3)
     in_progress = {i for i, s in led.view.status.items() if s is M.Status.IN_PROGRESS and led.view.by_id[i].rtype == "Gap"}

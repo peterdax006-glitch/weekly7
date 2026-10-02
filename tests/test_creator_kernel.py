@@ -164,8 +164,8 @@ def test_one_kernel_at_a_time(cfg: K.KernelConfig) -> None:
 def test_a_change_that_fails_on_main_is_rolled_back(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     real = K.assess_tree
 
-    def flaky_main(c, led, root, label, run_tests=True, audit=True):
-        a = real(c, led, root, label, run_tests, audit)
+    def flaky_main(c, led, root, label, run_tests=True, audit=True, reuse=None):
+        a = real(c, led, root, label, run_tests, audit, reuse)
         if label.endswith("_main_after"):
             rows = tuple(r if r.key != "K02.exists" else __import__("dataclasses").replace(r, met=False, detail="forced")
                          for r in a.rows)
@@ -449,6 +449,43 @@ def test_a_cycle_serves_the_base_run_from_main_and_decides_the_same(cfg: K.Kerne
     assert (rep2.outcome, rep2.verdict) == (rep.outcome, rep.verdict)
 
 
+def _fresh_main(cfg: K.KernelConfig) -> None:
+    import shutil
+    shutil.rmtree(cfg.state / "evidence", ignore_errors=True)
+    sh(cfg.repo, "reset", "-q", "--hard", "HEAD~1")
+    (cfg.state / "ledger.jsonl").unlink(missing_ok=True)
+
+
+def test_replicate_and_post_merge_reuse_runs_fewer_tests_and_decides_the_same(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cycle-time cut: main_after serves cand0's PASS files (merged tree == candidate tree); cand1 re-runs (reproducibility check). The
+    adoption decision, verdict and requirement outcomes equal the run with the optimisation off; every stage is timed."""
+    change = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}
+    calls = _spy_pytest(monkeypatch)
+    rep = K.cycle(cfg, Scripted("good", dict(change)))
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details)
+    n_on = len([c for c in calls if c[0] == "selfmodel"])
+    st = rep.details["stages"]
+    for k in ("sandbox_open", "worker", "evaluation", "cand_assessment_0", "cand_assessment_1", "post_merge", "merge", "record"):
+        assert k in st and st[k] >= 0.0, st
+    _fresh_main(cfg)
+    calls.clear()
+    off = dataclasses.replace(cfg, reuse_candidate_tests=False)
+    rep2 = K.cycle(off, Scripted("good", dict(change)))
+    n_off = len([c for c in calls if c[0] == "selfmodel"])
+    assert (rep2.outcome, rep2.verdict, rep2.reason.split()[0]) == (rep.outcome, rep.verdict, rep.reason.split()[0])
+    assert rep2.details["detail"].get("why") == rep.details["detail"].get("why")
+    assert n_on < n_off, (n_on, n_off)
+
+
+def test_a_failing_test_is_never_served_from_the_replicate(cfg: K.KernelConfig) -> None:
+    """Only PASS files are reused: a candidate whose new test fails is rejected exactly as without the optimisation."""
+    bad = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST.replace("== 4", "== 5")}
+    r_on = K.cycle(cfg, Scripted("bad", dict(bad)))
+    assert r_on.outcome == "REJECTED", (r_on.outcome, r_on.reason)
+    r_off = K.cycle(dataclasses.replace(cfg, reuse_candidate_tests=False), Scripted("bad", dict(bad)))
+    assert (r_off.outcome, r_off.verdict) == (r_on.outcome, r_on.verdict)
+
+
 def test_a_pulled_back_package_keeps_its_finished_work(cfg: K.KernelConfig) -> None:
     """2 Oct: CP0065 (a finished -136-node shrink) was pulled back for RAM and its sandbox deleted with nothing saved. A cancel now
     saves the sandbox diff to state/creator/pending/ before the sandbox goes; main stays untouched."""
@@ -473,3 +510,20 @@ def test_a_pulled_back_package_keeps_its_finished_work(cfg: K.KernelConfig) -> N
     assert saved.is_file() and saved.parent == cfg.state / "pending"
     assert "pkg/user.py" in saved.read_text(encoding="utf-8") and "tests/test_user.py" in saved.read_text(encoding="utf-8")
     assert head(cfg) == before and not (cfg.repo / "pkg" / "user.py").exists()
+
+
+def test_second_candidate_replicate_reruns_tests_while_main_after_may_reuse(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """cand1 is the reproducibility check: it never receives a reuse map. The byte-identical post-merge assessment may."""
+    seen: dict[str, object] = {}
+    real = K.assess_tree
+
+    def spy(c, led, root, label, run_tests=True, audit=True, reuse=None):           # type: ignore[no-untyped-def]
+        seen[label.rsplit("_", 1)[-1] if "_cand" in label else label] = reuse
+        return real(c, led, root, label, run_tests, audit, reuse)
+    monkeypatch.setattr(K, "assess_tree", spy)
+    change = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}
+    rep = K.cycle(cfg, Scripted("good", dict(change)))
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details)
+    assert seen["cand1"] is None, "the second replicate must re-run its tests"
+    after = [v for k, v in seen.items() if k.endswith("main_after")]
+    assert after and after[0], "the byte-identical post-merge check may serve cand0's PASS files"

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 CATALOGUE_VERSION = "1.0"
+GIT_TIMEOUT_S = 60.0
 
 # where a principle applies in Nupen's loop
 PLANNER, STUDENT, GUARD, AUDIT, TESTGEN = "planner", "student", "guard", "audit", "testgen"
@@ -573,7 +574,8 @@ def run_checks(changes: Sequence[Change], kind: str = "feature", corpus: Optiona
 
 
 def _git_show(root: Path, base: str, path: str) -> Optional[str]:
-    r = subprocess.run(["git", "show", f"{base}:{path}"], cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    r = subprocess.run(["git", "show", f"{base}:{path}"], cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=GIT_TIMEOUT_S)                              # a hung git (index lock) must not hang the kernel cycle
     return r.stdout if r.returncode == 0 else None
 
 

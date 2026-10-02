@@ -32,6 +32,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional, Protocol, Sequence
 
+from creator import testslots
+
 BENCH = Path(__file__).resolve().parent / "devbench"
 TASKS = BENCH / "tasks"
 SEALED = BENCH / "sealed"
@@ -272,8 +274,8 @@ def run_pytest(cwd: Path, target: str, timeout: float = 300.0) -> TestCounts:
         env = {k: v for k, v in os.environ.items() if not k.startswith(("PYTHON", "PYTEST"))}
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         try:
-            proc = subprocess.run([sys.executable, "-I", "-B", "-c", RUNNER, str(cwd), str(ini), str(junit), str(cwd / target)],
-                                  cwd=harness, capture_output=True, text=True, timeout=timeout, env=env)
+            proc = testslots.run([sys.executable, "-I", "-B", "-c", RUNNER, str(cwd), str(ini), str(junit), str(cwd / target)],
+                                 cwd=harness, text=True, timeout=timeout, env=env)       # holds a machine-wide test slot
         except subprocess.TimeoutExpired:
             return TestCounts(0, 0, 1, -1)
         if not junit.is_file():

@@ -3,7 +3,7 @@ fully independent of any other ai where it just permanently develops itself fore
 
 Two strategies, both local and offline:
 
-    model   a local open-weights code model (llama.cpp server on 127.0.0.1, weights in C:\\Users\\Peter\\creator_runtime) is
+    model   a local open-weights code model (llama.cpp server on 127.0.0.1, weights in the runtime dir, see creator/device.py) is
             shown the task and the code, rewrites whole files, sees the visible tests' failures, and retries. The weights are the
             Creator's own file: no service is called, and the Creator may retrain or replace them.
     search  home-grown test-guided program repair: single and paired AST mutations (operator swaps, comparison flips,
@@ -38,10 +38,11 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Optional, Sequence
 
 from creator import devbench as D
+from creator import device as DEV
 
-RUNTIME = Path(os.environ.get("CREATOR_RUNTIME", str(Path.home() / "creator_runtime")))
-SERVER_EXE = RUNTIME / "llama" / "llama-server.exe"
-DEFAULT_MODEL = RUNTIME / "models" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+RUNTIME = DEV.runtime_dir()                                           # NUPEN_RUNTIME / CREATOR_RUNTIME / ~/creator_runtime
+SERVER_EXE = DEV.server_exe(RUNTIME)                                  # llama-server.exe on Windows, llama-server elsewhere
+DEFAULT_MODEL = DEV.model_path(RUNTIME)
 MEMORY_FILE = Path(__file__).resolve().parents[1] / "state" / "creator" / "generator_memory.jsonl"
 STRATEGIES = ("model", "search")
 
@@ -255,8 +256,11 @@ class LocalModel:
     `pidfile` so that a later start reaps a server whose recorded owner is dead. Only ONE server runs on the machine at a time
     (MachineLock next to the pidfile): a second LocalModel waits for the first to finish instead of loading another copy."""
 
-    def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: int = 6,
-                 startup_s: float = 120.0, pidfile: Path = PIDFILE) -> None:
+    def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: Optional[int] = None,
+                 startup_s: float = 120.0, pidfile: Path = PIDFILE, gpu_layers: Optional[int] = None) -> None:
+        cfg = DEV.settings()                                   # threads and GPU layers follow the machine unless given
+        threads = int(cfg["llama_threads"]) if threads is None else threads
+        self.gpu_layers = int(cfg["gpu_layers"]) if gpu_layers is None else gpu_layers
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
         self.pidfile = pidfile
         self.lock = MachineLock(pidfile.with_name("llama_server.lock"))
@@ -268,7 +272,7 @@ class LocalModel:
 
     def _command(self) -> list[str]:
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
-                "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"]
+                "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"] + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
 
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
@@ -448,8 +452,9 @@ def visible_tests(workdir: Path) -> D.TestCounts:
 
 def failure_text(workdir: Path, limit: int = 2500) -> str:
     D.purge_bytecode(workdir)
-    p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
-                       cwd=workdir, capture_output=True, text=True, timeout=120)
+    from creator import testslots
+    p = testslots.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "tests"],
+                      cwd=workdir, text=True, timeout=120)
     return (p.stdout + p.stderr)[-limit:]
 
 

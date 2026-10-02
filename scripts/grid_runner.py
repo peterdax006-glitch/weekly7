@@ -13,8 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from engine import experiment_memory as EM                                         # noqa: E402
+from creator import device as DEV                                                   # noqa: E402
 
-PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
+PY = str(DEV.venv_python(ROOT / ".venv"))
 WINDOWS = [f"m{i:02d}" for i in range(1, 14)]
 RUNNER = "movers_grid"
 

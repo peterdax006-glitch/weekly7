@@ -5,8 +5,9 @@ file + a machine checklist of its '* [ ]' boxes grouped by '# N. TITLE' sections
          --canon C69 --title "..." --said "owner's own words" --memory name --checklist state/build/X.json --prefix EX"""
 import argparse, hashlib, json, pathlib, re
 
-T = pathlib.Path(r"C:\Users\Peter\.claude\projects\C--Users-Peter\e1467aef-8afc-4d51-a6e4-927d5141a284.jsonl")
-MEM = pathlib.Path(r"C:/Users/Peter/.claude/projects/C--Users-Peter/memory")
+CLAUDE_PROJECT = pathlib.Path.home() / ".claude" / "projects" / ("C--Users-" + pathlib.Path.home().name)
+T = CLAUDE_PROJECT / "e1467aef-8afc-4d51-a6e4-927d5141a284.jsonl"      # that session transcript; pass another by editing T
+MEM = CLAUDE_PROJECT / "memory"
 
 
 def strings(o):

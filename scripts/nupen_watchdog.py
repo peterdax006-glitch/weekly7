@@ -14,11 +14,13 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from creator import device as DEV  # noqa: E402
 STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
 PIDFILE = STATE / "nupen_watchdog.pid"
@@ -36,26 +38,40 @@ def log(msg: str) -> None:
         f.write(f"{dt.datetime.now().isoformat(timespec='seconds')} {msg}\n")
 
 
-def _alive(pid: int) -> bool:
-    """The supervisor's own liveness check (one implementation; loading its module only defines functions)."""
+def _svc() -> Any:
+    """The supervisor's module (one implementation of liveness and boot time; loading it only defines functions)."""
     import importlib.util
     spec = importlib.util.spec_from_file_location("nupen_service", ROOT / "scripts" / "nupen_service.py")
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    return bool(mod.alive(pid))
+    return mod
+
+
+def _alive(pid: int) -> bool:
+    return bool(_svc().alive(pid))
 
 
 def _read_pid(p: Path) -> int:
+    """The pid in a pidfile, 0 when absent/unreadable or written before this boot (the pid then belongs to an unrelated process:
+    a stale pidfile with a recycled live pid kept the watchdog from ever starting)."""
     try:
-        return int(p.read_text(encoding="utf-8").strip() or 0)
+        pid = int(p.read_text(encoding="utf-8").strip() or 0)
+        if pid and p.stat().st_mtime < float(_svc().boot_time()) - 5.0:
+            return 0
+        return pid
     except (OSError, ValueError):
         return 0
 
 
-def heartbeat_age(now: Optional[float] = None) -> Optional[float]:
+def heartbeat_age(now: Optional[float] = None, pid: int = 0) -> Optional[float]:
+    """Seconds since the last beat; None when there is none - or when the beat was written by another supervisor than `pid` (a
+    freshly started supervisor must not be ended for its predecessor's old beat, e.g. after the computer was off overnight)."""
     try:
-        stamp = float(HEARTBEAT.read_text(encoding="utf-8").split()[-1])
+        parts = HEARTBEAT.read_text(encoding="utf-8").split()
+        stamp = float(parts[-1])
+        if pid and len(parts) > 1 and int(parts[0]) != pid:
+            return None
     except (OSError, ValueError, IndexError):
         return None
     return (now or time.time()) - stamp
@@ -66,7 +82,7 @@ def supervisor_state(now: Optional[float] = None) -> tuple[str, int]:
     pid = _read_pid(SUPERVISOR_PIDFILE)
     if not pid or not _alive(pid):
         return "dead", pid
-    age = heartbeat_age(now)
+    age = heartbeat_age(now, pid)
     if age is not None and age > STALE_S:
         return "hung", pid
     return "ok", pid
@@ -84,7 +100,7 @@ def kill_tree(pid: int) -> None:
 
 
 def start_supervisor() -> None:
-    pyw = ROOT / ".venv" / ("Scripts/pythonw.exe" if sys.platform == "win32" else "bin/python")
+    pyw = DEV.venv_python(ROOT / ".venv", windowless=True)
     exe = str(pyw if pyw.exists() else sys.executable)
     subprocess.Popen([exe, str(ROOT / "scripts" / "nupen_service.py")], cwd=ROOT,
                      creationflags=DETACHED if sys.platform == "win32" else 0, close_fds=True,
@@ -116,10 +132,30 @@ def check_once(now: Optional[float] = None, last_start: float = 0.0) -> str:
 
 
 def claim() -> bool:
+    """Exactly one watchdog: an EXCLUSIVE create of the pidfile decides (2 Oct: two watchdogs started in the same second both
+    'claimed' with a read-then-write). A pidfile left by a dead holder is removed first; a live holder is never displaced."""
     old = _read_pid(PIDFILE)
-    if old and old != os.getpid() and _alive(old):
+    if old == os.getpid():
+        return True
+    if old and _alive(old):
         return False
-    PIDFILE.write_text(str(os.getpid()), encoding="utf-8")
+    try:
+        raw: Optional[str] = PIDFILE.read_text(encoding="utf-8")
+    except OSError:
+        raw = None
+    if raw is not None:                                                   # a dead holder's (or pre-boot) leftover
+        try:
+            if PIDFILE.read_text(encoding="utf-8") != raw:
+                return False                                              # another starter replaced it while we looked
+            PIDFILE.unlink()
+        except OSError:
+            pass
+    try:
+        fd = os.open(PIDFILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False                                                      # another starter won the race
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
     return True
 
 

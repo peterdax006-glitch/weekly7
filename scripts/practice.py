@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 from creator import action_student as A      # noqa: E402
 from creator import chooser as CH            # noqa: E402
 from creator import efficiency as E          # noqa: E402
+from creator.generator import MachineLock    # noqa: E402
 from creator import prescreen as PS          # noqa: E402
 from creator import testrun as TR            # noqa: E402
 
@@ -65,8 +66,19 @@ def done_groups(out: Path) -> set[tuple[str, str]]:
 
 def practice(root: Path, out: Path, src_dir: Path, minutes: float = 20.0, run_tests: bool = True, max_targets: int = 0,
              python: str = sys.executable, files: Optional[list[str]] = None,
-             test_timeout: float = 45.0) -> dict[str, Any]:
-    """One practice round over the tree at `root` (a scratch snapshot: files are rewritten and restored in place)."""
+             test_timeout: float = 45.0, lock_wait_s: float = 0.0) -> dict[str, Any]:
+    """One practice round over the tree at `root` (a scratch snapshot: files are rewritten and restored in place). Only one round
+    writes `out` at a time (an OS lock beside it, dropped if the holder dies); a second one raises TimeoutError after lock_wait_s."""
+    lock = MachineLock(out.with_name(out.name + ".lock"), wait_s=lock_wait_s)    # two runs interleaving rows in one jsonl (2 Oct)
+    lock.acquire()                                                              # TimeoutError: another practice run holds it
+    try:
+        return _practice(root, out, src_dir, minutes, run_tests, max_targets, python, files, test_timeout)
+    finally:
+        lock.release()
+
+
+def _practice(root: Path, out: Path, src_dir: Path, minutes: float, run_tests: bool, max_targets: int, python: str,
+              files: Optional[list[str]], test_timeout: float) -> dict[str, Any]:
     t0 = time.monotonic()
     foot = PS.Footing(root)
     graph = TR.ImportGraph.build(root) if run_tests else None
@@ -120,7 +132,7 @@ def practice(root: Path, out: Path, src_dir: Path, minutes: float = 20.0, run_te
                            "objective": OBJECTIVES[m].format(rel=rel), "action": a.to_dict(), "size_delta": sd, "act_delta": ad,
                            "static_delta": sl, "tests_pass": v.tests_pass if imp[m] else None, "tests": list(v.tests),
                            "stage": v.stage if imp[m] else "metric", "reason": v.reason if imp[m] else "cannot improve",
-                           "inconclusive": v.reason.startswith("inconclusive"), "good": good, "seconds": round(v.seconds, 3), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                           "inconclusive": v.reason.startswith("inconclusive") or not run_tests, "good": good, "seconds": round(v.seconds, 3), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
                     fh.write(json.dumps(row, sort_keys=True) + "\n")
                     st["rows"] += 1
                 fh.flush()
@@ -146,6 +158,9 @@ def main(argv: list[str]) -> int:
     out = Path(a.out)
     try:
         res = practice(snap, out, out.parent / "practice_src", a.minutes, not a.no_tests, a.max_targets)
+    except TimeoutError as e:
+        print(f"another practice run is writing {out.name}: {e}", file=sys.stderr)
+        return 3
     finally:
         if not a.keep:
             shutil.rmtree(scratch, ignore_errors=True)

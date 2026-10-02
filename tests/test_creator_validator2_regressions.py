@@ -20,7 +20,8 @@ from creator import research as R
 def test_run_tests_timeout_is_a_failed_attempt_not_an_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def boom(*a, **k):
         raise subprocess.TimeoutExpired(cmd="pytest", timeout=1)
-    monkeypatch.setattr(subprocess, "run", boom)
+    from creator import testslots as TS                                  # the test launch goes through the machine-wide budget (TS.run raises like subprocess.run)
+    monkeypatch.setattr(TS, "run", boom)
     ok, out = LW.run_tests(tmp_path, ["tests/test_x.py"], timeout=1)
     assert ok is False and "timed out" in out
 

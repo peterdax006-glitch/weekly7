@@ -71,16 +71,18 @@ def test_no_signal_outcomes_ignored(tmp_path: Path) -> None:
     assert [r["package_id"] for r in res] == ["P0"] and res[0]["adopted"] is True
 
 
-def _s(n, c, d, t=0, ca=0):  # type: ignore[no-untyped-def]
-    return {"n": n, "chooser_hits": c, "default_hits": d, "disagree_tested": t, "disagree_chooser_adopted": ca}
+def _s(n, c, d, ct=0, ca=0, dt=0, da=0):  # type: ignore[no-untyped-def]
+    return {"n": n, "chooser_hits": c, "default_hits": d, "disagree_tested": ct + dt, "disagree_chooser_tested": ct,
+            "disagree_chooser_adopted": ca, "disagree_default_tested": dt, "disagree_default_adopted": da}
 
 
 def test_rule_flips_only_past_thresholds_and_back() -> None:
     assert SH.decide(_s(29, 29, 0), False) is None                 # n < 30
     assert SH.decide(_s(30, 20, 20), False) is None                # lower CI < default point
     assert SH.decide(_s(30, 30, 20), False) is True                # wilson_lower(30/30)=0.886 >= 0.667
-    assert SH.decide(_s(30, 20, 20, t=10, ca=9), False) is True    # branch B
-    assert SH.decide(_s(30, 20, 20, t=9, ca=9), False) is None     # too few tested
+    assert SH.decide(_s(30, 20, 20, ct=12, ca=12, dt=12, da=2), False) is True    # branch B: rates 1.0 vs 0.17
+    assert SH.decide(_s(30, 20, 20, ct=9, ca=9, dt=12, da=0), False) is None      # chooser arm too few attempts
+    assert SH.decide(_s(30, 20, 20, ct=12, ca=12, dt=9, da=0), False) is None     # default arm too few attempts
     assert SH.decide(_s(30, 25, 25), True) is None
     assert SH.decide(_s(100, 40, 80), True) is False               # 0.40 < wilson_lower(80/100)=0.71
     assert SH.decide(_s(10, 0, 10), True) is None
@@ -103,3 +105,45 @@ def test_loo_runs_on_real_lessons_only(tmp_path: Path) -> None:
     log = LessonLog(tmp_path / "l.jsonl")
     assert SH.loo(log.lessons()) == {"n": 0, "chooser_hits": 0, "default_hits": 0}
     assert SH.wilson(0, 0) == (0.0, 1.0) and SH.wilson(30, 30)[0] > 0.88
+
+
+def test_a_retried_package_does_not_feed_one_outcome_to_every_attempt(tmp_path: Path) -> None:
+    """Validator 6: shadow rows carry no lesson id, so every row of a retried package was joined to the package's LATEST lesson; the
+    first attempt's rejected row was scored with the second attempt's adoption (evidence for the pre-registered switch rule)."""
+    rows = [{"package_id": "P1", "lesson_id": "", "candidates": [], "default_pick": 1, "chooser_pick": 2, "model_pick": None,
+             "applied": "chooser", "at": "2026-10-02T10:00:00"},
+            {"package_id": "P1", "lesson_id": "", "candidates": [], "default_pick": 1, "chooser_pick": 2, "model_pick": None,
+             "applied": "default", "at": "2026-10-02T11:00:00"}]
+    (tmp_path / "shadow_choices.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    l1 = Lesson("L1", "P1", "c", "gap", "o", solver=A.ActionStudent.name, adopted=False, verdict="REJECTED: worse", at="2026-10-02T10:00:05")
+    l2 = Lesson("L2", "P1", "c", "gap", "o", solver=A.ActionStudent.name, adopted=True, verdict="ADOPTED: ok", at="2026-10-02T11:00:05")
+    res = SH.resolve(tmp_path, [l1, l2])
+    assert [(r["applied"], r["adopted"]) for r in res] == [("chooser", False), ("default", True)]
+
+
+def test_rule_b_uses_attempt_rates_not_raw_adopted_counts() -> None:
+    # chooser applied 60 times, adopted 30 (50%); default applied 12 times, adopted 6 (50%): equal rates, raw counts favour chooser
+    assert SH.decide(_s(30, 20, 20, ct=60, ca=30, dt=12, da=6), False) is None
+    # chooser rate clearly worse but with far more adopted outcomes
+    assert SH.decide(_s(30, 20, 20, ct=100, ca=40, dt=10, da=9), False) is None
+
+
+def test_stats_counts_attempts_per_arm(tmp_path: Path) -> None:
+    import creator.shadow as M
+    rows = []
+    for i in range(4):
+        rows.append((f"P{i}", "chooser", i < 1))
+    for i in range(4, 6):
+        rows.append((f"P{i}", "default", True))
+    for pid, app, _ in rows:
+        SH.record(tmp_path, pid, [], 1, 2, None, app)
+    lessons = [_lesson(int(pid[1:]), ad, "ADOPTED: ok" if ad else "REJECTED: no") for pid, _, ad in rows]
+    for les, (pid, _, _) in zip(lessons, rows):
+        les.package_id = pid
+    res = M.resolve(tmp_path, lessons)
+    assert len(res) == 6
+    import unittest.mock as mk
+    with mk.patch.object(M, "loo", lambda lessons: {"n": 0, "chooser_hits": 0, "default_hits": 0}),             mk.patch.object(M, "resolve", lambda st, ls: res):
+        s = M.stats(tmp_path, [])
+    assert (s["disagree_chooser_tested"], s["disagree_chooser_adopted"]) == (4, 1)
+    assert (s["disagree_default_tested"], s["disagree_default_adopted"]) == (2, 2)

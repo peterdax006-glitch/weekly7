@@ -174,8 +174,8 @@ def test_a_post_merge_rollback_is_recorded_diagnosed_and_not_left_unresolved(cfg
     import dataclasses
     real = K.assess_tree
 
-    def flaky_main(c, led, root, label, run_tests=True, audit=True):
-        a = real(c, led, root, label, run_tests, audit)
+    def flaky_main(c, led, root, label, run_tests=True, audit=True, reuse=None):
+        a = real(c, led, root, label, run_tests, audit, reuse)
         if label.endswith("_main_after"):
             rows = tuple(r if r.key != "K02.exists" else dataclasses.replace(r, met=False, detail="forced") for r in a.rows)
             return K.Assessed(a.model, rows, a.audit, a.snapshot)

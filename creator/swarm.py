@@ -15,16 +15,17 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from creator import constraints as CONSTRAINTS
-from creator import goals as GOALS
+from creator import registry as REG                                   # goals/constraints load on demand (sparse activation)
 from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
+from creator import testslots as TS
 from creator import schedule as SCHED
 from creator.ledger import Ledger
 
@@ -147,7 +148,9 @@ class waiting_on_thinker:
 
 def user_idle_seconds() -> float:
     """Seconds since the owner last touched keyboard or mouse (Windows GetLastInputInfo). Unknown = 0 (assume the owner is
-    there: the cautious answer)."""
+    there: the cautious answer). Linux: xprintidle, macOS: ioreg (creator/device.py)."""
+    if sys.platform != "win32":
+        return REG.get("device").idle_seconds_unix()
     try:
         import ctypes
 
@@ -183,6 +186,8 @@ class Governor:
     observe: Optional[Callable[[int], Optional[float]]] = None
     user_active_floor_fraction: Optional[float] = None  # owner, 1 Oct: "when i start doing things it adjusts how much RAM it can
     idle_after_s: float = 300.0                         # use" - while the owner is at the keyboard keep this larger share free
+    test_parallel: int = 0                              # test processes ONE worker's evaluation runs side by side (0 = not counted)
+    eval_reserve: Callable[[int, int, int], float] = TS.eval_reserve_gb   # (running, test_parallel, extra) -> GB set aside
     idle: Optional[Callable[[], float]] = None          # seconds since the owner's last input (None = user_idle_seconds)
 
     def floor(self) -> float:
@@ -195,8 +200,14 @@ class Governor:
         seen = self.observe(running) if (self.observe is not None and running) else None
         return max(0.1, 1.25 * seen) if seen else self.per_worker_gb
 
+    def reservation(self, running: int, extra: int = 1) -> float:
+        """Memory the evaluations of `extra` more workers will need: a worker is not started if the work it would do cannot
+        finish (2 Oct: workers were admitted by their own memory, then pulled back mid-evaluation for the test processes)."""
+        return self.eval_reserve(running, self.test_parallel, extra)
+
     def can_start(self, running: int) -> bool:
-        return running < self.max_workers and self.free() - self.estimate(running) >= self.floor()
+        return (running < self.max_workers
+                and self.free() - self.estimate(running) - self.reservation(running) >= self.floor())
 
     def too_tight(self) -> bool:
         return self.free() < self.pull_fraction * self.floor()
@@ -234,7 +245,7 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
         return None
     slots = 0
     est, free, floor = gov.estimate(load), gov.free(), gov.floor()
-    while slots < cap and gov.can_start(load + slots) and free - (slots + 1) * est >= floor:   # each planned worker eats its share
+    while slots < cap and gov.can_start(load + slots) and free - (slots + 1) * est - gov.reservation(load, slots + 1) >= floor:   # each planned worker eats its share
         slots += 1
     if slots == 0:
         return []
@@ -262,7 +273,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     """`scheduled` (default): gap work is chosen as a batch by creator.schedule (dependency graph, critical path, no two plans on
     one component/file); False keeps the old one-package-at-a-time K.plan_one path."""
     gov = governor or Governor()
-    scratch_dir = cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes"
+    scratch_dir = cfg.scratch or REG.get("device").sandbox_root(cfg.repo)
     if gov.observe is None:                                             # measure what workers really use
         mem_peak = {"gb": 0.0}
 
@@ -272,8 +283,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             return mem_peak["gb"] or None
         gov.observe = observe
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-    GOALS.maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
-    CONSTRAINTS.maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
+    REG.get("goals").maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
+    REG.get("constraints").maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
     main, recovered, stop = K.prepare(cfg, led)
     if stop is not None or main is None:
         return RoundReport("AUDIT_RED", [], 0, 0, stop or "")
@@ -338,7 +349,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             youngest = max(cheap, key=lambda r: r.started, default=None)
             if youngest is not None:
                 youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
-                stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
+                stop_worker_processes(cfg.scratch or REG.get("device").sandbox_root(cfg.repo),
                                       youngest.plan.package_id)
                 pulled += 1
         elif queue and ramped and gov.can_start(load):                  # a planned package starts once the ramp allows

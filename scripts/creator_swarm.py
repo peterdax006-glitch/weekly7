@@ -20,11 +20,15 @@ from typing import Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from creator import curriculum as CUR  # noqa: E402
-from creator import kernel as K  # noqa: E402
-from creator import process_levers as PL  # noqa: E402
-from creator import selfworkers as SW  # noqa: E402
+from typing import TYPE_CHECKING  # noqa: E402
+
+from creator import kernel as K  # noqa: E402   (the core; everything else is loaded on demand through the registry)
+from creator import registry as REG  # noqa: E402
 from creator import swarm as W  # noqa: E402
+
+if TYPE_CHECKING:
+    from creator import curriculum as CUR
+    from creator import selfworkers as SW
 
 STATE = ROOT / "state" / "creator"
 HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
@@ -75,73 +79,85 @@ class SerialSession:
                 (HANDOFFS / f"{plan.package_id}.json").unlink(missing_ok=True)
 
 
-def make_process_worker(session, process_file: Path = PL.DEFAULT_PATH):      # type: ignore[no-untyped-def]
+PROCESS_FILE = STATE / "process.json"                    # process_levers.DEFAULT_PATH, without importing the module to learn it
+
+
+def make_process_worker(session, process_file: Path = PROCESS_FILE):      # type: ignore[no-untyped-def]
     """The worker built from the process the recursion adopted (defaults when none): the read path of creator_recurse.py."""
+    PL = REG.get("process_levers")
     return PL.build_worker(PL.load_process(process_file), session)
 
 
 def make_students(model_student: bool = True) -> list:      # type: ignore[type-arg]
     """The curriculum's students: creator.student.LessonStudent when that module exists (absent = no students), then the
     model-backed ModelStudent (local qwen, server started lazily per attempt) unless model_student is False."""
-    try:
-        from creator.student import LessonStudent
-    except ImportError:
+    LessonStudent = REG.optional("lesson_student")
+    if LessonStudent is None:
         return []
     students: list = [LessonStudent(LESSONS)]                # type: ignore[type-arg]
-    try:
-        from creator.replay_student import ReplayStudent
+    ReplayStudent = REG.optional("replay_student")
+    if ReplayStudent is not None:
         students.insert(0, ReplayStudent(LESSONS))           # an unmeasured teacher solution first: measure it, don't redo it
-    except ImportError:
-        pass
+    ResumeStudent = REG.optional("resume_student")
+    if ResumeStudent is not None:
+        students.insert(1 if students and students[0].name == "claude-replay" else 0,
+                        ResumeStudent(LESSONS))              # then pending diffs / unmeasured lessons, re-applied to the current tree
     if model_student:
-        try:
-            from creator.model_student import ModelStudent
+        ModelStudent = REG.optional("model_student")
+        if ModelStudent is not None:
             students.append(ModelStudent(LESSONS))
-        except ImportError:
-            pass
         try:
-            from creator.action_student import ActionStudent
-            students.append(ActionStudent(LESSONS))
+            ActionStudent = REG.optional("action_student")
+            if ActionStudent is not None:
+                students.append(ActionStudent(LESSONS))
         except Exception:                                     # noqa: BLE001 - a missing student never crashes the swarm
             pass
     return students
 
 
-def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool = True) -> CUR.Curriculum:    # type: ignore[no-untyped-def]
-    return CUR.Curriculum(lessons, make_students(model_student) if students is None else students)
+def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool = True) -> "CUR.Curriculum":    # type: ignore[no-untyped-def]
+    return REG.get("curriculum").Curriculum(lessons, make_students(model_student) if students is None else students)
 
 
 def main(argv: list[str]) -> int:
+    DEV = REG.get("device")
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=1)
-    ap.add_argument("--max-workers", type=int, default=32)
+    ap.add_argument("--max-workers", type=int, default=int(DEV.settings()["max_workers"]))   # RAM-derived (32 on 16 GB)
     ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
     ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
-    ap.add_argument("--test-parallel", type=int, default=6)
+    ap.add_argument("--test-parallel", type=int, default=int(DEV.settings()["test_slots"]))   # machine-derived (4 on 16 GB); creator.testslots caps across all evaluations
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
     ap.add_argument("--no-session", action="store_true")
     ap.add_argument("--no-model-student", action="store_true")      # skip the local-model student (nupen-model-v1)
-    ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)   # the process the recursion adopted (CR196-198)
+    ap.add_argument("--process-file", type=Path, default=PROCESS_FILE)   # the process the recursion adopted (CR196-198)
     ap.add_argument("--handoff-hours", type=float, default=6.0)
     ap.add_argument("--teacher-presence", action="store_true")      # hand off only while the teacher's heartbeat is fresh
     ap.add_argument("--user-aware", action="store_true")            # keep 25% of RAM free while the owner is at the keyboard
     a = ap.parse_args(argv)
+    DEV.write_snapshot(log=print)                                   # state/creator/device.json; a changed machine shows in the log
     session = None if a.no_session else SerialSession(a.handoff_hours, HEARTBEAT if a.teacher_presence else None)
 
     cur = make_curriculum(model_student=not a.no_model_student)
 
-    def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
+    def make_worker() -> "SW.SelfFirst":                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers,
-                     user_active_floor_fraction=0.25 if a.user_aware else None)
+                     user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
         while a.rounds == 0 or n < a.rounds:
             n += 1
+            try:
+                rec = cur.reconcile()                                    # settle lessons left pending by a stopped swarm (never raises)
+                if rec.get("settled"):
+                    print("RECONCILED", json.dumps(rec), flush=True)
+            except Exception:                                            # noqa: BLE001
+                pass
             def on_report(r: K.CycleReport) -> None:
                 cur.resolve(r)
                 print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],

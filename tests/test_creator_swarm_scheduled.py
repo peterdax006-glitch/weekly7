@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 
@@ -27,9 +28,11 @@ def gov(max_workers: int = 8, free: float = 10.0) -> W.Governor:
                       free=lambda: free, total=lambda: 16.0, observe=lambda n: None)
 
 
-def rig(monkeypatch: pytest.MonkeyPatch, batches: list[list[P.Plan]], asked: list[int], live: dict[str, int]) -> None:
+def rig(monkeypatch: pytest.MonkeyPatch, batches: list[list[P.Plan]], asked: list[int], live: dict[str, int],
+        gate: Optional[threading.Barrier] = None) -> None:
     monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
     it = iter(batches)
+    lock = threading.Lock()
 
     def plan_batch(c: Any, led: Any, main: Any, base: str, slots: int, held: Any = (), held_files: Any = ()) -> list[P.Plan]:
         asked.append(slots)
@@ -37,10 +40,14 @@ def rig(monkeypatch: pytest.MonkeyPatch, batches: list[list[P.Plan]], asked: lis
     monkeypatch.setattr(SCH, "plan_batch", plan_batch)
 
     def fake_execute(cfg: Any, worker: Any, plan: P.Plan, *a: Any, **k: Any) -> K.CycleReport:
-        live["now"] += 1
-        live["max"] = max(live["max"], live["now"])
+        with lock:
+            live["now"] += 1
+            live["max"] = max(live["max"], live["now"])
+        if gate is not None:
+            gate.wait()                  # all N workers are running at once, or BrokenBarrierError fails the test
         time.sleep(0.3)
-        live["now"] -= 1
+        with lock:
+            live["now"] -= 1
         return K.CycleReport(1, "ADOPTED", plan.package_id, "K")
     monkeypatch.setattr(K, "execute", fake_execute)
 
@@ -48,7 +55,7 @@ def rig(monkeypatch: pytest.MonkeyPatch, batches: list[list[P.Plan]], asked: lis
 def test_a_batch_fills_the_free_slots_and_starts_one_worker_per_plan(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
     asked: list[int] = []
     live = {"now": 0, "max": 0}
-    rig(monkeypatch, [[mk(1, "A"), mk(2, "B"), mk(3, "C")]], asked, live)
+    rig(monkeypatch, [[mk(1, "A"), mk(2, "B"), mk(3, "C")]], asked, live, gate=threading.Barrier(3, timeout=120))
     rnd = W.run_round(dataclasses.replace(cfg, mode="gaps"), lambda: None, gov(max_workers=3), max_packages=8, poll_s=0.02)
     assert asked[0] == 3                                                # asked for exactly the free slots
     assert sorted(r.package for r in rnd.reports) == ["CP1", "CP2", "CP3"] and live["max"] == 3

@@ -1,5 +1,5 @@
 """Nupen's own language model. Run with the LM env at idle priority:
-    python scripts/lowprio.py --idle C:/Users/Peter/creator_runtime/lmenv/Scripts/python.exe scripts/nupen_lm.py train --minutes 15
+    python scripts/lowprio.py --idle <runtime>/lmenv/Scripts/python.exe scripts/nupen_lm.py train --minutes 15
 Commands: prep | train --minutes N | eval | sample "prompt"
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ def cmd_eval() -> int:
     return 0
 
 
-def cmd_train(minutes: float, threads: int) -> int:
+def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "none", share: float = 0.2) -> int:
     from creator.lm import data, evaluate, train
     from creator.lm.model import LMConfig, build_model
     from creator.lm.tokenizer import BPETokenizer
@@ -37,7 +37,7 @@ def cmd_train(minutes: float, threads: int) -> int:
         m = build_model(LMConfig(vocab_size=tok.vocab_size))
         base = evaluate.summarize(evaluate.per_text_nats(m, tok, texts, 256))
         print("BEFORE (untrained init) bits/byte:", json.dumps(base))
-    out = train.train(minutes, threads=threads)
+    out = train.train(minutes, threads=threads, device=device, dialogue_share=share if mix == "dialogue" else 0.0)
     print("TRAINED:", json.dumps(out))
     ok, why, res = evaluate.consider(Path(out["weights"]), {"step": out["step"], "tokens": out["tokens"], "params": out["params"]})
     print("PROMOTED" if ok else "NOT PROMOTED", why)
@@ -61,7 +61,10 @@ def main() -> int:
     sub.add_parser("prep")
     t = sub.add_parser("train")
     t.add_argument("--minutes", type=float, default=15)
-    t.add_argument("--threads", type=int, default=4)
+    t.add_argument("--threads", type=int, default=None, help="default: derived from the machine (creator/device.py)")
+    t.add_argument("--device", default=None, help="cpu | cuda; default: derived from the machine")
+    t.add_argument("--mix", choices=["none", "dialogue"], default="none", help="dialogue: mix User:/Nupen: dialogue text into the story stream")
+    t.add_argument("--dialogue-share", type=float, default=0.2, help="fraction of training sequences drawn from dialogue when --mix dialogue")
     sub.add_parser("eval")
     s = sub.add_parser("sample")
     s.add_argument("prompt")
@@ -71,7 +74,9 @@ def main() -> int:
         print(json.dumps(data.prepare(), indent=1))
         return 0
     if a.cmd == "train":
-        return cmd_train(a.minutes, a.threads)
+        from creator import device as DEV
+        cfg = DEV.settings()
+        return cmd_train(a.minutes, int(cfg["lm_threads"]) if a.threads is None else a.threads, a.device or str(cfg["torch_device"]), a.mix, a.dialogue_share)
     if a.cmd == "eval":
         return cmd_eval()
     return cmd_sample(a.prompt)

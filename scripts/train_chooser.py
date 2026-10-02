@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -58,14 +59,60 @@ def build_rows(lesson_paths: list[Path], contrast_scale: int = 1) -> tuple[list[
     return uniq, info
 
 
+def retrain_with_practice(state: Path, epochs: int = 200, contrast_scale: int = 4, force: bool = False,
+                          holdout_folds: int = 5) -> dict[str, Any] | None:
+    """Retrain on lessons + practice rows, deterministic, and persist state/chooser.json. Returns None (and does nothing) when no new
+    practice row or lesson has arrived since the last logged retrain. Appends one record to state/practice_log.jsonl:
+    before = a chooser trained on the lessons only, scored on every practice decision; after = practice_holdout (held out by file) of
+    lessons + practice rows. Practice rows never enter the shadow rule (it reads lessons.jsonl only)."""
+    state = Path(state)
+    log = state / "practice_log.jsonl"
+    p_rows = C.practice_rows(state / "practice_rows.jsonl", state / "practice_src")
+    paths = [state / "lessons.jsonl", state / "lessons_contrast.jsonl"]
+    l_rows, info = build_rows([p for p in paths if p.exists()], contrast_scale)
+    sig = f"p{len(p_rows)}:l{len(l_rows)}"
+    last = ""
+    try:
+        for ln in log.read_text(encoding="utf-8").splitlines():
+            try:
+                last = json.loads(ln).get("signature", last)
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    if sig == last and not force:
+        return None
+    if not p_rows:
+        return None
+    t0 = time.monotonic()
+    assert_disjoint(l_rows + p_rows, [401, 402, 403])
+    base = C.Chooser().fit(l_rows, epochs=epochs) if l_rows else C.Chooser()
+    pos = [r for r in p_rows if r.sign > 0 and len(r.chosen) < len(r.cands)]
+    before_hit = sum(1 for r in pos if base.trained and (base.pick(r.objective, r.cands, {c.path: r.src for c in r.cands}) or 0) - 1 in r.chosen)
+    before = {"decisions": len(pos), "chooser_top1": before_hit / len(pos) if pos else None}
+    after = C.practice_holdout(l_rows + p_rows, folds=holdout_folds, epochs=epochs)
+    ch = C.Chooser().fit(l_rows + p_rows, epochs=epochs)
+    ch.meta["sources"] = {**info, "practice_rows": len(p_rows)}
+    ch.save(state / "chooser.json")
+    rec = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "signature": sig, "practice_rows": len(p_rows), "lesson_rows": len(l_rows),
+           "before": before, "after": after, "seconds": round(time.monotonic() - t0, 1)}
+    with log.open("a", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(rec, sort_keys=True) + "\n")
+    return rec
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lessons", action="append", default=None, help="lesson JSONL (repeatable)")
     ap.add_argument("--contrast-scale", type=int, default=4)
     ap.add_argument("--heldout-seeds", default="401,402,403")
     ap.add_argument("--epochs", type=int, default=300)
+    ap.add_argument("--practice", action="store_true", help="retrain on lessons + practice rows (state/creator), log before/after")
     ap.add_argument("--out", default=str(C.DEFAULT_PATH))
     a = ap.parse_args()
+    if a.practice:
+        print(json.dumps(retrain_with_practice(ROOT / "state" / "creator", a.epochs, a.contrast_scale), indent=1))
+        return 0
     paths = [Path(x) for x in (a.lessons or [str(ROOT / "state/creator/lessons.jsonl"), str(ROOT / "state/creator/lessons_contrast.jsonl")])]
     rows, info = build_rows([p for p in paths if p.exists()], a.contrast_scale)
     info["disjoint"] = assert_disjoint(rows, [int(x) for x in a.heldout_seeds.split(",")])
