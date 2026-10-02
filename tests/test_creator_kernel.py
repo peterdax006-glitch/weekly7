@@ -373,3 +373,54 @@ def test_plan_one_never_hands_the_same_file_to_two_workers(monkeypatch, tmp_path
     monkeypatch.setattr(K.P, "plan_efficiency", lambda led, root, base, avoid=(), kind=None: got.update(a=tuple(avoid)))
     K.plan_one(cfg, None, SimpleNamespace(model=None), "b", exclude_components=("K02",), exclude_paths=("creator/a.py",))
     assert set(got["c"]) == {"K02", "K01"} and set(got["a"]) == {"creator/a.py", "creator/b.py", "tests/test_b.py"}
+
+
+def _spy_pytest(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, tuple[str, ...]]]:
+    from creator import testrun as TR
+    calls: list[tuple[str, tuple[str, ...]]] = []
+    real = TR.run_pytest
+
+    def spy(root, targets, junit_path, *a, **k):                       # type: ignore[no-untyped-def]
+        calls.append((k.get("label", ""), tuple(targets)))
+        return real(root, targets, junit_path, *a, **k)
+    monkeypatch.setattr(TR, "run_pytest", spy)
+    return calls
+
+
+def test_main_assessment_serves_an_unchanged_clean_tree_and_nothing_else(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    calls = _spy_pytest(monkeypatch)
+    first = K.assess_tree(cfg, led, cfg.repo, "main", audit=False)
+    assert calls, "the first assessment must run the declared tests"
+    calls.clear()
+    again = K.assess_tree(cfg, led, cfg.repo, "main", audit=False)
+    assert not calls                                                     # byte-identical tree: served from the tree cache
+    assert [(r.key, r.met) for r in again.rows] == [(r.key, r.met) for r in first.rows]
+    K.assess_tree(cfg, led, cfg.repo, "X_main_after", audit=False)
+    assert calls                                                         # the post-merge check and the replicates always run
+    calls.clear()
+    put(cfg.repo, "pkg/base.py", "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    return 3\n\n\ndef four():\n    return 4\n")
+    K.assess_tree(cfg, led, cfg.repo, "main", audit=False)
+    assert calls, "a dirty tree is never served"
+
+
+def test_a_cycle_serves_the_base_run_from_main_and_decides_the_same(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    from creator import treecache as TC
+    change = {"pkg/user.py": USER, "tests/test_user.py": USER_TEST,
+              "pkg/base.py": "def one():\n    return 1\n\n\ndef two():\n    return 2\n\n\ndef three():\n    return 3\n\n\ndef four():\n    return 4\n"}
+    calls = _spy_pytest(monkeypatch)
+    rep = K.cycle(cfg, Scripted("good", dict(change)))
+    assert rep.outcome == "ADOPTED", (rep.reason, rep.details)
+    assert not [c for c in calls if c[0] == "base"], calls               # tests/test_base.py at base came from main's assessment
+    # control: with the cache disabled the base run happens and the decision is the same
+    import shutil
+    shutil.rmtree(cfg.state / "evidence" / "tree_cache", ignore_errors=True)
+    sh(cfg.repo, "reset", "-q", "--hard", "HEAD~1")
+    for d in ("pkg/user.py", "tests/test_user.py"):
+        assert not (cfg.repo / d).exists()
+    (cfg.state / "ledger.jsonl").unlink(missing_ok=True)
+    monkeypatch.setattr(TC, "tree_key", lambda *a, **k: None)
+    calls.clear()
+    rep2 = K.cycle(cfg, Scripted("good", dict(change)))
+    assert [c for c in calls if c[0] == "base"], calls
+    assert (rep2.outcome, rep2.verdict) == (rep.outcome, rep.verdict)

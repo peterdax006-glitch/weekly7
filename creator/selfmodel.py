@@ -512,10 +512,12 @@ def load_test_evidence(path: Path) -> dict[str, TestEvidence]:
 
 
 def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Path, timeout: float = 600.0,
-                          junit_dir: Optional[Path] = None, parallel: int = 1) -> dict[str, TestEvidence]:
+                          junit_dir: Optional[Path] = None, parallel: int = 1,
+                          reuse: Optional[Mapping[str, tuple[str, str]]] = None) -> dict[str, TestEvidence]:
     """Run each test file once, record its outcome against the digest of (the file + every module it reaches), and merge into
     `store`. A later edit to any reached module changes the digest, so the old result reads STALE - it is never reused as
-    evidence for different code."""
+    evidence for different code. `reuse` (test file -> (reach digest, junit xml)) holds PASS results the caller vouches for as
+    produced by this exact tree (creator/treecache.py); a file is served from it only if its digest here equals the recorded one."""
     rootp = Path(root).resolve()
     graph = T.ImportGraph.build(rootp)
     comps = {p: scan_component(rootp, p) for p in python_files(rootp, ("creator", "tests", "engine", "scripts"))}
@@ -525,10 +527,14 @@ def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Pa
 
     def one(tf: str) -> TestEvidence:
         jp = jdir / (tf.replace("/", "__") + ".xml")
+        digest = reach_digest(graph, tf, comps)
+        if reuse and tf in reuse and reuse[tf][0] == digest and Path(reuse[tf][1]).is_file():
+            shutil.copyfile(reuse[tf][1], jp)
+            return TestEvidence(tf, "PASS", digest, str(jp))
         run = T.run_pytest(rootp, [tf], jp, label="selfmodel", config=T.PytestConfig(timeout=timeout))
         status = run.status.value if hasattr(run.status, "value") else str(run.status)
         outcome = {"PASSED": "PASS", "FAILED": "FAIL", "NO_TESTS": "EMPTY"}.get(status, "ERROR")
-        return TestEvidence(tf, outcome, reach_digest(graph, tf, comps), str(jp))
+        return TestEvidence(tf, outcome, digest, str(jp))
     if parallel > 1 and len(test_files) > 1:                            # independent files run side by side (1 Oct: the
         from concurrent.futures import ThreadPoolExecutor               # serial suite left the machine idle)
         with ThreadPoolExecutor(max_workers=parallel) as pool:
