@@ -120,7 +120,7 @@ def practice(root: Path, out: Path, src_dir: Path, minutes: float = 20.0, run_te
                            "objective": OBJECTIVES[m].format(rel=rel), "action": a.to_dict(), "size_delta": sd, "act_delta": ad,
                            "static_delta": sl, "tests_pass": v.tests_pass if imp[m] else None, "tests": list(v.tests),
                            "stage": v.stage if imp[m] else "metric", "reason": v.reason if imp[m] else "cannot improve",
-                           "inconclusive": v.reason.startswith("inconclusive"), "good": good, "seconds": round(v.seconds, 3), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                           "inconclusive": v.reason.startswith("inconclusive") or not run_tests, "good": good, "seconds": round(v.seconds, 3), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
                     fh.write(json.dumps(row, sort_keys=True) + "\n")
                     st["rows"] += 1
                 fh.flush()

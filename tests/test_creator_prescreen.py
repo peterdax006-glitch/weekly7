@@ -104,3 +104,14 @@ def test_practice_holdout_runs_by_target_file() -> None:
     rows = [r for i in range(10) for r in mk(f"creator/m{i}.py", True)]
     res = CH.practice_holdout(rows, folds=5, epochs=60)
     assert res["decisions"] == 10 and res["chooser_top1"] is not None
+
+
+def test_a_practice_run_without_tests_gives_the_chooser_no_positive_label(tmp_path: Path) -> None:
+    """Validator 6: with --no-tests a candidate that merely imports was labelled good (tests_pass None) and trained the chooser as a
+    measured-good outcome, although no test ever ran. Such rows are inconclusive and never become training rows."""
+    w = tree(tmp_path, DEAD, "from app import u\n\n\ndef test_used():\n    assert u.used() == 1\n")
+    out = tmp_path / "state/creator/practice_rows.jsonl"
+    PR.practice(w, out, out.parent / "practice_src", minutes=2, run_tests=False, files=["app/u.py"])
+    rows = [json.loads(x) for x in out.read_text(encoding="utf-8").splitlines()]
+    assert rows and all(r["inconclusive"] for r in rows)
+    assert CH.practice_rows(out, out.parent / "practice_src") == []
