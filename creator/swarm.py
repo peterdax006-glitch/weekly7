@@ -102,8 +102,25 @@ def total_ram_gb() -> float:
 
 
 WAITING: set[str] = set()                           # packages whose worker is waiting for the Claude session (uses no RAM)
-HANDED_BACK: set[str] = set()                       # packages carrying finished Claude work: pulled back LAST (2 Oct: a
+HANDED_BACK: set[str] = set()                       # packages carrying finished work (any worker): pulled back LAST (2 Oct: a
                                                     # pull-back discarded a finished 6.5k-node activation win)
+
+
+class protect_finished:
+    """Wraps a kernel worker: once it returns finished work (claimed_done), its package is pulled back LAST. 1 Oct run8: Nupen's
+    own student (nupen-model-v2) finished CP0049 and CP0050 and both were pulled back before measurement - only the teacher's
+    finished work was protected, so a student's first real attempts were thrown away unmeasured."""
+
+    def __init__(self, worker: Any) -> None:
+        self.worker = worker
+        self.name = getattr(worker, "name", type(worker).__name__)
+
+    def __call__(self, plan: Any, package: Any, workdir: Any) -> Any:
+        res = self.worker(plan, package, workdir)
+        if getattr(res, "claimed_done", False):
+            with _WAITING_LOCK:
+                HANDED_BACK.add(str(getattr(plan, "package_id", "")))
+        return res
 _WAITING_LOCK = threading.Lock()
 
 
@@ -242,7 +259,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 def job(plan: Any = plan, ev: threading.Event = ev, box: list[K.CycleReport] = box) -> None:
                     own = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
                     try:
-                        box.append(K.execute(cfg, make_worker(), plan, main, base_sha, len(reports) + 1, own, recovered,
+                        box.append(K.execute(cfg, protect_finished(make_worker()), plan, main, base_sha, len(reports) + 1, own, recovered,
                                              lock=lock, cancel=ev, checkpoint=False))
                     except Exception as e:                              # noqa: BLE001 - a dead job thread must leave a report, not a hole
                         why = f"{type(e).__name__}: {e}"

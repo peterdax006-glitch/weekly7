@@ -201,3 +201,17 @@ def test_a_worker_that_crashes_before_the_kernel_runs_is_reported_not_lost(cfg: 
     rnd = W.run_round(cfg, broken, gov, max_packages=1, poll_s=0.1)
     assert [r.outcome for r in rnd.reports] == ["ERROR"] and "could not be built" in rnd.reports[0].reason
     assert rnd.outcome == "WORKED"
+
+
+def test_finished_work_by_any_worker_is_pulled_back_last() -> None:
+    """1 Oct run8: a student's finished CP0049/CP0050 were pulled back unmeasured; only the teacher's work was protected."""
+    from types import SimpleNamespace
+    from creator import swarm as SWM
+    done = SWM.protect_finished(lambda plan, package, wd: SimpleNamespace(claimed_done=True))
+    idle = SWM.protect_finished(lambda plan, package, wd: SimpleNamespace(claimed_done=False))
+    SWM.HANDED_BACK.discard("PKG-done")
+    SWM.HANDED_BACK.discard("PKG-idle")
+    done(SimpleNamespace(package_id="PKG-done"), None, None)
+    idle(SimpleNamespace(package_id="PKG-idle"), None, None)
+    assert "PKG-done" in SWM.HANDED_BACK and "PKG-idle" not in SWM.HANDED_BACK
+    SWM.HANDED_BACK.discard("PKG-done")
