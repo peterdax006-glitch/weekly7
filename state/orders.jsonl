@@ -2,3 +2,5 @@
 {"t": "2026-09-28T19:42:45+00:00", "ticker": "GS", "qty": 0.27286023880067267, "limit": 918.97, "id": "9d289ed3-569f-4c60-a6b0-dc673e241630", "reason": "rebalance (initial build)"}
 {"t": "2026-09-28T19:42:45+00:00", "ticker": "TEVA", "qty": 6.439979442692575, "limit": 38.94, "id": "b2c49769-2c99-4160-a8e6-01de9d4f3098", "reason": "rebalance (initial build)"}
 {"t": "2026-09-28T19:44:15+00:00", "ticker": "VRSN", "qty": 0.875176236666527, "limit": 282.15, "id": "c1ba3a67-a1fe-4652-b0d9-90429c98fbf4", "reason": "rebalance (top-up)"}
+{"t": "2026-10-02T19:39:15+00:00", "ticker": "VRSN", "qty": -0.875176, "limit": 286.31, "id": "d8c14a89-56a2-4efa-9398-ee10606a3f5b", "reason": "dropped from plan"}
+{"t": "2026-10-02T19:39:15+00:00", "ticker": "MAN", "qty": 4.544497776697111, "limit": 54.38, "id": "5ea849a8-550f-42ae-88f3-9db2d91b3fe0", "reason": "rebalance (rebalance)"}

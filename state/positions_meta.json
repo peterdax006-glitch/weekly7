@@ -1,14 +1,14 @@
 {
- "VRSN": {
-  "entry": 281.30999755859375,
-  "stop": 266.56571295793856,
+ "MAN": {
+  "entry": 54.220001220703125,
+  "stop": 49.76857445529731,
   "took": false,
-  "opened": "2026-09-28",
+  "opened": "2026-10-02",
   "why": [
-   "atr pct",
-   "r1",
-   "ins opportunistic30"
+   "overnight strength",
+   "volatility profile",
+   "yesterday's move"
   ],
-  "p_target": 0.13026493714629134
+  "p_target": 0.3056880108991825
  }
 }
