@@ -376,7 +376,12 @@ class ActionStudent:
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
                  max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True,
-                 use_chooser: Optional[bool] = None, chooser: Any = None, state_dir: Optional[Path] = None) -> None:
+                 use_chooser: Optional[bool] = None, chooser: Any = None, state_dir: Optional[Path] = None,
+                 prescreen: Optional[bool] = None, prescreen_tests: bool = True, max_screened: int = 3) -> None:
+        # prescreen (creator.prescreen): None = on exactly when the work tree is a Creator tree (has creator/kernel.py)
+        self.prescreen, self.prescreen_tests, self.max_screened = prescreen, prescreen_tests, max_screened
+        self.last_prescreen: list[dict[str, Any]] = []
+        self._metric = "size"
         self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
         # learned chooser (creator.chooser): None = the module default CHOOSER_DEFAULT; when on and trained it replaces the lexical stage
         self.state_dir = Path(state_dir) if state_dir is not None else _state_dir()
@@ -446,6 +451,12 @@ class ActionStudent:
             cands = self.candidates(package, workdir)
             if not cands:
                 return WorkResult(False, "no valid action candidates for the target files")
+            self.last_prescreen, screen = [], self._screening(workdir)
+            if screen:
+                cands = self._viable(cands, plan, package, workdir)
+                if not cands:
+                    return WorkResult(False, "prescreen: no candidate can improve the targeted metric: "
+                                      + "; ".join(r["reason"] for r in self.last_prescreen[:3]), calls=0)
             self.last_prompt = self.build_prompt(plan, package, cands, workdir)
             t0 = time.monotonic()
             reply = self._ask([{"role": "system", "content": SYSTEM}, {"role": "user", "content": self.last_prompt}])
@@ -463,12 +474,80 @@ class ActionStudent:
                 picks = [alt] if alt else picks
             if not picks:
                 return WorkResult(False, f"model reply held no valid choice: {reply[:120]!r}", calls=self.last_calls, reasoning=reasoning)
-            res = self._apply([cands[i - 1] for i in picks], package, workdir, reasoning)
+            chosen = [cands[i - 1] for i in picks]
+            if screen:
+                chosen = self._first_passing(chosen, cands, workdir)
+                if not chosen:
+                    return WorkResult(False, "prescreen rejected every attempted candidate: "
+                                      + "; ".join(r["reason"] for r in self.last_prescreen[-3:]), calls=self.last_calls, reasoning=reasoning)
+                picks = [cands.index(a) + 1 for a in chosen]
+            res = self._apply(chosen, package, workdir, reasoning)
             if res.claimed_done:
                 self._shadow(plan, package, cands, model_pick, picks)
             return res
         except Exception as e:                              # noqa: BLE001 - a student never crashes the swarm
             return WorkResult(False, f"model call failed: {type(e).__name__}: {str(e)[:200]}", calls=max(self.last_calls, 1))
+
+    # -- pre-screen (creator.prescreen): may only REJECT early; the kernel's measurement stays the only adoption authority
+    def _screening(self, workdir: Path) -> bool:
+        return self.prescreen if self.prescreen is not None else (Path(workdir) / "creator" / "kernel.py").is_file()
+
+    def _log_prescreen(self, rec: dict[str, Any]) -> None:
+        self.last_prescreen.append(rec)
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            with (self.state_dir / "prescreen_log.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, sort_keys=True) + "\n")
+        except OSError:
+            pass
+
+    def _viable(self, cands: list[Action], plan: Any, package: Any, workdir: Path) -> list[Action]:
+        """Candidates whose in-process metric delta can improve the targeted metric, best predicted gain first; the rest are
+        rejected here with the reason recorded."""
+        from creator import prescreen as PS
+        metric = PS.metric_for(plan)
+        self._foot = foot = PS.Footing(workdir)
+        keep: list[tuple[int, int, Action]] = []
+        for n, a in enumerate(cands):
+            texts = self._texts
+            others = [t for r, t in texts.items() if r != a.path]
+            new = apply_action(texts[a.path], a, _elsewhere(others)) if a.path in texts else None
+            v = PS.metric_verdict(foot, a.path, new, metric) if new is not None else PS.Verdict(False, "does not apply", "metric")
+            self._log_prescreen({"package_id": str(getattr(plan, "package_id", "") or getattr(package, "id", "")), "action": a.short(),
+                                 "path": a.path, "metric": metric, "ok": v.ok, "reason": v.reason, "size_delta": v.size_delta,
+                                 "act_delta": v.act_delta, "stage": "metric"})
+            if v.ok:
+                keep.append((-PS.predicted_gain(v.size_delta or 0, v.act_delta, metric), n, a))
+        self._metric = metric
+        return [a for _, _, a in sorted(keep)]
+
+    def _first_passing(self, chosen: list[Action], cands: list[Action], workdir: Path) -> list[Action]:
+        """The first attempt (the student's own choice, then the rest best-predicted-gain-first, at most `max_screened`) whose
+        import and direct tests pass in the work tree. [] when none does."""
+        from creator import prescreen as PS
+        attempts = [chosen] + [[a] for a in cands if [a] != chosen]
+        graph = None
+        for atts in attempts[: self.max_screened]:
+            by_path: dict[str, str] = {}
+            for a in atts:
+                src = by_path.get(a.path) or self._texts.get(a.path, "")
+                others = [t for r, t in self._texts.items() if r != a.path]
+                new = apply_action(src, a, _elsewhere(others))
+                if new is not None:
+                    by_path[a.path] = new
+            rec = {"action": "+".join(a.short() for a in atts), "metric": self._metric, "stage": "runtime", "ok": bool(by_path), "reason": "" if by_path else "does not apply"}
+            for rel, new in by_path.items():
+                if graph is None and self.prescreen_tests:
+                    from creator import testrun as TR
+                    graph = TR.ImportGraph.build(workdir)
+                v = PS.check_in_tree(workdir, rel, new, graph, self.prescreen_tests)
+                if not v.ok:
+                    rec.update(ok=False, reason=v.reason, stage=v.stage)
+                    break
+            self._log_prescreen(rec)
+            if rec["ok"]:
+                return atts
+        return []
 
     def _shadow(self, plan: Any, package: Any, cands: list[Action], model_pick: Optional[int], picks: list[int]) -> None:
         """Record what the default policy and the chooser each pick for a decision that was applied. Never alters the decision."""
