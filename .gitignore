@@ -18,3 +18,18 @@ state/creator/practice_rows.jsonl
 state/creator/practice_src/
 state/creator/prescreen_log.jsonl
 state/creator/shadow_choices.jsonl
+
+# live runtime files (never commit: a merge would overwrite or delete them under the running service)
+state/creator/NUPEN_STOP
+state/creator/nupen_service.log
+state/creator/nupen_service.crash.log
+state/creator/nupen_service.heartbeat
+state/creator/nupen_service.pid
+state/creator/nupen_swarm.pid
+state/creator/nupen_watchdog.log
+state/creator/nupen_watchdog.pid
+state/creator/teacher_heartbeat
+state/creator/device.json
+state/creator/test_proc_mb.json
+state/creator/tool_log.jsonl
+state/creator/scratch/
