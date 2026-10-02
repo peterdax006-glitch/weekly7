@@ -1,0 +1,17 @@
+{
+ "about": "Capabilities approved by the owner or teacher from creator/goals.py proposals.",
+ "capabilities": [
+  {
+   "id": "K28",
+   "name": "student capability for shrink tasks",
+   "modules": [
+    "creator/goal_student_shrink.py"
+   ],
+   "tests": [
+    "tests/test_creator_goal_student_shrink.py"
+   ],
+   "floor": 0,
+   "approved_from": "GP-00aabd0a29"
+  }
+ ]
+}
