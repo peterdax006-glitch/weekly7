@@ -44,9 +44,9 @@ def summarize(rep: R.StepReport, wl: PL.DevWorkload, seed: int, min_effect: floa
         out["choice_arm"] = {"n": wl.chunk * wl.reps, "base": sb.dev, "cand": sc.dev, "diff": d.get("diff"), "se": d.get("se"),
                              "ci": [d.get("lo"), d.get("hi")]}
         pb = sum(sb.dev) / len(sb.dev)
-        n = wl.chunk * wl.reps
+        n = wl.chunk                  # improvement_verdict does not shrink its SE with replicates: the chunk is the n that counts
         if 0 < pb < 1:
-            out["power"] = {"p_base": pb, "n_per_arm": n, "detectable_effect_80pct": PW.detectable_effect(pb, n),
+            out["power"] = {"p_base": pb, "n_per_chunk": n, "n_per_arm": wl.chunk * wl.reps, "detectable_effect_80pct": PW.detectable_effect(pb, n),
                             "n_needed_for_min_effect": PW.required_n(pb, min_effect) if min_effect > 0 else None}
         hd, hse = d.get("holdout_diff"), d.get("holdout_se")
         out["confirm_arm"] = {"n": wl.confirm, "base": sb.holdout, "cand": sc.holdout, "diff": hd, "se": hse,
@@ -65,11 +65,13 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--probe", action="store_true", help="when the ledger shows no weakness, try the next untried parameter")
     ap.add_argument("--synth", action="store_true", help="use the cheap in-process synthetic repair tasks (creator.synth_tasks) instead of devbench dev tasks")
     ap.add_argument("--min-effect", type=float, default=0.0, help="smallest gain that matters (also lets NO_EFFECT be concluded)")
+    ap.add_argument("--initial", default=None, help="starting process as research_budget,design_breadth,reviewer_depth,max_retries (a different operating point)")
     ap.add_argument("--cache", type=Path, default=None, help="jsonl of per-(process, task) results: resume after an interrupted run")
     ap.add_argument("--ledger", type=Path, default=STATE / "recursion_ledger.jsonl")
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)
     a = ap.parse_args(argv)
     led = Ledger(a.ledger, evidence_root=a.ledger.parent)
+    initial = R.ProcessConfig(*map(int, a.initial.split(","))) if a.initial else None
     bench = ST.SynthBench() if a.synth else None
     for _ in range(a.steps):
         it = len(R.recorded_steps(led)) + 1
@@ -78,10 +80,10 @@ def main(argv: list[str]) -> int:
         else:
             wl = PL.DevWorkload(seed=a.seed + it - 1, chunk=a.chunk, reps=a.reps, confirm=a.confirm, cache_path=a.cache)
         forced = None
-        if a.probe and not any(R.design_change(w, R.current_process(led), R.tried_changes(led)) for w in R.find_weaknesses(led)):
-            forced = probe_change(R.current_process(led), R.tried_changes(led))
-        rep = R.step(led, wl, forced=forced, min_effect=a.min_effect)
-        PL.save_process(R.current_process(led), a.process_file)
+        if a.probe and not any(R.design_change(w, R.current_process(led, initial), R.tried_changes(led)) for w in R.find_weaknesses(led)):
+            forced = probe_change(R.current_process(led, initial), R.tried_changes(led))
+        rep = R.step(led, wl, forced=forced, initial=initial, min_effect=a.min_effect)
+        PL.save_process(R.current_process(led, initial), a.process_file)
         print(json.dumps(summarize(rep, wl, a.seed + it - 1, a.min_effect)), flush=True)
         if rep.change is None:
             break
