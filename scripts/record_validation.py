@@ -111,7 +111,7 @@ def main(argv: list[str]) -> int:
         if target and tests_pass:
             target = M.Status.TESTED
         vsha = first_validated_commit(cid) if report.get(cid, {}).get("verdict") == "VALIDATED" else None
-        fresh = bool(vsha) and unchanged_since(vsha, [*spec.modules, *spec.tests])
+        fresh = vsha is not None and unchanged_since(vsha, [*spec.modules, *spec.tests])
         if target is M.Status.TESTED and checks["integrated"] and fresh:
             target = M.Status.VALIDATED
         row.update(checks=checks, tests=counts, verdict=report.get(cid, {}).get("verdict"), verdict_commit=vsha, fresh=fresh,
