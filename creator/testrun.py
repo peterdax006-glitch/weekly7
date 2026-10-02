@@ -390,7 +390,7 @@ def run_pytest(root: str | Path, targets: Sequence[str], junit_path: str | Path,
         jp.unlink()                        # a stale file from an earlier run must never be read as this run's result
     argv = [cfg.python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(root), f"--junitxml={jp}",
             "-o", "junit_family=xunit2", *cfg.extra_args, "--", *sel]
-    proc = run_cmd(argv, root, timeout=cfg.timeout, env=clean_env(root, cfg.env))
+    proc = run_cmd(argv, root, timeout=cfg.timeout, env=clean_env(root, cfg.env), budget=True)
     fmap = dict(file_of or {})
     for t in sel:
         f = t.split("::", 1)[0]

@@ -117,7 +117,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--max-workers", type=int, default=32)
     ap.add_argument("--floor-fraction", type=float, default=0.07)   # reserve = this share of the machine's RAM (>= 0.8 GB)
     ap.add_argument("--filler", type=int, default=40)               # leftover-memory jobs per round (own-worker benchmarks)
-    ap.add_argument("--test-parallel", type=int, default=6)
+    ap.add_argument("--test-parallel", type=int, default=4)       # per evaluation; the machine-wide test-slot cap (creator.testslots) binds across all
     ap.add_argument("--packages", type=int, default=12)
     ap.add_argument("--steps", default=",".join(K.P.WORKER_STEPS))
     ap.add_argument("--mode", choices=("auto", "gaps", "efficiency"), default="auto")
@@ -135,7 +135,7 @@ def main(argv: list[str]) -> int:
     def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers,
-                     user_active_floor_fraction=0.25 if a.user_aware else None)
+                     user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0

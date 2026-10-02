@@ -48,8 +48,9 @@ def run_tests(workdir: Path, tests: Sequence[str], timeout: float = 900.0) -> tu
     from creator import devbench as D
     D.purge_bytecode(workdir)                    # rewrites of the same size in the same second must not run stale bytecode
     try:
-        p = subprocess.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests], cwd=workdir,
-                           capture_output=True, text=True, timeout=timeout)
+        from creator import testslots
+        p = testslots.run([sys.executable, "-B", "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", *tests], cwd=workdir,
+                          text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return False, f"the tests timed out after {timeout:.0f}s - make the change cheaper or fix a hang"
     return p.returncode == 0, (p.stdout + p.stderr)[-3000:]

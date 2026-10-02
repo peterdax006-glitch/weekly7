@@ -148,8 +148,9 @@ def rerun_tests(repo: Path, commit: str, files: Sequence[str], timeout: int = 60
             return {"status": "CANNOT_RUN", "tests": tests, "why": r.stderr.decode("utf-8", "replace")[-300:]}
         added = True
         try:
-            p = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--no-header", *tests], cwd=wt,
-                               capture_output=True, text=True, timeout=timeout)
+            from creator import testslots
+            p = testslots.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--no-header", *tests], cwd=wt,
+                              text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
             return {"status": "CANNOT_RUN", "tests": tests, "why": f"timeout after {timeout}s"}
         out = p.stdout + p.stderr
