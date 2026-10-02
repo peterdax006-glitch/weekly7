@@ -77,3 +77,13 @@ def test_a_replay_is_not_blocked_by_the_no_tests_example_yet_gate(tmp_path: Path
     wd = _work(tmp_path)
     r = step(plan, SimpleNamespace(objective=OBJ, outputs=()), wd)
     assert isinstance(r, K.WorkResult) and r.claimed_done, r.notes
+
+
+def test_a_lesson_naming_a_path_outside_the_work_directory_is_never_replayed(tmp_path: Path) -> None:
+    """Validator round 5: files_after keys were joined to the work directory unchecked, so '../outside.py' wrote outside the sandbox
+    (a replay runs BEFORE the kernel measures anything)."""
+    log = C.LessonLog(tmp_path / "lessons.jsonl")
+    _lesson(log, {"../outside.py": ""}, {"../outside.py": "boom = 1\n"})
+    wd = _work(tmp_path)
+    r = ReplayStudent(tmp_path / "lessons.jsonl")(None, SimpleNamespace(objective=OBJ), wd)
+    assert not r.claimed_done and not (tmp_path / "outside.py").exists()

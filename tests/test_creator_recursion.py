@@ -97,3 +97,16 @@ def test_the_adoption_gate_cannot_be_bypassed(led: Ledger) -> None:
     assert verdict is not M.Verdict.IMPROVEMENT
     with pytest.raises(LedgerError):
         led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT, claim_id=claim, reason="x"))
+
+
+def test_min_effect_makes_adoption_stricter_and_is_recorded_on_the_claim(led: Ledger, tmp_path: Path) -> None:
+    """Validator round 5: `step(min_effect=)` was untested. The same improving change that is adopted at 0 must NOT be adopted when the
+    smallest gain that matters exceeds what it delivers, and the claim carries the value the verdict was computed with."""
+    change = R.Change("max_retries", 2, 3, "more retries")
+    ok = R.step(led, R.make_workload(), forced=change)
+    assert ok.adopted and ok.verdict == "IMPROVEMENT"
+    led2 = Ledger(tmp_path / "strict.jsonl", evidence_root=tmp_path)
+    strict = R.step(led2, R.make_workload(), forced=change, min_effect=0.99)
+    assert not strict.adopted and strict.verdict != "IMPROVEMENT" and strict.process_after == R.ProcessConfig()
+    claims = [e.record for e in led2.of_type("ImprovementClaim")]
+    assert len(claims) == 1 and claims[0].min_effect == 0.99                             # type: ignore[union-attr]

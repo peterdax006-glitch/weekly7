@@ -61,6 +61,10 @@ class ReplayStudent:
                                         if self._matches(workdir, x.files_before)), None)
         if les is None:
             return WorkResult(False, "no unmeasured teacher solution matches the current files")
+        root = workdir.resolve()
+        for rel in les.files_after:                                    # a lesson log is data: never write outside the sandbox
+            if Path(rel).is_absolute() or not (root / rel).resolve().is_relative_to(root):
+                return WorkResult(False, f"lesson {les.lesson_id} names a path outside the work directory: {rel!r}")
         for rel, text in les.files_after.items():
             p = workdir / rel
             p.parent.mkdir(parents=True, exist_ok=True)

@@ -74,7 +74,7 @@
    "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K05": {
-   "verdict": "VALIDATED",
+   "verdict": "RETIRED",
    "evidence": {
     "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_agents.py tests/test_creator_validator4_regressions.py",
     "result": "test_creator_agents: 13 passed in 7.89s; test_creator_validator4_regressions: 10 passed in 4.15s",
@@ -105,19 +105,27 @@
    ],
    "depth": "module read; Budget race fixed",
    "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717",
+   "retired": "Owner's decision (2 Oct 2026): K05 agents is RETIRED; another engineer changes the check itself (creator/objective.py not touched here). Earlier VALIDATED evidence kept; no longer counted."
   },
   "K06": {
    "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_sandbox.py",
-    "result": "test_creator_sandbox: 32 passed in 22.14s",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "result": "test_creator_sandbox: 32 passed (incl. omit-paths test)",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
-   "issues": [],
-   "depth": "diff since the last verdict read in full (state/ pruned at the tree root only, disk-cached import scan, run_base serving PASS junit of the same tree)",
-   "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "issues": [
+    {
+     "where": "creator/sandbox.py:Sandbox.open/reveal",
+     "severity": "info",
+     "status": "CLOSED (non-defect)",
+     "issue": "omit=('state/research',) paths are never checked out, also after reveal(); worker writes under an omitted path are silently dropped by git add (sparse) and tests reading state/research cannot run inside a sandbox (the baseline worktree is full). Merge keeps the omitted tree (test_omitted_paths_stay_out...). Safe direction: a missing file can only fail a candidate, never bless it."
+    }
+   ],
+   "depth": "diff 48e00e866..HEAD of sandbox.py read in full; build.py/testrun.py unchanged since the verdict; omit+hide+merge exercised by test",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K07": {
    "verdict": "VALIDATED",
@@ -248,9 +256,9 @@
   "K14": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_kernel.py",
-    "result": "test_creator_kernel: 28 passed in 397.18s (0:06:37)",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_kernel.py tests/test_creator_integration.py",
+    "result": "test_creator_kernel + test_creator_integration: 33 passed in 221s",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
    "issues": [
     {
@@ -267,11 +275,17 @@
      "where": "creator/kernel.py:621",
      "severity": "info",
      "issue": "Core invariant CONFIRMED: adoption requires verdict IMPROVEMENT and ev.clean and no weakening/planted answers (any reason raises _Reject); WorkResult.claimed_done is never consulted, so a worker's self-report cannot adopt."
+    },
+    {
+     "where": "creator/kernel.py:_save_pending",
+     "severity": "info",
+     "status": "CLOSED (non-defect)",
+     "issue": "Checked: never raises (whole body in try/except Exception); path is cfg.state/'pending'/<package_id>_<sandbox id>.patch where package_id comes from next_package_id (CPnnnn) and sb.id is generated, so it cannot leave state/creator/pending; only called while the sandbox is open, before S.discard; main untouched (test_a_pulled_back_package_keeps_its_finished_work). Rollback now records Failure+Diagnosis+Repair (CR204) with non-empty text, consistent with check_unresolved_failures. Patches accumulate without a cap (no pruning)."
     }
    ],
-   "depth": "all earlier issues fixed with failing-first regression tests (round 3/5); re-run on current code",
-   "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "depth": "diff since 48e00e866 read in full (omit, rollback records, _save_pending); kernel+integration tests re-run",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K15": {
    "verdict": "VALIDATED",
@@ -286,12 +300,21 @@
   "K16": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_audit.py -q",
-    "result": "19 passed in 114.86s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_audit.py tests/test_creator_audit_recursion_failures.py",
+    "result": "test_creator_audit: passed incl. new regression; test_creator_audit_recursion_failures passed",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
-   "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)",
-   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked"
+   "issues": [
+    {
+     "where": "creator/audit/checks.py:_in_history",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "`git show <sha>:<path>` for a commit that DELETED the path fails with empty stdout, which was hashed as sha256(b'') and added to the preserved set: evidence citing the empty-file hash was accepted as 'preserved in history' for any path ever deleted. FIXED: a non-zero git exit is skipped; test_history_evidence_never_accepts_the_empty_hash_for_a_path_that_was_merely_deleted (failed before). Otherwise sound: only bytes exactly equal (sha256) to a blob committed at that very path in HEAD's history are accepted, so a never-committed or tampered file is still CRITICAL; content committed and then swapped is accepted by design because the cited bytes remain verifiable in git. Limit: only the last 200 commits touching the path (older versions read as drift: fail-safe)."
+    }
+   ],
+   "depth": "diff read in full (history rule, recursion + unresolved_failures checks, two new attacks); audit + recursion-failure tests",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K17": {
    "verdict": "VALIDATED",
@@ -315,9 +338,9 @@
   "K18": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_generator.py",
-    "result": "test_creator_generator: 24 passed in 278.48s (0:04:38)",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_generator.py tests/test_creator_leak.py",
+    "result": "test_creator_generator: 24 passed (incl. real local model); test_creator_leak incl. new lock-release test passed",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
    "issues": [
     {
@@ -341,28 +364,48 @@
      "severity": "info",
      "issue": "'model' strategy needs llama-server + weights; its tests use a FakeLLM, the real path is untested here.",
      "status": "MITIGATED (h8/revalidate): evaluate.compare now refuses a holdout run when an arm's solver still learns (learn=True with a memory) - the only path the kernel uses; regression test_k10_a_learning_solver_is_refused_on_the_holdout. Direct devbench.score_holdout callers stay the caller's discipline (devbench.py is out of scope to edit)."
+    },
+    {
+     "where": "creator/generator.py:LocalModel.__enter__",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "MachineLock was acquired before reap_stale_server()/free_port(), which sat OUTSIDE the cleanup try: an error there (free_port OSError, a non-OSError from the reaper) left the machine lock held by a LocalModel whose __exit__ never runs, so every later LocalModel in that process (the swarm) waited its full 1800 s and then raised TimeoutError. FIXED: everything after acquire is inside the cleanup try; regression test_a_failed_start_before_the_server_exists_releases_the_machine_lock (failed before, passes after)."
+    },
+    {
+     "where": "creator/generator.py:MachineLock",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Not re-entrant: a second LocalModel in the SAME process (any thread) waits for the first, up to wait_s=1800 s, then TimeoutError. No code nests LocalModel today (every call site checked). The real-model unit test waits behind a production holder of the lock (observed: it blocked ~15 min behind a running action_choice_bench) - by design. The lock is OS-released on kill (tested)."
     }
    ],
-   "depth": "all issues fixed or mitigated; the model strategy is untested against a real llama-server here (no server)",
-   "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "depth": "MachineLock + LocalModel diff read in full; cross-process wait/timeout/kill tests plus the new leak test",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K19": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_autotune.py -q",
-    "result": "11 passed in 5.21s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_autotune.py",
+    "result": "test_creator_autotune: 11 passed",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
    "issues": [
     {
      "where": "creator/autotune.py:63",
      "severity": "medium",
      "issue": "tried() json-decodes every history line unguarded: one corrupt line makes propose()/trial() raise forever. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
+    },
+    {
+     "where": "tests/test_creator_autotune.py:bench",
+     "severity": "info",
+     "status": "CLOSED (non-defect)",
+     "issue": "creator/autotune.py is byte-identical since 48e00e866. Only the test fixture changed: 6 dev + 3 holdout tasks reduced to 3 + 1, and the start config gained model_attempts=1 (speed). Every assertion is unchanged and the adopt/reject logic still runs on a measured A/B, but the fixture has less statistical power; judged a speed change, not a weakening."
     }
    ],
-   "depth": "module+docstring read in full",
-   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
-   "integration": "process_levers.tuned_search_budget <- swarm via creator_swarm.py:80 PL.build_worker (test_an_adopted_worker_configuration_reaches_the_worker_the_swarm_builds)"
+   "depth": "module unchanged; test diff read; tests re-run",
+   "revalidated": "round 5 (h9/validate5)",
+   "integration": "process_levers.tuned_search_budget <- swarm via creator_swarm.py:80 PL.build_worker (test_an_adopted_worker_configuration_reaches_the_worker_the_swarm_builds)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K20": {
    "verdict": "VALIDATED",
@@ -433,7 +476,8 @@
    ],
    "depth": "all earlier issues fixed with failing-first regression tests; re-run on current code",
    "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717",
+   "integrated_ruling": "Owner's ruling (decided 2 Oct 2026): K22 swarm counts as integrated through scripts/creator_swarm.py, which Nupen runs (scripts/nupen_service.py)."
   },
   "K23": {
    "verdict": "VALIDATED",
@@ -462,9 +506,9 @@
   "K24": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_recursion.py tests/test_creator_validator4_regressions.py",
-    "result": "test_creator_recursion: 5 passed in 0.91s; test_creator_validator4_regressions: 10 passed in 4.15s",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_recursion.py tests/test_creator_audit_recursion_failures.py",
+    "result": "test_creator_recursion: 6 passed; test_creator_audit_recursion_failures passed; design_change fallback covered by test_creator_power",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
    "issues": [
     {
@@ -477,11 +521,23 @@
      "severity": "low",
      "issue": "step(forced=Change) is not validated against meta.BOUNDS or PARAMS.",
      "status": "FIXED (h8/revalidate): step(forced=) raises ValueError for an unknown parameter or a value outside meta.BOUNDS; test_k24_forced_changes_are_bounded (failed before)."
+    },
+    {
+     "where": "creator/recursion.py:step/ab_test (min_effect)",
+     "severity": "low",
+     "status": "FIXED (test added)",
+     "issue": "step(min_effect=) was untested in K24's own tests. Added test_min_effect_makes_adoption_stricter_and_is_recorded_on_the_claim (adopted at 0, rejected at 0.99, claim.min_effect recorded). A larger min_effect can only make adoption stricter (the model rejects min_effect<0)."
+    },
+    {
+     "where": "creator/recursion.py:design_change",
+     "severity": "info",
+     "status": "CLOSED (non-defect)",
+     "issue": "Fallback to any untried parameter when a weakness's remedies are exhausted: the change is still gated by the A/B + disjoint confirmation arm + audit (check_recursion), so an unmotivated parameter cannot be adopted without evidence. The 670-line diff is the CRLF->LF conversion; the real change is 12 lines (verified with --ignore-space-at-eol)."
     }
    ],
-   "depth": "module read; forced changes bounded",
-   "revalidated": "round 4 (h8/revalidate)",
-   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   "depth": "diff read in full (whitespace-folded); recursion/audit/power tests",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   },
   "K25": {
    "verdict": "VALIDATED",
@@ -503,7 +559,8 @@
    },
    "issues": [],
    "depth": "tests run + targeted/partial read only (not a full line-by-line audit)",
-   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked"
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
+   "integrated_ruling": "Owner's ruling (decided 2 Oct 2026): K26 reproduce counts as integrated through its scripts/ entry points that Nupen runs."
   },
   "NEW-curriculum": {
    "verdict": "VALIDATED",
@@ -754,20 +811,53 @@
      "severity": "low",
      "issue": "The claim was a plain write: two supervisors starting together could both win. FIXED: exclusive create (O_EXCL); test_the_pidfile_is_claimed_exclusively.",
      "status": "FIXED"
+    },
+    {
+     "where": "scripts/nupen_service.py:stop_tree",
+     "severity": "info",
+     "status": "CLOSED (non-defect)",
+     "issue": "taskkill /PID /T /F ends the swarm and its whole tree (Windows); POSIX uses its own session + killpg; waits 60 s then kill. Only the swarm's own pid is targeted. scripts/record_validation.py hardening read: validated_commit must be an ancestor of HEAD, unchanged_since also checks index, working tree and untracked files, report cited via an immutable content-named snapshot - all sound."
     }
    ],
    "verdict": "VALIDATED",
    "evidence": {
     "command": "python -m pytest -p no:cacheprovider -q tests/test_nupen_service.py tests/test_creator_validator4_regressions.py",
-    "result": "test_nupen_service: 7 passed in 2.65s; test_creator_validator4_regressions: 10 passed in 4.15s",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "result": "test_nupen_service + test_creator_validator4_regressions: passed",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
    },
-   "depth": "script read in full; reboot-stale pidfile and non-exclusive claim fixed",
-   "revalidated": "round 4 (h8/revalidate)"
+   "depth": "stop_tree + record_validation diffs read in full; tests re-run",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
+  },
+  "NEW-replay_student": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_replay_student.py",
+    "result": "test_creator_replay_student: 4 passed (3 original + new traversal test)",
+    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
+   },
+   "issues": [
+    {
+     "where": "creator/replay_student.py:__call__",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "files_after keys from the lesson log were joined to the work directory unchecked: '../x.py' (or an absolute path) would be written OUTSIDE the sandbox before the kernel measured anything. FIXED: any path that resolves outside the work directory refuses the whole replay; test_a_lesson_naming_a_path_outside_the_work_directory_is_never_replayed (failed before)."
+    },
+    {
+     "where": "creator/replay_student.py:_candidates/_matches",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: a solution with any measured (adopted or rejected) teacher verdict for the objective is never replayed; student lessons never replay; every file in files_before must be byte-identical (CRLF-folded) to the current text, a new file must not exist. Limits: snapshot_change skips deleted/non-UTF-8 files, so a lesson that deleted a file replays without the deletion (the kernel still measures what is applied); a CRLF file is rewritten with LF."
+    }
+   ],
+   "depth": "module read in full with its curriculum contract",
+   "revalidated": "round 5 (h9/validate5)",
+   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
   }
  },
  "verdict_counts": {
   "VALIDATED": 34,
+  "RETIRED": 1,
   "VALIDATED_WITH_ISSUES": 1
  },
  "fixed": [
@@ -778,9 +868,11 @@
  "not_done": "Components read only partially in earlier rounds stay as labelled; generator 'model' strategy untested against a real llama-server; devbench.score_holdout cannot be changed here.",
  "counts": {
   "VALIDATED": 34,
+  "RETIRED": 1,
   "VALIDATED_WITH_ISSUES": 1
  },
  "round2": "validator2: fixes on h3/validator2; K14 kernel, K18 generator, K22 swarm left to the orchestrator",
  "round3": "validator3 (h4/validator3): K14, K18, K22 validated; NEW-curriculum/student/process_levers/synth added. Fixed with regression tests failing first: deferred package dropped by MAX_ATTEMPTS, lessons.jsonl concurrent-append corruption, student never learned from the real lesson log, process levers mis-wired into search, unbounded process.json, swarm job crash lost its report. mypy: creator/debug.py has 6 pre-existing errors (not touched).",
- "round4": "validator4 (h8/revalidate): stale verdicts K01 K02 K06 K09 K17 K25 re-validated against current code; VALIDATED_WITH_ISSUES components re-validated after fixing/closing every open issue; new rows NEW-schedule, NEW-treecache, NEW-action_student, NEW-lm, NEW-nupen_service. `validated_commit` names the code commit each verdict was given against (scripts/record_validation.py honours it)."
+ "round4": "validator4 (h8/revalidate): stale verdicts K01 K02 K06 K09 K17 K25 re-validated against current code; VALIDATED_WITH_ISSUES components re-validated after fixing/closing every open issue; new rows NEW-schedule, NEW-treecache, NEW-action_student, NEW-lm, NEW-nupen_service. `validated_commit` names the code commit each verdict was given against (scripts/record_validation.py honours it).",
+ "round5": "validator5 (h9/validate5): stale verdicts K06 K14 K18 K19 K24 and K16 re-validated against validated_commit 51631a86ee6c; NEW-replay_student added, NEW-nupen_service re-validated. Fixed with regression tests failing first: _in_history accepted the empty-blob hash of any deleted path, LocalModel leaked the machine lock when start-up failed before the server existed, replay wrote outside the work dir. Owner rulings recorded: K22 and K26 integrated through their scripts/ entry points; K05 RETIRED."
 }

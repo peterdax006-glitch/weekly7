@@ -275,11 +275,11 @@ class LocalModel:
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
         self.lock.acquire()                                    # one local model per machine: wait for the current one
         try:
-            reap_stale_server(self.pidfile, self.exe)
-        except OSError:
-            pass
-        self.port = free_port()
-        try:
+            try:
+                reap_stale_server(self.pidfile, self.exe)
+            except OSError:
+                pass
+            self.port = free_port()
             self.job = _KillOnCloseJob()
             self.proc = subprocess.Popen(self._command(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.job.adopt(self.proc)

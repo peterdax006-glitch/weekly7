@@ -6,8 +6,8 @@
 | K02 | selfmodel | VALIDATED | test_creator_selfmodel: 9 passed in 10.64s | 0 |
 | K03 | objective | VALIDATED | test_creator_objective: 5 passed in 6.64s | 3 |
 | K04 | gaps | VALIDATED | test_creator_gaps: 8 passed in 82.99s (0:01:22) | 1 |
-| K05 | agents | VALIDATED | test_creator_agents: 13 passed in 7.89s; test_creator_validator4_regressions: 10 passed in 4.15s | 4 |
-| K06 | build | VALIDATED | test_creator_sandbox: 32 passed in 22.14s | 0 |
+| K05 | agents | RETIRED | test_creator_agents: 13 passed in 7.89s; test_creator_validator4_regressions: 10 passed in 4.15s | 4 |
+| K06 | build | VALIDATED | test_creator_sandbox: 32 passed (incl. omit-paths test) | 1 |
 | K07 | research | VALIDATED | 10 passed in 0.99s | 1 |
 | K08 | design | VALIDATED | 7 passed in 0.16s | 1 |
 | K09 | planner | VALIDATED | test_creator_planner: 15 passed in 119.08s (0:01:59) | 0 |
@@ -15,17 +15,17 @@
 | K11 | debug | VALIDATED | test_creator_debug: 11 passed in 1.03s; test_creator_validator4_regressions: 10 passed in 4.15s | 2 |
 | K12 | memory | VALIDATED | 6 passed in 1.56s | 1 |
 | K13 | meta | VALIDATED | test_creator_meta: 7 passed in 0.10s; test_creator_validator4_regressions: 10 passed in 4.15s | 1 |
-| K14 | kernel | VALIDATED | test_creator_kernel: 28 passed in 397.18s (0:06:37) | 3 |
+| K14 | kernel | VALIDATED | test_creator_kernel + test_creator_integration: 33 passed in 221s | 4 |
 | K15 | devbench | VALIDATED | 10 passed in 171.45s (0:02:51) | 0 |
-| K16 | checks | VALIDATED | 19 passed in 114.86s | 0 |
+| K16 | checks | VALIDATED | test_creator_audit: passed incl. new regression; test_creator_audit_recursion_failures passed | 1 |
 | K17 | efficiency | VALIDATED | test_creator_efficiency: 13 passed in 64.17s (0:01:04) | 1 |
-| K18 | generator | VALIDATED | test_creator_generator: 24 passed in 278.48s (0:04:38) | 4 |
-| K19 | autotune | VALIDATED | 11 passed in 5.21s | 1 |
+| K18 | generator | VALIDATED | test_creator_generator: 24 passed (incl. real local model); test_creator_leak incl. new lock-release test passed | 6 |
+| K19 | autotune | VALIDATED | test_creator_autotune: 11 passed | 2 |
 | K20 | localworker | VALIDATED | test_creator_localworker: 3 passed in 26.82s; test_creator_validator4_regressions: 10 passed in 4.15s | 2 |
 | K21 | selfworkers | VALIDATED | test_creator_selfworkers: 8 passed in 34.95s; test_creator_validator4_regressions: 10 passed in 4.15s | 1 |
 | K22 | swarm | VALIDATED | test_creator_swarm: 15 passed in 143.96s (0:02:23) | 3 |
 | K23 | oversight | VALIDATED | test_creator_oversight: 7 passed in 68.78s (0:01:08) | 2 |
-| K24 | recursion | VALIDATED | test_creator_recursion: 5 passed in 0.91s; test_creator_validator4_regressions: 10 passed in 4.15s | 2 |
+| K24 | recursion | VALIDATED | test_creator_recursion: 6 passed; test_creator_audit_recursion_failures passed; design_change fallback covered by test_c | 4 |
 | K25 | testgen | VALIDATED | test_creator_testgen: 21 passed in 10.62s | 0 |
 | K26 | reproduce | VALIDATED | 11 passed in 55.27s | 0 |
 | NEW-curriculum | curriculum | VALIDATED | test_creator_curriculum: 11 passed in 5.98s | 5 |
@@ -36,7 +36,8 @@
 | NEW-treecache | treecache | VALIDATED | test_creator_treecache: 8 passed in 36.16s | 1 |
 | NEW-action_student | action_student | VALIDATED | test_creator_action_student: 13 passed in 0.46s; test_creator_model_student: 12 passed in 0.39s; test_creator_validator4 | 3 |
 | NEW-lm | lm | VALIDATED_WITH_ISSUES | test_lm_core: 4 passed, 1 skipped in 0.96s; test_lm_dialogue: 8 passed in 0.35s | 3 |
-| NEW-nupen_service | nupen_service | VALIDATED | test_nupen_service: 7 passed in 2.65s; test_creator_validator4_regressions: 10 passed in 4.15s | 2 |
+| NEW-nupen_service | nupen_service | VALIDATED | test_nupen_service + test_creator_validator4_regressions: passed | 3 |
+| NEW-replay_student | replay_student | VALIDATED | test_creator_replay_student: 4 passed (3 original + new traversal test) | 2 |
 
 Counts: {"VALIDATED": 34, "VALIDATED_WITH_ISSUES": 1}
 Code commit validated in round 4: 48e00e866a3983023c8ec3aa7c665a86a8b66717
@@ -104,6 +105,21 @@ Code commit validated in round 4: 48e00e866a3983023c8ec3aa7c665a86a8b66717
 - NEW-nupen_service [high] scripts/nupen_service.py:claim_pidfile: After a reboot the stale pidfile's pid can belong to an unrelated live process; alive(pid) was true, so the supervisor refused to start - the exact case it exists for (start with the computer). FIXED (h8/revalidate): a pidfile older than the boot is stale; test_a_pidfile_from_before_the_boot_does_not_block_the_supervisor (failed before). -> FIXED
 - NEW-nupen_service [low] scripts/nupen_service.py:claim_pidfile: The claim was a plain write: two supervisors starting together could both win. FIXED: exclusive create (O_EXCL); test_the_pidfile_is_claimed_exclusively. -> FIXED
 
+## Round 5 (h9/validate5)
+- validator5 (h9/validate5): stale verdicts K06 K14 K18 K19 K24 and K16 re-validated against validated_commit 51631a86ee6c; NEW-replay_student added, NEW-nupen_service re-validated. Fixed with regression tests failing first: _in_history accepted the empty-blob hash of any deleted path, LocalModel leaked the machine lock when start-up failed before the server existed, replay wrote outside the work dir. Owner rulings recorded: K22 and K26 integrated through their scripts/ entry points; K05 RETIRED.
+- Owner's ruling (2 Oct): K22 swarm and K26 reproduce count as integrated through their scripts/ entry points that Nupen runs. K05 agents is RETIRED by the owner's decision (the check itself is being changed by another engineer).
+- K06 [info] creator/sandbox.py:Sandbox.open/reveal: omit=('state/research',) paths are never checked out, also after reveal(); worker writes under an omitted path are silently dropped by git add (sparse) and tests reading state/research cannot run inside a sandbox (the baseline worktree is full). Merge keeps the omitted tree (test_omitted_paths_stay_out...). Safe direction: a missing file can only fail a candidate, never bless it. -> CLOSED (non-defect)
+- K14 [info] creator/kernel.py:_save_pending: Checked: never raises (whole body in try/except Exception); path is cfg.state/'pending'/<package_id>_<sandbox id>.patch where package_id comes from next_package_id (CPnnnn) and sb.id is generated, so it cannot leave state/creator/pending; only called while the sandbox is open, before S.discard; main untouched (test_a_pulled_back_package_keeps_its_finished_work). Rollback now records Failure+Diagnosis+Repair (CR204) with non-empty text, consistent with check_unresolved_failures. Patches accumulate without a cap (no pruning). -> CLOSED (non-defect)
+- K18 [high] creator/generator.py:LocalModel.__enter__: MachineLock was acquired before reap_stale_server()/free_port(), which sat OUTSIDE the cleanup try: an error there (free_port OSError, a non-OSError from the reaper) left the machine lock held by a LocalModel whose __exit__ never runs, so every later LocalModel in that process (the swarm) waited its full 1800 s and then raised TimeoutError. FIXED: everything after acquire is inside the cleanup try; regression test_a_failed_start_before_the_server_exists_releases_the_machine_lock (failed before, passes after). -> FIXED
+- K18 [info] creator/generator.py:MachineLock: Not re-entrant: a second LocalModel in the SAME process (any thread) waits for the first, up to wait_s=1800 s, then TimeoutError. No code nests LocalModel today (every call site checked). The real-model unit test waits behind a production holder of the lock (observed: it blocked ~15 min behind a running action_choice_bench) - by design. The lock is OS-released on kill (tested). -> OPEN-INFO
+- K19 [info] tests/test_creator_autotune.py:bench: creator/autotune.py is byte-identical since 48e00e866. Only the test fixture changed: 6 dev + 3 holdout tasks reduced to 3 + 1, and the start config gained model_attempts=1 (speed). Every assertion is unchanged and the adopt/reject logic still runs on a measured A/B, but the fixture has less statistical power; judged a speed change, not a weakening. -> CLOSED (non-defect)
+- K24 [low] creator/recursion.py:step/ab_test (min_effect): step(min_effect=) was untested in K24's own tests. Added test_min_effect_makes_adoption_stricter_and_is_recorded_on_the_claim (adopted at 0, rejected at 0.99, claim.min_effect recorded). A larger min_effect can only make adoption stricter (the model rejects min_effect<0). -> FIXED (test added)
+- K24 [info] creator/recursion.py:design_change: Fallback to any untried parameter when a weakness's remedies are exhausted: the change is still gated by the A/B + disjoint confirmation arm + audit (check_recursion), so an unmotivated parameter cannot be adopted without evidence. The 670-line diff is the CRLF->LF conversion; the real change is 12 lines (verified with --ignore-space-at-eol). -> CLOSED (non-defect)
+- K16 [high] creator/audit/checks.py:_in_history: `git show <sha>:<path>` for a commit that DELETED the path fails with empty stdout, which was hashed as sha256(b'') and added to the preserved set: evidence citing the empty-file hash was accepted as 'preserved in history' for any path ever deleted. FIXED: a non-zero git exit is skipped; test_history_evidence_never_accepts_the_empty_hash_for_a_path_that_was_merely_deleted (failed before). Otherwise sound: only bytes exactly equal (sha256) to a blob committed at that very path in HEAD's history are accepted, so a never-committed or tampered file is still CRITICAL; content committed and then swapped is accepted by design because the cited bytes remain verifiable in git. Limit: only the last 200 commits touching the path (older versions read as drift: fail-safe). -> FIXED
+- NEW-nupen_service [info] scripts/nupen_service.py:stop_tree: taskkill /PID /T /F ends the swarm and its whole tree (Windows); POSIX uses its own session + killpg; waits 60 s then kill. Only the swarm's own pid is targeted. scripts/record_validation.py hardening read: validated_commit must be an ancestor of HEAD, unchanged_since also checks index, working tree and untracked files, report cited via an immutable content-named snapshot - all sound. -> CLOSED (non-defect)
+- NEW-replay_student [medium] creator/replay_student.py:__call__: files_after keys from the lesson log were joined to the work directory unchecked: '../x.py' (or an absolute path) would be written OUTSIDE the sandbox before the kernel measured anything. FIXED: any path that resolves outside the work directory refuses the whole replay; test_a_lesson_naming_a_path_outside_the_work_directory_is_never_replayed (failed before). -> FIXED
+- NEW-replay_student [info] creator/replay_student.py:_candidates/_matches: Verified: a solution with any measured (adopted or rejected) teacher verdict for the objective is never replayed; student lessons never replay; every file in files_before must be byte-identical (CRLF-folded) to the current text, a new file must not exist. Limits: snapshot_change skips deleted/non-UTF-8 files, so a lesson that deleted a file replays without the deletion (the kernel still measures what is applied); a CRLF file is rewritten with LF. -> OPEN-INFO
+
 ## Round 4 (h8/revalidate)
 - validator4 (h8/revalidate): stale verdicts K01 K02 K06 K09 K17 K25 re-validated against current code; VALIDATED_WITH_ISSUES components re-validated after fixing/closing every open issue; new rows NEW-schedule, NEW-treecache, NEW-action_student, NEW-lm, NEW-nupen_service. `validated_commit` names the code commit each verdict was given against (scripts/record_validation.py honours it).
 
@@ -119,4 +135,4 @@ Code commit validated in round 4: 48e00e866a3983023c8ec3aa7c665a86a8b66717
 - agents.run_agent crashed on non-object JSON CLI output
 - objective.compile_capabilities dropped the K10->K15 dependency
 
-Depth note: components marked partial were validated mainly by running their declared tests plus targeted reading, not a full line-by-line audit.
+Depth note: components marked partial were validated mainly by running their declared tests plus targeted reading, not a full line-by-line audit.
