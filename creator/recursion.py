@@ -282,6 +282,12 @@ def tried_changes(led: Ledger) -> set[tuple[str, int]]:
 def step(led: Ledger, workload: Workload, initial: Optional[ProcessConfig] = None, min_n: int = 3,
          forced: Optional[Change] = None, min_effect: float = 0.0) -> StepReport:
     """One recursion step. `forced` replaces steps 1-2 (tests of the gate itself); the adoption rule is never bypassed."""
+    if forced is not None:                                    # the gate's inputs are bounded like the planner's own changes
+        if forced.param not in PARAMS or forced.param not in ME.BOUNDS:
+            raise ValueError(f"unknown process parameter: {forced.param!r}")
+        lo, hi = ME.BOUNDS[forced.param]
+        if not (lo <= forced.new <= hi):
+            raise ValueError(f"{forced.param}={forced.new} is outside the bounds [{lo}, {hi}]")
     iteration = len(recorded_steps(led)) + 1
     process = current_process(led, initial)
     weakness: Optional[Weakness] = None

@@ -72,7 +72,11 @@ def tuned_search_budget(process: R.ProcessConfig, worker_config: Optional[Path] 
     if not path.is_file():
         return lv.search_budget
     from creator import autotune as AT
-    return AT.load_active(path).search_budget
+    try:
+        budget = int(AT.load_active(path).search_budget)
+    except (OSError, ValueError, KeyError, TypeError):             # a damaged file must not stop the swarm building its worker
+        return lv.search_budget
+    return budget if budget >= 1 else lv.search_budget
 
 
 def build_worker(process: R.ProcessConfig, session: Any = None, worker_config: Optional[Path] = None) -> Any:

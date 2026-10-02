@@ -136,8 +136,31 @@ def test_count(root: Path, scope: str = "tests") -> int:
     return n
 
 
+def _identifiers(src: str) -> list[str]:
+    """Names a test file USES in code: variables, attributes, imported names and the name given to getattr/hasattr. Comments,
+    docstrings and other strings are not use - a name written in a comment would otherwise 'cover' it."""
+    try:
+        tree = ast.parse(src)
+    except (SyntaxError, ValueError):
+        return []
+    out: list[str] = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name):
+            out.append(n.id)
+        elif isinstance(n, ast.Attribute):
+            out.append(n.attr)
+        elif isinstance(n, ast.alias):
+            out += [x for x in (n.name.split(".")[-1], n.asname or "") if x]
+        elif isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("getattr", "hasattr") and len(n.args) >= 2 \
+                and isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str):
+            out.append(n.args[1].value)
+    return out
+
+
 def _test_text(root: Path, scope: str = "tests") -> str:
-    return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in sorted((root / scope).rglob("test_*.py")))
+    """The identifiers used by every test file under root/scope (one per line): what uncovered_public matches names against."""
+    return "\n".join(i for p in sorted((root / scope).rglob("test_*.py"))
+                     for i in _identifiers(p.read_text(encoding="utf-8", errors="replace")))
 
 
 def public_names(src: str) -> list[str]:

@@ -4,26 +4,33 @@
   "K01": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_ledger.py -q",
-    "result": "21 passed in 24.49s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_ledger.py",
+    "result": "test_creator_ledger: 27 passed in 9.06s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "diff since the last verdict read in full (tree_hash/git-state caches; racily-clean rule, CRLF fold, snapshot keys); cache tests prove byte-identical digests",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K02": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_selfmodel.py -q",
-    "result": "9 passed in 90.62s (0:01:30)"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_selfmodel.py",
+    "result": "test_creator_selfmodel: 9 passed in 10.64s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "diff since the last verdict read in full (content-hash component cache + disk cache salted by the analysis code, reach_digest memo, collect_test_evidence reuse only on equal digest)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K03": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_objective.py -q",
-    "result": "5 passed in 35.87s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_objective.py",
+    "result": "test_creator_objective: 5 passed in 6.64s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -39,31 +46,39 @@
     {
      "where": "creator/objective.py:148",
      "severity": "low",
-     "issue": "register_objective is idempotent on statement only: a changed outcomes/constraints list is silently ignored."
+     "issue": "register_objective is idempotent on statement only: a changed outcomes/constraints list is silently ignored.",
+     "status": "CLOSED (non-defect): documented behaviour - the ledger is append-only and the statement is the identity key; a changed outcomes list is a new objective (new statement), never a silent rewrite."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; open issues fixed or closed with reasons",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K04": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_gaps.py -q",
-    "result": "8 passed in 359.59s (0:05:59)"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_gaps.py",
+    "result": "test_creator_gaps: 8 passed in 82.99s (0:01:22)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/gaps.py:1",
      "severity": "low",
-     "issue": "Test suite takes ~6 minutes (needs real selfmodel build); no cheap unit-level coverage of sync() regression/stale branches observed."
+     "issue": "Test suite takes ~6 minutes (needs real selfmodel build); no cheap unit-level coverage of sync() regression/stale branches observed.",
+     "status": "CLOSED (non-defect): the regression and stale branches ARE covered (test_fixing_closes_the_gap_and_breaking_marks_a_regression, test_stale_evidence_does_not_close_a_gap, test_stale_evidence_reopens_a_tested_requirement_without_calling_it_failed); runtime is a cost, not a defect."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; the one open issue closed (covered branches)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K05": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_agents.py -q",
-    "result": "13 passed in 8.36s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_agents.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_agents: 13 passed in 7.89s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -84,19 +99,25 @@
     {
      "where": "creator/agents.py:118",
      "severity": "low",
-     "issue": "Budget.record is an unlocked read-modify-write; two concurrent swarm workers can lose a call record (budget can be undercounted)."
+     "issue": "Budget.record is an unlocked read-modify-write; two concurrent swarm workers can lose a call record (budget can be undercounted).",
+     "status": "FIXED (h8/revalidate): Budget.record is now serialised by a module lock with a per-thread temp file; regression test_k05_budget_record_does_not_lose_concurrent_calls (10 of 80 records survived before)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; Budget race fixed",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K06": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_sandbox.py -p no:cacheprovider",
-    "result": "32 passed in 29.31s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_sandbox.py",
+    "result": "test_creator_sandbox: 32 passed in 22.14s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "diff since the last verdict read in full (state/ pruned at the tree root only, disk-cached import scan, run_base serving PASS junit of the same tree)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K07": {
    "verdict": "VALIDATED",
@@ -111,7 +132,9 @@
      "issue": "generate_questions: float(importance) raises on non-numeric/None importance instead of skipping/defaulting; docstring promises only description-less skipping. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module+docstring read in full",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
+   "integration": "planner.research_blocked (tests: test_a_blocked_gap_becomes_researched_and_the_findings_reach_the_next_package)"
   },
   "K08": {
    "verdict": "VALIDATED",
@@ -126,51 +149,65 @@
      "issue": "select() keys scores by option name: duplicate names collapse (only generate_options dedupes), so a duplicate can be scored as its twin. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module+docstring read in full",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
+   "integration": "planner._approach_options/record_decision (test_design_selects_an_approach_records_every_option_and_changes_with_failure)"
   },
   "K09": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_planner.py -p no:cacheprovider",
-    "result": "7 passed in 48.66s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_planner.py",
+    "result": "test_creator_planner: 15 passed in 119.08s (0:01:59)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "diff since the last verdict read in full (K08/K12/K07 integration, attempts_for ignoring interruptions, BLOCKED reopening, coverage planning)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K10": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_evaluate.py -p no:cacheprovider",
-    "result": "8 passed in 115.40s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_evaluate.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_evaluate: 8 passed in 172.26s (0:02:52); test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/evaluate.py:190",
      "severity": "low",
-     "issue": "Both guard Measurements of one arm cite the same pooled evidence file path (rewritten per guard); content identical today but fragile if guards ever diverge."
+     "issue": "Both guard Measurements of one arm cite the same pooled evidence file path (rewritten per guard); content identical today but fragile if guards ever diverge.",
+     "status": "FIXED (h8/revalidate): each guard writes its own pooled evidence file (<arm>_dev_pooled_<guard>.json); regression test_k10_each_guard_has_its_own_pooled_evidence_file."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; evidence-path and holdout-learner issues fixed",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K11": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_debug.py -q",
-    "result": "11 passed in 5.82s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_debug.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_debug: 11 passed in 1.03s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/debug.py:87",
      "severity": "low",
-     "issue": "reproduce(): on timeout stderr is dropped from the captured output."
+     "issue": "reproduce(): on timeout stderr is dropped from the captured output.",
+     "status": "FIXED (h8/revalidate): the timeout path keeps stderr; regression test_k11_timeout_keeps_stderr (failed before). Also removed the 6 pre-existing mypy errors in debug.py."
     },
     {
      "where": "creator/debug.py:24",
      "severity": "low",
-     "issue": "ASSERTION regex 'assert ' matches any text containing the word; fallback classification can mislabel."
+     "issue": "ASSERTION regex 'assert ' matches any text containing the word; fallback classification can mislabel.",
+     "status": "FIXED (h8/revalidate): ASSERTION matches 'AssertionError' or an 'assert' statement line, not the word in prose; regression test_k11_the_word_assert_in_prose_is_not_an_assertion_failure (failed before)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; both issues fixed; mypy clean",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K12": {
    "verdict": "VALIDATED",
@@ -185,28 +222,35 @@
      "issue": "load() renumbers seq after skipping corrupt lines, so seq differs from what was saved; save() is not atomic. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module+docstring read in full",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
+   "integration": "planner._history/seen_before (test_memory_puts_what_failed_before_for_another_component_into_the_package)"
   },
   "K13": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_meta.py -q",
-    "result": "7 passed in 0.15s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_meta.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_meta: 7 passed in 0.10s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/meta.py:132",
      "severity": "low",
-     "issue": "record() accepts NaN cost; Strategy.agent is not checked against any agent registry."
+     "issue": "record() accepts NaN cost; Strategy.agent is not checked against any agent registry.",
+     "status": "NaN/inf cost FIXED (h8/revalidate; test_k13_nan_cost_is_refused failed before). Strategy.agent vs a registry: CLOSED (non-defect) - there is no agent registry in meta; agent is a free label the caller owns."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; NaN cost fixed",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K14": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_kernel.py -p no:cacheprovider -q",
-    "result": "21 passed in 331.65s before; 22 passed in 403.28s after round-3 fixes"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_kernel.py",
+    "result": "test_creator_kernel: 28 passed in 397.18s (0:06:37)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -225,7 +269,9 @@
      "issue": "Core invariant CONFIRMED: adoption requires verdict IMPROVEMENT and ev.clean and no weakening/planted answers (any reason raises _Reject); WorkResult.claimed_done is never consulted, so a worker's self-report cannot adopt."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "all earlier issues fixed with failing-first regression tests (round 3/5); re-run on current code",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K15": {
    "verdict": "VALIDATED",
@@ -234,7 +280,8 @@
     "result": "10 passed in 171.45s (0:02:51)"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked"
   },
   "K16": {
    "verdict": "VALIDATED",
@@ -243,28 +290,41 @@
     "result": "19 passed in 114.86s"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked"
   },
   "K17": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_efficiency.py -p no:cacheprovider",
-    "result": "11 passed in 131.66s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_efficiency.py",
+    "result": "test_creator_efficiency: 13 passed in 64.17s (0:01:04)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
-   "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "issues": [
+    {
+     "where": "creator/efficiency.py:150",
+     "severity": "medium",
+     "issue": "uncovered_public matched names with a regex over raw test text, so a name in a comment, docstring or string 'covered' it (the coverage package's own failure mode was unmeasured). FIXED (h8/revalidate): names are taken from test code by AST (Name/Attribute/import/getattr); test_a_name_in_a_comment_or_string_does_not_cover_it (failed before).",
+     "status": "FIXED"
+    }
+   ],
+   "depth": "diff since the last verdict read in full; Goodhart hole fixed: uncovered_public counted names mentioned in comments/strings",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K18": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_generator.py -p no:cacheprovider -q",
-    "result": "22 passed in 353.55s (0:05:53)"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_generator.py",
+    "result": "test_creator_generator: 24 passed in 278.48s (0:04:38)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/generator.py:1",
      "severity": "medium",
-     "issue": "Docstring: 'holdout tasks are never recorded'. Nothing enforces it: the solver is never told the split (Task.to_public hides it) and devbench.score_holdout does not force learn=False; only caller discipline (test_holdout_runs_never_write_experience passes learn=False by hand). devbench.py is out of scope to edit. Not fixed."
+     "issue": "Docstring: 'holdout tasks are never recorded'. Nothing enforces it: the solver is never told the split (Task.to_public hides it) and devbench.score_holdout does not force learn=False; only caller discipline (test_holdout_runs_never_write_experience passes learn=False by hand). devbench.py is out of scope to edit. Not fixed.",
+     "status": "MITIGATED (h8/revalidate): evaluate.compare now refuses a holdout run when an arm's solver still learns (learn=True with a memory) - the only path the kernel uses; regression test_k10_a_learning_solver_is_refused_on_the_holdout. Direct devbench.score_holdout callers stay the caller's discipline (devbench.py is out of scope to edit)."
     },
     {
      "where": "creator/generator.py:561",
@@ -279,10 +339,13 @@
     {
      "where": "creator/generator.py:1",
      "severity": "info",
-     "issue": "'model' strategy needs llama-server + weights; its tests use a FakeLLM, the real path is untested here."
+     "issue": "'model' strategy needs llama-server + weights; its tests use a FakeLLM, the real path is untested here.",
+     "status": "MITIGATED (h8/revalidate): evaluate.compare now refuses a holdout run when an arm's solver still learns (learn=True with a memory) - the only path the kernel uses; regression test_k10_a_learning_solver_is_refused_on_the_holdout. Direct devbench.score_holdout callers stay the caller's discipline (devbench.py is out of scope to edit)."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "all issues fixed or mitigated; the model strategy is untested against a real llama-server here (no server)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K19": {
    "verdict": "VALIDATED",
@@ -297,19 +360,23 @@
      "issue": "tried() json-decodes every history line unguarded: one corrupt line makes propose()/trial() raise forever. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module+docstring read in full",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked",
+   "integration": "process_levers.tuned_search_budget <- swarm via creator_swarm.py:80 PL.build_worker (test_an_adopted_worker_configuration_reaches_the_worker_the_swarm_builds)"
   },
   "K20": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_localworker.py -p no:cacheprovider",
-    "result": "3 passed in 24.06s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_localworker.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_localworker: 3 passed in 26.82s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/localworker.py:42",
      "severity": "low",
-     "issue": "relevant_files(package, workdir): workdir is an unused (dead) parameter."
+     "issue": "relevant_files(package, workdir): workdir is an unused (dead) parameter.",
+     "status": "FIXED (h8/revalidate): the dead workdir parameter of relevant_files is removed; test_k20_relevant_files_needs_only_the_package."
     },
     {
      "where": "creator/localworker.py:54",
@@ -317,28 +384,35 @@
      "issue": "run_tests: subprocess.run timeout raises TimeoutExpired, uncaught; it escapes LocalWorker.__call__ instead of being a failed attempt. FIXED (h3/validator2, regression test in tests/test_creator_validator2_regressions.py / test_creator_oversight.py)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; dead parameter removed",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K21": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_selfworkers.py -p no:cacheprovider",
-    "result": "8 passed in 40.51s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_selfworkers.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_selfworkers: 8 passed in 34.95s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
      "where": "creator/selfworkers.py:135",
      "severity": "low",
-     "issue": "dead_private/_used_names skip= only skips the node itself, not its children: a self-recursive unused private is never deleted (safe direction, but docstring over-promises)."
+     "issue": "dead_private/_used_names skip= only skips the node itself, not its children: a self-recursive unused private is never deleted (safe direction, but docstring over-promises).",
+     "status": "FIXED (h8/revalidate): _used_names(skip=) now skips the node and everything inside it, so a self-recursive unused private is deleted; test_k21_a_self_recursive_unused_private_is_deleted (failed before)."
     }
    ],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "module read; docstring over-promise fixed in code",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K22": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_swarm.py -p no:cacheprovider -q",
-    "result": "8 passed in 185.31s before; 9 passed in 189.86s after round-3 fixes"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_swarm.py",
+    "result": "test_creator_swarm: 15 passed in 143.96s (0:02:23)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -357,13 +431,16 @@
      "issue": "Races checked: ledger appends use the Ledger file lock; repo-mutating steps share one lock; WAITING is locked, HANDED_BACK is plain set add/read (GIL-atomic). The lessons.jsonl / deferred.jsonl race was in curriculum.py (see NEW-curriculum)."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "all earlier issues fixed with failing-first regression tests; re-run on current code",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K23": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_oversight.py -q -p no:cacheprovider -p no:cacheprovider",
-    "result": "7 passed in 79.06s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_oversight.py",
+    "result": "test_creator_oversight: 7 passed in 68.78s (0:01:08)",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -374,16 +451,20 @@
     {
      "where": "creator/oversight.py:84",
      "severity": "low",
-     "issue": "knowledge_gaps: ledger.get(failure_id) raises if a Diagnosis cites a missing failure."
+     "issue": "knowledge_gaps: ledger.get(failure_id) raises if a Diagnosis cites a missing failure.",
+     "status": "CLOSED (non-defect): unreachable - M.Diagnosis refuses a failure_id that is not also a parent (lineage rule, ModelError at append), so a Diagnosis of a missing failure cannot be in the ledger."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; the one open issue is unreachable (model lineage rule)",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K24": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_recursion.py -q",
-    "result": "5 passed in 1.58s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_recursion.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_recursion: 5 passed in 0.91s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -394,19 +475,25 @@
     {
      "where": "creator/recursion.py:235",
      "severity": "low",
-     "issue": "step(forced=Change) is not validated against meta.BOUNDS or PARAMS."
+     "issue": "step(forced=Change) is not validated against meta.BOUNDS or PARAMS.",
+     "status": "FIXED (h8/revalidate): step(forced=) raises ValueError for an unknown parameter or a value outside meta.BOUNDS; test_k24_forced_changes_are_bounded (failed before)."
     }
    ],
-   "depth": "module+docstring read in full"
+   "depth": "module read; forced changes bounded",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K25": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_testgen.py -q",
-    "result": "21 passed in 86.29s (0:01:26)"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_testgen.py",
+    "result": "test_creator_testgen: 21 passed in 10.62s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "diff since the last verdict read in full (coverage step: tests only, kept only if they pass and shrink the gap); testgen emits attribute use so generated tests count under the AST measure",
+   "revalidated": "round 4 (h8/revalidate)",
+   "validated_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
   },
   "K26": {
    "verdict": "VALIDATED",
@@ -415,13 +502,15 @@
     "result": "11 passed in 55.27s"
    },
    "issues": [],
-   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)"
+   "depth": "tests run + targeted/partial read only (not a full line-by-line audit)",
+   "revalidated": "round 4 (h8/revalidate): module + tests byte-identical to the verdict commit (git diff --quiet); integration checked"
   },
   "NEW-curriculum": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_curriculum.py -p no:cacheprovider -q",
-    "result": "9 passed before; 10 passed after fixes"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_curriculum.py",
+    "result": "test_creator_curriculum: 11 passed in 5.98s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -447,16 +536,19 @@
     {
      "where": "creator/curriculum.py:~268",
      "severity": "low",
-     "issue": "A student that owns a kind but cannot_attempt/fails sends the package to deferral, not to Claude, by design; if the student never recovers the kind still cannot progress (only attempts of the student can lower its rate)."
+     "issue": "A student that owns a kind but cannot_attempt/fails sends the package to deferral, not to Claude, by design; if the student never recovers the kind still cannot progress (only attempts of the student can lower its rate).",
+     "status": "CLOSED (non-defect): by design - a student that owns a kind defers rather than sending the work to Claude; the kind is re-offered as the student's rate is re-scored, and attempts_for ignores deferrals."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "diff since round 3 read (tests-kind gate); issues fixed or closed",
+   "revalidated": "round 4 (h8/revalidate)"
   },
   "NEW-student": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_student.py -p no:cacheprovider -q",
-    "result": "3 passed before; 4 passed after fix"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_student.py",
+    "result": "test_creator_student: 5 passed in 0.28s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -467,12 +559,14 @@
     {
      "where": "creator/student.py:~330",
      "severity": "low",
-     "issue": "__call__ reads package.task_kind which WorkPackage lacks (always ''); template ranking by task kind never applies when invoked through the kernel. can_attempt(lesson) does use the kind."
+     "issue": "__call__ reads package.task_kind which WorkPackage lacks (always ''); template ranking by task kind never applies when invoked through the kernel. can_attempt(lesson) does use the kind.",
+     "status": "FIXED (earlier, verified h8): student.py:415 falls back to curriculum.task_kind(plan) when the package has no task_kind."
     },
     {
      "where": "creator/student.py:~335",
      "severity": "low",
-     "issue": "write_text on Windows rewrites a LF file with CRLF (whole-file diff); the kernel measures it either way."
+     "issue": "write_text on Windows rewrites a LF file with CRLF (whole-file diff); the kernel measures it either way.",
+     "status": "FIXED (earlier, verified h8): student.py:429 writes with the file's own line ending (newline=eol)."
     },
     {
      "where": "creator/student.py:1",
@@ -480,13 +574,15 @@
      "issue": "The student never judges itself: it returns claimed_done only; the kernel measures."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "diff since round 3 read (params filters); issues fixed/verified",
+   "revalidated": "round 4 (h8/revalidate)"
   },
   "NEW-process_levers": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_creator_process_levers.py -p no:cacheprovider -q",
-    "result": "6 passed before; 8 passed after fixes"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_process_levers.py",
+    "result": "test_creator_process_levers: 11 passed in 1.21s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -503,15 +599,23 @@
      "where": "creator/process_levers.py:119",
      "severity": "low",
      "issue": "DevWorkload with fewer dev tasks than chunk*reps+confirm yields empty chunks scored 0.0/0.0 instead of an error. FIXED (h5/openissues): DevWorkload raises ValueError naming the needed and available dev task counts; regression test_devworkload_with_too_few_dev_tasks_raises_clearly (failed before)."
+    },
+    {
+     "where": "creator/process_levers.py:tuned_search_budget",
+     "severity": "medium",
+     "issue": "A damaged or hand-edited worker_config.json (bad JSON, wrong types, negative budget) raised out of build_worker and took the swarm down. FIXED: falls back to the lever default; test_a_damaged_worker_configuration_falls_back_to_the_lever_instead_of_crashing.",
+     "status": "FIXED"
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "diff since round 3 read (K19 tuned_search_budget); damaged worker_config.json crashed build_worker - fixed",
+   "revalidated": "round 4 (h8/revalidate)"
   },
   "NEW-synth": {
-   "verdict": "VALIDATED_WITH_ISSUES",
+   "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest tests/test_synth.py -p no:cacheprovider -q",
-    "result": "7 passed in 0.28s"
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_synth.py",
+    "result": "test_synth: 16 passed in 6.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
    },
    "issues": [
     {
@@ -522,20 +626,149 @@
     {
      "where": "creator/synth.py:30",
      "severity": "low",
-     "issue": "Idioms are docstring-vocabulary keyed per benchmark-style task; docstring says function names/ids/answers are never consulted and the code agrees (only the spec's own examples are used). Hidden tests still judge; no leak found."
+     "issue": "Idioms are docstring-vocabulary keyed per benchmark-style task; docstring says function names/ids/answers are never consulted and the code agrees (only the spec's own examples are used). Hidden tests still judge; no leak found.",
+     "status": "CLOSED (non-defect): documented; the spec's own examples are the only input, hidden tests still judge."
     },
     {
      "where": "creator/synth.py:300",
      "severity": "low",
-     "issue": "solve_file rewrites the whole file via ast.unparse (comments lost); writes only when every stub is solved."
+     "issue": "solve_file rewrites the whole file via ast.unparse (comments lost); writes only when every stub is solved.",
+     "status": "CLOSED (non-defect): documented; the spec's own examples are the only input, hidden tests still judge."
     }
    ],
-   "depth": "module+docstring read in full (round 3)"
+   "depth": "round-3/5 fixes (step budget) re-run; remaining lows are documented behaviour",
+   "revalidated": "round 4 (h8/revalidate)"
+  },
+  "NEW-schedule": {
+   "issues": [
+    {
+     "where": "creator/schedule.py:plan_batch",
+     "severity": "high",
+     "issue": "plan_batch kept a plan only if p.gap_id == the picked node; when plan_next gave up on the pick (3 failed attempts -> BLOCKED) it planned the NEXT gap, writing the package chain and marking the gap IN_PROGRESS, and plan_batch dropped it: that gap was stranded forever. FIXED (h8/revalidate): every returned plan is kept; test_plan_batch_never_orphans_a_package_it_planned (failed before).",
+     "status": "FIXED"
+    },
+    {
+     "where": "creator/schedule.py:note",
+     "severity": "info",
+     "issue": "plan_explanations.jsonl is appended without a lock; rows are one short line each from the swarm's planning thread, so interleaving is not reachable today.",
+     "status": "OPEN-INFO"
+    }
+   ],
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_schedule.py",
+    "result": "test_creator_schedule: 12 passed in 26.19s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   },
+   "depth": "module read in full; plan_batch dropped plans that plan_next had already written (gap stranded IN_PROGRESS) - fixed",
+   "revalidated": "round 4 (h8/revalidate)"
+  },
+  "NEW-treecache": {
+   "issues": [
+    {
+     "where": "creator/treecache.py:tree_key",
+     "severity": "info",
+     "issue": "The key covers tracked top-level entries of HEAD minus state/; a git-ignored file that a test reads is not in it. The clean-tree check (status --porcelain) covers untracked files, so only ignored files can be missed.",
+     "status": "OPEN-INFO"
+    }
+   ],
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_treecache.py",
+    "result": "test_creator_treecache: 8 passed in 36.16s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   },
+   "depth": "module read in full; key = git tree of HEAD minus state/, clean-tree and PASS-only rules, age and python in the key",
+   "revalidated": "round 4 (h8/revalidate)"
+  },
+  "NEW-action_student": {
+   "issues": [
+    {
+     "where": "creator/action_student.py:write",
+     "severity": "medium",
+     "issue": "_apply always wrote LF (newline='\\n'): a CRLF file became a whole-file diff. FIXED: the file's own line ending is kept; test_a_crlf_file_stays_crlf_after_an_action (failed before).",
+     "status": "FIXED"
+    },
+    {
+     "where": "creator/action_student.py:parse_choice",
+     "severity": "low",
+     "issue": "The CHOICE parser accepted letters a/n/d anywhere ('1 dnn 2'). FIXED: numbers with , ; 'and' or spaces only; test_parse_choice_accepts_only_numbers_and_separators (failed before).",
+     "status": "FIXED"
+    },
+    {
+     "where": "creator/action_student.py:candidates",
+     "severity": "low",
+     "issue": "rglob('*.py') walked state/ (tens of thousands of run-artefact directories) on every call. FIXED: _py_texts prunes state/.git/venv.",
+     "status": "FIXED"
+    }
+   ],
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_action_student.py tests/test_creator_model_student.py tests/test_creator_validator4_regressions.py",
+    "result": "test_creator_action_student: 13 passed in 0.46s; test_creator_model_student: 12 passed in 0.39s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   },
+   "depth": "module read in full; CRLF rewrite, permissive CHOICE parser and whole-tree rglob fixed",
+   "revalidated": "round 4 (h8/revalidate)"
+  },
+  "NEW-lm": {
+   "issues": [
+    {
+     "where": "creator/lm/model.py,train.py,evaluate.py",
+     "severity": "medium",
+     "issue": "torch is not installed in the validation venv: the transformer, trainer and window_nats are not executed by any test here (they skip). Verdict cannot be VALIDATED until they run.",
+     "status": "OPEN"
+    },
+    {
+     "where": "creator/lm/evaluate.py:summarize",
+     "severity": "low",
+     "issue": "should_promote compares bootstrap CIs over held-out TEXTS; with very few texts the CI degenerates and any strict improvement promotes. data.eval_texts() size is the guard; no minimum is enforced in the rule.",
+     "status": "OPEN"
+    },
+    {
+     "where": "creator/lm/dialogue.py:RUNTIME",
+     "severity": "info",
+     "issue": "The default runtime directory is hard-coded to C:\\Users\\Peter\\creator_runtime (overridable by NUPEN_RUNTIME).",
+     "status": "OPEN-INFO"
+    }
+   ],
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_lm_core.py tests/test_lm_dialogue.py",
+    "result": "test_lm_core: 4 passed, 1 skipped in 0.96s; test_lm_dialogue: 8 passed in 0.35s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   },
+   "depth": "creator/lm/{dialogue,tokenizer,evaluate,train}.py read; torch is NOT installed in the venv, so model.py/train.py/evaluate window_nats are unexercised here",
+   "revalidated": "round 4 (h8/revalidate)"
+  },
+  "NEW-nupen_service": {
+   "issues": [
+    {
+     "where": "scripts/nupen_service.py:claim_pidfile",
+     "severity": "high",
+     "issue": "After a reboot the stale pidfile's pid can belong to an unrelated live process; alive(pid) was true, so the supervisor refused to start - the exact case it exists for (start with the computer). FIXED (h8/revalidate): a pidfile older than the boot is stale; test_a_pidfile_from_before_the_boot_does_not_block_the_supervisor (failed before).",
+     "status": "FIXED"
+    },
+    {
+     "where": "scripts/nupen_service.py:claim_pidfile",
+     "severity": "low",
+     "issue": "The claim was a plain write: two supervisors starting together could both win. FIXED: exclusive create (O_EXCL); test_the_pidfile_is_claimed_exclusively.",
+     "status": "FIXED"
+    }
+   ],
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_nupen_service.py tests/test_creator_validator4_regressions.py",
+    "result": "test_nupen_service: 7 passed in 2.65s; test_creator_validator4_regressions: 10 passed in 4.15s",
+    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+   },
+   "depth": "script read in full; reboot-stale pidfile and non-exclusive claim fixed",
+   "revalidated": "round 4 (h8/revalidate)"
   }
  },
  "verdict_counts": {
-  "VALIDATED": 13,
-  "VALIDATED_WITH_ISSUES": 17
+  "VALIDATED": 34,
+  "VALIDATED_WITH_ISSUES": 1
  },
  "fixed": [
   "agents.run_agent non-object JSON crash",
@@ -544,9 +777,10 @@
  "regression_tests": "tests/test_creator_validator_regressions.py (both proven failing before fix)",
  "not_done": "Components read only partially in earlier rounds stay as labelled; generator 'model' strategy untested against a real llama-server; devbench.score_holdout cannot be changed here.",
  "counts": {
-  "VALIDATED": 13,
-  "VALIDATED_WITH_ISSUES": 17
+  "VALIDATED": 34,
+  "VALIDATED_WITH_ISSUES": 1
  },
  "round2": "validator2: fixes on h3/validator2; K14 kernel, K18 generator, K22 swarm left to the orchestrator",
- "round3": "validator3 (h4/validator3): K14, K18, K22 validated; NEW-curriculum/student/process_levers/synth added. Fixed with regression tests failing first: deferred package dropped by MAX_ATTEMPTS, lessons.jsonl concurrent-append corruption, student never learned from the real lesson log, process levers mis-wired into search, unbounded process.json, swarm job crash lost its report. mypy: creator/debug.py has 6 pre-existing errors (not touched)."
+ "round3": "validator3 (h4/validator3): K14, K18, K22 validated; NEW-curriculum/student/process_levers/synth added. Fixed with regression tests failing first: deferred package dropped by MAX_ATTEMPTS, lessons.jsonl concurrent-append corruption, student never learned from the real lesson log, process levers mis-wired into search, unbounded process.json, swarm job crash lost its report. mypy: creator/debug.py has 6 pre-existing errors (not touched).",
+ "round4": "validator4 (h8/revalidate): stale verdicts K01 K02 K06 K09 K17 K25 re-validated against current code; VALIDATED_WITH_ISSUES components re-validated after fixing/closing every open issue; new rows NEW-schedule, NEW-treecache, NEW-action_student, NEW-lm, NEW-nupen_service. `validated_commit` names the code commit each verdict was given against (scripts/record_validation.py honours it)."
 }

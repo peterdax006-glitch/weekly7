@@ -77,3 +77,32 @@ def test_autostart_command_points_at_the_service() -> None:
     auto = _load("nupen_autostart")
     cmd = auto.command()
     assert "pythonw.exe" in cmd and "nupen_service.py" in cmd
+
+
+def test_a_pidfile_from_before_the_boot_does_not_block_the_supervisor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """After a reboot the old pid may belong to any unrelated live process; the supervisor must still start (it is meant to start
+    with the computer)."""
+    svc = _load("nupen_service")
+    pid = tmp_path / "nupen_service.pid"
+    monkeypatch.setattr(svc, "PIDFILE", pid)
+    monkeypatch.setattr(svc, "alive", lambda p: True)                       # the recycled pid is alive
+    pid.write_text("4242", encoding="utf-8")
+    monkeypatch.setattr(svc, "boot_time", lambda: time.time() + 3600.0)     # booted after the file was written
+    assert svc.claim_pidfile() is True and pid.read_text(encoding="utf-8") == str(os.getpid())
+    pid.write_text("4242", encoding="utf-8")
+    monkeypatch.setattr(svc, "boot_time", lambda: time.time() - 3600.0)     # written after this boot: a real holder
+    assert svc.claim_pidfile() is False
+    assert svc.boot_time.__name__ == "<lambda>" and _load("nupen_service").boot_time() <= time.time()
+
+
+def test_the_pidfile_is_claimed_exclusively(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    monkeypatch.setattr(svc, "PIDFILE", tmp_path / "sub" / "nupen_service.pid")
+    assert svc.claim_pidfile() is True and svc.PIDFILE.read_text(encoding="utf-8") == str(os.getpid())
+    real_unlink = Path.unlink
+    # a rival creates the file between our unlink and our exclusive create: we must lose, not overwrite it
+    def rival(self, *a, **k):                                               # type: ignore[no-untyped-def]
+        real_unlink(self, *a, **k)
+        self.write_text("31337", encoding="utf-8")
+    monkeypatch.setattr(Path, "unlink", rival)
+    assert svc.claim_pidfile() is False and svc.PIDFILE.read_text(encoding="utf-8") == "31337"

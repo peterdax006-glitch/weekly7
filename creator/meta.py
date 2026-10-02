@@ -100,8 +100,8 @@ class MetaLearner:
             raise ValueError(f"unknown strategy: {strategy!r}")
         if not str(problem_class).strip():
             raise ValueError("problem_class must be non-empty")
-        if cost < 0:
-            raise ValueError("cost must be >= 0")
+        if not (math.isfinite(cost) and cost >= 0):
+            raise ValueError("cost must be a finite number >= 0")
         out = Outcome(strategy, str(problem_class).strip(), bool(success), float(cost))
         self.outcomes.append(out)
         return out

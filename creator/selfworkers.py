@@ -35,8 +35,9 @@ COMPONENT = re.compile(r"^creator(\.|$)")
 
 def _used_names(tree: ast.AST, skip: Optional[ast.AST] = None) -> set[str]:
     out: set[str] = set()
+    skipped = set(ast.walk(skip)) if skip is not None else set()          # the node AND everything inside it
     for n in ast.walk(tree):
-        if skip is not None and n is skip:
+        if n in skipped:
             continue
         if isinstance(n, ast.Name):
             out.add(n.id)

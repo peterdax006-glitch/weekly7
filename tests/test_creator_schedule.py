@@ -133,3 +133,32 @@ def test_plan_next_prefer_never_overrides_blocking_and_default_unchanged(world) 
     blocked = next(g for g in ranked if g.blocked_by)
     plan = P.plan_next(led, model, "b", SPECS, prefer=(blocked.gap_id,))       # a blocked gap cannot jump the queue
     assert plan is not None and plan.gap_id == top.gap_id and plan.package_id == "CP0001"
+
+
+def test_plan_batch_never_orphans_a_package_it_planned(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A picked gap that plan_next gives up on (3 failed attempts -> BLOCKED) makes plan_next plan the NEXT gap; that plan was
+    written to the ledger (gap IN_PROGRESS) and must be returned, not dropped - a dropped plan strands its gap forever."""
+    from types import SimpleNamespace
+    monkeypatch.setattr(O, "COMPONENT_DEPENDS", {})                      # two independent components
+    specs = [SM.CapabilitySpec("K01", "a", ("pkg/a.py",), ("tests/test_a.py",), 0),
+             SM.CapabilitySpec("K05", "b", ("pkg/b.py",), ("tests/test_b.py",), 0)]
+    r = tmp_path / "proj"
+    (r / "pkg").mkdir(parents=True)
+    (r / "tests").mkdir()
+    (r / "pkg" / "__init__.py").write_text("", encoding="utf-8")
+    (r / "tests" / "__init__.py").write_text("", encoding="utf-8")
+    led = Ledger(r / "dev.jsonl", evidence_root=r)
+    O.compile_capabilities(led, O.self_objective(led), specs)
+    model = SM.build(r, scope=("pkg", "tests"), capabilities=specs, test_evidence={}, include_versions=False)
+    G.sync(led, model)
+    first = next(g for g in G.ranked(led) if not g.blocked_by)
+    for _ in range(P.MAX_ATTEMPTS):
+        plan = P.plan_next(led, model, "b", specs, prefer=(first.gap_id,))
+        assert plan is not None and plan.gap_id == first.gap_id
+        led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
+        led.transition(plan.work_package_id, M.Status.FAILED, "claim REGRESSION", M.Role.KERNEL)
+        led.transition(plan.gap_id, M.Status.FAILED, "claim REGRESSION", M.Role.KERNEL)
+    cfg = SimpleNamespace(specs=lambda: specs, steps=P.WORKER_STEPS, mode="gaps", ledger_path=led.path, repo=tmp_path)
+    plans = S.plan_batch(cfg, led, SimpleNamespace(model=model), "b", 3)
+    in_progress = {i for i, s in led.view.status.items() if s is M.Status.IN_PROGRESS and led.view.by_id[i].rtype == "Gap"}
+    assert in_progress <= {p.gap_id for p in plans}, "a gap was marked IN_PROGRESS by a plan that plan_batch dropped"

@@ -155,3 +155,13 @@ def test_an_adopted_worker_configuration_reaches_the_worker_the_swarm_builds(tmp
     AT.save_active(G.WorkerConfig(search_budget=480), "adopted by measured trial", cfg)
     assert PL.tuned_search_budget(p, cfg) == 480 != default_budget
     assert search(PL.build_worker(p, None, cfg)).budget == 480
+
+
+def test_a_damaged_worker_configuration_falls_back_to_the_lever_instead_of_crashing(tmp_path: Path) -> None:
+    p = R.ProcessConfig()
+    default_budget = PL.levers(p).search_budget
+    for text in ("{not json", "{}", '{"config": {"search_budget": "x"}}', '{"config": {"search_budget": -3}}', '{"config": 5}'):
+        bad = tmp_path / "worker_config.json"
+        bad.write_text(text, encoding="utf-8")
+        assert PL.tuned_search_budget(p, bad) == default_budget, text
+        assert PL.build_worker(p, None, bad) is not None

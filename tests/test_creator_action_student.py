@@ -140,6 +140,34 @@ def test_student_lexical_prior_flag_fixes_a_wrong_pick(work: Path) -> None:
     assert "import os" not in new and "t = sum(xs)" in new          # the import was dropped, the model's inline_temp was overridden
 
 
+def test_a_crlf_file_stays_crlf_after_an_action(work: Path) -> None:
+    (work / "app/u.py").write_bytes(SRC.replace("\n", "\r\n").encode("utf-8"))
+    st = A.ActionStudent(work / "none.jsonl", llm=FakeLLM(""))
+    cands = st.candidates(PKG, work)
+    drop = next(i for i, a in enumerate(cands, 1) if a.short() == "drop_unused_import(os)")
+    st.llm = FakeLLM(f"CHOICE: {drop}\nWHY: os is unused")
+    res = st(PLAN, PKG, work)
+    assert res.claimed_done, res.detail if hasattr(res, "detail") else res
+    raw = (work / "app/u.py").read_bytes()
+    assert b"import os" not in raw and raw.count(b"\r\n") == raw.count(b"\n") > 5
+
+
+def test_candidates_ignore_the_root_state_directory(work: Path) -> None:
+    (work / "state" / "run1").mkdir(parents=True)
+    (work / "state" / "run1" / "junk.py").write_text("import os\n\n\ndef _gone():\n    return 1\n", encoding="utf-8")
+    st = A.ActionStudent(work / "none.jsonl", llm=FakeLLM(""))
+    assert all(not a.path.startswith("state") for a in st.candidates(PKG, work))
+    assert "state/run1/junk.py" not in A._py_texts(work) and "app/u.py" in A._py_texts(work)
+
+
+def test_parse_choice_accepts_only_numbers_and_separators() -> None:
+    assert A.parse_choice("CHOICE: 1, 3\nWHY: x", 5) == [1, 3]
+    assert A.parse_choice("CHOICE: 2 and 4.", 5) == [2, 4]
+    assert A.parse_choice("CHOICE: 1 2", 5) == [1, 2]
+    for junk in ("CHOICE: 1 dnn 2", "CHOICE: a1", "CHOICE: and", "CHOICE: 1,", "CHOICE: 9"):
+        assert A.parse_choice(junk, 5) is None, junk
+
+
 def test_defaults_are_the_policy_that_won_the_heldout_hard_bench() -> None:
     """Held-out hard seeds 201-203 (n=90): rich labels + lexical prior 0.811 vs lexical 0.589 (CIs disjoint); flags stay switchable."""
     import inspect

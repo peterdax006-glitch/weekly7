@@ -13,6 +13,7 @@ import ast
 import dataclasses
 import difflib
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -329,12 +330,26 @@ def parse_choice(reply: str, n: int) -> Optional[list[int]]:
     line = m.group(1).strip()
     if re.fullmatch(r"none\.?", line, re.I):
         return None
-    if not re.fullmatch(r"[\d\s,;and]*", line, re.I) or not re.search(r"\d", line):
+    if not re.fullmatch(r"\d+(?:(?:\s*[,;]\s*|\s+and\s+|\s+)\d+)*\s*\.?", line, re.I):
         return None
     nums = [int(x) for x in re.findall(r"\d+", line)]
     if any(not 1 <= x <= n for x in nums):
         return None
     return list(dict.fromkeys(nums))
+
+
+def _py_texts(workdir: Path) -> dict[str, str]:
+    """Every .py file of the work tree (posix path -> text), pruning .git, virtualenvs, caches and the root state/ (run artefacts:
+    tens of thousands of directories nothing imports)."""
+    out: dict[str, str] = {}
+    for dirpath, dirnames, filenames in os.walk(workdir):
+        at_root = Path(dirpath) == workdir
+        dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git", ".venv", "node_modules") and not (at_root and d == "state")]
+        for fn in filenames:
+            if fn.endswith(".py"):
+                q = Path(dirpath) / fn
+                out[q.relative_to(workdir).as_posix()] = q.read_text(encoding="utf-8", errors="replace")
+    return out
 
 
 class ActionStudent:
@@ -360,8 +375,7 @@ class ActionStudent:
 
     def candidates(self, package: Any, workdir: Path) -> list[Action]:
         rels = self.targets(package, workdir)
-        texts = {q.relative_to(workdir).as_posix(): q.read_text(encoding="utf-8", errors="replace")
-                 for q in workdir.rglob("*.py") if "__pycache__" not in q.parts and ".venv" not in q.parts}
+        texts = _py_texts(workdir)
         out: list[Action] = []
         for rel in rels:
             others = [t for r, t in texts.items() if r != rel]
@@ -418,8 +432,7 @@ class ActionStudent:
 
     def _apply(self, chosen: list[Action], package: Any, workdir: Path, reasoning: str) -> "WorkResult":
         from creator.kernel import WorkResult
-        texts = {q.relative_to(workdir).as_posix(): q.read_text(encoding="utf-8", errors="replace")
-                 for q in workdir.rglob("*.py") if "__pycache__" not in q.parts and ".venv" not in q.parts}
+        texts = _py_texts(workdir)
         saved = {a.path: texts[a.path] for a in chosen if a.path in texts}
         cur, done = dict(saved), []
         for a in chosen:
@@ -434,5 +447,6 @@ class ActionStudent:
         if not changed or any(ST._parse(cur[p]) is None for p in changed):
             return WorkResult(False, "chosen actions did not apply", calls=self.last_calls, reasoning=reasoning)
         for p in changed:
-            (workdir / p).write_text(cur[p], encoding="utf-8", newline="\n")
+            eol = "\r\n" if b"\r\n" in (workdir / p).read_bytes() else "\n"          # a CRLF file stays CRLF: no whole-file diff
+            (workdir / p).write_text(cur[p], encoding="utf-8", newline=eol)
         return WorkResult(True, f"{len(done)} actions applied: {', '.join(done)}", calls=self.last_calls, by=self.name, reasoning=reasoning)

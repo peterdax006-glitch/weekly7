@@ -21,7 +21,7 @@ TAXONOMY = {
     "VALUE": (r"ValueError|ZeroDivisionError|OverflowError", "validate the input range and edge cases"),
     "IO": (r"FileNotFoundError|PermissionError|OSError|IOError", "check paths, permissions and existence"),
     "TIMEOUT": (r"TimeoutExpired|Timeout|timed out", "find the slow or blocking step"),
-    "ASSERTION": (r"AssertionError|assert ", "the behaviour differs from the expectation; compare actual and expected"),
+    "ASSERTION": (r"AssertionError|(?m:^\s*(?:E\s+)?assert\s)", "the behaviour differs from the expectation; compare actual and expected"),
 }
 
 _FRAME = re.compile(r'File "([^"]+)", line (\d+)(?:, in (\S+))?')
@@ -72,9 +72,10 @@ def reproduce(command: list, cwd: str | None = None, timeout: float = 120.0) -> 
     try:
         p = subprocess.run(list(command), cwd=cwd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
-        out = (e.stdout or b"")
-        out = out.decode("utf-8", "replace") if isinstance(out, bytes) else out
-        return Failure(list(command), -1, out + "\nTimeoutExpired: timed out", True)
+        def text(x: object) -> str:
+            return x.decode("utf-8", "replace") if isinstance(x, bytes) else str(x or "")
+        out, err = text(e.stdout), text(e.stderr)
+        return Failure(list(command), -1, out + err + "\nTimeoutExpired: timed out", True)
     except OSError as e:
         return Failure(list(command), -1, f"{type(e).__name__}: {e}", True)
     return Failure(list(command), p.returncode, (p.stdout or "") + (p.stderr or ""), p.returncode != 0)
@@ -182,7 +183,7 @@ def repair_experiment(command: list, apply_fn, revert_fn=None, cwd: str | None =
     revert_fn (if given) is still called. If the repair did not fix it, revert_fn is called.
     """
     before = reproduce(command, cwd, timeout)
-    result = {"before": before, "after": None, "fixed": False, "error": ""}
+    result: dict = {"before": before, "after": None, "fixed": False, "error": ""}
     try:
         apply_fn()
         result["after"] = reproduce(command, cwd, timeout)

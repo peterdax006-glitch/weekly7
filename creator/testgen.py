@@ -298,8 +298,8 @@ def generate(root: Path, rel: str, modname: Optional[str] = None, only: Optional
            "def _outcome(fn, *a):", "    try:", "        return (\"ok\", fn(*a))", "    except Exception as e:",
            "        return (\"exc\", type(e).__name__)", "", "",
            "def test_module_imports():", f"    assert M.__name__ == {mod!r}", "", "",
-           "def test_public_names_exist():", f"    for n in {sorted([i.name for i in infos] + classes)!r}:",
-           "        assert hasattr(M, n), n", "        assert callable(getattr(M, n)), n", ""]
+           "def test_public_names_exist():",
+           *[f"    assert callable(getattr(M, {n!r})), {n!r}" for n in sorted([i.name for i in infos] + classes)], ""]
     cases, tested = 0, []
     for name, calls in callmap.items():
         got = [(i, res[(name, i)]) for i in range(len(calls)) if (name, i) in res]

@@ -27,7 +27,7 @@ SYSTEM = ("You are developing a Python project called the Creator. You receive a
 MAX_FILE_CHARS = 24000
 
 
-def relevant_files(package: M.WorkPackage, workdir: Path) -> list[str]:
+def relevant_files(package: M.WorkPackage) -> list[str]:
     """The files the package names (outputs, inputs) that exist or must be created, test files included."""
     names = [x for x in (*package.outputs, *package.inputs) if x.endswith(".py")]
     return list(dict.fromkeys(names))
@@ -65,7 +65,7 @@ class LocalWorker:
 
     def _prompt(self, plan: P.Plan, package: M.WorkPackage, workdir: Path) -> str:
         parts = [K.render_package(plan, package), "", "Current files:"]
-        for rel in relevant_files(package, workdir):
+        for rel in relevant_files(package):
             p = workdir / rel
             body = p.read_text(encoding="utf-8", errors="replace") if p.is_file() else "(does not exist yet)"
             parts.append(f"FILE: {rel}\n```python\n{body[:MAX_FILE_CHARS]}\n```")
