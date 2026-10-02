@@ -100,6 +100,9 @@ def main(argv: list[str]) -> int:
               f"resolved shadow rows={sh['shadow_resolved']} agreement={sh['agreement']} "
               f"chooser acc={sh['chooser_acc']} CI{sh['chooser_ci']} vs default acc={sh['default_acc']} CI{sh['default_ci']} "
               f"disagreements tested={sh['disagree_tested']}")
+    from creator import constraints as CON
+    for i, m in enumerate(CON.top_constraints(STATE), 1):
+        print(f"CONSTRAINT {i}: {m['name']} loss {m['loss']} score {m['score']} ({m['value']} {m['unit']}) remedy={m['remedy']}")
     gp = status["goal_proposals"]
     print(f"GOAL PROPOSALS pending approval: {gp['pending']} (python scripts/nupen_goals.py list)")
     for g in gp["items"][:5]:
