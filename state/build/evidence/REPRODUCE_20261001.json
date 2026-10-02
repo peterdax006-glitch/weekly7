@@ -1,0 +1,205 @@
+{
+ "chain": {
+  "error": null,
+  "ok": true,
+  "records": 1397
+ },
+ "claims": [
+  {
+   "adoptions": [],
+   "claim": "IC-f6b648f9f2b633f8b933",
+   "reasons": [
+    "verdict REGRESSION recomputed identically"
+   ],
+   "recomputed_verdict": "REGRESSION",
+   "recorded_verdict": "REGRESSION",
+   "seq": 416,
+   "status": "REPRODUCED",
+   "subject": "EXP-675312df34c6692de1e3"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "6c7958693708dcb63b03f6e4539791eb6d6d64f3",
+     "decision": "DEC-467bb0fa683b71fde317",
+     "reasons": [
+      "commit exists; 3 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-9c33f6bef407080df3f8",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-467bb0fa683b71fde317 commit 6c7958693708: commit exists; 3 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 437,
+   "status": "REPRODUCED",
+   "subject": "EXP-a00d3455305f4e826722"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "691ce3226d841b11c0501ffbcd0a909ff3071bbe",
+     "decision": "DEC-96a75a098584318ea4a6",
+     "reasons": [
+      "commit exists; 2 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-aab38490c00a7ca4689a",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-96a75a098584318ea4a6 commit 691ce3226d84: commit exists; 2 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 477,
+   "status": "REPRODUCED",
+   "subject": "EXP-92d3a91a993ebf4350d1"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "fd81c85b6fec8d253125b821973ddd9c9823781d",
+     "decision": "DEC-6097eafee00c3b62470d",
+     "reasons": [
+      "commit exists; 2 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-015da737ee1d9c0169d0",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-6097eafee00c3b62470d commit fd81c85b6fec: commit exists; 2 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 517,
+   "status": "REPRODUCED",
+   "subject": "EXP-6a32aaf0c65a984ed577"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "c28480008ab371b106b1950d5c01f0ab8da86907",
+     "decision": "DEC-f25e25650617386d280c",
+     "reasons": [
+      "commit exists; 2 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-6008bf20a3d247c22004",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-f25e25650617386d280c commit c28480008ab3: commit exists; 2 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 564,
+   "status": "REPRODUCED",
+   "subject": "EXP-98fee36f2eb3f180bab9"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "bcc28a19d4205af2dd4eabecf100318077d7002b",
+     "decision": "DEC-5ddeef19dbb4605ad194",
+     "reasons": [
+      "commit exists; 2 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-29dc66484289d8091d01",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-5ddeef19dbb4605ad194 commit bcc28a19d420: commit exists; 2 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 604,
+   "status": "REPRODUCED",
+   "subject": "EXP-bc4c232bd2e15c80481c"
+  },
+  {
+   "adoptions": [],
+   "claim": "IC-450ba25e309fe12e81a5",
+   "reasons": [
+    "verdict NO_EFFECT recomputed identically"
+   ],
+   "recomputed_verdict": "NO_EFFECT",
+   "recorded_verdict": "NO_EFFECT",
+   "seq": 1256,
+   "status": "REPRODUCED",
+   "subject": "EXP-1ab0fd426e83e97457af"
+  },
+  {
+   "adoptions": [],
+   "claim": "IC-16af6f8ccf4d6df2cec5",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 1277,
+   "status": "REPRODUCED",
+   "subject": "EXP-74f502596135c1da297d"
+  },
+  {
+   "adoptions": [],
+   "claim": "IC-e54f095e9aef9402c740",
+   "reasons": [
+    "verdict REGRESSION recomputed identically"
+   ],
+   "recomputed_verdict": "REGRESSION",
+   "recorded_verdict": "REGRESSION",
+   "seq": 1356,
+   "status": "REPRODUCED",
+   "subject": "EXP-d9f22202483b585126fe"
+  },
+  {
+   "adoptions": [
+    {
+     "commit": "42a2630ab7f17e6706ebc623d671512704e6ae68",
+     "decision": "DEC-f3f11cd71ca393d2fd25",
+     "reasons": [
+      "commit exists; 1 changed file(s), all parse"
+     ],
+     "status": "REPRODUCED"
+    }
+   ],
+   "claim": "IC-3f153275a1e3a9e4af7a",
+   "reasons": [
+    "verdict IMPROVEMENT recomputed identically",
+    "DEC-f3f11cd71ca393d2fd25 commit 42a2630ab7f1: commit exists; 1 changed file(s), all parse"
+   ],
+   "recomputed_verdict": "IMPROVEMENT",
+   "recorded_verdict": "IMPROVEMENT",
+   "seq": 1377,
+   "status": "REPRODUCED",
+   "subject": "EXP-7bd5fac4de2ecd587207"
+  }
+ ],
+ "counts": {
+  "NOT_REPRODUCED": 0,
+  "REPRODUCED": 10,
+  "UNVERIFIABLE": 0,
+  "adopts": 6,
+  "claims": 10,
+  "commits_checked": 6
+ },
+ "evidence": {
+  "changed": 0,
+  "checked": 713,
+  "missing": 0
+ },
+ "ledger": "state\\creator\\ledger.jsonl",
+ "overall": "REPRODUCED",
+ "repo": "."
+}
