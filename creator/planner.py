@@ -27,9 +27,12 @@ from creator.ledger import Ledger
 PREFIX = "CP"
 MAX_ATTEMPTS = 3
 DEFERRED_PREFIX = "deferred:"
+NOT_AN_ATTEMPT = (DEFERRED_PREFIX, "interrupted", "stopped by", "paused", "pulled back")   # the worker's work was never judged
 WORKER_STEPS = ("exists", "tested", "no_stubs", "integrated")
 EFFICIENCY_KEY = "EFF.size"
 ACTIVATION_KEY = "EFF.activation"
+COVERAGE_KEY = "EFF.coverage"
+EFFICIENCY_STEPS = ("efficiency", "coverage")                      # plan steps whose claim is computed by kernel.efficiency_claim
 VALIDATOR_STEPS = ("validated",)
 
 
@@ -114,10 +117,15 @@ def next_package_id(ledger: Ledger) -> str:
 
 def attempts_for(ledger: Ledger, gap_id: str) -> list[str]:
     """Work packages already planned for this gap, oldest first. A package that was only DEFERRED (handed over to a student that
-    owns its kind, never attempted) is not an attempt: counting it let three deferrals BLOCK the gap and drop the task."""
+    owns its kind, never attempted) or INTERRUPTED (host stop, RAM pull-back, owner pause: nothing was ever evaluated) is not an
+    attempt: counting them BLOCKED K07/K08/K12/K19 forever after three stops (1 Oct) although no work of theirs was ever judged."""
     wps = [c for c in ledger.view.children.get(gap_id, []) if ledger.view.by_id[c].rtype == "WorkPackage"]
-    return [w for w in wps if not any(t.rtype == "Transition" and str(getattr(t.record, "reason", "")).startswith(DEFERRED_PREFIX)
-                                      for t in ledger.about(w))]
+    return [w for w in wps if not was_interrupted(ledger, w)]
+
+
+def was_interrupted(ledger: Ledger, wp_id: str) -> bool:
+    """True when the package was deferred or stopped before its work was ever judged (see NOT_AN_ATTEMPT)."""
+    return any(t.rtype == "Transition" and str(getattr(t.record, "reason", "")).startswith(NOT_AN_ATTEMPT) for t in ledger.about(wp_id))
 
 
 def failure_reasons(ledger: Ledger, wp_ids: Sequence[str]) -> list[str]:
@@ -191,7 +199,7 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
     rank = {gid: i for i, gid in enumerate(prefer)}
     for g in sorted(G.ranked(ledger), key=lambda x: rank.get(x.gap_id, len(rank))):     # stable: the rest keep gaps.ranked order
-        if g.blocked_by or ledger.view.status.get(g.gap_id) not in (M.Status.NOT_STARTED, M.Status.FAILED):
+        if g.blocked_by or ledger.view.status.get(g.gap_id) not in (M.Status.NOT_STARTED, M.Status.FAILED, M.Status.BLOCKED):
             continue
         gap = ledger.get(g.gap_id)
         req_id = next((p for p in gap.parents if ledger.view.by_id[p].rtype == "Requirement"), None)
@@ -204,6 +212,11 @@ def plan_next(ledger: Ledger, model: SM.SelfModel, base_ref: str, specs: Optiona
         if step not in steps or cid in exclude_components:
             continue                                                    # another worker is on this component right now
         prior = attempts_for(ledger, g.gap_id)
+        if ledger.view.status[g.gap_id] is M.Status.BLOCKED:
+            if len(prior) >= max_attempts:
+                continue                                                # still genuinely exhausted
+            ledger.transition(g.gap_id, M.Status.NOT_STARTED, f"reopened: only {len(prior)} of {max_attempts} attempts were real "
+                              "(the rest were interruptions)", M.Role.KERNEL)
         if len(prior) >= max_attempts:
             ledger.transition(g.gap_id, M.Status.BLOCKED,
                               f"{len(prior)} packages failed: " + "; ".join(failure_reasons(ledger, prior)[-3:]), M.Role.KERNEL)
@@ -257,19 +270,29 @@ def recent_failed_targets(ledger: Ledger, window: int = 6) -> list[str]:
     """Targets whose last efficiency packages failed - skipped for a while so the loop does not grind on one file."""
     out = []
     for e in ledger.of_type("WorkPackage")[-window:]:
-        if ledger.view.status.get(e.id) is M.Status.FAILED and getattr(e.record, "outputs") \
-                and getattr(e.record, "objective", "").startswith("shrink "):
+        if ledger.view.status.get(e.id) is M.Status.FAILED and getattr(e.record, "outputs") and not was_interrupted(ledger, e.id) \
+                and getattr(e.record, "objective", "").startswith(("shrink ", "cover ")):
             out.append(getattr(e.record, "outputs")[0])
     return out
 
 
 def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = (), kind: Optional[str] = None) -> Optional[Plan]:
     """Plan one efficiency package: SIZE (shrink the largest module the Creator may edit) or ACTIVATION (load less code at start -
-    owner: 'never run any more code than absolutely necessarry'). Kinds alternate unless `kind` is given."""
-    past = [e for e in ledger.of_type("WorkPackage") if getattr(e.record, "objective", "").startswith(("shrink ", "load less"))]
-    kind = kind or ("activation" if len(past) % 2 else "size")
-    if kind == "activation":
-        return _plan_activation(ledger, root, base_ref, avoid)
+    owner: 'never run any more code than absolutely necessarry'). Kinds alternate unless `kind` is given; when the preferred kind
+    has nothing plannable (its only target is held by a running worker) the OTHER kind is tried - 1 Oct: one held activation
+    target ended the whole swarm round at 2 packages while dozens of modules could still be shrunk."""
+    past = [e for e in ledger.of_type("WorkPackage") if getattr(e.record, "objective", "").startswith(("shrink ", "load less", "cover "))]
+    order = ("size", "activation", "coverage")
+    first = kind or order[len(past) % 3]
+    planners = {"size": _plan_size, "activation": _plan_activation, "coverage": _plan_coverage}
+    for k in ((first,) if kind else (first, *(x for x in order if x != first))):
+        plan = planners[k](ledger, root, base_ref, avoid)
+        if plan is not None:
+            return plan
+    return None
+
+
+def _plan_size(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str]) -> Optional[Plan]:
     from pathlib import Path as _P
     from creator import efficiency as E
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
@@ -313,18 +336,84 @@ def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[st
     return Plan(gap, EFFICIENCY_KEY, path, "efficiency", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
 
 
+COVERAGE_TEXT = {
+    "do": ("add tests under tests/ that exercise these public names of {target}, which no test names yet: {names}",
+           "write ONLY test files: production code, including {target}, must stay byte-for-byte unchanged",
+           "each test must fail if the function it names is broken or removed (no assert-free or tautological tests)"),
+    "tests": ("every new test passes on the current source; the number of tests only grows",),
+    "fail": ("tests that import the name but assert nothing", "production code edited to make a test pass",
+             "tests that only mention a name in a string or comment"),
+}
+
+
+def _plan_coverage(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
+    """Test-gap work: the module with the most public functions/classes no test names (creator.efficiency.uncovered_public). The
+    kernel MEASURES it: the module's uncovered count and the package's must fall, tests must pass, only tests/ may change."""
+    from pathlib import Path as _P
+    from creator import efficiency as E
+    objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
+    if objective_id is None:
+        return None
+    skip = set(avoid) | set(recent_failed_targets(ledger))
+    tests = E._test_text(_P(root))
+    gaps = {f: E.uncovered_public(_P(root), f, tests) for f in E.production_files(_P(root)) if E.editable(f) and f not in skip}
+    gaps = {f: n for f, n in gaps.items() if n}
+    if not gaps:
+        return None                                                     # every public name is named by some test
+    path = max(gaps, key=lambda f: (len(gaps[f]), f))
+    names = ", ".join(gaps[path][:12])
+    rid = ledger.view.unique.get(("Requirement", COVERAGE_KEY)) or ledger.append(M.Requirement(
+        created_by=M.Role.OWNER, parents=(objective_id,), key=COVERAGE_KEY, priority=M.Priority.MEDIUM,
+        description="every public function of the Creator is named by a test (the work supply for the students: tests are a "
+                    "learnable, objectively measured task)",
+        acceptance_test="efficiency:coverage (a standing objective: never permanently met)",
+        measurement_method="creator.efficiency.uncovered_public of the target and uncovered_total of the package",
+        failure_condition="production code changed, a test lost, or no fewer untested public names",
+        validation_method="creator.kernel efficiency claim computed by creator.model:improvement_verdict",
+        evidence_location="state/creator/cycles/<package>/"))
+    gap = ledger.append(M.Gap(created_by=M.Role.KERNEL, parents=(rid,), kind=M.GapKind.ARCHITECTURE,
+                              description=f"cover {path}: {len(gaps[path])} public names no test names", importance=0.2))
+    kw = {"target": path, "names": names}
+    pid = next_package_id(ledger)
+    wp = ledger.append(M.WorkPackage(
+        created_by=M.Role.KERNEL, parents=(gap,), package_id=pid, objective=f"cover the untested public names of {path}",
+        why_it_exists=f"{path} has {len(gaps[path])} public names that no test names: {names}",
+        prerequisites=("none",), inputs=(path,), outputs=(path,), implementation_requirements=_fmt(COVERAGE_TEXT["do"], **kw),
+        interfaces=("production interfaces stay exactly as they are",),
+        data_flow="sandbox -> new tests -> affected tests -> uncovered count measured -> decision", dependencies=(),
+        test_requirements=_fmt(COVERAGE_TEXT["tests"], **kw),
+        validation_requirements=(f"fewer untested public names in {path} and in the package", "only tests/ changed",
+                                 "every base requirement kept", "test count not lower"),
+        expected_failure_modes=_fmt(COVERAGE_TEXT["fail"], **kw),
+        evidence_requirements=("uncovered counts of base and candidate", "junit of base and candidate"),
+        failure_conditions=("no fewer untested names", "a non-test file changed", "any regression"),
+        rollback_requirements=("discard the sandbox; after adoption revert the merge commit",),
+        completion_criteria=("efficiency claim IMPROVEMENT computed by creator.model:improvement_verdict", "audit clean"),
+        anti_premature_completion=("a test that names a function but checks nothing is not coverage",), meaningful_code_depth=0))
+    cp = ledger.append(M.ChangeProposal(created_by=M.Role.KERNEL, parents=(wp,), reason=f"cover {path}",
+                                        parent_objective=objective_id, originating_task=wp, affected_components=(path,),
+                                        expected_effect=f"fewer untested public names in {path}"))
+    ex = ledger.append(M.Experiment(created_by=M.Role.KERNEL, parents=(cp,),
+                                    hypothesis=f"tests can be added that name and check the public names of {path}",
+                                    design="sandbox; base vs candidate untested-name count of the target and the package; tests",
+                                    metrics=(f"uncovered_public:{path}", "uncovered_public:package"), seed=0,
+                                    baseline_ref=base_ref, candidate_ref=f"sandbox:{pid}"))
+    ledger.transition(gap, M.Status.IN_PROGRESS, f"planned as {pid}", M.Role.KERNEL)
+    return Plan(gap, COVERAGE_KEY, path, "coverage", M.Role.IMPLEMENTER, wp, pid, cp, ex, 1)
+
+
 def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = ()) -> Optional[Plan]:
     from pathlib import Path as _P
     from creator import efficiency as E
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
     if objective_id is None:
         return None
-    act = E.activation(_P(root))
     skip = set(avoid) | set(recent_failed_targets(ledger))
     gains = E.activation_gains(_P(root))
     cands = [m for m, g in gains.items() if g > 0 and E.editable(m) and m not in skip]
     if not cands:
         return None                                                     # nothing could load less: no package is planned
+    act = E.activation(_P(root))
     path = max(cands, key=lambda m: (gains[m], m))
     eager = {path: gains[path]}
     rid = ledger.view.unique.get(("Requirement", ACTIVATION_KEY)) or ledger.append(M.Requirement(

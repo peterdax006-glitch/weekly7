@@ -301,9 +301,12 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
     import statistics
     pop, cond, ex = "creator package", f"efficiency; base {plan.experiment_id}", plan.experiment_id
     activation_kind = plan.requirement_key == P.ACTIVATION_KEY
-    metric = "active_ast_nodes:kernel_start" if activation_kind else f"ast_nodes:{plan.component}"
+    coverage_kind = plan.requirement_key == P.COVERAGE_KEY              # test-gap work: fewer public names no test names
+    metric = ("active_ast_nodes:kernel_start" if activation_kind else
+              f"uncovered_public:{plan.component}" if coverage_kind else f"ast_nodes:{plan.component}")
+
     def primary(f: Any) -> float:
-        return f.active_nodes if activation_kind else f.target_size
+        return f.active_nodes if activation_kind else f.uncovered if coverage_kind else f.target_size
     base_ids = [_measure(led, ex, metric, primary(base_fp), M.Split.DEV, pop, cond, evidence, {"tree": "base", "r": r},
                          higher_is_better=False) for r in range(len(cand_fps))]
     cand_ids = [_measure(led, ex, metric, primary(f), M.Split.DEV, pop, cond, evidence, {"tree": "candidate", "r": r},
@@ -350,6 +353,11 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
                       {"holdout": "base"}, higher_is_better=False)
         hc = _measure(led, ex, "static_eager_load", max(f.static_load for f in cand_fps), M.Split.HOLDOUT, pop, cond, evidence,
                       {"holdout": "candidate"}, higher_is_better=False)
+    elif coverage_kind:                                                 # the holdout: the whole package's test gap
+        hb = _measure(led, ex, "uncovered_public:package", base_fp.uncovered_package, M.Split.HOLDOUT, pop, cond, evidence,
+                      {"holdout": "base"}, higher_is_better=False)
+        hc = _measure(led, ex, "uncovered_public:package", max(f.uncovered_package for f in cand_fps), M.Split.HOLDOUT, pop, cond,
+                      evidence, {"holdout": "candidate"}, higher_is_better=False)
     else:
         hb = _measure(led, ex, "package_ast_nodes", base_fp.package_size, M.Split.HOLDOUT, pop, cond, evidence,
                       {"holdout": "base"}, higher_is_better=False)
@@ -366,7 +374,8 @@ def efficiency_claim(led: Ledger, plan: P.Plan, base: Assessed, cand: Sequence[A
     detail = dict(detail, target=plan.component, size=(base_fp.target_size, cand_fps[0].target_size),
                   package=(base_fp.package_size, cand_fps[0].package_size), memory_mb=(round(bm, 2), round(cm, 2)),
                   tests=(base_fp.test_cases, cand_fps[0].test_cases), requirements_lost=lost,
-                  active_nodes=(base_fp.active_nodes, cand_fps[0].active_nodes))
+                  active_nodes=(base_fp.active_nodes, cand_fps[0].active_nodes),
+                  uncovered=(base_fp.uncovered, cand_fps[0].uncovered))
     from creator.evaluate import computation
     ids = base_ids + cand_ids + [i for pair in guards for i in pair] + [hb, hc]
     cid = led.append(M.ImprovementClaim(created_by=M.Role.VALIDATOR, parents=(ex,), subject_id=ex,
@@ -505,11 +514,15 @@ def plan_one(cfg: KernelConfig, led: Ledger, main: Assessed, base_sha: str, excl
              exclude_paths: Sequence[str] = ()) -> Optional[P.Plan]:
     """2 PLAN one package that touches none of the excluded components / paths (so parallel workers never collide)."""
     steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)          # a validator step can never be handed to a worker
+    specs = cfg.specs()
+    by_id = {s.id: s for s in specs}
+    held = set(exclude_paths) | {f for c in exclude_components if c in by_id for f in (*by_id[c].modules, *by_id[c].tests)}
+    components = tuple(exclude_components) + tuple(s.id for s in specs if held & {*s.modules, *s.tests})   # same file = same owner
     plan = None
     if cfg.mode in ("auto", "gaps"):
-        plan = P.plan_next(led, main.model, base_sha, cfg.specs(), steps=steps, exclude_components=exclude_components)
+        plan = P.plan_next(led, main.model, base_sha, specs, steps=steps, exclude_components=components)
     if plan is None and cfg.mode in ("auto", "efficiency"):
-        plan = P.plan_efficiency(led, cfg.repo, base_sha, avoid=tuple(exclude_paths))   # standing shrink / activation
+        plan = P.plan_efficiency(led, cfg.repo, base_sha, avoid=tuple(held))   # standing shrink / activation
     return plan
 
 
@@ -610,7 +623,10 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
         if hashlib.sha256(sb.diff().encode()).hexdigest() != frozen:
             raise _Reject("the change set moved during evaluation (something in the tree rewrote files)")
-        if plan.step == "efficiency":
+        if plan.step == "coverage" and any(not p.startswith("tests/") for p in change.paths):
+            raise _Reject("a coverage package may only add tests; changed: "
+                          f"{[p for p in change.paths if not p.startswith('tests/')][:5]}")
+        if plan.step in P.EFFICIENCY_STEPS:
             from creator import efficiency as E
             base_tree = sb.scratch / f"{sb.id}-base"
             base_root = base_tree if base_tree.is_dir() else cfg.repo
@@ -657,7 +673,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         after_main = assess_tree(cfg, led, cfg.repo, f"{plan.package_id}_main_after")   # 7 VERIFY
         G.sync(led, after_main.model)
         lost_after = sorted({r.key for r in main.rows if r.met} - {r.key for r in after_main.rows if r.met})
-        still = plan.step == "efficiency" or next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
+        still = plan.step in P.EFFICIENCY_STEPS or next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
         if red(after_main.audit) or not still or lost_after:
             why = ("requirement not met on main after merge" if not still else
                    f"requirements lost on main after merge: {lost_after}" if lost_after else
@@ -669,7 +685,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             rep.outcome, rep.reason = "ROLLED_BACK", why
         else:
             P.record_outcome(led, plan, True, f"adopted as {res.merge_commit[:12]}")
-            if plan.step == "efficiency":                               # the shrink gap closes on the measured claim
+            if plan.step in P.EFFICIENCY_STEPS:                         # the shrink / coverage gap closes on the measured claim
                 tr = led.append(M.TestRun(created_by=M.Role.KERNEL, command=f"efficiency:{plan.component}", passed=1, failed=0,
                                           errors=0, skipped=0, duration_s=0.0, subject_ids=(plan.gap_id,),
                                           selection=(plan.component,), evidence=tuple(evid)))
