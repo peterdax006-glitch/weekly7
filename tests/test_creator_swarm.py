@@ -84,7 +84,15 @@ def own() -> SW.SelfFirst:
     return SW.SelfFirst([SW.RuleWorker(), SW.SearchWorker()], None)
 
 
-def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfig) -> None:
+def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    real_execute = K.execute
+    gate = threading.Barrier(3, timeout=120)                                 # every worker waits until all three are running
+
+    def gated_execute(*a: Any, **k: Any) -> Any:
+        gate.wait()                      # BrokenBarrierError (test fails) if the swarm never runs three at once
+        return real_execute(*a, **k)
+    monkeypatch.setattr(K, "execute", gated_execute)
     gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=3, free=lambda: 10.0,
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.2)
@@ -138,8 +146,12 @@ def test_hard_pull_back_kills_only_that_workers_processes(tmp_path: Path) -> Non
     inside = subprocess.Popen(sleeper, cwd=box)
     outside = subprocess.Popen(sleeper, cwd=other)
     try:
-        time.sleep(1.0)
-        assert W.stop_worker_processes(tmp_path / "scratch", "CP9") >= 1
+        deadline = time.monotonic() + 60.0                  # the sleepers may be slow to appear in the process table
+        stopped = W.stop_worker_processes(tmp_path / "scratch", "CP9")
+        while stopped < 1 and time.monotonic() < deadline:
+            time.sleep(0.2)
+            stopped = W.stop_worker_processes(tmp_path / "scratch", "CP9")
+        assert stopped >= 1
         inside.wait(timeout=20)
         assert inside.returncode is not None and outside.poll() is None
         assert W.stop_worker_processes(tmp_path / "scratch", "NOPE") == 0
