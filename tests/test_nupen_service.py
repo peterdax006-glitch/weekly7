@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -22,6 +23,13 @@ def _no_real_lm_training(monkeypatch: pytest.MonkeyPatch) -> None:
     """Supervisor tests must never start the real language-model trainer, whatever the machine's idle state."""
     monkeypatch.setenv("NUPEN_LM", "0")
     monkeypatch.setenv("NUPEN_PRACTICE", "0")
+
+
+@pytest.fixture(autouse=True)
+def _no_real_watchdog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validator 6: the off-switch test ran the real supervisor loop, whose ensure_watchdog started a REAL detached watchdog from
+    this checkout - one that outlived pytest and would restart a supervisor and swarm here."""
+    monkeypatch.setenv("NUPEN_WATCHDOG", "0")
 
 
 def _load(name: str):                                                       # type: ignore[no-untyped-def]
@@ -66,6 +74,8 @@ def test_the_supervisor_stops_on_the_stop_file_and_never_runs_twice(tmp_path: Pa
     monkeypatch.setattr(svc, "STOP", tmp_path / "NUPEN_STOP")
     monkeypatch.setattr(svc, "PIDFILE", tmp_path / "nupen_service.pid")
     monkeypatch.setattr(svc, "LOG", tmp_path / "nupen_service.log")
+    for name, rel in (("HEARTBEAT", "svc.heartbeat"), ("CRASHLOG", "crash.log"), ("WATCHDOG_PIDFILE", "wd.pid")):
+        monkeypatch.setattr(svc, name, tmp_path / rel)                       # never the real state directory
     monkeypatch.setattr(svc, "swarm_cmd", lambda py: [py, "-c", "import time; time.sleep(60)"])
     threading.Timer(2.0, (tmp_path / "NUPEN_STOP").touch).start()
     t0 = time.monotonic()
@@ -119,8 +129,9 @@ def test_the_off_switch_stops_the_swarm_and_everything_it_started(tmp_path: Path
     """2 Oct: NUPEN_STOP terminated only the swarm; six pytest runs it had started kept running (with their model servers)."""
     import subprocess
     svc = _load("nupen_service")
-    for name in ("STATE", "STOP", "PIDFILE", "LOG"):
-        monkeypatch.setattr(svc, name, tmp_path / {"STATE": "", "STOP": "NUPEN_STOP", "PIDFILE": "svc.pid", "LOG": "svc.log"}[name])
+    for name in ("STATE", "STOP", "PIDFILE", "LOG", "HEARTBEAT", "CRASHLOG", "WATCHDOG_PIDFILE"):       # nothing may touch the real state
+        monkeypatch.setattr(svc, name, tmp_path / {"STATE": "", "STOP": "NUPEN_STOP", "PIDFILE": "svc.pid", "LOG": "svc.log",
+                                                   "HEARTBEAT": "svc.heartbeat", "CRASHLOG": "crash.log", "WATCHDOG_PIDFILE": "wd.pid"}[name])
     marker = tmp_path / "grandchild.pid"
     parent_code = ("import subprocess, sys, time; "
                    "c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)']); "
@@ -257,3 +268,117 @@ def test_the_supervisor_imports_creator_when_launched_from_anywhere(tmp_path: Pa
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     r = subprocess.run([sys.executable, "-c", code], cwd=tmp_path, capture_output=True, text=True, env=env, timeout=120)
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-800:]
+
+
+def test_an_error_in_supervision_does_not_orphan_the_running_swarm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validator 6: run() retries after a supervision error by starting a NEW swarm; the old one, still running, was left behind
+    (two swarms on one ledger)."""
+    import subprocess
+    svc = _load("nupen_service")
+    for name, rel in (("STATE", ""), ("STOP", "NUPEN_STOP"), ("PIDFILE", "svc.pid"), ("LOG", "svc.log"), ("HEARTBEAT", "svc.heartbeat")):
+        monkeypatch.setattr(svc, name, tmp_path / rel if rel else tmp_path)
+    marker = tmp_path / "swarm.pid"
+    code = f"import os, time; open(r'{marker}', 'w').write(str(os.getpid())); time.sleep(120)"
+    monkeypatch.setattr(svc, "swarm_cmd", lambda py: [py, "-c", code])
+    monkeypatch.setattr(svc, "ensure_watchdog", lambda: None)
+    calls = {"n": 0}
+
+    def beat() -> None:
+        calls["n"] += 1
+        if calls["n"] >= 2:                                                  # the first beat is before the swarm starts
+            while not marker.exists():
+                time.sleep(0.05)
+            raise RuntimeError("supervision broke")
+    monkeypatch.setattr(svc, "beat", beat)
+    with pytest.raises(RuntimeError):
+        svc._supervise(sys.executable, 0.05)
+    pid = int(marker.read_text(encoding="utf-8"))
+    time.sleep(1.0)
+    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True).stdout
+    subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)       # tidy up if the assertion is about to fail
+    assert str(pid) not in out
+
+
+def test_a_supervisor_test_run_never_starts_a_real_watchdog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    for name, rel in (("STATE", ""), ("STOP", "NUPEN_STOP"), ("PIDFILE", "svc.pid"), ("LOG", "svc.log"), ("HEARTBEAT", "svc.heartbeat"),
+                      ("WATCHDOG_PIDFILE", "wd.pid"), ("CRASHLOG", "crash.log")):
+        monkeypatch.setattr(svc, name, tmp_path / rel if rel else tmp_path)
+    watchdogs: list[object] = []
+    real_popen = svc.subprocess.Popen
+
+    def spy(cmd, *a, **k):                                                   # type: ignore[no-untyped-def]
+        if any(str(c).endswith("nupen_watchdog.py") for c in cmd):
+            watchdogs.append(cmd)
+            return SimpleNamespace(pid=0)
+        return real_popen(cmd, *a, **k)
+    monkeypatch.setattr(svc.subprocess, "Popen", spy)
+    monkeypatch.setattr(svc, "swarm_cmd", lambda py: [py, "-c", "import time; time.sleep(1)"])
+    threading.Timer(2.0, (tmp_path / "NUPEN_STOP").touch).start()
+    assert svc.run(sys.executable, poll_s=0.2) == 0
+    assert watchdogs == []
+
+
+def _sleeper() -> "subprocess.Popen[bytes]":
+    import subprocess
+    return subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+
+
+def test_a_swarm_orphaned_by_a_hard_killed_supervisor_is_ended_by_the_next_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    monkeypatch.setattr(svc, "SWARM_PIDFILE", tmp_path / "nupen_swarm.pid")
+    monkeypatch.setattr(svc, "LOG", tmp_path / "svc.log")
+    child = _sleeper()                                           # stands in for the orphaned swarm
+    bystander = _sleeper()                                       # same image name, not recorded: must survive
+    try:
+        dead = _sleeper()
+        dead.kill()
+        dead.wait()
+        (tmp_path / "nupen_swarm.pid").write_text(f"{child.pid} {time.time():.0f} {dead.pid}", encoding="utf-8")
+        assert svc.reap_orphan_swarm() == child.pid
+        child.wait(timeout=30)
+        assert child.poll() is not None and bystander.poll() is None
+        assert not (tmp_path / "nupen_swarm.pid").exists()
+    finally:
+        for p in (child, bystander):
+            if p.poll() is None:
+                p.kill()
+
+
+def test_a_swarm_whose_supervisor_is_alive_is_left_alone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    monkeypatch.setattr(svc, "SWARM_PIDFILE", tmp_path / "nupen_swarm.pid")
+    monkeypatch.setattr(svc, "LOG", tmp_path / "svc.log")
+    child, sup = _sleeper(), _sleeper()
+    try:
+        (tmp_path / "nupen_swarm.pid").write_text(f"{child.pid} {time.time():.0f} {sup.pid}", encoding="utf-8")
+        assert svc.reap_orphan_swarm() is None and child.poll() is None
+    finally:
+        for p in (child, sup):
+            p.kill()
+
+
+def test_supervisor_start_reaps_before_it_starts_a_swarm_and_records_the_new_one(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    for name in ("PIDFILE", "SWARM_PIDFILE", "LOG", "STOP", "HEARTBEAT", "CRASHLOG"):
+        monkeypatch.setattr(svc, name, tmp_path / name.lower())
+    monkeypatch.setattr(svc, "STATE", tmp_path)
+    order: list[str] = []
+    monkeypatch.setattr(svc, "reap_orphan_swarm", lambda: order.append("reap"))
+    (tmp_path / "stop").write_text("", encoding="utf-8")         # the off switch: run() claims, reaps, then exits without a swarm
+    assert svc.run(sys.executable, poll_s=0.01) == 0
+    assert order == ["reap"]
+    started: list[int] = []
+
+    class FakeProc:
+        pid = os.getpid() + 7
+        returncode = 0
+        def poll(self):                                          # type: ignore[no-untyped-def]
+            return 0
+    monkeypatch.setattr(svc.subprocess, "Popen", lambda *a, **k: FakeProc())
+    monkeypatch.setattr(svc, "write_swarm_pid", lambda pid: started.append(pid))
+    (tmp_path / "stop").unlink()
+    monkeypatch.setattr(svc, "ensure_watchdog", lambda: None)
+    monkeypatch.setattr(svc.time, "sleep", lambda s: (tmp_path / "stop").write_text("", encoding="utf-8"))
+    svc.run(sys.executable, poll_s=0.01)
+    assert started == [FakeProc.pid]

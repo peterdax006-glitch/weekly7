@@ -120,3 +120,31 @@ def test_the_supervisor_does_not_spawn_a_second_watchdog_while_the_first_starts(
     svc.ensure_watchdog()
     svc.ensure_watchdog()                                                   # same second, pidfile not written yet
     assert spawned == [1]
+
+
+def test_a_pidfile_from_before_the_boot_does_not_keep_the_watchdog_from_starting(wd, tmp_path: Path) -> None:    # type: ignore[no-untyped-def]
+    """Validator 6: the watchdog's pidfile had no boot check (the supervisor's has). After a reboot its recycled pid belongs to an
+    unrelated live process, so no watchdog could ever start and 'always running' silently failed."""
+    (tmp_path / "wd.pid").write_text(str(os.getppid()), encoding="utf-8")     # a live process, not a watchdog
+    os.utime(tmp_path / "wd.pid", (1_000_000.0, 1_000_000.0))                # written long before this boot
+    assert wd.claim() is True and (tmp_path / "wd.pid").read_text(encoding="utf-8") == str(os.getpid())
+
+
+def test_a_fresh_supervisor_is_not_ended_for_its_predecessors_beat(wd, tmp_path: Path) -> None:   # type: ignore[no-untyped-def]
+    """Validator 6: after the computer was off the old heartbeat is hours old; a supervisor that has started but not yet beaten must
+    not be called hung because of a beat another process wrote."""
+    (tmp_path / "svc.pid").write_text(str(os.getpid()), encoding="utf-8")
+    (tmp_path / "svc.heartbeat").write_text(f"{os.getpid() + 1} {time.time() - 36000:.0f}", encoding="utf-8")
+    assert wd.check_once(now=time.time()) == "ok" and wd.killed == [] and wd.started == []
+
+
+def test_the_supervisor_respawns_a_watchdog_whose_pidfile_predates_the_boot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _load("nupen_service")
+    monkeypatch.setattr(svc, "WATCHDOG_PIDFILE", tmp_path / "wd.pid")
+    monkeypatch.setattr(svc, "LOG", tmp_path / "svc.log")
+    (tmp_path / "wd.pid").write_text(str(os.getppid()), encoding="utf-8")
+    os.utime(tmp_path / "wd.pid", (1_000_000.0, 1_000_000.0))
+    spawned: list[int] = []
+    monkeypatch.setattr(svc.subprocess, "Popen", lambda *a, **k: spawned.append(1))
+    svc.ensure_watchdog()
+    assert spawned == [1]

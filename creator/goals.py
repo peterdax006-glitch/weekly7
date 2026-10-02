@@ -313,8 +313,16 @@ def approve(state: Path, repo: Path, led: Ledger, pid: str, by: str) -> str:
                                                                               "from creator/goals.py proposals.", "capabilities": []}
     data["capabilities"].append({"id": cap_id, "name": spec["name"], "modules": spec["modules"], "tests": spec["tests"],
                                  "floor": spec["floor"], "approved_from": pid})
+    before = ap.read_bytes() if ap.is_file() else None
     ap.write_text(json.dumps(data, indent=1), encoding="utf-8")
-    O.compile_capabilities(led, oid, SM.load_capabilities(ap), created_by=M.Role.KERNEL)
+    try:
+        O.compile_capabilities(led, oid, SM.load_capabilities(ap), created_by=M.Role.KERNEL)
+    except BaseException:                                               # a half-approved goal must not stay behind as work: the
+        if before is None:                                              # proposal is still PENDING, and approving it again would
+            ap.unlink(missing_ok=True)                                  # otherwise add the capability a second time
+        else:
+            ap.write_bytes(before)
+        raise
     _append(state, {"event": "approve", "id": pid, "by": by, "at": _now(), "capability_id": cap_id, "objective_id": oid})
     return cap_id
 

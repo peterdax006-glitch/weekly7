@@ -30,12 +30,20 @@ def _status(root: Path, states: dict[str, str], share: float | None = None) -> N
                                                  "curriculum": {"teacher_share": share, "adopted_by": {}}}), encoding="utf-8")
 
 
-def _junit(root: Path, test_file: str, cases: dict[str, str]) -> None:
+def _junit(root: Path, test_file: str, cases: dict[str, str], bind: bool = True) -> None:
     d = root / D.JUNIT
     d.mkdir(parents=True, exist_ok=True)
     xml = "".join(f'<testcase name="{n}">' + ("<failure/>" if r == "fail" else "<skipped/>" if r == "skip" else "") + "</testcase>"
                   for n, r in cases.items())
     (d / (test_file.replace("/", "__") + ".xml")).write_text(f"<testsuites><testsuite>{xml}</testsuite></testsuites>", encoding="utf-8")
+    if bind:                                                  # what collect_test_evidence records when it runs the file
+        from creator import selfmodel as SM
+        from creator import testrun as TR
+        store = root / D.EVIDENCE_STORE
+        known = json.loads(store.read_text(encoding="utf-8")) if store.is_file() else {}
+        known[test_file] = {"test_file": test_file, "outcome": "PASS", "where": "",
+                            "source_digest": SM.reach_digest(TR.ImportGraph.build(root), test_file, {})}
+        store.write_text(json.dumps(known), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------------------------------------- the checks
@@ -194,6 +202,24 @@ def test_a_cited_test_is_proven_only_by_a_passing_junit_result(tmp_path: Path) -
     gone = D.Rule("S", "S.2", "t", D.MAPPED, ("tests/test_x.py::test_gone",))
     assert D.evaluate_rule(tmp_path, gone).status == D.FAIL                 # a reference to nothing is a failure
     assert D.evaluate_rule(tmp_path, D.Rule("S", "S.3", "t", D.MAPPED, ("creator/nothing.py::f",))).status == D.FAIL
+
+
+def test_junit_evidence_is_bound_to_the_code_it_ran_against(tmp_path: Path) -> None:
+    (tmp_path / "creator").mkdir()
+    (tmp_path / "creator" / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text("from creator import m\n\ndef test_a():\n    assert m.f() == 1\n", encoding="utf-8")
+    rule = D.Rule("S", "S.1", "t", D.MAPPED, ("tests/test_x.py::test_a",))
+    _junit(tmp_path, "tests/test_x.py", {"test_a": "ok"})
+    assert D.evaluate_rule(tmp_path, rule).status == D.PASS
+    (tmp_path / "creator" / "m.py").write_text("def f():\n    return 2\n", encoding="utf-8")      # a REACHED module changes
+    r = D.evaluate_rule(tmp_path, rule)
+    assert r.status == D.UNPROVEN and "stale" in r.evidence
+    (tmp_path / "creator" / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    assert D.evaluate_rule(tmp_path, rule).status == D.PASS
+    _junit(tmp_path, "tests/test_x.py", {"test_a": "ok"}, bind=False)
+    (tmp_path / "state" / "creator" / "test_evidence.json").unlink()                                 # junit with no record
+    assert D.evaluate_rule(tmp_path, rule).status == D.UNPROVEN
 
 
 def test_a_check_rule_needs_its_check_and_its_test_and_a_crash_is_a_failure(tmp_path: Path) -> None:

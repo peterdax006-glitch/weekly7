@@ -189,3 +189,19 @@ def test_maybe_propose_runs_at_most_once_a_day(world: tuple[Ledger, Path, Path])
     plant_failures(led, "OTHER_CLASS", 4)
     assert GO.maybe_propose(led, state, repo, t0 + dt.timedelta(hours=5)) == []        # too soon
     assert len(GO.maybe_propose(led, state, repo, t0 + dt.timedelta(hours=25))) == 1
+
+
+def test_a_failed_approval_leaves_no_capability_behind(world: tuple[Ledger, Path, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validator 6: the capability was written to capabilities_approved.json before its ladder compiled; a failure left it there with
+    the proposal still PENDING, so approving again added it a second time under a new id."""
+    from creator import objective as O
+    led, state, repo = world
+    plant_failures(led, "FLAKY_NETWORK", 4)
+    p = GO.propose(led, state, repo, SPECS)[0]
+
+    def boom(*a: object, **k: object) -> None:
+        raise RuntimeError("ledger refused")
+    monkeypatch.setattr(O, "compile_capabilities", boom)
+    with pytest.raises(RuntimeError):
+        GO.approve(state, repo, led, p.id, "owner")
+    assert SM.load_capabilities(GO.approved_path(repo)) == [] and GO.pending(state)[0]["id"] == p.id

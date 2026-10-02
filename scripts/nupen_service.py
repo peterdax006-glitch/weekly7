@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:                     # launched as a script its path starts at scripts/: 2 Oct, the LM trainer's
@@ -38,6 +38,7 @@ LOG = STATE / "nupen_service.log"
 HEARTBEAT = STATE / "nupen_service.heartbeat"          # touched every poll; the watchdog restarts a supervisor whose beat goes stale
 CRASHLOG = STATE / "nupen_service.crash.log"           # faulthandler output: hard crashes leave a trace (pythonw has no console)
 WATCHDOG_PIDFILE = STATE / "nupen_watchdog.pid"
+SWARM_PIDFILE = STATE / "nupen_swarm.pid"              # "swarm_pid start_epoch supervisor_pid": lets a later supervisor end an orphaned swarm
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 IDLE_PRIORITY = 0x00000040
@@ -91,8 +92,10 @@ def boot_time() -> float:
 
 
 def claim_pidfile() -> bool:
+    raw: str | None = None
     try:
-        old = int(PIDFILE.read_text(encoding="utf-8").strip() or 0)
+        raw = PIDFILE.read_text(encoding="utf-8")
+        old = int(raw.strip() or 0)
         if PIDFILE.stat().st_mtime < boot_time() - 5.0:
             old = 0                                    # written before this boot: the pid now belongs to an unrelated process
     except (OSError, ValueError):
@@ -100,6 +103,11 @@ def claim_pidfile() -> bool:
     if old and old != os.getpid() and alive(old):
         return False                                                        # never displace a live supervisor
     PIDFILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if PIDFILE.read_text(encoding="utf-8") != raw:
+            return False                                                    # a rival replaced it while we judged it stale
+    except OSError:
+        pass
     try:
         PIDFILE.unlink()                                                    # absent, ours, or judged stale above
     except OSError:
@@ -111,6 +119,62 @@ def claim_pidfile() -> bool:
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
     return True
+
+
+def kill_pid_tree(pid: int) -> None:
+    """End the process tree rooted at exactly this pid (never by image name)."""
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    else:
+        import signal
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+
+def write_swarm_pid(pid: int) -> None:
+    SWARM_PIDFILE.parent.mkdir(parents=True, exist_ok=True)
+    SWARM_PIDFILE.write_text(f"{pid} {time.time():.0f} {os.getpid()}", encoding="utf-8")
+
+
+def clear_swarm_pid(pid: int) -> None:
+    try:
+        if SWARM_PIDFILE.read_text(encoding="utf-8").split()[0] == str(pid):
+            SWARM_PIDFILE.unlink()
+    except (OSError, IndexError):
+        pass
+
+
+def reap_orphan_swarm() -> Optional[int]:
+    """2 Oct: a supervisor hard-killed without /T left its swarm running and the next supervisor started a SECOND one. A recorded
+    swarm whose recording supervisor is dead is ended here (that pid's tree only), then the record is removed. A record written
+    before this boot names a pid that now belongs to someone else: it is only deleted. Returns the pid ended, if any."""
+    try:
+        parts = SWARM_PIDFILE.read_text(encoding="utf-8").split()
+        swarm, sup = int(parts[0]), int(parts[2])
+        before_boot = SWARM_PIDFILE.stat().st_mtime < boot_time() - 5.0
+    except (OSError, ValueError, IndexError):
+        try:
+            SWARM_PIDFILE.unlink()
+        except OSError:
+            pass
+        return None
+    ended: Optional[int] = None
+    if not before_boot and sup != os.getpid() and not alive(sup) and swarm != os.getpid() and alive(swarm):
+        log(f"recorded swarm pid={swarm} outlived its supervisor {sup}: ending its process tree")
+        kill_pid_tree(swarm)
+        ended = swarm
+    elif not before_boot and alive(sup) and sup != os.getpid():
+        return None                                                     # its supervisor is alive: not ours to touch
+    try:
+        SWARM_PIDFILE.unlink()
+    except OSError:
+        pass
+    return ended
 
 
 def stop_tree(proc: subprocess.Popen) -> None:
@@ -344,6 +408,8 @@ def ensure_watchdog() -> None:
         return
     try:
         pid = int(WATCHDOG_PIDFILE.read_text(encoding="utf-8").strip() or 0)
+        if WATCHDOG_PIDFILE.stat().st_mtime < boot_time() - 5.0:
+            pid = 0                                                     # written before this boot: the pid is someone else's now
     except (OSError, ValueError):
         pid = 0
     if pid and alive(pid):
@@ -378,6 +444,7 @@ def run(python: str, poll_s: float = 10.0) -> int:
         log("another supervisor is alive; exiting")
         return 0
     log(f"supervisor up pid={os.getpid()}")
+    _safe("orphan swarm reap", reap_orphan_swarm)
     try:
         import faulthandler
         faulthandler.enable(open(CRASHLOG, "a", encoding="utf-8"))     # noqa: SIM115 - must stay open for the process lifetime
@@ -423,18 +490,26 @@ def _supervise(python: str, poll_s: float) -> None:
                 proc = subprocess.Popen(swarm_cmd(python), cwd=ROOT, stdout=out, stderr=subprocess.STDOUT, creationflags=flags,
                                         start_new_session=sys.platform != "win32")    # its own group: stop_tree ends it all
                 log(f"swarm started pid={proc.pid}")
-                while proc.poll() is None:
-                    if STOP.exists():
-                        log("NUPEN_STOP found: stopping the swarm")
-                        stop_tree(proc)
-                        break
-                    if lm:
-                        _safe("LM trainer tick", lm.tick, STOP.exists())
-                    if pr:
-                        _safe("practice tick", pr.tick, STOP.exists())
-                    beat()
-                    _safe("watchdog check", ensure_watchdog)
-                    time.sleep(poll_s)
+                write_swarm_pid(proc.pid)
+                try:
+                    while proc.poll() is None:
+                        if STOP.exists():
+                            log("NUPEN_STOP found: stopping the swarm")
+                            stop_tree(proc)
+                            break
+                        if lm:
+                            _safe("LM trainer tick", lm.tick, STOP.exists())
+                        if pr:
+                            _safe("practice tick", pr.tick, STOP.exists())
+                        beat()
+                        _safe("watchdog check", ensure_watchdog)
+                        time.sleep(poll_s)
+                except BaseException:                                   # an error here must not orphan the swarm: run() restarts us
+                    if proc.poll() is None:                             # and would start a SECOND swarm beside the first
+                        log("supervision failed with the swarm running: ending its process tree")
+                        _safe("swarm stop", stop_tree, proc)
+                    raise
+            clear_swarm_pid(proc.pid)
             log(f"swarm exited code={proc.returncode}")
             if STOP.exists():
                 break
