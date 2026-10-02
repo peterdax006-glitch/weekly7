@@ -152,3 +152,18 @@ def test_activation_gains_only_credit_modules_that_unload_something(tmp_path: Pa
     gains = E.activation_gains(tmp_path)
     assert gains["creator/a.py"] == E.sizes(tmp_path, ["creator/heavy.py"])["creator/heavy.py"]   # only a pulls in heavy
     assert gains["creator/b.py"] == 0                                    # shared is loaded by the kernel anyway
+
+
+def test_uncovered_public_counts_names_no_test_names(tmp_path) -> None:
+    from creator import efficiency as E
+    (tmp_path / "creator").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "creator" / "m.py").write_text("def seen():\n    return 1\n\n\ndef unseen():\n    return 2\n\n\ndef _private():\n    return 3\n\n\n"
+                                               "class Klass:\n    pass\n", encoding="utf-8")
+    (tmp_path / "tests" / "test_m.py").write_text("from creator.m import seen\n\n\ndef test_seen():\n    assert seen() == 1\n"
+                                                  "# unseen_but_only_a_longer_word_does_not_count\n", encoding="utf-8")
+    assert E.uncovered_public(tmp_path, "creator/m.py") == ["unseen", "Klass"]
+    assert E.uncovered_public(tmp_path, "creator/missing.py") == []
+    assert E.uncovered_total(tmp_path) == 2
+    (tmp_path / "tests" / "test_n.py").write_text("def test_u():\n    assert unseen and Klass\n", encoding="utf-8")
+    assert E.uncovered_public(tmp_path, "creator/m.py") == []

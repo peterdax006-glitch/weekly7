@@ -15,6 +15,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -28,6 +29,7 @@ from creator import swarm as W  # noqa: E402
 STATE = ROOT / "state" / "creator"
 HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
 LOG = STATE / "swarm_log.jsonl"
+HEARTBEAT = STATE / "teacher_heartbeat"                  # touched by the teacher's (Claude's) monitor while it is present
 LESSONS = STATE / "lessons.jsonl"                        # the curriculum: every handoff and student attempt as a lesson
 
 
@@ -45,10 +47,24 @@ class SerialSession:
     file each in state/creator/handoffs/), never queued behind the others."""
     name = "claude-session"
 
-    def __init__(self, hours: float) -> None:
+    def __init__(self, hours: float, presence: Optional[Path] = None, fresh_s: float = 900.0) -> None:
         self.inner = K.HandoffWorker(timeout_s=hours * 3600, notify=announce)
+        self.presence, self.fresh_s = presence, fresh_s
+
+    def teacher_present(self) -> bool:
+        """Owner, 1 Oct: Nupen runs whenever the computer is on, without needing me. With a presence file, a package goes to the
+        teacher only while the teacher's heartbeat is fresh; otherwise it is DEFERRED (no attempt used, retried later) instead of
+        waiting hours for nobody."""
+        if self.presence is None:
+            return True
+        try:
+            return time.time() - self.presence.stat().st_mtime < self.fresh_s
+        except OSError:
+            return False
 
     def __call__(self, plan, package, workdir):                       # type: ignore[no-untyped-def]
+        if not self.teacher_present():
+            return K.WorkResult(False, "teacher absent: deferred until the teacher is back", deferred=True)
         with W.waiting_on_thinker(plan.package_id):                       # waiting for me holds no worker slot
             try:
                 res = self.inner(plan, package, workdir)
@@ -104,14 +120,17 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--no-model-student", action="store_true")      # skip the local-model student (nupen-model-v1)
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)   # the process the recursion adopted (CR196-198)
     ap.add_argument("--handoff-hours", type=float, default=6.0)
+    ap.add_argument("--teacher-presence", action="store_true")      # hand off only while the teacher's heartbeat is fresh
+    ap.add_argument("--user-aware", action="store_true")            # keep 25% of RAM free while the owner is at the keyboard
     a = ap.parse_args(argv)
-    session = None if a.no_session else SerialSession(a.handoff_hours)
+    session = None if a.no_session else SerialSession(a.handoff_hours, HEARTBEAT if a.teacher_presence else None)
 
     cur = make_curriculum(model_student=not a.no_model_student)
 
     def make_worker() -> SW.SelfFirst:                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
-    gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers)
+    gov = W.Governor(floor_fraction=a.floor_fraction, max_workers=a.max_workers,
+                     user_active_floor_fraction=0.25 if a.user_aware else None)
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0

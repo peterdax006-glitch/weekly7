@@ -236,7 +236,7 @@ def test_empty_module_generates_only_smoke_tests(tmp_path: Path) -> None:
 
 def test_worker_identity_and_registration_shape() -> None:
     w = TG.TestGenWorker()
-    assert w.name == "self-testgen-v1" and w.steps == ("tested",)
+    assert w.name == "self-testgen-v1" and w.steps == ("tested", "coverage")
     assert w.name.startswith("self-")                                    # creator.objective.self_share counts it
 
 

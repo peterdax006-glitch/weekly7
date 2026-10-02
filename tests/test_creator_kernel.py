@@ -358,3 +358,18 @@ def test_cycle_record_goes_through_the_locked_appender() -> None:
     src = Path(K.__file__).read_text(encoding="utf-8")
     assert '_append_log_line(cfg.state / "kernel_log.jsonl"' in src
     assert 'open("a", encoding="utf-8") as fh:\n            fh.write(json.dumps(dataclasses.asdict(rep)' not in src
+
+
+def test_plan_one_never_hands_the_same_file_to_two_workers(monkeypatch, tmp_path) -> None:
+    """A running efficiency package holds its path: gap components whose modules/tests include it are excluded, and a running gap
+    component holds its modules and tests against shrink packages."""
+    from types import SimpleNamespace
+    from creator import selfmodel as SM2
+    specs = [SM2.CapabilitySpec("K01", "a", ("creator/a.py",), ("tests/test_a.py",), 0),
+             SM2.CapabilitySpec("K02", "b", ("creator/b.py",), ("tests/test_b.py",), 0)]
+    cfg = K.KernelConfig(repo=tmp_path, state=tmp_path / "s", capabilities=specs, mode="auto")
+    got: dict = {}
+    monkeypatch.setattr(K.P, "plan_next", lambda led, model, base, sp, steps, exclude_components: got.update(c=tuple(exclude_components)))
+    monkeypatch.setattr(K.P, "plan_efficiency", lambda led, root, base, avoid=(), kind=None: got.update(a=tuple(avoid)))
+    K.plan_one(cfg, None, SimpleNamespace(model=None), "b", exclude_components=("K02",), exclude_paths=("creator/a.py",))
+    assert set(got["c"]) == {"K02", "K01"} and set(got["a"]) == {"creator/a.py", "creator/b.py", "tests/test_b.py"}
