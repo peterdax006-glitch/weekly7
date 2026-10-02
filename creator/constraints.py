@@ -439,8 +439,34 @@ def audit_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
     return Metric("audit_gaps", float(sum(cnt.values())), "open findings", "current", None, "new", round(loss, 4), "throughput", {"counts": cnt, "errors": a.get("errors", {})}, "work")
 
 
+def fundamentals_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
+    """Advisory engineering-fundamentals violations (creator.fundamentals) per candidate in the window. loss = min(0.5, 0.05 x the
+    mean violations per candidate): a documented estimate; it ranks as 'information' (weight 0.5) so it can never outrank a
+    blocking constraint until the owner makes the checks blocking."""
+    from creator import fundamentals as FU
+    w = dt.timedelta(hours=window_h)
+
+    def rate(lo: dt.datetime, hi: dt.datetime) -> tuple[float, int, dict[str, int]]:
+        n, tot, by = 0, 0, dict[str, int]()
+        for name, rep in FU.read_reports(state):
+            try:
+                at = dt.datetime.fromtimestamp((Path(state) / "cycles" / name / "fundamentals.json").stat().st_mtime)
+            except OSError:
+                continue
+            if _in(at, lo, hi):
+                n += 1
+                tot += int(rep.get("total", 0))
+                for k, v in (rep.get("counts") or {}).items():
+                    by[k] = by.get(k, 0) + int(v)
+        return (tot / n if n else 0.0), n, by
+    cur, n, by = rate(now - w, now)
+    prev, pn, _ = rate(now - 2 * w, now - w)
+    return Metric("fundamentals_violations", round(cur, 4), "violations per candidate", f"last {window_h:g}h", round(prev, 4) if pn else None,
+                  _trend(cur, prev if pn else None), round(min(0.5, 0.05 * cur), 4), "information", {"candidates": n, "by_principle": by}, "work")
+
+
 METRICS: tuple[Callable[[Path, dt.datetime, float], Any], ...] = (
-    waste_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric)
+    waste_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric, fundamentals_metric)
 
 
 def measure_all(state: Path, now: Optional[dt.datetime] = None, window_h: float = 24.0) -> dict[str, Any]:
@@ -482,7 +508,8 @@ def _remedy_text(m: dict[str, Any]) -> str:
             "teacher_dependence": "move task kinds from the teacher to students (handoff-free adoption)",
             "work_supply": "plan more packages per round (more open gaps, wider scheduling)",
             "cycle_time": "shorten the evaluation feedback loop (the dominant stage)",
-            "recursion_idle": "run a recursion step on the development process"}.get(m["name"], f"reduce {m['name']}")
+            "recursion_idle": "run a recursion step on the development process",
+            "fundamentals_violations": "feed principles_for(kind) into package text and filter candidates on the worst-violated principle"}.get(m["name"], f"reduce {m['name']}")
 
 
 def rejected_count(state: Path, name: str) -> tuple[int, float]:
