@@ -203,20 +203,38 @@ class Footprint:
         return dataclasses.asdict(self)
 
 
-def eager_graph(root: Path) -> dict[str, set[str]]:
-    """module file -> the Creator module files it imports at MODULE level (what loading it loads)."""
+def _module_level_imports(body: Sequence[ast.stmt]) -> list[str]:
+    """Dotted names imported when a module is LOADED: its top-level imports, including those inside module-level try/if/with blocks
+    (a guarded import still runs at load) but not inside functions or classes, and not under `if TYPE_CHECKING`."""
+    out: list[str] = []
+    for n in body:
+        if isinstance(n, ast.Import):
+            out += [a.name for a in n.names]
+        elif isinstance(n, ast.ImportFrom) and n.module and not n.level:
+            out += [f"{n.module}.{a.name}" for a in n.names] + [n.module]
+        elif isinstance(n, ast.If) and "TYPE_CHECKING" not in ast.unparse(n.test):
+            out += _module_level_imports(n.body) + _module_level_imports(n.orelse)
+        elif isinstance(n, ast.Try):
+            out += _module_level_imports(n.body + n.orelse + n.finalbody + [s for h in n.handlers for s in h.body])
+        elif isinstance(n, ast.With):
+            out += _module_level_imports(n.body)
+    return out
+
+
+def eager_graph(root: Path, extra: Sequence[str] = ()) -> dict[str, set[str]]:
+    """module file -> the Creator module files it imports at MODULE level (what loading it loads). `extra`: further files (entry
+    scripts outside creator/) included as nodes."""
     files = production_files(root)
     mod_of = {f[:-3].replace("/", "."): f for f in files}
     mod_of.update({f[:-12].replace("/", "."): f for f in files if f.endswith("/__init__.py")})
     eager: dict[str, set[str]] = {}
-    for f in files:
-        tree = ast.parse((root / f).read_text(encoding="utf-8", errors="replace"))
-        deps: set[str] = set()
-        for n in tree.body:
-            names = [a.name for a in n.names] if isinstance(n, ast.Import) else \
-                ([f"{n.module}.{a.name}" for a in n.names] + [n.module] if isinstance(n, ast.ImportFrom) and n.module else [])
-            deps.update(mod_of[name] for name in names if name in mod_of)
-        eager[f] = deps
+    for f in [*files, *(x for x in extra if (root / x).is_file() and x not in files)]:
+        try:
+            tree = ast.parse((root / f).read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            eager[f] = set()
+            continue
+        eager[f] = {mod_of[name] for name in _module_level_imports(tree.body) if name in mod_of}
     return eager
 
 
@@ -259,3 +277,42 @@ def footprint(root: Path, target: str, memory: bool = True, activation_: Optiona
     act = activation(root)["active_nodes"] if want and (root / "creator" / "kernel.py").is_file() else -1
     return Footprint(target, s, package_size(root), tuple(peak_memory_mb(root)) if memory else (), test_count(root), act,
                      static_load(root), len(uncovered_public(root, target)), uncovered_total(root))
+
+
+START_ENTRIES = ("creator/kernel.py", "scripts/creator_swarm.py")      # what the kernel and a swarm start load eagerly
+START_TOLERANCE = 0.005                                                # share of the base start load a change may add
+START_TOLERANCE_MIN = 25                                               # ... or this many AST nodes, whichever is more
+EAGER_FILE = "creator/EAGER.md"                                        # recorded justifications: "<requirement key>: <why>"
+
+
+def start_load(root: Path, entries: Sequence[str] = START_ENTRIES) -> dict[str, int]:
+    """Per entry point: AST nodes of the Creator code that loading it pulls in EAGERLY (itself included): the start-time load."""
+    eager = eager_graph(root, entries)
+    sz = sizes(root, list(eager))
+    return {e: sum(sz.get(m, 0) for m in _closure(eager, e)) for e in entries if e in eager}
+
+
+def eager_justified(root: Path, key: str) -> bool:
+    """True when `creator/EAGER.md` of the tree has a line `<key>: <reason>` (reason of at least 10 characters) - the recorded
+    justification a package whose own objective is an eager dependency must carry."""
+    f = root / EAGER_FILE
+    if not key or not f.is_file():
+        return False
+    for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+        head, _, why = ln.strip().lstrip("-* ").partition(":")
+        if head.strip() == key and len(why.strip()) >= 10:
+            return True
+    return False
+
+
+def start_load_regression(base_root: Path, cand_root: Path, key: str = "", entries: Sequence[str] = START_ENTRIES) -> list[str]:
+    """Reasons a candidate tree must be rejected for growing the start-time load ([] = fine). A candidate whose package key has a
+    recorded justification in its own creator/EAGER.md is exempt."""
+    base, cand = start_load(base_root, entries), start_load(cand_root, entries)
+    bad = []
+    for e, b in base.items():
+        c = cand.get(e, 0)
+        if c - b > max(START_TOLERANCE_MIN, int(START_TOLERANCE * b)):
+            bad.append(f"{e}: eager start load {b} -> {c} nodes (+{c - b}); load optional capabilities on demand through "
+                       f"creator.registry, module-level imports only for the core")
+    return [] if bad and eager_justified(cand_root, key) else bad
