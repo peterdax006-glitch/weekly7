@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Protocol, Sequence
 
 from creator import build as B
+from creator import fundamentals as FU
 from creator import gaps as G
 from creator import model as M
 from creator import objective as O
@@ -630,10 +631,12 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         before, after = _test_sources(sb.path, base_sha, change.files)
         weak = AUD.check_test_weakening(before, after)
         planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
+        fund = FU.evaluate_candidate(sb.path, base_sha, list(change.paths), plan.step, work.notes)   # advisory: recorded, never blocking
         cand = [assess_tree(cfg, led, sb.path, f"{plan.package_id}_cand{r}", audit=False) for r in range(2)]
         evid = [_evidence_file(cfg, plan.package_id, "evaluation.json", ev.to_record()),
                 M.EvidenceRef.of(main.snapshot, cfg.repo, "selfmodel"), M.EvidenceRef.of(cand[0].snapshot, cfg.repo, "selfmodel"),
                 _evidence_file(cfg, plan.package_id, "diff.patch", sb.diff() if hasattr(sb, "diff") else "")]
+        _evidence_file(cfg, plan.package_id, "fundamentals.json", fund.to_dict())
         if hashlib.sha256(sb.diff().encode()).hexdigest() != frozen:
             raise _Reject("the change set moved during evaluation (something in the tree rewrote files)")
         if plan.step == "coverage" and any(not p.startswith("tests/") for p in change.paths):
@@ -656,7 +659,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         rep.verdict = verdict.value
         rep.details.update(claim=cid, detail=detail, regression=ev.report.verdict.value if ev.report else "NO_REPORT",
                            builds=ev.builds, weakening=[dataclasses.asdict(f) for f in weak],
-                           planted=[dataclasses.asdict(f) for f in planted])
+                           planted=[dataclasses.asdict(f) for f in planted], fundamentals=fund.to_dict())
         reasons = []
         if verdict is not M.Verdict.IMPROVEMENT:
             reasons.append(f"claim {verdict.value}: {detail.get('why')}")
@@ -812,4 +815,4 @@ def summary(reports: Sequence[CycleReport]) -> dict[str, Any]:
 
 def status(cfg: KernelConfig) -> Mapping[str, Any]:
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
-    return G.summary(led)
+    return {**G.summary(led), "fundamentals": FU.status_line(cfg.state)}
