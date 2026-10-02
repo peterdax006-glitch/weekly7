@@ -274,7 +274,7 @@ def tried_changes(led: Ledger) -> set[tuple[str, int]]:
 
 
 def step(led: Ledger, workload: Workload, initial: Optional[ProcessConfig] = None, min_n: int = 3,
-         forced: Optional[Change] = None) -> StepReport:
+         forced: Optional[Change] = None, min_effect: float = 0.0) -> StepReport:
     """One recursion step. `forced` replaces steps 1-2 (tests of the gate itself); the adoption rule is never bypassed."""
     iteration = len(recorded_steps(led)) + 1
     process = current_process(led, initial)
@@ -297,7 +297,7 @@ def step(led: Ledger, workload: Workload, initial: Optional[ProcessConfig] = Non
         created_by=M.Role.KERNEL, parents=(gap,), hypothesis=f"{change.param} {change.old} -> {change.new} raises the process solve rate",
         design="fixed deterministic workload: dev replicates + within-budget guard + holdout", metrics=(PRIMARY, GUARD), seed=0,
         baseline_ref=process.digest(), candidate_ref=cand.digest(), uses_holdout=True))
-    claim, verdict, detail = ab_test(led, ex, process, cand, workload)
+    claim, verdict, detail = ab_test(led, ex, process, cand, workload, min_effect)
     adopted = verdict is M.Verdict.IMPROVEMENT
     if adopted:
         led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT, claim_id=claim,
