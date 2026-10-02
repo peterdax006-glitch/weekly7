@@ -277,10 +277,11 @@ class Sandbox:
 
     def evaluate(self, smoke: Iterable[str] = (), build_config: Optional[B.BuildConfig] = None,
                  pytest_config: Optional[T.PytestConfig] = None, run_base: bool = True,
-                 flaky_reruns: int = 2) -> Evaluation:
+                 flaky_reruns: int = 2, base_reuse: Optional[Mapping[str, str]] = None) -> Evaluation:
         """Build the candidate; select affected tests; run them at base and in the candidate; classify every case. Blocking or
         fixed cases are re-run `flaky_reruns` times per side (0 = off): a case whose outcome flips is FLAKY, never a
-        regression by itself, and the verdict is then at best FLAKY (not CLEAN)."""
+        regression by itself, and the verdict is then at best FLAKY (not CLEAN). `base_reuse` (test file -> junit xml) holds passing
+        results of the byte-identical base tree (creator/treecache.py): those files are not run at base again."""
         for cache in list(self.path.rglob("__pycache__")):              # a worker's bytecode is never judged in place of its
             shutil.rmtree(cache, ignore_errors=True)                     # source (1 Oct: same-size same-second rewrite ran stale)
         change = self.changes()
@@ -306,8 +307,8 @@ class Sandbox:
         base_run = None
         if base_tree is not None:
             base_targets = [t for t in targets if (base_tree / t).exists()]
-            base_run = T.run_pytest(base_tree, base_targets, ev_dir / "base.xml", label="base", tree=self.base,
-                                    config=pytest_config)
+            base_run = T.run_base(base_tree, base_targets, ev_dir / "base.xml", tree=self.base, config=pytest_config,
+                                  reuse=base_reuse)
             report = T.compare_runs(base_run, cand, base_files=base_targets)
             if flaky_reruns > 0:
                 def rerun(side: str, ids: list[str]) -> T.TestRun:
@@ -318,7 +319,8 @@ class Sandbox:
         else:
             report = T.compare_runs(T.TestRun("base", self.base, (), T.RunStatus.NO_TESTS, {}, None, 0.0), cand)
         (ev_dir / "evaluation.json").write_text(json.dumps({"report": report.to_record(), "selection": selection.to_dict(),
-                                                            "changed": dict(change.paths)}, indent=1), encoding="utf-8")
+                                                            "changed": dict(change.paths),
+                                                            "base_reused": sorted(set(base_reuse or ()) & set(targets))}, indent=1), encoding="utf-8")
         return Evaluation(change, build, selection, base_run, cand, report, str(ev_dir))
 
     def cleanup_base(self) -> None:
