@@ -1,0 +1,139 @@
+{
+  "seeds": [
+    501,
+    502,
+    503
+  ],
+  "n_per_seed": 30,
+  "hard": true,
+  "N": 90,
+  "lessons": 34,
+  "policies": {
+    "lexical": {
+      "correct": 61,
+      "n": 90,
+      "acc": 0.678,
+      "ci95": [
+        0.576,
+        0.765
+      ],
+      "by_kind": {
+        "lazy_import": 0,
+        "remove_unused": 24,
+        "inline_temp": 21,
+        "drop_unused_import": 16
+      },
+      "confusion": {
+        "lazy_import->none": 24,
+        "drop_unused_import->none": 5
+      }
+    },
+    "model_lessons_no_why": {
+      "correct": 60,
+      "n": 90,
+      "acc": 0.667,
+      "ci95": [
+        0.564,
+        0.755
+      ],
+      "by_kind": {
+        "lazy_import": 21,
+        "remove_unused": 7,
+        "inline_temp": 20,
+        "drop_unused_import": 12
+      },
+      "confusion": {
+        "remove_unused->remove_unused": 12,
+        "drop_unused_import->remove_unused": 2,
+        "drop_unused_import->lazy_import": 2,
+        "drop_unused_import->inline_temp": 3,
+        "remove_unused->inline_temp": 5,
+        "inline_temp->remove_unused": 1,
+        "lazy_import->remove_unused": 2,
+        "lazy_import->drop_unused_import": 1,
+        "drop_unused_import->drop_unused_import": 2
+      }
+    },
+    "combined_model_lessons_no_why": {
+      "correct": 65,
+      "n": 90,
+      "acc": 0.722,
+      "ci95": [
+        0.622,
+        0.804
+      ],
+      "by_kind": {
+        "lazy_import": 21,
+        "remove_unused": 12,
+        "inline_temp": 20,
+        "drop_unused_import": 12
+      },
+      "confusion": {
+        "remove_unused->remove_unused": 12,
+        "drop_unused_import->remove_unused": 2,
+        "drop_unused_import->lazy_import": 2,
+        "drop_unused_import->inline_temp": 3,
+        "inline_temp->remove_unused": 1,
+        "lazy_import->remove_unused": 2,
+        "lazy_import->drop_unused_import": 1,
+        "drop_unused_import->drop_unused_import": 2
+      }
+    },
+    "model_lessons_why": {
+      "correct": 66,
+      "n": 90,
+      "acc": 0.733,
+      "ci95": [
+        0.634,
+        0.814
+      ],
+      "by_kind": {
+        "lazy_import": 24,
+        "remove_unused": 9,
+        "inline_temp": 21,
+        "drop_unused_import": 12
+      },
+      "confusion": {
+        "remove_unused->remove_unused": 13,
+        "drop_unused_import->remove_unused": 1,
+        "drop_unused_import->lazy_import": 3,
+        "drop_unused_import->inline_temp": 3,
+        "remove_unused->drop_unused_import": 1,
+        "drop_unused_import->drop_unused_import": 2,
+        "remove_unused->inline_temp": 1
+      }
+    },
+    "combined_model_lessons_why": {
+      "correct": 68,
+      "n": 90,
+      "acc": 0.756,
+      "ci95": [
+        0.658,
+        0.833
+      ],
+      "by_kind": {
+        "lazy_import": 24,
+        "remove_unused": 11,
+        "inline_temp": 21,
+        "drop_unused_import": 12
+      },
+      "confusion": {
+        "remove_unused->remove_unused": 13,
+        "drop_unused_import->remove_unused": 1,
+        "drop_unused_import->lazy_import": 3,
+        "drop_unused_import->inline_temp": 3,
+        "drop_unused_import->drop_unused_import": 2
+      }
+    }
+  },
+  "tasks_per_kind": {
+    "lazy_import": 24,
+    "remove_unused": 24,
+    "inline_temp": 21,
+    "drop_unused_import": 21
+  },
+  "timeouts": {
+    "model_lessons_no_why": 0,
+    "model_lessons_why": 0
+  }
+}
