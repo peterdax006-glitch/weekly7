@@ -66,13 +66,14 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--synth", action="store_true", help="use the cheap in-process synthetic repair tasks (creator.synth_tasks) instead of devbench dev tasks")
     ap.add_argument("--min-effect", type=float, default=0.0, help="smallest gain that matters (also lets NO_EFFECT be concluded)")
     ap.add_argument("--initial", default=None, help="starting process as research_budget,design_breadth,reviewer_depth,max_retries (a different operating point)")
+    ap.add_argument("--nodes", default="14,90", help="synthetic tasks: size window of the functions, AST nodes lo,hi")
     ap.add_argument("--cache", type=Path, default=None, help="jsonl of per-(process, task) results: resume after an interrupted run")
     ap.add_argument("--ledger", type=Path, default=STATE / "recursion_ledger.jsonl")
     ap.add_argument("--process-file", type=Path, default=PL.DEFAULT_PATH)
     a = ap.parse_args(argv)
     led = Ledger(a.ledger, evidence_root=a.ledger.parent)
     initial = R.ProcessConfig(*map(int, a.initial.split(","))) if a.initial else None
-    bench = ST.SynthBench() if a.synth else None
+    bench = ST.SynthBench(lo=int(a.nodes.split(",")[0]), hi=int(a.nodes.split(",")[1])) if a.synth else None
     for _ in range(a.steps):
         it = len(R.recorded_steps(led)) + 1
         if a.synth:

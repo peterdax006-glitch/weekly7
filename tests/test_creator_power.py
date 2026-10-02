@@ -52,3 +52,17 @@ def test_workload_cache_resumes_without_rerunning(tmp_path: Path) -> None:
     cache.write_text(cache.read_text(encoding="utf-8") + '{"torn', encoding="utf-8")        # a killed run leaves a torn last line
     w2 = PL.DevWorkload(seed=1, chunk=2, reps=2, confirm=2, evaluate=ev, dev_ids=ids, cache_path=cache)
     assert w2(R.ProcessConfig()) == s1 and len(calls) == n1 and w2.runs == 0
+
+
+def test_design_change_falls_back_to_untried_parameters() -> None:
+    w = R.Weakness("rejection:OTHER", "OTHER", 5, 1.0, ())
+    p = R.ProcessConfig(research_budget=0, design_breadth=1, reviewer_depth=0, max_retries=0)
+    first = R.design_change(w, p, set())
+    assert first is not None and first.param == "max_retries"
+    second = R.design_change(w, p, {("max_retries", 1)})
+    assert second is not None and second.param == "reviewer_depth"
+    third = R.design_change(w, p, {("max_retries", 1), ("reviewer_depth", 1)})
+    assert third is not None and third.param == "research_budget" and "fallback" in third.rationale
+    # a change is never proposed twice, and bounds hold
+    top = R.ProcessConfig(research_budget=20, design_breadth=6, reviewer_depth=5, max_retries=10)
+    assert R.design_change(w, top, set()) is None

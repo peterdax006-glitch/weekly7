@@ -79,7 +79,7 @@ def pure_function(fn: ast.FunctionDef) -> bool:
     return True
 
 
-def corpus(root: Path = ROOT) -> list[tuple[str, ast.FunctionDef]]:
+def corpus(root: Path = ROOT, lo: int = 14, hi: int = 90) -> list[tuple[str, ast.FunctionDef]]:
     """('<file>:<function>', node) for every small top-level function of the Creator's own files, sorted (purity is checked per task)."""
     out: list[tuple[str, ast.FunctionDef]] = []
     for p in sorted(q for d in SCAN for q in (root / d).rglob("*.py")):
@@ -90,7 +90,7 @@ def corpus(root: Path = ROOT) -> list[tuple[str, ast.FunctionDef]]:
         except (SyntaxError, UnicodeDecodeError, OSError):
             continue
         for n in tree.body:
-            if isinstance(n, ast.FunctionDef) and 14 <= sum(1 for _ in ast.walk(n)) <= 90:
+            if isinstance(n, ast.FunctionDef) and lo <= sum(1 for _ in ast.walk(n)) <= hi:
                 out.append((f"{p.name}:{n.name}", n))
     return out
 
@@ -195,8 +195,9 @@ def repair(task: Task, p: R.ProcessConfig) -> tuple[Optional[ast.Module], int]:
 class SynthBench:
     """Task source for DevWorkload: ids come from a seed, tasks are built lazily and cached."""
 
-    def __init__(self, root: Path = ROOT) -> None:
-        self.funcs = corpus(root)
+    def __init__(self, root: Path = ROOT, lo: int = 14, hi: int = 90) -> None:
+        """lo/hi: size window (AST nodes) of the functions drawn; bigger functions have more candidate edits, so budgets bind."""
+        self.funcs = corpus(root, lo, hi)
         self._tasks: dict[str, Optional[Task]] = {}
 
     def ids(self, seed: int, n: int) -> list[str]:

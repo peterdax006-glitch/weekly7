@@ -159,7 +159,8 @@ def find_weaknesses(led: Ledger, min_n: int = 3) -> list[Weakness]:
 # ------------------------------------------------------------------------------------------------ 2. design
 
 def design_change(w: Weakness, process: ProcessConfig, tried: set[tuple[str, int]]) -> Optional[Change]:
-    """One step up of the first remedy parameter that has room and whose (param, value) was never tried."""
+    """One step up of the first remedy parameter that has room and whose (param, value) was never tried; when every remedy of this
+    weakness was tried, the first untried step of any other parameter (the remedy table is a prior, not a wall)."""
     for param in REMEDIES.get(w.kind, ()):
         cur = getattr(process, param)
         lo, hi = ME.BOUNDS[param]
@@ -167,6 +168,11 @@ def design_change(w: Weakness, process: ProcessConfig, tried: set[tuple[str, int
         if new > hi or new < lo or (param, new) in tried:
             continue
         return Change(param, cur, new, f"{w.kind} {w.key!r}: {w.count} cases ({w.share:.0%}) -> raise {param} {cur} -> {new}")
+    for param in PARAMS:                       # the remedies for this weakness are tried or at their bound: widen to any untried parameter
+        cur = getattr(process, param)
+        new = cur + 1
+        if param not in REMEDIES.get(w.kind, ()) and ME.BOUNDS[param][0] <= new <= ME.BOUNDS[param][1] and (param, new) not in tried:
+            return Change(param, cur, new, f"{w.kind} {w.key!r}: {w.count} cases ({w.share:.0%}); remedies exhausted -> fallback: raise {param} {cur} -> {new}")
     return None
 
 
