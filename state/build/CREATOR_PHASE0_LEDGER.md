@@ -1,6 +1,6 @@
 # C77 Phase 0 - computed reconnaissance ledger
 
-Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 6c5ecd9486b87d88, self-model digest 78e80a5e08f86e6f.
+Generated 2026-10-02T08:18:03Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 83a6a383971733f9, self-model digest 7bb5329316d5a4b9.
 
 ## CR001-004_documents
 
@@ -205,9 +205,9 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "head": "b4f584e0f8071da671d1def911108091ab0f1809",
+ "head": "bc69fe298b44108cf9472b37c1137e9172244fc5",
  "branch": "main",
- "dirty_files": 89,
+ "dirty_files": 58,
  "sandbox_branches": [
   "creator/sbx-20261001T071030-385ad032",
   "creator/sbx-20261001T075726-0d5fe44e",
@@ -216,7 +216,7 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
   "creator/sbx-20261001T100543-5325f45a",
   "creator/sbx-20261002T011717-90d2491d"
  ],
- "ahead_behind_origin": "1\t0"
+ "ahead_behind_origin": "0\t0"
 }
 ```
 
@@ -285,7 +285,7 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "test_files": 238,
- "test_functions": 5981,
+ "test_functions": 5983,
  "collect": "",
  "collection_errors": [],
  "modules_without_any_test": 112,
@@ -785,7 +785,7 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
 
 ```json
 {
- "note": "17 test file(s) with recorded evidence",
+ "note": "29 test file(s) with recorded evidence",
  "failing_test_files": {},
  "collection_errors": []
 }
@@ -821,8 +821,10 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
  "CREATOR_MASTER_CHECKLIST.json": {
   "items": 304,
   "status": {
-   "TESTING": 202,
-   "IMPLEMENTED": 74,
+   "IN_PROGRESS": 42,
+   "TESTING": 167,
+   "IMPLEMENTED": 59,
+   "FAILED": 8,
    "NOT_STARTED": 28
   },
   "done_without_evidence": 0,
@@ -961,8 +963,10 @@ Generated 2026-10-02T07:59:23Z by scripts/phase0_recon.py (creator/recon.py; rea
 ```json
 {
  "CREATOR_MASTER_CHECKLIST.json": {
-  "TESTING": 202,
-  "IMPLEMENTED": 74,
+  "IN_PROGRESS": 42,
+  "TESTING": 167,
+  "IMPLEMENTED": 59,
+  "FAILED": 8,
   "NOT_STARTED": 28
  },
  "MASTER_EXECUTION_CHECKLIST.json": {

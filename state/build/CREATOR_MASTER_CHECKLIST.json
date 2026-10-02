@@ -30,7 +30,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR002",
@@ -50,7 +50,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR003",
@@ -70,7 +70,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR004",
@@ -90,7 +90,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR005",
@@ -110,7 +110,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR005_structure computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR005_structure computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR006",
@@ -130,7 +130,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR006_branch_state computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR006_branch_state computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR007",
@@ -150,7 +150,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR007_builders computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR007_builders computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR008",
@@ -170,7 +170,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR008_integrations computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR008_integrations computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR009",
@@ -190,7 +190,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR009_tests computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR009_tests computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR010",
@@ -210,7 +210,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR010_validation_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR010_validation_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR011",
@@ -230,7 +230,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR011_provenance computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR011_provenance computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR012",
@@ -250,7 +250,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR012_rollback computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR012_rollback computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR013",
@@ -270,7 +270,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR013_deterministic_replay computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR013_deterministic_replay computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR014",
@@ -290,7 +290,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR014_reachability computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR014_reachability computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR015",
@@ -310,7 +310,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR015_data_flow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR015_data_flow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR016",
@@ -330,7 +330,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR016_firewalls computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR016_firewalls computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR017",
@@ -350,7 +350,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR017_research_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR017_research_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR018",
@@ -370,7 +370,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR018_learner_truth_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR018_learner_truth_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR019",
@@ -390,7 +390,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR019_known_failures computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR019_known_failures computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR020",
@@ -410,7 +410,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR020_known_limitations computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR020_known_limitations computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR021",
@@ -430,7 +430,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR021_stale_checklists computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR021_stale_checklists computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR022",
@@ -450,7 +450,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR022_duplicates computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR022_duplicates computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR023",
@@ -470,7 +470,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR023_disconnected computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR023_disconnected computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR024",
@@ -490,7 +490,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR024_implemented_not_validated computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR024_implemented_not_validated computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR025",
@@ -510,7 +510,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR025_shallow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR025_shallow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR026",
@@ -530,7 +530,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR026_future_leak_risks computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR026_future_leak_risks computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR027",
@@ -550,7 +550,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR027_self_learning_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR027_self_learning_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR028",
@@ -570,7 +570,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR028_research_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR028_research_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR029",
@@ -590,7 +590,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR029_experiment_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR029_experiment_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR030",
@@ -610,7 +610,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR030_health_infra computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR030_health_infra computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR031",
@@ -630,7 +630,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR031_compute_controls computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR031_compute_controls computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR032",
@@ -650,7 +650,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents, CR005_structure, CR006_branch_state, CR007_builders, CR008_ computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents, CR005_structure, CR006_branch_state, CR007_builders, CR008_ computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR033",
@@ -670,7 +670,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR005_structure, CR015_data_flow computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR005_structure, CR015_data_flow computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR034",
@@ -690,7 +690,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR001-004_documents computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR035",
@@ -710,7 +710,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR027_self_learning_infra, CR028_research_infra, CR029_experiment_infra, CR030_h computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR027_self_learning_infra, CR028_research_infra, CR029_experiment_infra, CR030_h computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR036",
@@ -730,7 +730,7 @@
     "creator/recon.py",
     "tests/test_creator_recon.py"
    ],
-   "notes": "section CR015_data_flow, CR017_research_boundary computed by creator/recon.py on the current tree 6123478bc6a5; tested by tests/test_creator_recon.py"
+   "notes": "section CR015_data_flow, CR017_research_boundary computed by creator/recon.py on the current tree 83a6a3839717; tested by tests/test_creator_recon.py"
   },
   {
    "id": "CR037",
@@ -793,14 +793,14 @@
    "group": "64. THE MASTER CHECKLIST / FOUNDATION",
    "description": "observability established",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR042",
@@ -1353,28 +1353,28 @@
    "group": "64. THE MASTER CHECKLIST / PLANNING",
    "description": "scheduling",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR082",
    "group": "64. THE MASTER CHECKLIST / PLANNING",
    "description": "parallelism",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K22=TESTED (computed from test evidence); creator/swarm.py parallel workers; tests/test_creator_swarm.py::test_parallel_workers_on_disjoint_modules_all_get_adopted"
+   "notes": "capabilities K22=IMPLEMENTED (computed from test evidence); creator/swarm.py parallel workers; tests/test_creator_swarm.py::test_parallel_workers_on_disjoint_modules_all_get_adopted"
   },
   {
    "id": "CR083",
@@ -1423,14 +1423,14 @@
    "group": "64. THE MASTER CHECKLIST / IMPLEMENTATION",
    "description": "autonomous coding",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K05=TESTED, K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K05=TESTED, K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR087",
@@ -1451,28 +1451,28 @@
    "group": "64. THE MASTER CHECKLIST / IMPLEMENTATION",
    "description": "refactoring",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K17=TESTED (computed from test evidence)"
+   "notes": "capabilities K17=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR089",
    "group": "64. THE MASTER CHECKLIST / IMPLEMENTATION",
    "description": "integration",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR090",
@@ -1521,14 +1521,14 @@
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "test generation",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K25=TESTED (computed from test evidence); creator/testgen.py:273 generate; tests/test_creator_testgen.py::test_generated_tests_pass_on_the_code_they_came_from, test_a_behaviour_change_makes_a_generated_test_fail"
+   "notes": "capabilities K25=IMPLEMENTED (computed from test evidence); creator/testgen.py:273 generate; tests/test_creator_testgen.py::test_generated_tests_pass_on_the_code_they_came_from, test_a_behaviour_change_makes_a_generated_test_fail"
   },
   {
    "id": "CR094",
@@ -1563,42 +1563,42 @@
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "edge-case testing",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K25=TESTED (computed from test evidence); creator/testgen.py:103 _edge_values; tests/test_creator_testgen.py::test_candidates_cover_zero_negative_empty_none_and_defaults, test_bool_edge_values_are_not_merged_with_ints"
+   "notes": "capabilities K25=IMPLEMENTED (computed from test evidence); creator/testgen.py:103 _edge_values; tests/test_creator_testgen.py::test_candidates_cover_zero_negative_empty_none_and_defaults, test_bool_edge_values_are_not_merged_with_ints"
   },
   {
    "id": "CR097",
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "adversarial testing",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR098",
    "group": "64. THE MASTER CHECKLIST / TESTING",
    "description": "integration testing",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K14=TESTED, K06=TESTED (computed from test evidence); tests/test_creator_integration.py drives objective compile -> gap sync -> schedule -> planner -> kernel.execute (sandbox, evaluate, improvement verdict, merge) -> post-merge audit -> curriculum lesson -> reproduce on a temporary git repo, plus a rejection path (regressing change: nothing merges, ledger verifies), a post-merge rollback path and a tampered-ledger stop; worker is the only fake"
+   "notes": "capabilities K14=IMPLEMENTED, K06=TESTED (computed from test evidence); tests/test_creator_integration.py drives objective compile -> gap sync -> schedule -> planner -> kernel.execute (sandbox, evaluate, improvement verdict, merge) -> post-merge audit -> curriculum lesson -> reproduce on a temporary git repo, plus a rejection path (regressing change: nothing merges, ledger verifies), a post-merge rollback path and a tampered-ledger stop; worker is the only fake"
   },
   {
    "id": "CR099",
@@ -2150,14 +2150,14 @@
    "group": "64. THE MASTER CHECKLIST / RECURSION",
    "description": "self-testing",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K06=TESTED, K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K06=TESTED, K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR139",
@@ -2233,28 +2233,28 @@
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "independent evaluator",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR145",
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "provenance audit",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR146",
@@ -2274,28 +2274,28 @@
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "memorization audit",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR148",
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "regression audit",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED, K06=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED, K06=TESTED (computed from test evidence)"
   },
   {
    "id": "CR149",
@@ -2316,14 +2316,14 @@
    "group": "64. THE MASTER CHECKLIST / AUDIT",
    "description": "autonomy audit",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR151",
@@ -2337,105 +2337,105 @@
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED, K24=NOT_STARTED (computed from test evidence); creator/audit/checks.py check_recursion (adopted process change needs a recorded weakness, a disjoint confirmation arm, an IMPROVEMENT claim + ADOPT decision, an unbroken lineage; process.json == last adopted process) and adversary attack unevidenced_process_change; tests/test_creator_audit_recursion_failures.py. Audits the mechanism: no real recursion step exists yet"
+   "notes": "capabilities K16=IMPLEMENTED, K24=TESTED (computed from test evidence); creator/audit/checks.py check_recursion (adopted process change needs a recorded weakness, a disjoint confirmation arm, an IMPROVEMENT claim + ADOPT decision, an unbroken lineage; process.json == last adopted process) and adversary attack unevidenced_process_change; tests/test_creator_audit_recursion_failures.py. Audits the mechanism: no real recursion step exists yet"
   },
   {
    "id": "CR152",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation exists.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR153",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation builds.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR154",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation executes.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR155",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is observable.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR156",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is testable.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR157",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is recoverable.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR158",
    "group": "79. COMPLETION GATE / FOUNDATION",
    "description": "Foundation is sufficiently modular.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=TESTED, K16=TESTED (computed from test evidence)"
+   "notes": "capabilities K01=TESTED, K02=TESTED, K06=TESTED, K14=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR159",
@@ -2650,14 +2650,14 @@
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Regression protection works.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K06=TESTED, K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K06=TESTED, K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR175",
@@ -2678,14 +2678,14 @@
    "group": "79. COMPLETION GATE / AUTONOMOUS DEVELOPER",
    "description": "Rollback works.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K06=TESTED, K14=TESTED (computed from test evidence)"
+   "notes": "capabilities K06=TESTED, K14=IMPLEMENTED (computed from test evidence)"
   },
   {
    "id": "CR177",
@@ -3055,14 +3055,14 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "No unresolved critical failure hidden.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K16=TESTED (computed from test evidence); creator/audit/checks.py check_unresolved_failures + enumerate_failures/failure_report (STATUS 'failures'): a CRITICAL failure (post-merge rollback, ledger/evidence/audit breach) needs Diagnosis + fix or the owner's ACCEPTED finding; adversary attack hidden_critical_failure; kernel now records Failure+Diagnosis+Repair on a rollback; tests/test_creator_audit_recursion_failures.py"
+   "notes": "capabilities K16=IMPLEMENTED (computed from test evidence); creator/audit/checks.py check_unresolved_failures + enumerate_failures/failure_report (STATUS 'failures'): a CRITICAL failure (post-merge rollback, ledger/evidence/audit breach) needs Diagnosis + fix or the owner's ACCEPTED finding; adversary attack hidden_critical_failure; kernel now records Failure+Diagnosis+Repair on a rollback; tests/test_creator_audit_recursion_failures.py"
   },
   {
    "id": "CR205",
@@ -3095,14 +3095,14 @@
    "group": "79. COMPLETION GATE / VALIDATION",
    "description": "Critical results reproducible.",
    "owner": "Claude",
-   "status": "TESTING",
+   "status": "IMPLEMENTED",
    "code_paths": [],
    "tests": [],
    "evidence": [
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K26=TESTED (computed from test evidence); creator/reproduce.py:187 reproduce, scripts/reproduce.py; tests/test_creator_reproduce.py::test_clean_ledger_reproduces, test_tampered_evidence_is_not_reproduced; real ledger (no --rerun): 10/10 claims REPRODUCED, chain ok over 1397 records, 713 evidence files unchanged - state/build/evidence/REPRODUCE_20261001.json"
+   "notes": "capabilities K26=IMPLEMENTED (computed from test evidence); creator/reproduce.py:187 reproduce, scripts/reproduce.py; tests/test_creator_reproduce.py::test_clean_ledger_reproduces, test_tampered_evidence_is_not_reproduced; real ledger (no --rerun): 10/10 claims REPRODUCED, chain ok over 1397 records, 713 evidence files unchanged - state/build/evidence/REPRODUCE_20261001.json"
   },
   {
    "id": "CR208",
@@ -3116,7 +3116,7 @@
     "state/creator/STATUS.json",
     "creator/capabilities.json"
    ],
-   "notes": "capabilities K26=NOT_STARTED, K16=TESTED (computed from test evidence); creator/claims.py + scripts/claims_register.py -> state/build/CLAIMS.json: every ImprovementClaim, adoption and headline number with its evidence refs and a recomputation (creator/reproduce.py); a claim without recomputable evidence is UNSUPPORTED; tests/test_creator_claims.py::test_a_fabricated_claim_is_flagged_and_an_honest_one_is_not. Register lists its own UNSUPPORTED claims"
+   "notes": "capabilities K26=IMPLEMENTED, K16=IMPLEMENTED (computed from test evidence); creator/claims.py + scripts/claims_register.py -> state/build/CLAIMS.json: every ImprovementClaim, adoption and headline number with its evidence refs and a recomputation (creator/reproduce.py); a claim without recomputable evidence is UNSUPPORTED; tests/test_creator_claims.py::test_a_fabricated_claim_is_flagged_and_an_honest_one_is_not. Register lists its own UNSUPPORTED claims"
   },
   {
    "id": "CR209",
@@ -3173,7 +3173,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR041, CR152, CR153, CR154, CR155, CR156); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR214",
@@ -3186,7 +3186,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 20 members in 79 AUTONOMOUS DEVELOPER is TESTING (CR159, CR160, CR161, CR162, CR163, CR164); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 20 members in 79 AUTONOMOUS DEVELOPER is IMPLEMENTED (CR174, CR176); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR215",
@@ -3298,7 +3298,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 17 members in 64 FOUNDATION, 79 FOUNDATION is IMPLEMENTED (CR041, CR152, CR153, CR154, CR155, CR156); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR225",
@@ -3311,7 +3311,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR041); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR226",
@@ -3415,7 +3415,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 PLANNING is IMPLEMENTED (CR081, CR082); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR234",
@@ -3428,7 +3428,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 PLANNING is IMPLEMENTED (CR081, CR082); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR235",
@@ -3441,7 +3441,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 PLANNING is IMPLEMENTED (CR081, CR082); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR236",
@@ -3454,7 +3454,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 PLANNING is TESTING (CR079, CR080, CR081, CR082, CR083, CR084); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 PLANNING is IMPLEMENTED (CR081, CR082); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR237",
@@ -3467,7 +3467,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 IMPLEMENTATION is TESTING (CR086, CR087, CR088, CR089, CR090, CR091); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 IMPLEMENTATION is IMPLEMENTED (CR086, CR088, CR089); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR238",
@@ -3480,7 +3480,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 7 members in 64 IMPLEMENTATION is TESTING (CR086, CR087, CR088, CR089, CR090, CR091); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 7 members in 64 IMPLEMENTATION is IMPLEMENTED (CR086, CR088, CR089); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR239",
@@ -3493,7 +3493,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 TESTING is TESTING (CR093, CR094, CR095, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 TESTING is IMPLEMENTED (CR093, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR240",
@@ -3506,7 +3506,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 TESTING is TESTING (CR093, CR094, CR095, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 TESTING is IMPLEMENTED (CR093, CR096, CR097, CR098); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR241",
@@ -3623,7 +3623,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR250",
@@ -3636,7 +3636,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR251",
@@ -3649,7 +3649,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR252",
@@ -3662,7 +3662,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR253",
@@ -3753,7 +3753,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR138, CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR260",
@@ -3766,7 +3766,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR138, CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR261",
@@ -3779,7 +3779,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR138, CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR262",
@@ -3792,7 +3792,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR138, CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR263",
@@ -3805,7 +3805,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR264",
@@ -3818,7 +3818,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR265",
@@ -3922,7 +3922,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR273",
@@ -3935,7 +3935,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR274",
@@ -3948,7 +3948,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR041); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR275",
@@ -3961,7 +3961,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR041); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR276",
@@ -3974,7 +3974,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 64 FOUNDATION is TESTING (CR032, CR033, CR034, CR035, CR036, CR037); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 64 FOUNDATION is IMPLEMENTED (CR041); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR277",
@@ -3987,7 +3987,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 8 members in 64 AUDIT is IMPLEMENTED (CR144, CR145, CR147, CR148, CR150, CR151); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR278",
@@ -4068,7 +4068,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR285",
@@ -4155,7 +4155,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 11 members in 64 RECURSION is IMPLEMENTED (CR138, CR142, CR143); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR292",
@@ -4168,7 +4168,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR293",
@@ -4194,7 +4194,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR295",
@@ -4207,7 +4207,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 10 members in 79 VALIDATION is IMPLEMENTED (CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR296",
@@ -4242,7 +4242,7 @@
    "evidence": [
     "state/build/CREATOR_MASTER_CHECKLIST.json"
    ],
-   "notes": "weakest of 30 members in 79 TRUE AUTONOMY, 79 RECURSIVE IMPROVEMENT, 79 VALIDATION is IMPLEMENTED (CR197, CR198, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
+   "notes": "weakest of 30 members in 79 TRUE AUTONOMY, 79 RECURSIVE IMPROVEMENT, 79 VALIDATION is IMPLEMENTED (CR197, CR198, CR204, CR207, CR208); capped at IMPLEMENTED: the section's own bullets are not individually verified"
   },
   {
    "id": "CR299",

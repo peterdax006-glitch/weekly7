@@ -1,10 +1,10 @@
 {
- "at": "2026-10-02T08:12:14Z",
- "selfmodel_digest": "ec2c2cc0d5769e92",
+ "at": "2026-10-02T08:18:20Z",
+ "selfmodel_digest": "e90c56f581284c8c",
  "versions": {
-  "git_head": "b4f584e0f8071da671d1def911108091ab0f1809",
-  "dirty_files": 122,
-  "creator_tree": "9076f5eb1cd60b67",
+  "git_head": "bc69fe298b44108cf9472b37c1137e9172244fc5",
+  "dirty_files": 61,
+  "creator_tree": "6bd55ed562f21665",
   "engine_tree": "a69b0474a03aa178"
  },
  "capabilities": [
@@ -128,11 +128,11 @@
   {
    "id": "K14",
    "name": "kernel loop, checkpoints, observability",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 640,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K15",
@@ -146,65 +146,65 @@
   {
    "id": "K16",
    "name": "audit and adversary",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
-   "meaningful": 744,
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
+   "meaningful": 760,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K17",
    "name": "self-efficiency (shrink code and memory)",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 180,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K18",
    "name": "own generative worker (local model + search, no other AI)",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 671,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K19",
    "name": "autotune: the Creator improves its own worker",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 133,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K20",
    "name": "own worker inside the kernel (local model develops the Creator)",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 70,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K21",
    "name": "own workers: the system works on itself with no AI",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 210,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K22",
    "name": "swarm: own workers in parallel, sized by free RAM",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 343,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K23",
@@ -227,83 +227,84 @@
   {
    "id": "K25",
    "name": "test generation by the system itself",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 318,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   },
   {
    "id": "K26",
    "name": "independent reproduction of claims",
-   "state": "TESTED",
-   "uncertainty": "LIKELY",
+   "state": "IMPLEMENTED",
+   "uncertainty": "UNTESTED",
    "meaningful": 441,
    "floor": 0,
-   "why": "every test file passed on the current source"
+   "why": "tests not run (or stale) on the current source"
   }
  ],
  "requirements": {
   "requirements": 149,
   "by_status": {
-   "TESTED": 122,
+   "TESTED": 112,
    "REJECTED": 16,
-   "NOT_STARTED": 11
+   "NOT_STARTED": 11,
+   "IN_PROGRESS": 10
   },
-  "open_gaps": 45,
-  "unblocked": 45,
+  "open_gaps": 55,
+  "unblocked": 50,
   "next": [
    {
-    "gap_id": "GAP-bb2be3547c9e24cceedf",
-    "requirement_key": "K06.validated",
-    "kind": "EVIDENCE",
-    "importance": 0.36,
+    "gap_id": "GAP-75f9093fdd13a9f56be3",
+    "requirement_key": "K14.tested",
+    "kind": "TESTING",
+    "importance": 0.666,
     "blocked_by": [],
-    "description": "K06.validated unmet: ledger state NOT_STARTED"
+    "description": "K14.tested unmet: state IMPLEMENTED: tests/test_creator_kernel.py=STALE, tests/test_creator_integration.py=STALE"
    },
    {
-    "gap_id": "GAP-7c0b850c8ea26bcfcab2",
-    "requirement_key": "EFF.activation",
-    "kind": "ARCHITECTURE",
-    "importance": 0.3,
+    "gap_id": "GAP-81ddff1879aacdf2745b",
+    "requirement_key": "K16.tested",
+    "kind": "TESTING",
+    "importance": 0.63,
     "blocked_by": [],
-    "description": "load less: creator/planner.py pulls 5 Creator imports in eagerly (kernel start loads 74% of the package)"
+    "description": "K16.tested unmet: state IMPLEMENTED: tests/test_creator_audit.py=STALE, tests/test_creator_audit_recursion_failures.py=STALE"
    },
    {
-    "gap_id": "GAP-f3bac3ff8cb748d6a99e",
-    "requirement_key": "EFF.activation",
-    "kind": "ARCHITECTURE",
-    "importance": 0.3,
+    "gap_id": "GAP-e30b58eb565ecd8f46c1",
+    "requirement_key": "K17.tested",
+    "kind": "TESTING",
+    "importance": 0.459,
     "blocked_by": [],
-    "description": "load less: creator/gaps.py pulls 4 Creator imports in eagerly (kernel start loads 74% of the package)"
+    "description": "K17.tested unmet: state IMPLEMENTED: tests/test_creator_efficiency.py=STALE"
    },
    {
-    "gap_id": "GAP-d07f6894aa9c2b3b5d84",
-    "requirement_key": "EFF.activation",
-    "kind": "ARCHITECTURE",
-    "importance": 0.3,
+    "gap_id": "GAP-ed264eff78fd7fc70b52",
+    "requirement_key": "K18.tested",
+    "kind": "TESTING",
+    "importance": 0.4455,
     "blocked_by": [],
-    "description": "load less: creator/planner.py pulls 5 Creator imports in eagerly (kernel start loads 74% of the package)"
+    "description": "K18.tested unmet: state IMPLEMENTED: tests/test_creator_generator.py=STALE"
    },
    {
-    "gap_id": "GAP-f2e1d076b906fa0ab070",
-    "requirement_key": "EFF.activation",
-    "kind": "ARCHITECTURE",
-    "importance": 0.3,
+    "gap_id": "GAP-24c3ceaff31f3401d840",
+    "requirement_key": "K19.tested",
+    "kind": "TESTING",
+    "importance": 0.432,
     "blocked_by": [],
-    "description": "load less: creator/objective.py pulls 3 Creator imports in eagerly (kernel start loads 74% of the package)"
+    "description": "K19.tested unmet: state IMPLEMENTED: tests/test_creator_autotune.py=STALE"
    }
   ],
-  "at": "2026-10-02T08:12:14Z"
+  "at": "2026-10-02T08:18:20Z"
  },
  "sync": {
-  "opened": 0,
-  "closed": 16,
+  "opened": 10,
+  "closed": 0,
   "regressed": []
  },
  "audit": {
-  "CRITICAL": 26,
-  "HIGH": 82,
+  "CRITICAL": 0,
+  "HIGH": 0,
   "MEDIUM": 0,
   "LOW": 0
  },
@@ -314,10 +315,10 @@
   "uncaught": []
  },
  "efficiency": {
-  "package_ast_nodes": 150009,
-  "active_ast_nodes": 64242,
-  "active_fraction": 0.4283,
-  "peak_memory_mb": 73.805824
+  "package_ast_nodes": 150220,
+  "active_ast_nodes": 64453,
+  "active_fraction": 0.4291,
+  "peak_memory_mb": 74.018816
  },
  "claude_dependence": {
   "adopted_by_worker": {
@@ -344,34 +345,34 @@
   },
   "critical_path": [
    {
-    "gap_id": "GAP-bb2be3547c9e24cceedf",
-    "requirement_key": "K06.validated",
-    "blocks": 0,
-    "importance": 0.36
+    "gap_id": "GAP-75f9093fdd13a9f56be3",
+    "requirement_key": "K14.tested",
+    "blocks": 1,
+    "importance": 0.666
    },
    {
-    "gap_id": "GAP-7c0b850c8ea26bcfcab2",
-    "requirement_key": "EFF.activation",
-    "blocks": 0,
-    "importance": 0.3
+    "gap_id": "GAP-ed264eff78fd7fc70b52",
+    "requirement_key": "K18.tested",
+    "blocks": 1,
+    "importance": 0.4455
    },
    {
-    "gap_id": "GAP-f3bac3ff8cb748d6a99e",
-    "requirement_key": "EFF.activation",
-    "blocks": 0,
-    "importance": 0.3
+    "gap_id": "GAP-24c3ceaff31f3401d840",
+    "requirement_key": "K19.tested",
+    "blocks": 1,
+    "importance": 0.432
    },
    {
-    "gap_id": "GAP-d07f6894aa9c2b3b5d84",
-    "requirement_key": "EFF.activation",
-    "blocks": 0,
-    "importance": 0.3
+    "gap_id": "GAP-67c22d0d33064601136e",
+    "requirement_key": "K22.tested",
+    "blocks": 1,
+    "importance": 0.3915
    },
    {
-    "gap_id": "GAP-f2e1d076b906fa0ab070",
-    "requirement_key": "EFF.activation",
-    "blocks": 0,
-    "importance": 0.3
+    "gap_id": "GAP-7fcc443fd763d41348cc",
+    "requirement_key": "K26.tested",
+    "blocks": 1,
+    "importance": 0.3375
    }
   ]
  },
@@ -566,6 +567,6 @@
    }
   ]
  },
- "ledger_records": 1803,
- "seconds": 777.9
+ "ledger_records": 1823,
+ "seconds": 24.1
 }

@@ -1,0 +1,48 @@
+K01 TESTED       LIKELY     1223/0     development ledger
+K02 TESTED       LIKELY      430/0     self-model
+K03 TESTED       LIKELY      223/0     objective and requirements
+K04 TESTED       LIKELY      169/0     gap analysis
+K05 TESTED       LIKELY      236/0     agent runtime
+K06 TESTED       LIKELY     1189/0     sandbox build test rollback
+K07 TESTED       LIKELY      143/0     research
+K08 TESTED       LIKELY       87/0     design generation
+K09 TESTED       LIKELY      479/0     planner
+K10 TESTED       LIKELY      178/0     evaluation and improvement measurement
+K11 TESTED       LIKELY      136/0     debugging and repair
+K12 TESTED       LIKELY       73/0     development memory
+K13 TESTED       LIKELY      118/0     meta-learning and strategies
+K14 IMPLEMENTED  UNTESTED    640/0     kernel loop, checkpoints, observability
+K15 TESTED       LIKELY      334/0     devbench sealed development-task suite
+K16 IMPLEMENTED  UNTESTED    760/0     audit and adversary
+K17 IMPLEMENTED  UNTESTED    180/0     self-efficiency (shrink code and memory)
+K18 IMPLEMENTED  UNTESTED    671/0     own generative worker (local model + search, no other AI)
+K19 IMPLEMENTED  UNTESTED    133/0     autotune: the Creator improves its own worker
+K20 IMPLEMENTED  UNTESTED     70/0     own worker inside the kernel (local model develops the Creator)
+K21 IMPLEMENTED  UNTESTED    210/0     own workers: the system works on itself with no AI
+K22 IMPLEMENTED  UNTESTED    343/0     swarm: own workers in parallel, sized by free RAM
+K23 TESTED       LIKELY      120/0     oversight: goal drift, knowledge gaps, critical path
+K24 TESTED       LIKELY      251/0     recursion: improves its own development process
+K25 IMPLEMENTED  UNTESTED    318/0     test generation by the system itself
+K26 IMPLEMENTED  UNTESTED    441/0     independent reproduction of claims
+{"requirements": 149, "by_status": {"TESTED": 112, "REJECTED": 16, "NOT_STARTED": 11, "IN_PROGRESS": 10}, "open_gaps": 55, "unblocked": 50}
+EFFICIENCY {'package_ast_nodes': 150220, 'active_ast_nodes': 64453, 'active_fraction': 0.4291, 'peak_memory_mb': 74.018816} CLAUDE DEPENDENCE {'adopted_by_worker': {'agent-implementer-v1': 5, 'nupen-model-v2': 1}, 'claude_share': 0.833, 'self_share': 0.0, 'adopted': 6}
+CURRICULUM (Nupen = student, Claude = teacher; teacher_share must fall) {'cells': {'claude|gap': {'solver': 'claude', 'task_kind': 'gap', 'attempts': 6, 'adopted': 5, 'rate': 0.833}, 'nupen-model-v1|activation': {'solver': 'nupen-model-v1', 'task_kind': 'activation', 'attempts': 5, 'adopted': 0, 'rate': 0.0}, 'nupen-model-v1|shrink': {'solver': 'nupen-model-v1', 'task_kind': 'shrink', 'attempts': 6, 'adopted': 0, 'rate': 0.0}, 'nupen-model-v2|activation': {'solver': 'nupen-model-v2', 'task_kind': 'activation', 'attempts': 2, 'adopted': 1, 'rate': 0.5}, 'nupen-model-v2|shrink': {'solver': 'nupen-model-v2', 'task_kind': 'shrink', 'attempts': 2, 'adopted': 0, 'rate': 0.0}, 'self-student-v1|activation': {'solver': 'self-student-v1', 'task_kind': 'activation', 'attempts': 1, 'adopted': 0, 'rate': 0.0}}, 'adopted_total': 6, 'adopted_by': {'claude': 5, 'nupen-model-v2': 1}, 'teacher_share': 0.833, 'claude_share': 0.833, 'lessons': 50, 'handed_over': {}}
+SYNC {'opened': 10, 'closed': 0, 'regressed': []} AUDIT {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}  ADVERSARY {'attacks': 21, 'caught': 21, 'uncaught': []}
+PLAN 2026-10-02T06:56:07Z critical path 300s: GAP-ce23460e0c288a6c5bfb -> GAP-bb2be3547c9e24cceedf -> GAP-dbea47ba0cffd8c66082 -> GAP-17777d7cd39995983b36 -> GAP-3d2b562d46e62ab93804 -> GAP-2b65024653f9e69f4600 -> GAP-adfec93c0a4fc93e4081 -> GAP-1e41aa78b09cf67518b4 -> GAP-bf3060afcfdba440656e -> GAP-f09efe7a2d5c30cf11d1 -> GAP-d0e518cd7936a5bb7f48 -> GAP-662162c54ecca831b425 -> GAP-e8b6a2c7a789d67a7118 -> GAP-70057efac01e3dae6cbe -> GAP-7f1230156d6d1a15a8bb -> GAP-887ae0857ba2e76724ab -> GAP-3f0131eda4554437f0c4 -> GAP-76fc0454e77dd1f25996 -> GAP-87a72a269b26d2fb7190 -> GAP-f8fd307c2596d3b2c1d2 -> GAP-6bc56d144523268af910 -> GAP-dd8de63e321b49917fad -> GAP-efe5b00a272534d26ae7 -> GAP-058f93da598d88c44879; chosen []
+  hold GAP-ce23460e0c288a6c5bfb K01.validated: not worker work: validated goes to its own role
+  hold GAP-bb2be3547c9e24cceedf K06.validated: not worker work: validated goes to its own role
+  hold GAP-dbea47ba0cffd8c66082 K10.validated: not worker work: validated goes to its own role
+  hold GAP-17777d7cd39995983b36 K14.validated: not worker work: validated goes to its own role
+  hold GAP-3d2b562d46e62ab93804 K02.validated: not worker work: validated goes to its own role
+  hold GAP-2b65024653f9e69f4600 K03.validated: not worker work: validated goes to its own role
+  hold GAP-adfec93c0a4fc93e4081 K04.validated: not worker work: validated goes to its own role
+  hold GAP-1e41aa78b09cf67518b4 K05.validated: not worker work: validated goes to its own role
+  hold GAP-bf3060afcfdba440656e K07.validated: not worker work: validated goes to its own role
+  hold GAP-f09efe7a2d5c30cf11d1 K08.validated: not worker work: validated goes to its own role
+  hold GAP-d0e518cd7936a5bb7f48 K09.validated: not worker work: validated goes to its own role
+  hold GAP-662162c54ecca831b425 K11.validated: not worker work: validated goes to its own role
+NEXT K14.tested 0.666 K14.tested unmet: state IMPLEMENTED: tests/test_creator_kernel.py=STALE, tests/test_creator_integrat
+NEXT K16.tested 0.63 K16.tested unmet: state IMPLEMENTED: tests/test_creator_audit.py=STALE, tests/test_creator_audit_rec
+NEXT K17.tested 0.459 K17.tested unmet: state IMPLEMENTED: tests/test_creator_efficiency.py=STALE
+NEXT K18.tested 0.4455 K18.tested unmet: state IMPLEMENTED: tests/test_creator_generator.py=STALE
+NEXT K19.tested 0.432 K19.tested unmet: state IMPLEMENTED: tests/test_creator_autotune.py=STALE
