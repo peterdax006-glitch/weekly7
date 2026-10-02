@@ -565,9 +565,9 @@
   "NEW-curriculum": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_curriculum.py",
-    "result": "test_creator_curriculum: 11 passed in 5.98s",
-    "code_commit": "48e00e866a3983023c8ec3aa7c665a86a8b66717"
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_curriculum.py tests/test_creator_reconcile.py",
+    "result": "curriculum 11 + reconcile 6 passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
    },
    "issues": [
     {
@@ -595,10 +595,23 @@
      "severity": "low",
      "issue": "A student that owns a kind but cannot_attempt/fails sends the package to deferral, not to Claude, by design; if the student never recovers the kind still cannot progress (only attempts of the student can lower its rate).",
      "status": "CLOSED (non-defect): by design - a student that owns a kind defers rather than sending the work to Claude; the kind is re-offered as the student's rate is re-scored, and attempts_for ignores deferrals."
+    },
+    {
+     "where": "creator/curriculum.py:reconcile_lessons",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "A lesson whose process died (no outcome) was settled with the verdict of the package's LATEST cycle even when that cycle judged another worker's retry, so a student could be credited ADOPTED (or blamed REJECTED) for a change it never made, feeding student_scores, the router and the chooser. FIXED: when the kernel record names a different worker (details.worker.by) the lesson becomes interrupted/no-signal; test_an_orphan_lesson_is_not_credited_with_a_retry_by_another_worker (failed before)."
+    },
+    {
+     "where": "creator/curriculum.py:Router.skip_reason",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: needs >=10 judged attempts, none adopted, >=80% no-output; teachers never skipped; reenable events and any adoption lift it. With a reenable stamp an adoption BEFORE the stamp is ignored."
     }
    ],
-   "depth": "diff since round 3 read (tests-kind gate); issues fixed or closed",
-   "revalidated": "round 4 (h8/revalidate)"
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
   },
   "NEW-student": {
    "verdict": "VALIDATED",
@@ -799,6 +812,12 @@
    "revalidated": "round 4 (h8/revalidate)"
   },
   "NEW-nupen_service": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_nupen_service.py",
+    "result": "18 passed (15 + 3 new)",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
    "issues": [
     {
      "where": "scripts/nupen_service.py:claim_pidfile",
@@ -817,24 +836,48 @@
      "severity": "info",
      "status": "CLOSED (non-defect)",
      "issue": "taskkill /PID /T /F ends the swarm and its whole tree (Windows); POSIX uses its own session + killpg; waits 60 s then kill. Only the swarm's own pid is targeted. scripts/record_validation.py hardening read: validated_commit must be an ancestor of HEAD, unchanged_since also checks index, working tree and untracked files, report cited via an immutable content-named snapshot - all sound."
+    },
+    {
+     "where": "scripts/nupen_service.py:_supervise",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "An exception while supervising a running swarm (run() then retries) left that swarm running and started a SECOND one beside it. FIXED: the swarm's process tree is ended on any error; test_an_error_in_supervision_does_not_orphan_the_running_swarm (failed before)."
+    },
+    {
+     "where": "scripts/nupen_service.py:ensure_watchdog",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "The watchdog pidfile had no boot check: after a reboot its recycled pid belonged to an unrelated live process, so the supervisor never respawned a watchdog. FIXED (same rule as claim_pidfile); test_the_supervisor_respawns_a_watchdog_whose_pidfile_predates_the_boot (failed before)."
+    },
+    {
+     "where": "scripts/nupen_service.py:claim_pidfile",
+     "severity": "low",
+     "status": "FIXED",
+     "issue": "Two starters judging the same stale pidfile could both unlink-and-create (the second unlinking the first's fresh file). The pidfile content is now re-read before the unlink. A residual window of microseconds remains."
+    },
+    {
+     "where": "tests/test_nupen_service.py",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "test_the_off_switch_stops_the_swarm... ran the real supervisor loop with ensure_watchdog live and HEARTBEAT/CRASHLOG/WATCHDOG_PIDFILE unpatched: running the suite started a REAL detached watchdog from the checkout (found alive after pytest exited) and wrote the real heartbeat and crash log. FIXED: autouse NUPEN_WATCHDOG=0 and every state path patched; test_a_supervisor_test_run_never_starts_a_real_watchdog (failed before)."
+    },
+    {
+     "where": "scripts/nupen_service.py:run",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: NUPEN_STOP is checked every poll, in the error-retry loop and between swarm runs and ends the swarm and LM trainer as trees; no print() anywhere (pythonw safe). If the supervisor itself is hard-killed WITHOUT /T its swarm survives and the next supervisor starts a second swarm (the kernel lock serialises cycles, but two swarms still share a machine); a swarm pid file would close this."
     }
    ],
-   "verdict": "VALIDATED",
-   "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_nupen_service.py tests/test_creator_validator4_regressions.py",
-    "result": "test_nupen_service + test_creator_validator4_regressions: passed",
-    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
-   },
-   "depth": "stop_tree + record_validation diffs read in full; tests re-run",
-   "revalidated": "round 5 (h9/validate5)",
-   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
   },
   "NEW-replay_student": {
    "verdict": "VALIDATED",
    "evidence": {
-    "command": "python -m pytest -p no:cacheprovider -q tests/test_creator_replay_student.py",
-    "result": "test_creator_replay_student: 4 passed (3 original + new traversal test)",
-    "code_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_replay_student.py",
+    "result": "all passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
    },
    "issues": [
     {
@@ -848,21 +891,266 @@
      "severity": "info",
      "status": "OPEN-INFO",
      "issue": "Verified: a solution with any measured (adopted or rejected) teacher verdict for the objective is never replayed; student lessons never replay; every file in files_before must be byte-identical (CRLF-folded) to the current text, a new file must not exist. Limits: snapshot_change skips deleted/non-UTF-8 files, so a lesson that deleted a file replays without the deletion (the kernel still measures what is applied); a CRLF file is rewritten with LF."
+    },
+    {
+     "where": "creator/replay_student.py",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Re-validated after round 5: path-escape guard, the never-replay-a-measured-solution rule and the byte-identical files_before check all hold; its adoptions count as the teacher's (curriculum.TEACHER)."
     }
    ],
-   "depth": "module read in full with its curriculum contract",
-   "revalidated": "round 5 (h9/validate5)",
-   "validated_commit": "51631a86ee6c81e8e99e387eb45c5751c5fead30"
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-goals": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_goals.py tests/test_creator_sandbox.py",
+    "result": "goals 11 passed; sandbox protected-path suite passed (167 passed across the round-6 run)",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/sandbox.py:PROTECTED",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "creator/capabilities_approved.json (written only by goals.approve) was NOT a protected path: a worker package could add a capability (a goal becoming work with no approval) or lower an approved capability's floor and the kernel would merge it on a measured pass. FIXED: added to PROTECTED; test_protected_paths_are_refused[creator/capabilities_approved.json] (failed before)."
+    },
+    {
+     "where": "creator/goals.py:approve",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "capabilities_approved.json was written before the requirement ladder compiled; a compile failure left the capability behind with the proposal still PENDING, so approving again added it a second time. FIXED: the file is restored on any failure; test_a_failed_approval_leaves_no_capability_behind (failed before)."
+    },
+    {
+     "where": "creator/goals.py:approve",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "'teacher' vs 'owner' is a self-asserted string (scripts/nupen_goals.py --by); no code path in creator/ or scripts/ calls approve, so nothing autonomous can approve, but any local user can claim either role. Two concurrent approvals of one proposal are not serialised (CLI use only)."
+    },
+    {
+     "where": "creator/goals.py:propose",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: proposals are append-only events written with one binary append; maybe_propose never raises; a rejected key is never proposed again; constraint proposals (constraints.act) go through the same PENDING state."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-doctrine": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_doctrine.py",
+    "result": "all passed (167 passed across the round-6 run)",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/doctrine.py:_junit",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "A MAPPED test counts as PASS from state/creator/junit XML regardless of the age of that XML or the source it ran against (no digest binding, unlike selfmodel's test evidence). Stale evidence can show PASS after the code changed. Nothing here yields VALIDATED, so the exposure is a too-optimistic section roll-up, not an adoption."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-constraints": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_constraints.py tests/test_creator_reconcile.py",
+    "result": "all passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/constraints.py:act",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified read-only except constraints.jsonl (one binary append per record) and goal proposals in PENDING state; a process remedy only computes recursion.design_change and applies nothing; a remedy rejected twice is suppressed unless the loss grew 25%. A proposal key includes int(loss*100), so after ONE rejection a new proposal appears when the loss moves by a point - this is the documented 'rejected twice' rule, not a bug. Cycle time comes from cycle.json mtime."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-fundamentals": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_fundamentals.py",
+    "result": "19 passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/fundamentals.py:_git_show",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "git show ran without a timeout inside evaluate_candidate ('never raises'): a locked repository hung the kernel cycle. FIXED: 60 s timeout, TimeoutExpired becomes an errors['evaluate'] note; test_a_hung_git_cannot_hang_the_candidate_evaluation (failed before)."
+    },
+    {
+     "where": "creator/fundamentals.py:evaluate_candidate",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "A failed git show (bad base, git error) is indistinguishable from a NEW file, so every violation of that file counts as new. Advisory only: the report never rejects."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-prescreen": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_prescreen.py",
+    "result": "7 passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "scripts/practice.py:practice",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "With --no-tests a candidate that only imported got good=True (tests_pass None) and became a positive training row for the chooser although no test ran. FIXED: such rows are written inconclusive=True and chooser.practice_rows drops them; test_a_practice_run_without_tests_gives_the_chooser_no_positive_label (failed before)."
+    },
+    {
+     "where": "creator/prescreen.py:check_in_tree",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: only rejects, restores the file byte-for-byte in a finally, never writes the ledger. A same-size candidate restored within the same second could reuse a stale .pyc (mtime in whole seconds); the files are scratch snapshots, not the repo."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-chooser": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_chooser.py",
+    "result": "all passed",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/chooser.py:practice_rows",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: practice rows (source 'prescreen', weight 0.3) are consumed only by scripts/prescreen_report.py; lesson_rows (real kernel outcomes) is the only input of shadow.loo, so practice evidence cannot reach the pre-registered switch rule."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-shadow": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_shadow.py",
+    "result": "8 passed (7 + 1 new)",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "creator/shadow.py:resolve",
+     "severity": "high",
+     "status": "FIXED",
+     "issue": "Shadow rows are written with lesson_id '' so every row of a RETRIED package was joined to the package's LATEST student lesson: the first attempt's row was scored with the second attempt's outcome, corrupting the evidence of switch rule B. FIXED: a row belongs to the first unclaimed lesson written at or after the decision; test_a_retried_package_does_not_feed_one_outcome_to_every_attempt (failed before)."
+    },
+    {
+     "where": "creator/shadow.py:decide rule B",
+     "severity": "medium",
+     "status": "OPEN",
+     "issue": "Rule B counts only ADOPTED outcomes among disagreements (chooser-applied adopted vs default-applied adopted) and ignores the attempts that were rejected, so a policy applied far more often wins on raw adoption counts (e.g. chooser 12 adopted of 100 vs default 1 of 20 gives t=13, Wilson lower bound > 0.5, flip). The thresholds are pre-registered and must not be edited to fit; the denominator should be attempts. Flagged for the owner; rule A (leave-one-out on real rows) is sound."
+    },
+    {
+     "where": "creator/shadow.py:record",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Rows and events are appended in text mode (CRLF on Windows, readers use splitlines) with one write per row; policy.json is rewritten non-atomically and an unreadable file means 'use the default', which is safe."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-nupen_watchdog": {
+   "verdict": "VALIDATED_WITH_ISSUES",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_nupen_watchdog.py",
+    "result": "13 passed (10 + 3 new)",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "scripts/nupen_watchdog.py:_read_pid",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "No boot check on either pidfile: a stale pidfile with a recycled live pid meant 'a watchdog is already running' forever and no watchdog could start. FIXED: pid files older than the boot are ignored; test_a_pidfile_from_before_the_boot_does_not_keep_the_watchdog_from_starting (failed before). claim() also re-reads the file before taking over a leftover."
+    },
+    {
+     "where": "scripts/nupen_watchdog.py:supervisor_state",
+     "severity": "medium",
+     "status": "FIXED",
+     "issue": "A heartbeat written by a previous supervisor (hours old after the computer was off) made a freshly started, not yet beating supervisor look hung, and the watchdog ended it. FIXED: a beat whose pid differs from the live supervisor's counts as no beat; test_a_fresh_supervisor_is_not_ended_for_its_predecessors_beat (failed before)."
+    },
+    {
+     "where": "scripts/nupen_watchdog.py",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: exclusive-create claim, one watchdog, NUPEN_STOP always respected while it keeps watching (removing the file restarts Nupen), 120 s grace after each restart, detached/no-window flags, no print(). A live supervisor with NO heartbeat file at all is treated as ok."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-practice": {
+   "verdict": "VALIDATED",
+   "evidence": {
+    "command": "python scripts/lowprio.py python -m pytest -p no:cacheprovider -q tests/test_creator_prescreen.py",
+    "result": "7 passed; practice() and snapshot() are exercised there",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [
+    {
+     "where": "scripts/practice.py",
+     "severity": "info",
+     "status": "OPEN-INFO",
+     "issue": "Verified: works only on a git-archive snapshot (never the repo), appends rows with a flush per candidate from ONE process (two concurrent practice runs could interleave lines), skips groups already measured, cleans the scratch directory in a finally. Rows never reach shadow/lessons."
+    }
+   ],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+  },
+  "NEW-conversation": {
+   "verdict": "NOT_PRESENT",
+   "evidence": {
+    "command": "git ls-files creator/conversation.py scripts/nupen.py creator/goal_student_shrink.py",
+    "result": "none of creator/conversation.py, scripts/nupen.py, creator/goal_student_shrink.py (K28) exists on this branch; not validated",
+    "code_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
+   },
+   "issues": [],
+   "depth": "module read in full; docstring promises checked against code; tests run; races and gaming paths probed",
+   "revalidated": "round 6 (h10/validate6)",
+   "validated_commit": "5b2eece6e6c111662a26659c48ac74e82e461285"
   }
  },
  "verdict_counts": {
-  "VALIDATED": 34,
+  "VALIDATED": 39,
   "RETIRED": 1,
-  "VALIDATED_WITH_ISSUES": 1
+  "VALIDATED_WITH_ISSUES": 5,
+  "NOT_PRESENT": 1
  },
  "fixed": [
   "agents.run_agent non-object JSON crash",
-  "objective.compile_capabilities build-order dependency"
+  "objective.compile_capabilities build-order dependency",
+  "round 6: shadow.resolve joined every retry's row to the latest lesson; capabilities_approved.json unprotected; reconcile credited orphan lessons with another worker's cycle; supervisor orphaned its swarm on error; watchdog/supervisor pidfile boot check; heartbeat of a predecessor ended a fresh supervisor; tests started a real watchdog; practice --no-tests rows trained the chooser; fundamentals git show without timeout; failed goal approval left a capability"
  ],
  "regression_tests": "tests/test_creator_validator_regressions.py (both proven failing before fix)",
  "not_done": "Components read only partially in earlier rounds stay as labelled; generator 'model' strategy untested against a real llama-server; devbench.score_holdout cannot be changed here.",
