@@ -154,7 +154,8 @@
     "creator/kernel.py"
    ],
    "tests": [
-    "tests/test_creator_kernel.py"
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_integration.py"
    ],
    "floor": 0
   },
@@ -176,7 +177,8 @@
     "creator/audit/checks.py"
    ],
    "tests": [
-    "tests/test_creator_audit.py"
+    "tests/test_creator_audit.py",
+    "tests/test_creator_audit_recursion_failures.py"
    ],
    "floor": 0
   },
@@ -283,10 +285,12 @@
    "id": "K26",
    "name": "independent reproduction of claims",
    "modules": [
-    "creator/reproduce.py"
+    "creator/reproduce.py",
+    "creator/claims.py"
    ],
    "tests": [
-    "tests/test_creator_reproduce.py"
+    "tests/test_creator_reproduce.py",
+    "tests/test_creator_claims.py"
    ],
    "floor": 0
   }

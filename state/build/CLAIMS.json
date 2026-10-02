@@ -1,0 +1,1232 @@
+{
+ "chain": {
+  "error": null,
+  "ok": true,
+  "records": 1397
+ },
+ "claims": [
+  {
+   "evidence": [
+    {
+     "record": "IC-f6b648f9f2b633f8b933",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-fcc39e91681889bb100c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-34574ea52c3c37883b77",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-e0601c2f7d37c723c921",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-55991c14cbfabc282bea",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-8b31cd3790fcfbb39f9c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-812265d4884b274d9401",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-3bc76d2a65c4b81fc11f",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-150ed537f2f92871cb52",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-17025ea53ab2f3a8a87a",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-aec1ddb50e4e2eaec86b",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0001/evaluation.json",
+     "record": "MS-aec1ddb50e4e2eaec86b",
+     "sha256": "0cbcca5881eaf0b45525a3b8dfba7a35e7581cefa5f43de3dccdbf3bc555a624"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_f73007a8ae8e8a8c.json",
+     "record": "MS-aec1ddb50e4e2eaec86b",
+     "sha256": "d4f344c5ae9c7f6239d803a95e78518276b6008344b0009439cb492a6050826d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0001_cand0/selfmodel_9a60f17d7fdd70f1.json",
+     "record": "MS-aec1ddb50e4e2eaec86b",
+     "sha256": "ed7e80a43eb12a83b2c4ec2d557dbb3a4663625e120037a437f290a41aa6526b"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0001/diff.patch",
+     "record": "MS-aec1ddb50e4e2eaec86b",
+     "sha256": "81aeb73cc1153cf31e3f60c2fa7819ea62ea71f7384c5dd2a5f212e3f4de80e5"
+    }
+   ],
+   "id": "claim:IC-f6b648f9f2b633f8b933",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "REGRESSION",
+    "recorded_verdict": "REGRESSION",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-675312df34c6692de1e3: verdict REGRESSION (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-9c33f6bef407080df3f8",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-3ce1ccb7b220175ce026",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-2a73a7603ef0f6df41f3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-05b6552d40bf85cb0296",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-5d944994db87c5602df6",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-7d698873f0360b0c061a",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-89b70943527d4c6f46a2",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-64bf658f3d3fcf18f265",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-bfed03973e43b20c2ff3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-4d94b451e1a1f1e24583",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-2d713141464ba01dde9b",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0002/evaluation.json",
+     "record": "MS-2d713141464ba01dde9b",
+     "sha256": "2ce591017843122006942ff5ad83ec754cf426d8fe0740f0d138afb2ca44694d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_4b39400a260e39c7.json",
+     "record": "MS-2d713141464ba01dde9b",
+     "sha256": "1de16a29aa87d9b5f896fc625e8cc06099d9f6301af772a1148780f975527b1a"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0002_cand0/selfmodel_119c58b5d8379de0.json",
+     "record": "MS-2d713141464ba01dde9b",
+     "sha256": "a35b299bc36b038e9fef3a0cda19f8277db9418c3f1301b9748d22a3158da8a7"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0002/diff.patch",
+     "record": "MS-2d713141464ba01dde9b",
+     "sha256": "355509fc2930fb58e7dd33d4082cde6dc1f61323457ceb702ae3eb60a087ae93"
+    }
+   ],
+   "id": "claim:IC-9c33f6bef407080df3f8",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-a00d3455305f4e826722: verdict IMPROVEMENT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-aab38490c00a7ca4689a",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-1d4a71caa502bdfd0f54",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-6e213c2d4a5a7c68adb8",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-8c4121ce9d10a4530284",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-425d41734e7eed8cc933",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-5cca5ebe2bbffeb578e5",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-7b81e19d27643fb54fe1",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-f2028a23521372cf6d4d",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-cbc6b42c8be415d56ce2",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-f7b6f7a7e8798cd4b7f9",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-e756a287acda01940da1",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0003/evaluation.json",
+     "record": "MS-e756a287acda01940da1",
+     "sha256": "1b6c1ee7d6a074b653f5a496364d1465d7e88f570b20cda750713abea83a0c70"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_f59c8a0562b44233.json",
+     "record": "MS-e756a287acda01940da1",
+     "sha256": "c9518004bcfb5bcb39f9282ccd573c1204401dc88a3d6a9ffbb1ee19d8cb2b55"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0003_cand0/selfmodel_604406af81dc15c8.json",
+     "record": "MS-e756a287acda01940da1",
+     "sha256": "8306064ff1358bbb943c838c2f8510ac41bc3ea954dd7d4602d1f49f07fb674d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0003/diff.patch",
+     "record": "MS-e756a287acda01940da1",
+     "sha256": "8fcfd5588082cab6f918422a10b256a508e3e29a36c3e4ba120f7ed2d63fd16f"
+    }
+   ],
+   "id": "claim:IC-aab38490c00a7ca4689a",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-92d3a91a993ebf4350d1: verdict IMPROVEMENT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-015da737ee1d9c0169d0",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-5f841210fdeefa60c6c7",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a4338452fc2f7de3a0ea",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-d2ddf6ca2b535a724ee3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-d5d22582767ed0686de6",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-aa774dab84afc2b98bfa",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-fcbb85e1ab21fb098923",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a9360ecb62e905041212",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-743294c1403e2bc21aa7",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-cbe0250d994e069bde82",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-81422875c73a56b25034",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0004/evaluation.json",
+     "record": "MS-81422875c73a56b25034",
+     "sha256": "289295a0fab9935db82edc30053d34d0d550575e1d49000118c122800783c628"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_604406af81dc15c8.json",
+     "record": "MS-81422875c73a56b25034",
+     "sha256": "aa01c9b281daee1995c3ebc3927adb70de52bb6724a36af65f07bffbdea62a82"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0004_cand0/selfmodel_cb2d12472b95d973.json",
+     "record": "MS-81422875c73a56b25034",
+     "sha256": "60efa35425a6bcddb64627f8b0ea14230e0f2d5124599905bb91035cfac2ed06"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0004/diff.patch",
+     "record": "MS-81422875c73a56b25034",
+     "sha256": "330bf508485f979720887000f73bb3ecedd15ab2d45e88d7750d97503f4cede9"
+    }
+   ],
+   "id": "claim:IC-015da737ee1d9c0169d0",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-6a32aaf0c65a984ed577: verdict IMPROVEMENT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-6008bf20a3d247c22004",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-1a29b39f1fd55cb64feb",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-0dd20b8753eac6a56811",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-0d686fa3aa80504d5a3e",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-c40bf3240e4688c31c72",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-9e8c32baccdd4e8a0a1f",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-d0b8581c4fcd8ae6133a",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-767f2d69fc5aa22f14d9",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a68858bd505202642aaa",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-c3b355bef72c4c5382ad",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-2a32bfb62b02848fd09c",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0005/evaluation.json",
+     "record": "MS-2a32bfb62b02848fd09c",
+     "sha256": "2437f6433ca105b27bc6f0a9e31d431df7a92688fbba70c339d8ffd77dce2ab8"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_7fc332517522a3db.json",
+     "record": "MS-2a32bfb62b02848fd09c",
+     "sha256": "bd1c6900b44517a2163c2e2dd6874f8c92a4e0bb29ce41c869d7bbc440d3f55a"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0005_cand0/selfmodel_07ed6cc6b1d2e61a.json",
+     "record": "MS-2a32bfb62b02848fd09c",
+     "sha256": "af2fd2fa44f7bf756162d47a0795c416cbfd027c965eaecc6aad683b8ab3f9e9"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0005/diff.patch",
+     "record": "MS-2a32bfb62b02848fd09c",
+     "sha256": "aa2d7d8d60678dc02b2d0d78b06565f2622513daa0a7e547b594d062ffdf72b8"
+    }
+   ],
+   "id": "claim:IC-6008bf20a3d247c22004",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-98fee36f2eb3f180bab9: verdict IMPROVEMENT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-29dc66484289d8091d01",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-ee1c39e80507641deebe",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-0dd4243ac0d2765872a4",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-39cbfc3610a047e76316",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-c6c59f4eca0cbccf8ba9",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-6dd39467bc592d270ab3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-bbb87e52c502d4faeccc",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-eccd6ac8e2ae3a46c9b2",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a809fa1a52dc4789e4b3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-1bd22c8752cda5d0572b",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-17b01d40fed773085470",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0006/evaluation.json",
+     "record": "MS-17b01d40fed773085470",
+     "sha256": "d63ad84e35ed3d5bb9b62153948c7af70914a3eecdbd4d1d7a7ba9e73c1d26d7"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_07ed6cc6b1d2e61a.json",
+     "record": "MS-17b01d40fed773085470",
+     "sha256": "235a118085aef5c7796d6a5b83d2d8489be540d9efde50fa4204858c3d47cf52"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0006_cand0/selfmodel_eae7795c0ded8391.json",
+     "record": "MS-17b01d40fed773085470",
+     "sha256": "c639d226bbe026f98540bcd710e9333e17062b48d272e5f07cf4cc6884c2f307"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0006/diff.patch",
+     "record": "MS-17b01d40fed773085470",
+     "sha256": "d419a0797a7dece5cefe57768cb43f261aef9145272e7eab3f900b26dc4202a4"
+    }
+   ],
+   "id": "claim:IC-29dc66484289d8091d01",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-bc4c232bd2e15c80481c: verdict IMPROVEMENT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-450ba25e309fe12e81a5",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-9ce05f1e3cf166126a7b",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-01e735aa3b0904398584",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-8c36e8d164453ad5e496",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-fad17bb438da85c9a29e",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-dd7832c58df0793dfeb3",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-d45fbe93d07692d5a3ca",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-26ab8ae8cd301b666dff",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-0abe5a035e729cf8726c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-ca2990efefd97ab8ea62",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-06a8293d680a6a8af654",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0046/evaluation.json",
+     "record": "MS-06a8293d680a6a8af654",
+     "sha256": "e718e65a8fc5a06f87785c4b709cc158e20877e883c07fe01d976b192bca4ab8"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_c66e9c5c1c345c55.json",
+     "record": "MS-06a8293d680a6a8af654",
+     "sha256": "c66e9c5c1c345c55dc559ea553b7f7cae0ba64cc8505c66a823c46fb3a59db8d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0046_cand0/selfmodel_514a5414bcaa22db.json",
+     "record": "MS-06a8293d680a6a8af654",
+     "sha256": "514a5414bcaa22dbd4598db4b395ebcd707ce224cbc41de781e69f221a8743a1"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0046/diff.patch",
+     "record": "MS-06a8293d680a6a8af654",
+     "sha256": "51ba307f059968450003623db92d637cc0984dd9a6fa243b9175cae55af6d826"
+    }
+   ],
+   "id": "claim:IC-450ba25e309fe12e81a5",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "NO_EFFECT",
+    "recorded_verdict": "NO_EFFECT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-1ab0fd426e83e97457af: verdict NO_EFFECT (n=10 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-16af6f8ccf4d6df2cec5",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-e866d63b48166ac53724",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-aa246c02224850beab17",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-89e49c4a8a3fdfc026cd",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-05437d0a6326b7c63b46",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-bc17de4900da1d76e736",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-b41d10bd3d22e2d90f73",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-7c19742807ecf3ee70d8",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-141a7c6f2ab7eea61d63",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-8664cae5b9955375099d",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-27cfd76ab412b12b076c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-0e7f971deb39e2a94757",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-b51e78521b12cc4b135c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-25826d89fe996b66ed37",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-37e2da6c52dacd40e51d",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-1eda14a32f007100c330",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-bffff9e2c04974d7da2d",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0047/evaluation.json",
+     "record": "MS-bffff9e2c04974d7da2d",
+     "sha256": "83237f39e5660fa867a33d6aeb320c4ee2a5da5cb72b6a70e96ac81f6c4db36b"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_c66e9c5c1c345c55.json",
+     "record": "MS-bffff9e2c04974d7da2d",
+     "sha256": "c66e9c5c1c345c55dc559ea553b7f7cae0ba64cc8505c66a823c46fb3a59db8d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0047_cand0/selfmodel_d358d05d79d77c70.json",
+     "record": "MS-bffff9e2c04974d7da2d",
+     "sha256": "d358d05d79d77c700cc45ace91c59c0d65a83c9d3d89150bd62ad7a09c6c8e3c"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0047/diff.patch",
+     "record": "MS-bffff9e2c04974d7da2d",
+     "sha256": "8f725cb4832ba064483e4b517f5ef5f815b0144e877ab77747867ba8b73a48f5"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0047/footprint.json",
+     "record": "MS-bffff9e2c04974d7da2d",
+     "sha256": "8f1d8a340feced0f9849df6b496a0b24bfde6de49899ab38a24a6dcfd407efe1"
+    }
+   ],
+   "id": "claim:IC-16af6f8ccf4d6df2cec5",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-74f502596135c1da297d: verdict IMPROVEMENT (n=16 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-e54f095e9aef9402c740",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-f8f045b432e4c40d9f02",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-c5a49bf419c7f475bcc6",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-fe65ddb9b99255e0c6b9",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-e2b2aae5d0c1666a7e4e",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-08f6eb62630b917b3297",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-562b93059c833426b3dc",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-76ec878014fbc8449c9c",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-7710fe5a1e2108aa9297",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-4b2244ef4886fa405cc6",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-cd97665064bc2724d9bc",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-7e746bfa496c2602a3c1",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-70f5f63037e99f467e89",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a13c600d76862413a9c2",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-1f9093d4fd4cae1e9ca6",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-b1106f7aa15c815871a0",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0054/evaluation.json",
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "sha256": "de4a8f4c74ae169b971c0b780fc5220551d43ce0592964fc75f09c97a393c076"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_626f61782fbe8f79.json",
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "sha256": "626f61782fbe8f795ee6fd4f454c9668affb7cd39f489dfcf0b46c723bb6343a"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0054_cand0/selfmodel_06fdc07c8ab8a58f.json",
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "sha256": "06fdc07c8ab8a58ff73020ba90654cc47055fbb42e6f0c3219e37bd3d3007450"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0054/diff.patch",
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "sha256": "ca48c0ac54d4c130330b3396e186dfb5ebb48c18ff5dd6da16e4a876d1b3e627"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0054/footprint.json",
+     "record": "MS-346703a3d9ba1c1b2f4c",
+     "sha256": "de787981ac42fa29432c5e9a0bd2479c9eb76ea6e44f0cbc18d5ac27d503e27f"
+    }
+   ],
+   "id": "claim:IC-e54f095e9aef9402c740",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "REGRESSION",
+    "recorded_verdict": "REGRESSION",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-d9f22202483b585126fe: verdict REGRESSION (n=16 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "IC-3f153275a1e3a9e4af7a",
+     "type": "ImprovementClaim"
+    },
+    {
+     "record": "MS-c8486604cdac9d1b98c2",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-29c773d3766b1933461b",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-bd53c0d86d2b781389d5",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-56a0b5ca7c748584e4e7",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-b8f1fc6d83b664fd36a4",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-c05e36b08a51908058ae",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-07ab4dad314999158693",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-d8b45ed4eb36b1675d3f",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-85cdc72c1f33c736bab5",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-feac36080160e3bb48f7",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-3cfaba65e0d6a122d09a",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-76f536df96e8cc3f119e",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-a9cd9f0a8de8e7ee929e",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-13bafbb1bf494c705548",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-fc1f41a037d8f49d16be",
+     "type": "Measurement"
+    },
+    {
+     "record": "MS-6ccc08a128c2a71699c3",
+     "type": "Measurement"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0053/evaluation.json",
+     "record": "MS-6ccc08a128c2a71699c3",
+     "sha256": "d960ba32d6dc7521ec6e2fb2fe2f21c62298583c560ee8518fc3a79d6b0966d8"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/main/selfmodel_626f61782fbe8f79.json",
+     "record": "MS-6ccc08a128c2a71699c3",
+     "sha256": "626f61782fbe8f795ee6fd4f454c9668affb7cd39f489dfcf0b46c723bb6343a"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/evidence/CP0053_cand0/selfmodel_bb3283e5d389dc97.json",
+     "record": "MS-6ccc08a128c2a71699c3",
+     "sha256": "bb3283e5d389dc9768ea809235d3eb81b3e9337adf4afb008722a08319600686"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0053/diff.patch",
+     "record": "MS-6ccc08a128c2a71699c3",
+     "sha256": "05fd9741bdea5f3c948c0c6babbf58924032c288e5475171388086d4f2cfa26d"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/cycles/CP0053/footprint.json",
+     "record": "MS-6ccc08a128c2a71699c3",
+     "sha256": "784a3b85b8d09fd95b5a151f91ee7963da7a25bf5a4caa1eab47de4dc7723e21"
+    }
+   ],
+   "id": "claim:IC-3f153275a1e3a9e4af7a",
+   "kind": "improvement_claim",
+   "recomputation": {
+    "recomputed_verdict": "IMPROVEMENT",
+    "recorded_verdict": "IMPROVEMENT",
+    "status": "REPRODUCED"
+   },
+   "statement": "EXP-7bd5fac4de2ecd587207: verdict IMPROVEMENT (n=16 measurements)",
+   "status": "SUPPORTED",
+   "why": "recomputed verdict matches and all evidence is unchanged"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-467bb0fa683b71fde317",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-9c33f6bef407080df3f8",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0002/6c7958693708dcb63b03f6e4539791eb6d6d64f3"
+    }
+   ],
+   "id": "adoption:DEC-467bb0fa683b71fde317",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-a00d3455305f4e826722 was adopted: K07.exists closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-96a75a098584318ea4a6",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-aab38490c00a7ca4689a",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0003/691ce3226d841b11c0501ffbcd0a909ff3071bbe"
+    }
+   ],
+   "id": "adoption:DEC-96a75a098584318ea4a6",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-92d3a91a993ebf4350d1 was adopted: K08.exists closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-6097eafee00c3b62470d",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-015da737ee1d9c0169d0",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0004/fd81c85b6fec8d253125b821973ddd9c9823781d"
+    }
+   ],
+   "id": "adoption:DEC-6097eafee00c3b62470d",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-6a32aaf0c65a984ed577 was adopted: K11.exists closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-f25e25650617386d280c",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-6008bf20a3d247c22004",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0005/c28480008ab371b106b1950d5c01f0ab8da86907"
+    }
+   ],
+   "id": "adoption:DEC-f25e25650617386d280c",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-98fee36f2eb3f180bab9 was adopted: K12.exists closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-5ddeef19dbb4605ad194",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-29dc66484289d8091d01",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0006/bcc28a19d4205af2dd4eabecf100318077d7002b"
+    }
+   ],
+   "id": "adoption:DEC-5ddeef19dbb4605ad194",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-bc4c232bd2e15c80481c was adopted: K13.exists closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "record": "DEC-f3f11cd71ca393d2fd25",
+     "type": "Decision"
+    },
+    {
+     "record": "IC-3f153275a1e3a9e4af7a",
+     "type": "ImprovementClaim"
+    },
+    {
+     "kind": "merge_commit",
+     "path": "state/creator/cycles/CP0053/42a2630ab7f17e6706ebc623d671512704e6ae68"
+    }
+   ],
+   "id": "adoption:DEC-f3f11cd71ca393d2fd25",
+   "kind": "adoption",
+   "recomputation": {
+    "claim_status": "REPRODUCED",
+    "merge_commit_checked": true
+   },
+   "statement": "EXP-7bd5fac4de2ecd587207 was adopted: EFF.activation closed with no regression",
+   "status": "SUPPORTED",
+   "why": "claim reproduced and the merge commit exists in git"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/creator/STATUS.json",
+     "sha256": "581c9a421ec7aeb95d1981e31513e2e5d95a8d30f5c9b15d40f708e002f8fe81"
+    },
+    {
+     "ok": true,
+     "path": "creator/capabilities.json",
+     "sha256": "f0b2bef5f35e9299a68e3258bcd89752e1becaa214d340b865efdc45cd423799"
+    }
+   ],
+   "id": "headline:capabilities",
+   "kind": "headline",
+   "recomputation": {
+    "declared": 26,
+    "listed": 17
+   },
+   "statement": "STATUS lists 17 capabilities, all of those declared",
+   "status": "UNSUPPORTED",
+   "why": "differ: missing ['K18', 'K19', 'K20', 'K21', 'K22', 'K23', 'K24', 'K25', 'K26'], extra []"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/creator/STATUS.json",
+     "sha256": "581c9a421ec7aeb95d1981e31513e2e5d95a8d30f5c9b15d40f708e002f8fe81"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/AUDIT.json",
+     "sha256": "a399ffda88296be66f499604788c8817faeeb8e92845fc7ea5be2702143966f2"
+    }
+   ],
+   "id": "headline:adversary",
+   "kind": "headline",
+   "recomputation": {
+    "recomputed_from_AUDIT.json": {
+     "attacks": 8,
+     "caught": 8
+    }
+   },
+   "statement": "adversary caught 8 of 8 attacks",
+   "status": "SUPPORTED",
+   "why": "STATUS agrees with the attack list in AUDIT.json"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/creator/STATUS.json",
+     "sha256": "581c9a421ec7aeb95d1981e31513e2e5d95a8d30f5c9b15d40f708e002f8fe81"
+    },
+    {
+     "ok": true,
+     "path": "state/creator/AUDIT.json",
+     "sha256": "a399ffda88296be66f499604788c8817faeeb8e92845fc7ea5be2702143966f2"
+    }
+   ],
+   "id": "headline:audit",
+   "kind": "headline",
+   "recomputation": {
+    "recomputed_from_AUDIT.json": {}
+   },
+   "statement": "audit counts {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}",
+   "status": "SUPPORTED",
+   "why": "STATUS counts equal the findings listed in AUDIT.json"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/creator/STATUS.json",
+     "sha256": "581c9a421ec7aeb95d1981e31513e2e5d95a8d30f5c9b15d40f708e002f8fe81"
+    }
+   ],
+   "id": "headline:adversary_live",
+   "kind": "headline",
+   "recomputation": {
+    "recomputed_now": {
+     "attacks": 21,
+     "caught": 21
+    }
+   },
+   "statement": "the adversary catches 8 of 8 attacks",
+   "status": "UNSUPPORTED",
+   "why": "STATUS is stale: it says 8/8, re-running now gives 21/21 (regenerate with scripts/creator_status.py)"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/creator/STATUS.json",
+     "sha256": "581c9a421ec7aeb95d1981e31513e2e5d95a8d30f5c9b15d40f708e002f8fe81"
+    }
+   ],
+   "id": "headline:ledger_records",
+   "kind": "headline",
+   "recomputation": {
+    "chain_ok": true,
+    "records_now": 1397
+   },
+   "statement": "the ledger holds 700 verified records (at STATUS time)",
+   "status": "SUPPORTED",
+   "why": "the hash chain verifies and contains at least that many records"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/build/CREATOR_MASTER_CHECKLIST.json",
+     "sha256": "af1f4f8cdc087794dc1d9c92ac79ba49297ce5c988514e1ed9b851da3e0850b0"
+    },
+    {
+     "ok": true,
+     "path": "state/build/CHECKLIST_REMAINING.md",
+     "sha256": "729c324a6da186c7be95b147c0db172ef5542f5aa18d931a0e0a88070e570c95"
+    }
+   ],
+   "id": "headline:checklist_counts",
+   "kind": "headline",
+   "recomputation": {
+    "items": 304,
+    "recomputed_from_checklist": {
+     "IMPLEMENTED": 101,
+     "NOT_STARTED": 39,
+     "TESTING": 164
+    }
+   },
+   "statement": "checklist counts {'IMPLEMENTED': 101, 'TESTING': 164, 'NOT_STARTED': 39} (304 items)",
+   "status": "SUPPORTED",
+   "why": "CHECKLIST_REMAINING.md equals the counts of CREATOR_MASTER_CHECKLIST.json"
+  },
+  {
+   "evidence": [
+    {
+     "ok": true,
+     "path": "state/build/CREATOR_MASTER_CHECKLIST.json",
+     "sha256": "af1f4f8cdc087794dc1d9c92ac79ba49297ce5c988514e1ed9b851da3e0850b0"
+    }
+   ],
+   "id": "headline:nothing_validated_by_hand",
+   "kind": "headline",
+   "recomputation": {
+    "count": 0,
+    "validated_items": []
+   },
+   "statement": "no checklist item is VALIDATED without the validator report",
+   "status": "SUPPORTED",
+   "why": "no item is VALIDATED"
+  }
+ ],
+ "counts": {
+  "SUPPORTED": 21,
+  "UNSUPPORTED": 2,
+  "claims": 23
+ },
+ "ledger": "state/creator/ledger.jsonl",
+ "unsupported": [
+  "headline:capabilities",
+  "headline:adversary_live"
+ ]
+}
