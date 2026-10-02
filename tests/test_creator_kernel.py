@@ -447,3 +447,29 @@ def test_a_cycle_serves_the_base_run_from_main_and_decides_the_same(cfg: K.Kerne
     rep2 = K.cycle(cfg, Scripted("good", dict(change)))
     assert [c for c in calls if c[0] == "base"], calls
     assert (rep2.outcome, rep2.verdict) == (rep.outcome, rep.verdict)
+
+
+def test_a_pulled_back_package_keeps_its_finished_work(cfg: K.KernelConfig) -> None:
+    """2 Oct: CP0065 (a finished -136-node shrink) was pulled back for RAM and its sandbox deleted with nothing saved. A cancel now
+    saves the sandbox diff to state/creator/pending/ before the sandbox goes; main stays untouched."""
+    import threading
+    pull_back = threading.Event()
+
+    class Finisher(Scripted):
+        def __call__(self, plan, package, workdir: Path) -> K.WorkResult:      # type: ignore[no-untyped-def]
+            res = super().__call__(plan, package, workdir)
+            pull_back.set()                                                    # the governor pulls it back right after
+            return res
+    led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    main, _, stop = K.prepare(cfg, led)
+    assert stop is None and main is not None
+    before = head(cfg)
+    plan = K.plan_one(cfg, led, main, before)
+    assert plan is not None
+    rep = K.execute(cfg, Finisher("done", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST}), plan, main, before, led=led,
+                    cancel=pull_back)
+    assert rep.outcome == "CANCELLED", (rep.outcome, rep.reason)
+    saved = Path(rep.details["saved_diff"])
+    assert saved.is_file() and saved.parent == cfg.state / "pending"
+    assert "pkg/user.py" in saved.read_text(encoding="utf-8") and "tests/test_user.py" in saved.read_text(encoding="utf-8")
+    assert head(cfg) == before and not (cfg.repo / "pkg" / "user.py").exists()
