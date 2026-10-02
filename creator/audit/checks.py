@@ -85,10 +85,12 @@ def _in_history(root: Path, ref: M.EvidenceRef, memo: dict[str, set[str]]) -> bo
         code, out = _git(root, "log", "--format=%H", "--", ref.path)
         for sha in (out.split() if code == 0 else [])[:200]:
             try:
-                blob = subprocess.run(["git", "show", f"{sha}:{ref.path}"], cwd=root, capture_output=True, timeout=60).stdout
+                shown = subprocess.run(["git", "show", f"{sha}:{ref.path}"], cwd=root, capture_output=True, timeout=60)
             except (OSError, subprocess.SubprocessError):
                 continue
-            seen.add(hashlib.sha256(blob).hexdigest())                         # exact bytes only (core.autocrlf is off)
+            if shown.returncode != 0:                                          # a commit that DELETED the path has no blob there
+                continue
+            seen.add(hashlib.sha256(shown.stdout).hexdigest())                         # exact bytes only (core.autocrlf is off)
         memo[ref.path] = seen
     return ref.sha256 in memo[ref.path]
 

@@ -185,3 +185,18 @@ def test_one_local_model_per_machine_lock_waits_times_out_and_survives_a_killed_
     m2 = G.MachineLock(lock, wait_s=5, poll_s=0.05)
     m2.acquire()
     m2.release()
+
+
+def test_a_failed_start_before_the_server_exists_releases_the_machine_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validator round 5: the lock was taken before `free_port()` / `reap_stale_server()` sat outside the cleanup, so an error there
+    left the lock held (nobody called __exit__) and every later LocalModel in that process waited out its 1800 s for nothing."""
+    llm = fake_model(tmp_path, "ok")
+
+    def boom() -> int:
+        raise OSError("no free port")
+    monkeypatch.setattr(G, "free_port", boom)
+    with pytest.raises(OSError):
+        llm.__enter__()
+    other = G.MachineLock(tmp_path / "llama_server.lock", wait_s=0.5, poll_s=0.05)
+    other.acquire()                                                             # would raise TimeoutError if the lock leaked
+    other.release()

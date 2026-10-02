@@ -63,3 +63,13 @@ def test_teacher_share_counts_replays_and_a_replay_never_owns_a_kind(tmp_path: P
     sc = C.student_scores(lessons)
     assert sc["teacher_share"] == 0.75
     assert "claude-replay" not in C.Router(min_attempts=5, threshold=0.8).owners(lessons, "tests")
+
+
+def test_a_lesson_naming_a_path_outside_the_work_directory_is_never_replayed(tmp_path: Path) -> None:
+    """Validator round 5: files_after keys were joined to the work directory unchecked, so '../outside.py' wrote outside the sandbox
+    (a replay runs BEFORE the kernel measures anything)."""
+    log = C.LessonLog(tmp_path / "lessons.jsonl")
+    _lesson(log, {"../outside.py": ""}, {"../outside.py": "boom = 1\n"})
+    wd = _work(tmp_path)
+    r = ReplayStudent(tmp_path / "lessons.jsonl")(None, SimpleNamespace(objective=OBJ), wd)
+    assert not r.claimed_done and not (tmp_path / "outside.py").exists()
