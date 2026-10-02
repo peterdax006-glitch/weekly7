@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="24" time="855.357" timestamp="2026-10-02T02:31:50.402133-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_generator" name="test_parse_files_refuses_paths_outside_the_task" time="0.001" /><testcase classname="tests.test_creator_generator" name="test_model_strategy_retries_with_the_failure" time="15.819" /><testcase classname="tests.test_creator_generator" name="test_model_strategy_gives_up_honestly" time="31.763" /><testcase classname="tests.test_creator_generator" name="test_search_repairs_an_off_by_one_without_any_model" time="7.636" /><testcase classname="tests.test_creator_generator" name="test_search_restores_the_file_when_it_fails" time="10.876" /><testcase classname="tests.test_creator_generator" name="test_experience_orders_strategies_and_supplies_examples" time="0.013" /><testcase classname="tests.test_creator_generator" name="test_holdout_runs_never_write_experience" time="11.248" /><testcase classname="tests.test_creator_generator" name="test_the_solver_is_scored_by_hidden_tests" time="42.116" /><testcase classname="tests.test_creator_generator" name="test_the_real_local_model_answers_offline" time="711.459"><failure message="TimeoutError: timed out">@pytest.mark.skipif(not (G.SERVER_EXE.is_file() and G.DEFAULT_MODEL.is_file()), reason="local model runtime not installed")
+    def test_the_real_local_model_answers_offline() -&gt; None:
+        with G.LocalModel() as llm:
+&gt;           reply = llm.chat([{"role": "user", "content": "Reply with exactly: FILE: a.py then a python block defining x = 1"}],
+                             max_tokens=60, temperature=0.0)
+
+tests\test_creator_generator.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+creator\generator.py:287: in chat
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:216: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:519: in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:536: in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:496: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:1377: in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\urllib\request.py:1352: in do_open
+    r = h.getresponse()
+        ^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:1395: in getresponse
+    response.begin()
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:325: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+..\..\AppData\Local\Programs\Python\Python311\Lib\http\client.py:286: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;socket.SocketIO object at 0x0000016069127880&gt;
+b = &lt;memory at 0x0000016069071CC0&gt;
+
+    def readinto(self, b):
+        """Read up to len(b) bytes into the writable buffer *b* and return
+        the number of bytes read.  If the socket is non-blocking and no bytes
+        are available, None is returned.
+    
+        If *b* is non-empty, a 0 return value indicates that the connection
+        was shutdown at the other end.
+        """
+        self._checkClosed()
+        self._checkReadable()
+        if self._timeout_occurred:
+            raise OSError("cannot read from timed out object")
+        while True:
+            try:
+&gt;               return self._sock.recv_into(b)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+E               TimeoutError: timed out
+
+..\..\AppData\Local\Programs\Python\Python311\Lib\socket.py:706: TimeoutError</failure></testcase><testcase classname="tests.test_creator_generator" name="test_family_wrong_variable" time="0.040" /><testcase classname="tests.test_creator_generator" name="test_family_dropped_guard" time="0.016" /><testcase classname="tests.test_creator_generator" name="test_family_guard_not_duplicated" time="0.008" /><testcase classname="tests.test_creator_generator" name="test_family_swapped_branches" time="0.007" /><testcase classname="tests.test_creator_generator" name="test_family_range_end" time="0.008" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[max-min]" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[sorted-list]" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[sum-len]" time="0.059" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[list-sorted]" time="0.011" /><testcase classname="tests.test_creator_generator" name="test_family_method_swap" time="0.006" /><testcase classname="tests.test_creator_generator" name="test_targeted_families_are_bounded" time="14.771" /><testcase classname="tests.test_creator_generator" name="test_ranking_prefers_the_minimal_behaviour_change" time="4.881" /><testcase classname="tests.test_creator_generator" name="test_divergence_counts_changed_calls_and_survives_broken_candidates" time="1.845" /><testcase classname="tests.test_creator_generator" name="test_experience_memory_concurrent_adds_never_interleave" time="1.240" /><testcase classname="tests.test_creator_generator" name="test_search_restores_the_file_when_visible_tests_raises" time="0.016" /></testsuite></testsuites>

@@ -1,0 +1,20 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0065",
+ "requirement": "EFF.size",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 1101.3,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "self-student-v1: self-student-v1 cannot attempt this task; nupen-model-v1: no edit applied: creator/generator.py: SEARCH text not found exactly once; the edits changed nothing; nupen-model-v2: model call failed: TimeoutError: timed out; self-rules-v1: no rule applied; creator/generator.py 7742 -> 7606 AST nodes (-136), no behaviour change: (1) _kill_pid's Windows branch re-implemented TerminateProcess through ctypes; os.kill(pid, 9) already calls TerminateProcess on Windows and SIGKILL elsewhere, so both branches collapse to one call; (2) _set_op, _set_name and _set_attr were the same 'set one field of the mutated node' closure - one _set(field, value) instantiates node classes fresh per mutant as _set_op did. Tests: generator, leak (kills real processes through _kill_pid), model_student, action_student: 55 passed.",
+   "by": "claude-session"
+  }
+ }
+}

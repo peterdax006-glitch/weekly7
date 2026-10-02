@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="15" time="187.432" timestamp="2026-10-02T03:02:35.779714-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_planner" name="test_plan_takes_the_top_unblocked_gap_and_writes_the_whole_chain" time="13.874" /><testcase classname="tests.test_creator_planner" name="test_planned_gaps_are_not_planned_twice_and_ids_are_sequential" time="13.394" /><testcase classname="tests.test_creator_planner" name="test_validated_gaps_go_to_the_validator_not_a_worker" time="13.506" /><testcase classname="tests.test_creator_planner" name="test_failures_replan_with_reasons_then_block" time="17.250" /><testcase classname="tests.test_creator_planner" name="test_success_leaves_the_gap_for_sync_to_prove" time="11.060" /><testcase classname="tests.test_creator_planner" name="test_nothing_plannable" time="0.003" /><testcase classname="tests.test_creator_planner" name="test_the_package_states_the_current_check_not_the_gap_text" time="19.546" /><testcase classname="tests.test_creator_planner" name="test_interruptions_are_not_attempts_so_a_gap_is_never_blocked_by_stops" time="19.252" /><testcase classname="tests.test_creator_planner" name="test_a_gap_blocked_by_stops_is_reopened_but_a_really_exhausted_one_stays_blocked" time="16.038" /><testcase classname="tests.test_creator_planner" name="test_efficiency_falls_back_to_the_other_kind_when_the_preferred_one_has_no_target" time="0.002" /><testcase classname="tests.test_creator_planner" name="test_a_pulled_back_target_is_not_skipped_but_a_failed_one_is" time="10.266" /><testcase classname="tests.test_creator_planner" name="test_the_coverage_planner_picks_the_module_with_the_biggest_test_gap" time="2.522" /><testcase classname="tests.test_creator_planner" name="test_design_selects_an_approach_records_every_option_and_changes_with_failure" time="14.839" /><testcase classname="tests.test_creator_planner" name="test_memory_puts_what_failed_before_for_another_component_into_the_package" time="17.040" /><testcase time="10.023" /><testcase classname="pytest" name="internal" time="0.000"><error message="internal error">Traceback (most recent call last):
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+                         ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    raise exception
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\logging.py", line 816, in pytest_runtestloop
+    return (yield)  # Run all the tests.
+            ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\terminal.py", line 708, in pytest_runtestloop
+    result = yield
+             ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    raise exception
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\warnings.py", line 90, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\assertion\__init__.py", line 205, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\unittest.py", line 612, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\faulthandler.py", line 102, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\runner.py", line 256, in call_and_report
+    ihook.pytest_runtest_logreport(report=report)
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    raise exception
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\terminal.py", line 699, in pytest_runtest_logreport
+    self.flush()
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\terminal.py", line 532, in flush
+    self._tw.flush()
+  File "C:\Users\Peter\weekly7\.venv\Lib\site-packages\_pytest\_io\terminalwriter.py", line 187, in flush
+    self._file.flush()
+OSError: [Errno 22] Invalid argument</error></testcase></testsuite></testsuites>

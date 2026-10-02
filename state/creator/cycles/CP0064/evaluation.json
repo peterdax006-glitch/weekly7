@@ -1,0 +1,152 @@
+{
+ "base": "37c85581ddbd0330baa62ad155403b5dfd00641c",
+ "changed": {
+  "tests/test_gen_dialogue.py": "A"
+ },
+ "change_digest": "da9f3371c1f854f8",
+ "builds": true,
+ "build": {
+  "tree": "candidate",
+  "ok": true,
+  "kinds": [],
+  "new_issues": 0,
+  "preexisting_type_issues": 0,
+  "require_typecheck": true,
+  "notes": [],
+  "steps": [
+   {
+    "name": "compile",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.0,
+    "checked": [
+     "tests/test_gen_dialogue.py"
+    ],
+    "issues": [],
+    "proc": null
+   },
+   {
+    "name": "import",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 0.391,
+    "checked": [
+     "tests.test_gen_dialogue"
+    ],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-c",
+      "\nimport importlib, json, os, sys, traceback\nroot = os.path.normcase(os.path.realpath(sys.argv[1]))\nout = []\nfor name in sys.argv[2:]:\n    rec = {\"module\": name}\n    try:\n        m = importlib.import_module(name)\n        f = getattr(m, \"__file__\", None)\n        rec[\"ok\"] = True\n        rec[\"file\"] = f\n        if f is None:\n            locs = [os.path.normcase(os.path.realpath(p)) for p in getattr(m, \"__path__\", [])]\n            if locs and not any(p == root or p.startswith(root + os.sep) for p in locs):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"namespace package resolved outside the sandbox: %r\" % locs)\n        else:\n            rf = os.path.normcase(os.path.realpath(f))\n            if not rf.startswith(root + os.sep):\n                rec.update(ok=False, etype=\"Shadowed\", message=\"module resolved outside the sandbox: %s\" % f)\n    except BaseException as e:\n        rec.update(ok=False, etype=type(e).__name__, message=str(e)[:2000], missing=getattr(e, \"name\", None),\n                   lineno=getattr(e, \"lineno\", None), filename=getattr(e, \"filename\", None),\n                   tb=traceback.format_exc()[-4000:])\n    out.append(rec)\nsys.stdout.write(\"\\n@@CREATOR_IMPORT@@\" + json.dumps(out) + \"\\n\")\n",
+      "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T082244-5bf68352",
+      "tests.test_gen_dialogue"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T082244-5bf68352",
+     "returncode": 0,
+     "seconds": 0.391,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "\n@@CREATOR_IMPORT@@[{\"module\": \"tests.test_gen_dialogue\", \"ok\": true, \"file\": \"C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T082244-5bf68352\\\\tests\\\\test_gen_dialogue.py\"}]\n",
+     "stderr": ""
+    }
+   },
+   {
+    "name": "typecheck",
+    "ran": true,
+    "ok": true,
+    "skipped_reason": "",
+    "seconds": 101.406,
+    "checked": [],
+    "issues": [],
+    "proc": {
+     "argv": [
+      "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+     ],
+     "cwd": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T082244-5bf68352",
+     "returncode": 0,
+     "seconds": 101.406,
+     "timed_out": false,
+     "launch_error": "",
+     "stdout": "Success: no issues found in 173 source files\n",
+     "stderr": ""
+    }
+   }
+  ]
+ },
+ "selection": {
+  "tests": [
+   "tests/test_gen_dialogue.py"
+  ],
+  "reasons": {
+   "tests/test_gen_dialogue.py": "test file changed"
+  },
+  "select_all": false,
+  "why_all": "",
+  "unresolved": [],
+  "digest": "98f35ea2ac7608a9"
+ },
+ "report": {
+  "verdict": "CLEAN",
+  "summary": {
+   "PASS": 0,
+   "FIXED": 0,
+   "REGRESSION": 0,
+   "PREEXISTING": 0,
+   "NEW_FAILING": 0,
+   "NEW_PASSING": 35,
+   "REMOVED": 0,
+   "SKIPPED": 0,
+   "FLAKY": 0
+  },
+  "reasons": [],
+  "blocking": [],
+  "classes": {
+   "tests/test_gen_dialogue.py::test_eval_stage1_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage1_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage1_edge_2": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage1_edge_3": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage2_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage2_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage2_edge_2": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage2_edge_3": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_eval_stage2_edge_4": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_extract_reply_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_extract_reply_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_extract_reply_edge_2": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_extract_reply_edge_3": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_extract_reply_edge_4": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_dialogue_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_dialogue_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_turn_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_turn_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_turn_edge_2": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_turn_edge_3": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_format_turn_edge_4": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_module_imports": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_passed_from_card_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_passed_from_card_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_public_names_exist": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_2": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_3": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_4": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_5": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_stage_items_edge_6": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_training_texts_edge_0": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_training_texts_edge_1": "NEW_PASSING",
+   "tests/test_gen_dialogue.py::test_training_texts_edge_2": "NEW_PASSING"
+  },
+  "flaky_history": {},
+  "timing": {
+   "baseline_s": 0.0,
+   "candidate_s": 0.812
+  }
+ },
+ "evidence_dir": "C:\\Users\\Peter\\.weekly7_creator_sandboxes\\20261002T082244-5bf68352-evidence"
+}

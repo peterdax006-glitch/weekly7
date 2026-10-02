@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="24" time="308.010" timestamp="2026-10-02T02:42:43.188608-06:00" hostname="DaxLaptop"><testcase classname="tests.test_creator_generator" name="test_parse_files_refuses_paths_outside_the_task" time="0.001" /><testcase classname="tests.test_creator_generator" name="test_model_strategy_retries_with_the_failure" time="16.173" /><testcase classname="tests.test_creator_generator" name="test_model_strategy_gives_up_honestly" time="37.582" /><testcase classname="tests.test_creator_generator" name="test_search_repairs_an_off_by_one_without_any_model" time="10.140" /><testcase classname="tests.test_creator_generator" name="test_search_restores_the_file_when_it_fails" time="14.163" /><testcase classname="tests.test_creator_generator" name="test_experience_orders_strategies_and_supplies_examples" time="0.012" /><testcase classname="tests.test_creator_generator" name="test_holdout_runs_never_write_experience" time="14.156" /><testcase classname="tests.test_creator_generator" name="test_the_solver_is_scored_by_hidden_tests" time="67.116" /><testcase classname="tests.test_creator_generator" name="test_the_real_local_model_answers_offline" time="120.880"><failure message="TimeoutError: local model server did not become healthy">@pytest.mark.skipif(not (G.SERVER_EXE.is_file() and G.DEFAULT_MODEL.is_file()), reason="local model runtime not installed")
+    def test_the_real_local_model_answers_offline() -&gt; None:
+&gt;       with G.LocalModel() as llm:
+
+tests\test_creator_generator.py:132: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+creator\generator.py:235: in __enter__
+    self._wait_healthy()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;creator.generator.LocalModel object at 0x000002982827BF10&gt;
+
+    def _wait_healthy(self) -&gt; None:
+        assert self.proc is not None
+        t0 = time.monotonic()
+        while time.monotonic() - t0 &lt; self.startup_s:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/health", timeout=2) as r:
+                    if r.status == 200:
+                        return
+            except (urllib.error.URLError, OSError):
+                pass
+            if self.proc.poll() is not None:
+                raise RuntimeError("local model server exited during start-up")
+            time.sleep(0.2)
+&gt;       raise TimeoutError("local model server did not become healthy")
+E       TimeoutError: local model server did not become healthy
+
+creator\generator.py:254: TimeoutError</failure></testcase><testcase classname="tests.test_creator_generator" name="test_family_wrong_variable" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_family_dropped_guard" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_family_guard_not_duplicated" time="0.001" /><testcase classname="tests.test_creator_generator" name="test_family_swapped_branches" time="0.002" /><testcase classname="tests.test_creator_generator" name="test_family_range_end" time="0.058" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[max-min]" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[sorted-list]" time="0.002" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[sum-len]" time="0.002" /><testcase classname="tests.test_creator_generator" name="test_family_builtin_swaps[list-sorted]" time="0.002" /><testcase classname="tests.test_creator_generator" name="test_family_method_swap" time="0.004" /><testcase classname="tests.test_creator_generator" name="test_targeted_families_are_bounded" time="16.256" /><testcase classname="tests.test_creator_generator" name="test_ranking_prefers_the_minimal_behaviour_change" time="6.182" /><testcase classname="tests.test_creator_generator" name="test_divergence_counts_changed_calls_and_survives_broken_candidates" time="2.887" /><testcase classname="tests.test_creator_generator" name="test_experience_memory_concurrent_adds_never_interleave" time="1.598" /><testcase classname="tests.test_creator_generator" name="test_search_restores_the_file_when_visible_tests_raises" time="0.015" /></testsuite></testsuites>
