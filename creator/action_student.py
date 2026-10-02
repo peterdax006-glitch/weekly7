@@ -434,5 +434,6 @@ class ActionStudent:
         if not changed or any(ST._parse(cur[p]) is None for p in changed):
             return WorkResult(False, "chosen actions did not apply", calls=self.last_calls, reasoning=reasoning)
         for p in changed:
-            (workdir / p).write_text(cur[p], encoding="utf-8", newline="\n")
+            eol = "\r\n" if b"\r\n" in (workdir / p).read_bytes() else "\n"          # a CRLF file stays CRLF: no whole-file diff
+            (workdir / p).write_text(cur[p], encoding="utf-8", newline=eol)
         return WorkResult(True, f"{len(done)} actions applied: {', '.join(done)}", calls=self.last_calls, by=self.name, reasoning=reasoning)

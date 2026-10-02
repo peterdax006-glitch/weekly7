@@ -138,3 +138,15 @@ def test_student_lexical_prior_flag_fixes_a_wrong_pick(work: Path) -> None:
     A.ActionStudent(work / "n.jsonl", llm=FakeLLM(f"CHOICE: {wrong}\nWHY: x"), lexical_prior=True, rich_labels=True)(PLAN, pkg, work)
     new = (work / "app/u.py").read_text(encoding="utf-8")
     assert "import os" not in new and "t = sum(xs)" in new          # the import was dropped, the model's inline_temp was overridden
+
+
+def test_a_crlf_file_stays_crlf_after_an_action(work: Path) -> None:
+    (work / "app/u.py").write_bytes(SRC.replace("\n", "\r\n").encode("utf-8"))
+    st = A.ActionStudent(work / "none.jsonl", llm=FakeLLM(""))
+    cands = st.candidates(PKG, work)
+    drop = next(i for i, a in enumerate(cands, 1) if a.short() == "drop_unused_import(os)")
+    st.llm = FakeLLM(f"CHOICE: {drop}\nWHY: os is unused")
+    res = st(PLAN, PKG, work)
+    assert res.claimed_done, res.detail if hasattr(res, "detail") else res
+    raw = (work / "app/u.py").read_bytes()
+    assert b"import os" not in raw and raw.count(b"\r\n") == raw.count(b"\n") > 5

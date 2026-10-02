@@ -58,9 +58,24 @@ def alive(pid: int) -> bool:
         return False
 
 
+def boot_time() -> float:
+    """Epoch seconds of the last boot, or 0.0 when unknown."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            k = ctypes.windll.kernel32                                      # type: ignore[attr-defined]
+            k.GetTickCount64.restype = ctypes.c_ulonglong
+            return time.time() - k.GetTickCount64() / 1000.0
+        return time.time() - float(Path("/proc/uptime").read_text(encoding="utf-8").split()[0])
+    except (OSError, ValueError, IndexError, AttributeError):
+        return 0.0
+
+
 def claim_pidfile() -> bool:
     try:
         old = int(PIDFILE.read_text(encoding="utf-8").strip() or 0)
+        if PIDFILE.stat().st_mtime < boot_time() - 5.0:
+            old = 0                                    # written before this boot: the pid now belongs to an unrelated process
     except (OSError, ValueError):
         old = 0
     if old and old != os.getpid() and alive(old):

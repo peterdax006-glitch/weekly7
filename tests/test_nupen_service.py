@@ -77,3 +77,19 @@ def test_autostart_command_points_at_the_service() -> None:
     auto = _load("nupen_autostart")
     cmd = auto.command()
     assert "pythonw.exe" in cmd and "nupen_service.py" in cmd
+
+
+def test_a_pidfile_from_before_the_boot_does_not_block_the_supervisor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """After a reboot the old pid may belong to any unrelated live process; the supervisor must still start (it is meant to start
+    with the computer)."""
+    svc = _load("nupen_service")
+    pid = tmp_path / "nupen_service.pid"
+    monkeypatch.setattr(svc, "PIDFILE", pid)
+    monkeypatch.setattr(svc, "alive", lambda p: True)                       # the recycled pid is alive
+    pid.write_text("4242", encoding="utf-8")
+    monkeypatch.setattr(svc, "boot_time", lambda: time.time() + 3600.0)     # booted after the file was written
+    assert svc.claim_pidfile() is True and pid.read_text(encoding="utf-8") == str(os.getpid())
+    pid.write_text("4242", encoding="utf-8")
+    monkeypatch.setattr(svc, "boot_time", lambda: time.time() - 3600.0)     # written after this boot: a real holder
+    assert svc.claim_pidfile() is False
+    assert svc.boot_time.__name__ == "<lambda>" and _load("nupen_service").boot_time() <= time.time()

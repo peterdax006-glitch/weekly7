@@ -295,8 +295,8 @@ def plan_batch(cfg: Any, led: Ledger, main: Any, base_sha: str, slots: int, held
         b = next_batch(led, slots, specs, held, held_files, explain_path=explain_path_for(cfg.ledger_path), steps=steps)
         for n in b.picks:
             p = P.plan_next(led, main.model, base_sha, specs, steps=steps, exclude_components=taken, prefer=(n.id,))
-            if p is not None and p.gap_id == n.id:
-                plans.append(p)
+            if p is not None:                       # even when plan_next moved past a pick it gave up on: the package it wrote is
+                plans.append(p)                     # already in the ledger (gap IN_PROGRESS) and a dropped plan strands it forever
                 taken.append(p.component)
     if len(plans) < slots and cfg.mode in ("auto", "efficiency"):
         p2 = P.plan_efficiency(led, cfg.repo, base_sha, avoid=tuple(held_files))
