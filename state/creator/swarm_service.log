@@ -1,3 +1,6 @@
 {"package": "CP0061", "req": "EFF.coverage", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['git', 'checkout', '-q', 'creator/sbx-20261002T065200-21cf93de']' timed out after 120.0 seconds", "by": null}
 {"package": "CP0062", "req": "EFF.size", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['git', 'checkout', '-q', 'creator/sbx-20261002T065406-03cabf55']' timed out after 120.0 seconds", "by": null}
 {"package": "CP0065", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "claude-session"}
+{"package": "CP0083", "req": "EFF.size", "outcome": "CANCELLED", "reason": "pulled back before evaluation (RAM tight)", "by": "nupen-model-v2"}
+{"package": "CP0091", "req": "EFF.coverage", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T140537-b61ea231-base', '0b48376206983bace81c3a1b4fc5c236674fb4ec']' timed out af", "by": "claude-session"}
+{"package": "CP0094", "req": "EFF.coverage", "outcome": "ERROR", "reason": "TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T140829-8fae0278-base', '0b48376206983bace81c3a1b4fc5c236674fb4ec']' timed out af", "by": "claude-session"}

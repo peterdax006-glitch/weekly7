@@ -1,0 +1,20 @@
+{
+ "cycle": 2,
+ "outcome": "ERROR",
+ "package": "CP0091",
+ "requirement": "EFF.coverage",
+ "reason": "TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T140537-b61ea231-base', '0b48376206983bace81c3a1b4fc5c236674fb4ec']' timed out after 120.0 seconds",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 378.4,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "claude-replay: claude-replay: no adopted example of writing tests yet - the teacher shows first; self-student-v1: self-student-v1: no adopted example of writing tests yet - the teacher shows first; nupen-model-v1: nupen-model-v1: no adopted example of writing tests yet - the teacher shows first; nupen-model-v2: nupen-model-v2: no adopted example of writing tests yet - the teacher shows first; self-testgen-v1: no coverage test generated; Re-applied the teacher's CP0076 solution (tests/test_creator_swarm_publics.py, 10 tests, production code unchanged) - the same objective; CP0076 was cancelled by the owner's pause before it was measured. 10 passed in this sandbox.",
+   "by": "claude-session"
+  }
+ }
+}

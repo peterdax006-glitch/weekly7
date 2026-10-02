@@ -1,0 +1,20 @@
+{
+ "cycle": 2,
+ "outcome": "ERROR",
+ "package": "CP0094",
+ "requirement": "EFF.coverage",
+ "reason": "TimeoutExpired: Command '['git', 'worktree', 'add', '--detach', 'C:\\\\Users\\\\Peter\\\\.weekly7_creator_sandboxes\\\\20261002T140829-8fae0278-base', '0b48376206983bace81c3a1b4fc5c236674fb4ec']' timed out after 120.0 seconds",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 0,
+ "usd": 0.0,
+ "seconds": 312.5,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "claude-replay: claude-replay: no adopted example of writing tests yet - the teacher shows first; self-student-v1: self-student-v1: no adopted example of writing tests yet - the teacher shows first; nupen-model-v1: nupen-model-v1: no adopted example of writing tests yet - the teacher shows first; nupen-model-v2: nupen-model-v2: no adopted example of writing tests yet - the teacher shows first; self-testgen-v1: no coverage test generated; Re-applied the teacher's CP0079 solution (tests/test_lm_evaluate.py, 5 tests; window_nats skips without torch and was verified with the LM env's torch). Same objective; CP0079 was cancelled by the owner's pause before it was measured.",
+   "by": "claude-session"
+  }
+ }
+}

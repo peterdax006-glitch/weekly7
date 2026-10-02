@@ -1,0 +1,21 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0083",
+ "requirement": "EFF.size",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 232.2,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "2 actions applied: lazy_import(copy), lazy_import(itertools)",
+   "by": "nupen-model-v2"
+  },
+  "saved_diff": "C:\\Users\\Peter\\weekly7\\state\\creator\\pending\\CP0083_20261002T135033-44ce913f.patch"
+ }
+}
