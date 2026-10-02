@@ -41,6 +41,8 @@ ADJUDICATED = {"ADOPTED": True, "REJECTED": False, "ROLLED_BACK": False}      # 
 # (adopted=False, verdict "cancelled: ..." / "error: ...") so it is never left unscored forever, but it says nothing about
 # skill, so it is EXCLUDED from student success rates (attempts/rate) and from teacher_share, and never counts as a rejection.
 NO_SIGNAL = {"CANCELLED": "cancelled", "ERROR": "error"}
+REPLAY = "claude-replay"                            # creator.replay_student: re-applies an unmeasured teacher solution
+TEACHER = frozenset({"claude", REPLAY})             # both are the teacher's work: never a student's skill, never an owner
 
 
 def is_skill_signal(les: "Lesson") -> bool:
@@ -158,7 +160,7 @@ def student_scores(lessons: Iterable[Lesson]) -> dict[str, Any]:
             c[1] += 1
             adopted_by[les.solver] = adopted_by.get(les.solver, 0) + 1
     total = sum(adopted_by.values())
-    share = round(adopted_by.get(CLAUDE, 0) / total, 3) if total else None
+    share = round(sum(adopted_by.get(t, 0) for t in TEACHER) / total, 3) if total else None   # a replay is the teacher's work
     return {"cells": {f"{s}|{k}": {"solver": s, "task_kind": k, "attempts": a, "adopted": d, "rate": round(d / a, 3)}
                       for (s, k), (a, d) in sorted(cells.items())},
             "adopted_total": total, "adopted_by": adopted_by,
@@ -174,7 +176,7 @@ class Router:
         """Students (never claude) that own `kind`: enough attempts at a high enough adopted rate."""
         out = []
         for c in student_scores(lessons)["cells"].values():
-            if (c["task_kind"] == kind and c["solver"] != CLAUDE and c["attempts"] >= self.min_attempts
+            if (c["task_kind"] == kind and c["solver"] not in TEACHER and c["attempts"] >= self.min_attempts
                     and c["rate"] >= self.threshold):
                 out.append(c["solver"])
         return out

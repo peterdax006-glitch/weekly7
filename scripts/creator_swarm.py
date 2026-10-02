@@ -88,6 +88,11 @@ def make_students(model_student: bool = True) -> list:      # type: ignore[type-
     except ImportError:
         return []
     students: list = [LessonStudent(LESSONS)]                # type: ignore[type-arg]
+    try:
+        from creator.replay_student import ReplayStudent
+        students.insert(0, ReplayStudent(LESSONS))           # an unmeasured teacher solution first: measure it, don't redo it
+    except ImportError:
+        pass
     if model_student:
         try:
             from creator.model_student import ModelStudent
