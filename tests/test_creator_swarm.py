@@ -61,7 +61,7 @@ def own() -> SW.SelfFirst:
 
 
 def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfig) -> None:
-    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=3, free=lambda: 10.0,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=3, free=lambda: 10.0,
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.2)
     assert rnd.peak_parallel == 3 and rnd.pulled_back == 0
@@ -78,7 +78,7 @@ def test_parallel_workers_on_disjoint_modules_all_get_adopted(cfg: K.KernelConfi
 
 
 def test_little_ram_means_one_worker_at_a_time(cfg: K.KernelConfig) -> None:
-    gov = W.Governor(floor_min_gb=0.5, floor_fraction=0.0, per_worker_gb=1.0, max_workers=3, free=lambda: 3.0,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.5, floor_fraction=0.0, per_worker_gb=1.0, max_workers=3, free=lambda: 3.0,
                      total=lambda: 16.0,
                      observe=lambda running: 5.0)                         # each worker measured at 5 GB: only one fits
     rnd = W.run_round(cfg, own, gov, max_packages=2, poll_s=0.2)
@@ -92,7 +92,7 @@ def test_tight_ram_pulls_the_youngest_back_and_adopts_nothing_of_it(cfg: K.Kerne
         state["n"] += 1
         return 10.0 if state["n"] < 6 else 0.1                          # plenty at first, then tight
 
-    gov = W.Governor(floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=3, free=free,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=3, free=free,
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.2)
     assert rnd.pulled_back >= 1
@@ -151,7 +151,7 @@ def test_leftover_memory_runs_filler_jobs(cfg: K.KernelConfig) -> None:
         if len(done) >= 3:
             return None
         return lambda: done.append(1)
-    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=4, free=lambda: 10.0,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=4, free=lambda: 10.0,
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, own, gov, max_packages=1, poll_s=0.1, filler=filler, filler_budget=5)
     assert len(rnd.reports) == 1 and len(done) == 3                           # gap work done, then filler while memory allows
@@ -181,7 +181,7 @@ def test_pull_back_spares_finished_claude_work_when_it_can(cfg: K.KernelConfig, 
         if state["n"] > 8:
             release.set()
         return 10.0 if state["n"] < 5 else 0.1
-    gov = W.Governor(floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=2, free=free,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=2, free=free,
                      total=lambda: 16.0, observe=lambda n: None)
     W.HANDED_BACK.add("CPB")                                              # the youngest carries finished Claude work
     try:
@@ -196,7 +196,7 @@ def test_a_worker_that_crashes_before_the_kernel_runs_is_reported_not_lost(cfg: 
     the round and its ledger chain stayed IN_PROGRESS. It must surface as an ERROR report."""
     def broken() -> SW.SelfFirst:
         raise RuntimeError("worker could not be built")
-    gov = W.Governor(floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, broken, gov, max_packages=1, poll_s=0.1)
     assert [r.outcome for r in rnd.reports] == ["ERROR"] and "could not be built" in rnd.reports[0].reason
@@ -215,3 +215,73 @@ def test_finished_work_by_any_worker_is_pulled_back_last() -> None:
     idle(SimpleNamespace(package_id="PKG-idle"), None, None)
     assert "PKG-done" in SWM.HANDED_BACK and "PKG-idle" not in SWM.HANDED_BACK
     SWM.HANDED_BACK.discard("PKG-done")
+
+
+def _two_plan_round(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch, free_tight: float) -> list[str]:
+    import threading
+    from creator import planner as P2
+    pulled: list[str] = []
+    monkeypatch.setattr(W, "stop_worker_processes", lambda scratch, pid: pulled.append(pid) or 0)
+    plans = iter([P2.Plan("g1", "K", "c1", "efficiency", None, "w1", "CPA", "x", "e", 1),
+                  P2.Plan("g2", "K", "c2", "efficiency", None, "w2", "CPB", "x", "e", 1)])
+    monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
+    monkeypatch.setattr(K, "plan_one", lambda *a, **k: next(plans, None))
+    release = threading.Event()
+
+    def fake_execute(cfg, worker, plan, *a, cancel=None, **k):
+        release.wait(5)
+        return K.CycleReport(1, "CANCELLED" if cancel.is_set() else "ADOPTED", plan.package_id, "K")
+    monkeypatch.setattr(K, "execute", fake_execute)
+    state = {"n": 0}
+
+    def free() -> float:
+        state["n"] += 1
+        if state["n"] > 12:
+            release.set()
+        return 10.0 if state["n"] < 5 else free_tight
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=1.0, floor_fraction=0.0, pull_fraction=1.0, per_worker_gb=0.0, max_workers=2,
+                     free=free, total=lambda: 16.0, observe=lambda n: None)
+    W.HANDED_BACK.update({"CPA", "CPB"})                                    # both carry finished work
+    try:
+        W.run_round(cfg, lambda: None, gov, max_packages=2, poll_s=0.05)
+    finally:
+        W.HANDED_BACK.difference_update({"CPA", "CPB"})
+    return pulled
+
+
+def test_finished_work_is_not_pulled_back_when_ram_is_tight_but_not_critical(cfg: K.KernelConfig,
+                                                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    """1 Oct run9: with every running package protected, the old fallback pulled a protected one anyway (CP0051/52 by Nupen's
+    student, unmeasured). Tight-but-safe now waits; only critical RAM may take finished work."""
+    assert _two_plan_round(cfg, monkeypatch, free_tight=0.6) == []                  # 0.6 < floor 1.0, > critical 0.35
+    assert _two_plan_round(cfg, monkeypatch, free_tight=0.1)                        # critical: the host comes first
+
+
+def test_fillers_count_toward_the_worker_cap_and_start_after_a_ramp(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """1 Oct run9: fillers were not counted (peak 42 > max 32) and started back to back, so RAM fell to 9 MB before any reading
+    could show them."""
+    import threading
+    import time as _t
+    monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
+    monkeypatch.setattr(K, "plan_one", lambda *a, **k: None)
+    hold = threading.Event()
+    starts: list[float] = []
+    live = {"n": 0, "max": 0}
+    lock = threading.Lock()
+
+    def filler():
+        def job() -> None:
+            with lock:
+                starts.append(_t.monotonic())
+                live["n"] += 1
+                live["max"] = max(live["max"], live["n"])
+            hold.wait(3)
+            with lock:
+                live["n"] -= 1
+        return job
+    gov = W.Governor(ramp_s=0.3, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=2, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    threading.Timer(2.0, hold.set).start()
+    W.run_round(cfg, lambda: None, gov, max_packages=0, poll_s=0.05, filler=filler, filler_budget=4)
+    assert live["max"] <= 2                                                         # the cap holds with fillers alone
+    assert all(b - a >= 0.29 for a, b in zip(starts, starts[1:]))                   # spaced by the ramp

@@ -150,6 +150,9 @@ class Governor:
     floor_fraction: float = 0.07
     floor_min_gb: float = 0.8
     pull_fraction: float = 0.75
+    critical_fraction: float = 0.35                 # below this even protected (finished) work is pulled back
+    ramp_s: float = 15.0                            # a new worker/filler only after the last one's memory can show (1 Oct run9:
+                                                    # 40 fillers started back to back before RAM fell, then free RAM hit 9 MB)
     per_worker_gb: float = 0.4                      # only until real worker memory has been measured
     max_workers: int = 32
     free: Callable[[], float] = free_ram_gb
@@ -168,6 +171,10 @@ class Governor:
 
     def too_tight(self) -> bool:
         return self.free() < self.pull_fraction * self.floor()
+
+    def critical(self) -> bool:
+        """So tight that even finished work may be pulled back (the host's reaper is near)."""
+        return self.free() < self.critical_fraction * self.floor()
 
 
 @dataclasses.dataclass
@@ -214,6 +221,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     fillers: list[threading.Thread] = []
     fill_left = filler_budget
     starved = False
+    last_start = -1e9
 
     def finish(r: _Running) -> None:
         if r.result:
@@ -226,16 +234,21 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             running.remove(r)
             finish(r)
         active = [r for r in running if r.plan.package_id not in WAITING]
+        fillers[:] = [f for f in fillers if f.is_alive()]
+        load = len(active) + len(fillers)                               # fillers use memory too (1 Oct run9: uncounted, peak 42 > 32)
+        ramped = time.monotonic() - last_start >= gov.ramp_s
         if gov.too_tight() and active:
             pool = [r for r in active if not r.cancel.is_set()]
-            cheap = [r for r in pool if r.plan.package_id not in HANDED_BACK] or pool
+            cheap = [r for r in pool if r.plan.package_id not in HANDED_BACK]
+            if not cheap and gov.critical():
+                cheap = pool                                            # finished work goes only when the host is in danger
             youngest = max(cheap, key=lambda r: r.started, default=None)
             if youngest is not None:
                 youngest.cancel.set()                               # pull it back: stop its processes now, not at a checkpoint
                 stop_worker_processes(cfg.scratch or cfg.repo.parent / f".{cfg.repo.name}_creator_sandboxes",
                                       youngest.plan.package_id)
                 pulled += 1
-        elif not exhausted and planned < max_packages and gov.can_start(len(active)):
+        elif not exhausted and planned < max_packages and ramped and gov.can_start(load):
             with lock:
                 held = [r.plan.component for r in running]
                 held_paths = [r.plan.component for r in running if r.plan.step == "efficiency"]
@@ -272,15 +285,18 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 t = threading.Thread(target=job, name=f"swarm-{plan.package_id}", daemon=True)
                 running.append(_Running(plan, t, ev, time.monotonic(), box))
                 t.start()
+                last_start = time.monotonic()
                 peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
                 continue
-        if (exhausted or planned >= max_packages) and filler is not None and fill_left > 0 and gov.can_start(len(active)):
+        if ((exhausted or planned >= max_packages) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
+                and gov.can_start(load)):
             job_fn = filler()                                           # leftover memory: useful measurement work
             if job_fn is not None:
                 fill_left -= 1
                 ft = threading.Thread(target=job_fn, name="swarm-filler", daemon=True)
                 fillers.append(ft)
                 ft.start()
+                last_start = time.monotonic()
                 peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
                 continue
         fillers[:] = [f for f in fillers if f.is_alive()]
