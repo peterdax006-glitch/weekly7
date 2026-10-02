@@ -118,3 +118,38 @@ def test_record_validation_honours_an_explicit_validated_commit() -> None:
     assert rv.explicit_commit({"validated_commit": head[:10]}) == head
     assert rv.explicit_commit({"validated_commit": "deadbeefdeadbeef"}) is None
     assert rv.explicit_commit({}) is None
+
+
+def test_record_validation_rejects_foreign_commits_staged_and_untracked_changes(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Validator round 4 review: a commit on another branch was accepted, and staged edits or a new untracked module under a
+    component's paths were not seen, so stale code could count as fresh."""
+    import importlib.util
+    import subprocess
+    spec = importlib.util.spec_from_file_location("record_validation", Path(__file__).resolve().parents[1] / "scripts" / "record_validation.py")
+    rv = importlib.util.module_from_spec(spec)             # type: ignore[arg-type]
+    spec.loader.exec_module(rv)                            # type: ignore[union-attr]
+
+    def g(*a: str) -> str:
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True,
+                              capture_output=True, text=True).stdout.strip()
+    g("init", "-q", "-b", "main")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "m.py").write_text("x = 1\n", encoding="utf-8")
+    g("add", "-A")
+    g("commit", "-q", "-m", "base")
+    base = g("rev-parse", "HEAD")
+    g("checkout", "-q", "-b", "other")
+    (tmp_path / "pkg" / "m.py").write_text("x = 2\n", encoding="utf-8")
+    g("commit", "-q", "-am", "elsewhere")
+    foreign = g("rev-parse", "HEAD")
+    g("checkout", "-q", "main")
+    monkeypatch.setattr(rv, "ROOT", tmp_path)
+    assert rv.explicit_commit({"validated_commit": base}) == base
+    assert rv.explicit_commit({"validated_commit": foreign}) is None              # not an ancestor of HEAD
+    assert rv.unchanged_since(base, ["pkg"])
+    (tmp_path / "pkg" / "m.py").write_text("x = 3\n", encoding="utf-8")
+    g("add", "pkg/m.py")                                                          # staged only
+    assert not rv.unchanged_since(base, ["pkg"])
+    g("reset", "-q", "--hard")
+    (tmp_path / "pkg" / "new.py").write_text("y = 1\n", encoding="utf-8")        # untracked new module
+    assert not rv.unchanged_since(base, ["pkg"])

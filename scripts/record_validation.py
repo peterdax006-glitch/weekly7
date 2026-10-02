@@ -46,7 +46,8 @@ def explicit_commit(entry: dict[str, Any]) -> Optional[str]:
     """The code commit a re-validation names (`validated_commit` in the report entry), if it is a real commit of this repository:
     a component that was VALIDATED once and changed afterwards can only be re-validated against the commit the validator re-read."""
     sha = str(entry.get("validated_commit") or "")
-    if len(sha) >= 7 and git("cat-file", "-e", f"{sha}^{{commit}}").returncode == 0:
+    if len(sha) >= 7 and git("cat-file", "-e", f"{sha}^{{commit}}").returncode == 0 \
+            and git("merge-base", "--is-ancestor", sha, "HEAD").returncode == 0:      # never a commit on another branch
         return git("rev-parse", sha).stdout.strip()
     return None
 
@@ -65,8 +66,12 @@ def first_validated_commit(cid: str) -> Optional[str]:
 
 
 def unchanged_since(sha: str, paths: list[str]) -> bool:
+    """The component's files are byte-identical to `sha` in HEAD, the index AND the working tree, and no untracked file sits under
+    them (validator round 4: `git diff` against the index missed staged changes and new untracked module/test files)."""
     return git("diff", "--quiet", sha, "HEAD", "--", *paths).returncode == 0 and \
-        git("diff", "--quiet", "--", *paths).returncode == 0
+        git("diff", "--quiet", sha, "--", *paths).returncode == 0 and \
+        git("diff", "--quiet", "--cached", sha, "--", *paths).returncode == 0 and \
+        not git("ls-files", "--others", "--exclude-standard", "--", *paths).stdout.strip()
 
 
 def run_tests(cid: str, tests: list[str]) -> tuple[dict[str, int], float, Path]:
