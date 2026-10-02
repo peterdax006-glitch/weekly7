@@ -155,3 +155,11 @@ def test_size_delta_and_diff_hash_basics() -> None:
     assert RE.nodes("    return 1") > 0                                                           # a snippet that does not parse alone
     assert RE.diff_hash({"a.py": "1"}, {"a.py": "2 "}) == RE.diff_hash({"a.py": "1"}, {"a.py": "2"})
     assert "Thinking procedure v1" in RE.procedure_text() and "Record the lesson" in RE.procedure_text(compact=False)
+
+
+def test_action_student_fills_predicted_from_prescreen(tmp_path):
+    from creator import action_student as AS
+    from creator.kernel import WorkResult
+    assert WorkResult(True, "x").predicted is None
+    p = AS.parse_prediction(f"{AS.PREDICT_TAG} metric=size size_delta=-4 act_delta=na")
+    assert p is not None and p["size_delta"] == -4

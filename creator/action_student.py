@@ -595,7 +595,9 @@ class ActionStudent:
         pred = self.prediction(chosen)
         note = f"{len(done)} actions applied: {', '.join(done)}" + (f" | {PREDICT_TAG} {pred}" if pred else "")
         why = (reasoning + f" [{PREDICT_TAG} {pred}]") if pred else reasoning
-        return WorkResult(True, note, calls=self.last_calls, by=self.name, reasoning=why)
+        parsed = parse_prediction(f"{PREDICT_TAG} {pred}") if pred else None
+        predicted = {"size_delta": float(parsed["size_delta"])} if parsed else None     # creator.reasoning.calibration scores this against the measured size_delta
+        return WorkResult(True, note, calls=self.last_calls, by=self.name, reasoning=why, predicted=predicted)
 
     def prediction(self, chosen: list[Action]) -> str:
         """The pre-screen's own predicted effect of the claimed change, in a parseable form (see `parse_prediction`), so that
