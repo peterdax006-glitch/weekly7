@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 CHECK = ROOT / "state" / "build" / "CREATOR_MASTER_CHECKLIST.json"
 STATUS = ROOT / "state" / "creator" / "STATUS.json"
 AUDIT = ROOT / "state" / "creator" / "AUDIT.json"
@@ -152,6 +153,37 @@ def rollup(items: list[dict[str, Any]]) -> int:
             changed += 1
     return changed
 
+RECON_TESTS = "tests/test_creator_recon.py"
+RECON_EVIDENCE = ["state/build/CREATOR_PHASE0_LEDGER.json", "creator/recon.py", RECON_TESTS]
+# CR032-036 are conclusions drawn from the tested sections they name; each needs all of them present in a CURRENT ledger.
+DERIVED = {32: None, 33: ("CR005_structure", "CR015_data_flow"), 34: ("CR001-004_documents",),
+           35: ("CR027_self_learning_infra", "CR028_research_infra", "CR029_experiment_infra", "CR030_health_infra",
+                "CR031_compute_controls"), 36: ("CR015_data_flow", "CR017_research_boundary")}
+
+
+def phase0_status(n: int, p0: dict[str, Any], root: Path) -> tuple[str, list[str], str] | None:
+    """Status of reconnaissance box CRnnn (1..36). TESTING only when the section is computed by creator/recon.py (tested by
+    tests/test_creator_recon.py) on exactly the tree now on disk; a ledger of another tree is stale -> IN_PROGRESS."""
+    from creator import recon
+    if n <= 31:
+        key = next((k for k in p0 if k.startswith(f"CR{n:03d}") or (k.startswith("CR001-004") and n <= 4)), None)
+        needed: tuple[str, ...] = (key,) if key else ()
+    else:
+        needed = DERIVED[n] if DERIVED[n] is not None else tuple(k for k in p0 if k.startswith("CR"))
+    if not p0 or not needed or any(k not in p0 for k in needed):
+        return None
+    if not recon.is_current(p0, root):
+        return ("IN_PROGRESS", RECON_EVIDENCE[:1], f"reconnaissance is STALE: ledger tree {str(p0.get('tree_hash'))[:12]} is not the "
+                "tree on disk; rerun scripts/phase0_recon.py")
+    docs = p0.get("CR001-004_documents", {})
+    if n <= 3 or n == 34:
+        if docs.get("missing"):
+            return ("IMPLEMENTED", RECON_EVIDENCE, f"authoritative document(s) missing: {docs['missing']}")
+    if n == 4 and not docs.get("masterstock_sha256"):
+        return ("IMPLEMENTED", RECON_EVIDENCE, "Masterstock not found on this machine")
+    return ("TESTING", RECON_EVIDENCE, f"section {', '.join(needed)[:80]} computed by creator/recon.py on the current tree "
+            f"{str(p0.get('tree_hash'))[:12]}; tested by {RECON_TESTS}")
+
 
 def main() -> int:
     data = json.loads(CHECK.read_text(encoding="utf-8"))
@@ -168,14 +200,10 @@ def main() -> int:
         iid = it["id"]
         new: tuple[str, list[str], str] | None = None
         n = int(iid[2:]) if iid[2:].isdigit() else 0
-        if 1 <= n <= 31:
-            key = next((k for k in p0 if k.startswith(f"CR{n:03d}") or (k.startswith("CR001-004") and n <= 4)), None)
-            if key:
-                new = ("IMPLEMENTED", ["state/build/CREATOR_PHASE0_LEDGER.json", "scripts/phase0_recon.py"],
-                       f"computed reconnaissance section {key}")
-        elif 32 <= n <= 36:
-            new = ("IMPLEMENTED", ["state/build/CREATOR_PHASE0_LEDGER.json", "creator/ARCHITECTURE.md"],
-                   "mapped by the computed Phase-0 ledger and the architecture")
+        if 1 <= n <= 36:
+            new = phase0_status(n, p0, ROOT)
+            if new:
+                it["code_paths"], it["tests"] = ["creator/recon.py", "scripts/phase0_recon.py"], [RECON_TESTS]
         elif iid in CAP:
             ks = CAP[iid]
             states = [caps.get(k, {}).get("state", "NOT_STARTED") for k in ks]

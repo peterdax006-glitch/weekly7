@@ -1,11 +1,25 @@
 # C77 Phase 0 - computed reconnaissance ledger
 
-Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-model digest c6f5ce80e0216ef4.
+Generated 2026-10-02T07:06:33Z by scripts/phase0_recon.py (creator/recon.py; reading only). Tree 6123478bc6a5e65e, self-model digest ba04d3374d349d66.
 
 ## CR001-004_documents
 
 ```json
 {
+ "authoritative": {
+  "CREATOR_MASTER_PROMPT.md": "da7b9c4d6d8a694bc1b216968b6614f59bc1dd3cb07e88fcb35d676a758764c8",
+  "BLUEPRINT.md": "2c9b032ae964bc31e98bba4177facf3b7f08db4536e3992dd115e2cd756e5bfc",
+  "MASTER_BLUEPRINT.md": "3824e5f6b8bedcb841ce4e5fff75a40ddad44c1eb7558bb6fcb239bd545b46a5",
+  "ALGORITHM_BLUEPRINT.md": "caf7d5b0cbd9d108b1f892ca4f31902e6d9eb8d9eff1362afa6f3ad501dcb6ca",
+  "BIBLE.md": "deb456974707d57e4093474fe80c7a7cb063714e7b0954aaf5524a97bd8b040e",
+  "MASTER_EXECUTION_PROMPT.md": "6ac3a04e79baaf9c6255700735ff792e56d2fa9a426f77dce0a6664eb913ce56",
+  "ULTIMATE_MASTER_PROMPT.md": "75a6c16a37002db8b5e92f40232d1e0ed7929e39ac46b82226ea12cc345dcba5",
+  "RESEARCH_BRAIN_CONTRACT.md": "44b95e4e6aad96367855b78f338dd49c67034cccc580eac04cfc194444f88de2",
+  "SELF_LEARNING_CONTRACT.md": "c560a642537cde8d11c016db38feffc7065f8dd31800deb41615960619fb2e7d",
+  "PREDICTION_ERROR_ADDITION.md": "3c51035cb981283d22d90c355e1ae67b521d7a09ed64539550172aea306bb434",
+  "TEN_HOUR_EXECUTION_CHECKLIST.md": "3b200228e23eec9770b339c8c13220129518356e2044760564e03815de21c2c5"
+ },
+ "missing": [],
  "blueprints": [
   "ALGORITHM_BLUEPRINT.md",
   "BLUEPRINT.md",
@@ -34,7 +48,8 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
   "ULTIMATE_MASTER_CHECKLIST.json"
  ],
  "masterstock": "C:\\Users\\Peter\\Masterstock\\MASTERSTOCK.md",
- "masterstock_bytes": 1889468
+ "masterstock_sha256": "469a05e8474ca134d75eb3c298c2e755e047d3d4ea46dede63074fc586343549",
+ "masterstock_bytes": 1915515
 }
 ```
 
@@ -42,37 +57,165 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 {
- "files": 567,
- "by_package_files": {
-  "tests": 194,
-  "scripts": 140,
-  "engine": 85,
-  "engine/research": 66,
-  "engine/learning": 65,
-  "creator": 16,
-  "canon": 1
- },
- "by_package_meaningful_lines": {
-  "engine/research": 76755,
-  "tests": 61458,
-  "engine/learning": 52970,
-  "engine": 28791,
-  "scripts": 16705,
-  "creator": 4583,
-  "canon": 180
- }
-}
+ "files": 662,
+ "file_list": [
+  "canon/build_canon.py",
+  "creator/__init__.py",
+  "creator/action_student.py",
+  "creator/agents.py",
+  "creator/audit/__init__.py",
+  "creator/audit/checks.py",
+  "creator/autotune.py",
+  "creator/build.py",
+  "creator/claims.py",
+  "creator/curriculum.py",
+  "creator/debug.py",
+  "creator/design.py",
+  "creator/devbench.py",
+  "creator/diskcache.py",
+  "creator/efficiency.py",
+  "creator/evaluate.py",
+  "creator/gaps.py",
+  "creator/generator.py",
+  "creator/kernel.py",
+  "creator/ledger.py",
+  "creator/lm/__init__.py",
+  "creator/lm/api.py",
+  "creator/lm/data.py",
+  "creator/lm/dialogue.py",
+  "creator/lm/dialogue_seed.py",
+  "creator/lm/evaluate.py",
+  "creator/lm/model.py",
+  "creator/lm/paths.py",
+  "creator/lm/tokenizer.py",
+  "creator/lm/train.py",
+  "creator/localworker.py",
+  "creator/memory.py",
+  "creator/meta.py",
+  "creator/model.py",
+  "creator/model_student.py",
+  "creator/objective.py",
+  "creator/oversight.py",
+  "creator/planner.py",
+  "creator/process_levers.py",
+  "creator/recon.py",
+  "creator/recursion.py",
+  "creator/reproduce.py",
+  "creator/research.py",
+  "creator/sandbox.py",
+  "creator/schedule.py",
+  "creator/selfmodel.py",
+  "creator/selfworkers.py",
+  "creator/student.py",
+  "creator/swarm.py",
+  "creator/synth.py",
+  "creator/testgen.py",
+  "creator/testrun.py",
+  "creator/treecache.py",
+  "engine/__init__.py",
+  "engine/ablation.py",
+  "engine/adaptive.py",
+  "engine/analog_weighting.py",
+  "engine/analogs.py",
+  "engine/analogs_sector.py",
+  "engine/analogs_stock.py",
+  "engine/antimemo.py",
+  "engine/antioverfit.py",
+  "engine/backtest.py",
+  "engine/baseline.py",
+  "engine/basis_search.py",
+  "engine/blind_gates.py",
+  "engine/broker.py",
+  "engine/candidates.py",
+  "engine/candles.py",
+  "engine/champion.py",
+  "engine/checkpoint.py",
+  "engine/claims.py",
+  "engine/config.py",
+  "engine/data.py",
+  "engine/data_sources.py",
+  "engine/direction.py",
+  "engine/direction_ablate.py",
+  "engine/direction_calib.py",
+  "engine/direction_features.py",
+  "engine/edgar.py",
+  "engine/exits.py",
+  "engine/experiment_memory.py",
+  "engine/explain.py",
+  "engine/features.py",
+  "engine/fill_audit.py",
+  "engine/fv_pipeline.py",
+  "engine/gaprisk.py",
+  "engine/health.py",
+  "engine/heavy_tests.py",
+  "engine/improve.py",
+  "engine/isolation.py",
+  "engine/leak_audit.py",
+  "engine/learners.py",
+  "engine/learning/__init__.py",
+  "engine/learning/archive.py",
+  "engine/learning/belief.py",
+  "engine/learning/boundary.py",
+  "engine/learning/break_detection.py",
+  "engine/learning/calibration.py",
+  "engine/learning/champion.py",
+  "engine/learning/checkpoints.py",
+  "engine/learning/competition.py",
+  "engine/learning/complexity.py",
+  "engine/learning/compute.py",
+  "engine/learning/context.py",
+  "engine/learning/contradiction.py",
+  "engine/learning/contradiction_monitor.py",
+  "engine/learning/controls.py",
+  "engine/learning/core.py",
+  "engine/learning/credit.py",
+  "engine/learning/curator.py",
+  "engine/learning/decision_contract.py",
+  "engine/learning/disagreement.py",
+  "engine/learning/epistemic.py",
+  "engine/learning/experiment_memory.py",
+  "engine/learning/failed_learners.py",
+  "engine/learning/failure.py",
+  "engine/learning/firewalls.py",
+  "engine/learning/future_firewall.py",
+  "engine/learning/health.py",
+  "engine/learning/hierarchy.py",
+  "engine/learning/identity_firewall.py",
+  "engine/learning/interpretation.py",
+  "engine/learning/knowledge.py",
+  "engine/learning/knowledge_graph.py",
+  "engine/learning/learner.py",
+  "engine/learning/learning_curve.py",
+  "engine/learning/lifecycle.py",
+  "engine/learning/loop_hooks.py",
+  "engine/learning/memory_firewall.py",
+  "engine/learning/meta_learning.py",
+  "engine/learning/missed_winners.py",
+  "engine/learning/planted_world.py",
+  "engine/learning/portfolio_value.py",
+  "engine/learning/postmortem.py",
+  "engine/learning/promotion.py",
+  "engine/learning/questions.py",
+  "engine/learning/redun
+... (truncated; full in the .json)
 ```
 
 ## CR006_branch_state
 
 ```json
 {
- "head": "f7949a2e6293cd994f13c6963acd3eacb512d702",
- "branch": "main",
- "dirty_files": 63,
- "sandbox_branches": [],
- "ahead_behind_origin": "0\t0"
+ "head": "ffedf0fadfacd8e9b68fdd538edb73a71bb9635d",
+ "branch": "h8/recon",
+ "dirty_files": 8,
+ "sandbox_branches": [
+  "creator/sbx-20261001T071030-385ad032",
+  "creator/sbx-20261001T075726-0d5fe44e",
+  "creator/sbx-20261001T083319-2724895c",
+  "creator/sbx-20261001T092843-d32db545",
+  "creator/sbx-20261001T100543-5325f45a",
+  "creator/sbx-20261002T011717-90d2491d"
+ ],
+ "ahead_behind_origin": "3\t0"
 }
 ```
 
@@ -81,13 +224,31 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 ```json
 {
  "running_python_processes": [
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_kernel.py --cycles 1 --allow-agent-calls --call-usd 1.5",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe scratch/pilot.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scratch/pilot.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q ",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.p",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest tests/test_creator_kernel.py tests/test_creator_swarm.py --durations=25 -q -p no:cacheprovider",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 ",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/creator_recurse.py --synth --steps 2 --seed 21 --chunk 500 --reps 2 --confirm 500 --min-effect 0.05 --initial 1,1,0,0 --ledger scratch/cold_l",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scratch/synth_probe2.py 70 200",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scratch/synth_probe2.py 70 200",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_oversight.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider tests/test_creator_audit.py",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 -",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py --idle C:/Users/Peter/weekly7/.venv/Scripts/python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -u scripts/action_choice_bench.py --heldout --hard --seeds 301,302,303 -n 30 --lessons state/creator/lessons_contrast.jsonl --out state/creator/action_c",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
+  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" scripts/lowprio.py C:/Users/Peter/weekly7/.venv/Scripts/python.exe scripts/phase0_recon.py",
   "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe scripts/phase0_recon.py",
-  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --rootdir C:\\Users\\Peter\\weekly7 --junitxml=C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\junit\\tests__test_creato",
-  "\"C:\\Users\\Peter\\AppData\\Local\\Programs\\Python\\Python311\\python.exe\" -m pytest -q -p no:cacheprovider --rootdir C:\\Users\\Peter\\weekly7 --junitxml=C:\\Users\\Peter\\weekly7\\state\\creator\\evidence\\main\\juni"
- ],
- "kernel_lock": true
-}
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -I -B -c \"import sys",
+  "C:\\Users\\Peter\\weekly7\\.venv\\Scripts\\python.exe -m pytest -q -p no:cacheprovider --rootdir C:\\Us
+... (truncated; full in the .json)
 ```
 
 ## CR008_integrations
@@ -143,13 +304,16 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 {
- "test_files": 196,
- "test_functions": 5576,
+ "test_files": 235,
+ "test_functions": 5950,
  "collect": "",
  "collection_errors": [],
- "modules_without_any_test": 89,
+ "modules_without_any_test": 111,
  "examples": [
   "canon/build_canon.py",
+  "creator/lm/data.py",
+  "creator/lm/paths.py",
+  "creator/lm/train.py",
   "engine/edgar.py",
   "engine/explain.py",
   "engine/model.py",
@@ -167,13 +331,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
   "scripts/apply_corrections.py",
   "scripts/arch_doc.py",
   "scripts/audit_registry.py",
+  "scripts/backfill_lessons.py",
   "scripts/backtest_summary.py",
   "scripts/basis_offline.py",
-  "scripts/bible_trace.py",
-  "scripts/blind_gates_real.py",
-  "scripts/c67_mover_sweep_real.py",
-  "scripts/candidate_recall.py",
-  "scripts/check_retester.py"
+  "scripts/bible_trace.py"
  ]
 }
 ```
@@ -182,6 +343,7 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 [
+ "creator/reproduce.py",
  "engine/ablation.py",
  "engine/experiment_memory.py",
  "engine/learning/experiment_memory.py",
@@ -192,11 +354,14 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
  "scripts/check_retester.py",
  "scripts/legacy/experiment.py",
  "scripts/repro_w01c.py",
+ "scripts/reproduce.py",
+ "creator/claims.py",
  "creator/ledger.py",
  "engine/claims.py",
  "engine/provenance.py",
  "engine/registry.py",
- "scripts/audit_registry.py"
+ "scripts/audit_registry.py",
+ "scripts/claims_register.py"
 ]
 ```
 
@@ -207,11 +372,13 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
  "verify_integrity": "OK",
  "canon_verify_tail": "canon ok: 77 directives",
  "infra": [
+  "creator/claims.py",
   "creator/ledger.py",
   "engine/claims.py",
   "engine/provenance.py",
   "engine/registry.py",
-  "scripts/audit_registry.py"
+  "scripts/audit_registry.py",
+  "scripts/claims_register.py"
  ]
 }
 ```
@@ -230,6 +397,7 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 [
+ "creator/reproduce.py",
  "engine/learning/reproducibility.py",
  "engine/parity.py",
  "engine/parity_suite.py",
@@ -237,6 +405,7 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
  "engine/repro.py",
  "scripts/legacy/replay_year.py",
  "scripts/repro_w01c.py",
+ "scripts/reproduce.py",
  "scripts/run_parity.py"
 ]
 ```
@@ -275,8 +444,16 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "creator.recon",
+   "engine"
+  ],
+  [
    "scripts.acceptance_mini",
    "engine"
+  ],
+  [
+   "scripts.action_choice_bench",
+   "creator"
   ],
   [
    "scripts.agent_smoke",
@@ -301,6 +478,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
   [
    "scripts.audit_registry",
    "engine"
+  ],
+  [
+   "scripts.backfill_lessons",
+   "creator"
   ],
   [
    "scripts.backfill_market_snaps",
@@ -339,6 +520,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "scripts.claims_register",
+   "creator"
+  ],
+  [
    "scripts.collect_intraday",
    "engine"
   ],
@@ -347,11 +532,23 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "scripts.creator_checklist_status",
+   "creator"
+  ],
+  [
    "scripts.creator_kernel",
    "creator"
   ],
   [
+   "scripts.creator_recurse",
+   "creator"
+  ],
+  [
    "scripts.creator_status",
+   "creator"
+  ],
+  [
+   "scripts.creator_swarm",
    "creator"
   ],
   [
@@ -415,6 +612,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "scripts.generator_bench",
+   "creator"
+  ],
+  [
    "scripts.grid_runner",
    "engine"
   ],
@@ -475,6 +676,18 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "scripts.nupen_chat",
+   "creator"
+  ],
+  [
+   "scripts.nupen_lm",
+   "creator"
+  ],
+  [
+   "scripts.nupen_lm_stages",
+   "creator"
+  ],
+  [
    "scripts.pattern_benchmark",
    "engine"
   ],
@@ -499,10 +712,6 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "creator"
   ],
   [
-   "scripts.phase0_recon",
-   "engine"
-  ],
-  [
    "scripts.pit_audit_real",
    "engine"
   ],
@@ -511,12 +720,20 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
    "engine"
   ],
   [
+   "scripts.record_validation",
+   "creator"
+  ],
+  [
    "scripts.regen_weekly_snaps",
    "engine"
   ],
   [
    "scripts.repair_history",
    "engine"
+  ],
+  [
+   "scripts.reproduce",
+   "creator"
   ],
   [
    "scripts.research_loop",
@@ -536,58 +753,7 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
   ],
   [
    "scripts.run_exits_stops",
-   "engine"
-  ],
-  [
-   "scripts.run_gaprisk",
-   "engine"
-  ],
-  [
-   "scripts.run_parity",
-   "engine"
-  ],
-  [
-   "scripts.run_pattern_bank",
-   "engine"
-  ],
-  [
-   "scripts.run_pattern_fail",
-   "engine"
-  ],
-  [
-   "scripts.sensitivity",
-   "engine"
-  ],
-  [
-   "scripts.site_build",
-   "engine"
-  ],
-  [
-   "scripts.site_sources",
-   "engine"
-  ],
-  [
-   "scripts.smoke",
-   "engine"
-  ],
-  [
-   "scripts.sync_intraday",
-   "engine"
-  ],
-  [
-   "scripts.three_way",
-   "engine"
-  ],
-  [
-   "scripts.timeline_basis_report",
-   "engine"
-  ],
-  [
-   "scripts.tuning_lab",
-   "engine"
-  ],
-  [
-   "scripts.voltarget_of
+   "engi
 ... (truncated; full in the .json)
 ```
 
@@ -639,7 +805,8 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 {
- "note": "creator tests: see state/creator/test_evidence.json; engine/full-suite failures need a full run (not executed by recon)",
+ "note": "17 test file(s) with recorded evidence",
+ "failing_test_files": {},
  "collection_errors": []
 }
 ```
@@ -649,12 +816,12 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 ```json
 {
  "by_kind": {
-  "BELOW_FLOOR": 15,
-  "UNTESTED_MODULE": 89,
-  "UNREACHED": 77,
-  "STUB": 8
+  "UNTESTED_MODULE": 111,
+  "UNREACHED": 96,
+  "STUB": 9
  },
  "stubs": [
+  "creator/model_student.py:ModelStudent.close:184: docstring only",
   "engine/exits.py:Rule.run:336: raises NotImplementedError",
   "engine/learners.py:CrossYearLearner.propose:722: raises NotImplementedError",
   "engine/learning/controls.py:Control.decide:338: raises NotImplementedError",
@@ -674,7 +841,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
  "CREATOR_MASTER_CHECKLIST.json": {
   "items": 304,
   "status": {
-   "NOT_STARTED": 304
+   "IN_PROGRESS": 42,
+   "TESTING": 166,
+   "IMPLEMENTED": 68,
+   "NOT_STARTED": 28
   },
   "done_without_evidence": 0,
   "examples": []
@@ -812,7 +982,10 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 ```json
 {
  "CREATOR_MASTER_CHECKLIST.json": {
-  "NOT_STARTED": 304
+  "IN_PROGRESS": 42,
+  "TESTING": 166,
+  "IMPLEMENTED": 68,
+  "NOT_STARTED": 28
  },
  "MASTER_EXECUTION_CHECKLIST.json": {
   "NOT_STARTED": 585
@@ -854,7 +1027,9 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 ## CR025_shallow
 
 ```json
-[]
+[
+ "creator/lm/paths.py"
+]
 ```
 
 ## CR026_future_leak_risks
@@ -1021,6 +1196,7 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
 
 ```json
 [
+ "creator/reproduce.py",
  "engine/ablation.py",
  "engine/experiment_memory.py",
  "engine/learning/experiment_memory.py",
@@ -1030,7 +1206,8 @@ Generated 2026-10-01T06:36:53Z by scripts/phase0_recon.py (reading only). Self-m
  "engine/retester.py",
  "scripts/check_retester.py",
  "scripts/legacy/experiment.py",
- "scripts/repro_w01c.py"
+ "scripts/repro_w01c.py",
+ "scripts/reproduce.py"
 ]
 ```
 
