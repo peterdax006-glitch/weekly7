@@ -11,18 +11,23 @@ from creator.lm.paths import ckpt_dir, data_dir
 STOP_FILE = "STOP"
 
 
-def _batch(data: Any, rng: Any, bs: int, ctx: int, device: str = "cpu") -> tuple[Any, Any]:
+def _batch(data: Any, rng: Any, bs: int, ctx: int, device: str = "cpu", dlg: Any = None, starts: list[int] | None = None,
+           share: float = 0.0) -> tuple[Any, Any]:
     import numpy as np
     import torch
-    ix = rng.integers(0, len(data) - ctx - 1, size=bs)
-    x = np.stack([data[i: i + ctx] for i in ix]).astype(np.int64)
-    y = np.stack([data[i + 1: i + 1 + ctx] for i in ix]).astype(np.int64)
+    if dlg is not None and starts and share > 0:
+        from creator.lm import mix
+        rows = [((dlg if d else data), i) for d, i in mix.mix_offsets(bs, share, rng, len(data), starts, ctx)]
+    else:
+        rows = [(data, int(i)) for i in rng.integers(0, len(data) - ctx - 1, size=bs)]
+    x = np.stack([a[i: i + ctx] for a, i in rows]).astype(np.int64)
+    y = np.stack([a[i + 1: i + 1 + ctx] for a, i in rows]).astype(np.int64)
     return torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
 
 
 def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: float = 2e-3,
           cfg: LMConfig | None = None, save_every_min: float = 5.0, log: Any = print,
-          device: str = "cpu") -> dict[str, Any]:
+          device: str = "cpu", dialogue_share: float = 0.0) -> dict[str, Any]:
     import numpy as np
     import torch
     torch.set_num_threads(threads)
@@ -45,6 +50,14 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         step, tokens_seen, elapsed_total = blob["step"], blob["tokens"], blob["elapsed"]
     data = np.memmap(data_dir() / "train.bin", dtype=np.uint16, mode="r")
     rng = np.random.default_rng(1234 + step)
+    dlg: Any = None
+    starts: list[int] = []
+    if dialogue_share > 0:
+        from creator.lm import mix
+        texts = mix.pool_texts(mix.build_pool())
+        ids, starts = mix.encode_stream(tok, texts, 7, 200_000)
+        dlg = np.asarray(ids, dtype=np.uint16)
+        log(f"dialogue mix: share {dialogue_share:.2f}, {len(texts)} dialogues, {len(ids)} tokens in the stream")
     n_params = count_params(model)
 
     def save(final_name: str | None = None) -> None:
@@ -71,7 +84,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         for g in opt.param_groups:
             g["lr"] = cur_lr
         for _ in range(accum):
-            x, y = _batch(data, rng, batch, cfg.ctx, device)
+            x, y = _batch(data, rng, batch, cfg.ctx, device, dlg, starts, dialogue_share)
             _, loss = model(x, y)
             (loss / accum).backward()
             losses.append(float(loss))
