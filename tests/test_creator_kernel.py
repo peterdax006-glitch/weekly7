@@ -321,3 +321,13 @@ def test_a_deferred_package_is_not_a_failed_attempt_and_is_never_blocked_away(cf
     assert led.view.status[gap] is not M.Status.BLOCKED
     good = Scripted("good", {"pkg/user.py": USER, "tests/test_user.py": USER_TEST})
     assert K.cycle(cfg, good).outcome == "ADOPTED"                      # still plannable, and only the measurement adopts
+
+
+def test_the_sandbox_comparison_gets_the_suite_timeout_unless_set(tmp_path: Path) -> None:
+    """CP0047 (1 Oct): base and candidate runs both hit the 600 s pytest default under load -> INCONCLUSIVE for a sound change."""
+    import dataclasses as dc
+    from creator import testrun as TR
+    cfg = K.KernelConfig(repo=tmp_path, state=tmp_path / "s")
+    assert K.sandbox_pytest(cfg).timeout == cfg.test_timeout >= 3600
+    explicit = dc.replace(cfg, pytest=TR.PytestConfig(timeout=30.0))
+    assert K.sandbox_pytest(explicit).timeout == 30.0                                 # an explicit choice is kept

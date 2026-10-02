@@ -195,6 +195,15 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
     return Assessed(model, rows, rep, snap)
 
 
+def sandbox_pytest(cfg: KernelConfig) -> T.PytestConfig:
+    """The sandbox comparison's pytest config. Left at its default, its timeout follows the suite timeout: CP0047 (1 Oct) touched
+    kernel.py, its selected tests outran the 600 s default under swarm load on base AND candidate, and a sound change came back
+    INCONCLUSIVE although main's own assessment allows test_timeout for the same tests."""
+    if cfg.pytest.timeout == T.PytestConfig().timeout:
+        return dataclasses.replace(cfg.pytest, timeout=max(cfg.pytest.timeout, cfg.test_timeout))
+    return cfg.pytest
+
+
 def red(report: AUD.AuditReport) -> bool:
     return bool(report.errors) or report.count("CRITICAL") > 0
 
@@ -591,7 +600,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
         if cfg.hide:
             sb.reveal()                                                 # the Creator's own tests need the sealed suite back
-        ev = sb.evaluate(build_config=cfg.build, pytest_config=cfg.pytest)
+        ev = sb.evaluate(build_config=cfg.build, pytest_config=sandbox_pytest(cfg))
         before, after = _test_sources(sb.path, base_sha, change.files)
         weak = AUD.check_test_weakening(before, after)
         planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
