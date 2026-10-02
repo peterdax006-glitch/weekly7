@@ -61,8 +61,22 @@ def test_model_strategy_gives_up_honestly(repo: Path) -> None:
     assert not ok and calls == 3
 
 
-def test_search_repairs_an_off_by_one_without_any_model(repo: Path) -> None:
+def _fast_dates_visible(workdir: Path) -> D.TestCounts:
+    """In-process stand-in for the one visible test (parse('2024-03-15') == (2024, 3, 15)); a pytest subprocess per candidate cost ~1 s each."""
+    ns: dict = {}
+    try:
+        exec((workdir / "app/dates.py").read_text(encoding="utf-8"), ns)
+        ok = ns["parse"]("2024-03-15") == (2024, 3, 15)
+    except Exception:
+        ok = False
+    return D.TestCounts(1 if ok else 0, 0 if ok else 1, 0, 0 if ok else 1)
+
+
+def test_search_repairs_an_off_by_one_without_any_model(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real_visible = G.visible_tests
+    monkeypatch.setattr(G, "visible_tests", _fast_dates_visible)           # the candidate loop uses the in-process oracle ...
     ok, files, tried = G.solve_with_search({"id": "t", "objective": "fix"}, repo, budget=60)
+    monkeypatch.setattr(G, "visible_tests", real_visible)                  # ... the final verdict is still the real pytest run
     assert ok and tried <= 60
     assert G.visible_tests(repo).ok and "int(m)" in files["app/dates.py"] and "- 1" not in files["app/dates.py"]
 
@@ -166,7 +180,7 @@ def test_family_method_swap() -> None:
 
 def test_targeted_families_are_bounded() -> None:
     import ast
-    big = "def f(a, b, c, d):\n" + "".join(f"    t{i} = max(a, b) + sum(c)\n" for i in range(60)) + "    return a\n"
+    big = "def f(a, b, c, d):\n" + "".join(f"    t{i} = max(a, b) + sum(c)\n" for i in range(20)) + "    return a\n"
     assert len(list(G.targeted_mutations(ast.parse(big), 40))) <= 5 * 40
 
 

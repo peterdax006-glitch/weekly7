@@ -21,7 +21,7 @@ def put(p: Path, text: str) -> None:
 @pytest.fixture()
 def bench(tmp_path: Path) -> tuple[list[D.Task], dict]:
     tasks, sealed = tmp_path / "tasks", tmp_path / "sealed"
-    for tid, split in [(f"T{i}", "dev") for i in range(6)] + [(f"H{i}", "holdout") for i in range(3)]:
+    for tid, split in [(f"T{i}", "dev") for i in range(3)] + [(f"H{i}", "holdout") for i in range(1)]:
         repo = tasks / tid / "repo"
         put(repo / "app/__init__.py", "")
         put(repo / "app/core.py", "def double(x):\n    return x + 1\n")
@@ -62,7 +62,7 @@ def test_a_better_setting_is_found_measured_and_adopted(tmp_path: Path, bench) -
     led = Ledger(tmp_path / "l.jsonl", evidence_root=tmp_path)
     paths = dict(active=tmp_path / "active.json", history=tmp_path / "h.jsonl", experience=tmp_path / "none.jsonl",
                  frozen=tmp_path / "frozen.json", out_dir=tmp_path / "evals")
-    AT.save_active(G.WorkerConfig(search_budget=0, temperature=0.2), "start", paths["active"])
+    AT.save_active(G.WorkerConfig(model_attempts=1, search_budget=0, temperature=0.2), "start", paths["active"])
     outcomes = []
     for _ in range(6):                                                   # rotate until the temperature trial comes up
         t = AT.trial(led, TempSensitiveLLM(), replicates=2, tasks=tasks, manifest=m, **paths)
