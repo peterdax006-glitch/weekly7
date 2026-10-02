@@ -1,0 +1,21 @@
+{
+ "cycle": 1,
+ "outcome": "CANCELLED",
+ "package": "CP0105",
+ "requirement": "EFF.size",
+ "reason": "pulled back before evaluation (RAM tight)",
+ "verdict": "",
+ "merge_commit": "",
+ "calls": 1,
+ "usd": 0.0,
+ "seconds": 203.3,
+ "details": {
+  "recovered": [],
+  "worker": {
+   "claimed_done": true,
+   "notes": "1 actions applied: lazy_import(hashlib)",
+   "by": "nupen-model-v2"
+  },
+  "saved_diff": "C:\\Users\\Peter\\weekly7\\state\\creator\\pending\\CP0105_20261002T151037-56770f8e.patch"
+ }
+}

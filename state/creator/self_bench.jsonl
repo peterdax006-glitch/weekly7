@@ -201,3 +201,6 @@
 {"task": "G026", "category": "bugfix", "outcome": "SOLVED", "seconds": 387.58, "code": "83595b626814"}
 {"task": "G027", "category": "bugfix", "outcome": "SOLVED", "seconds": 398.51, "code": "83595b626814"}
 {"task": "G042", "category": "bugfix", "outcome": "SOLVED", "seconds": 322.84, "code": "83595b626814"}
+{"task": "D01", "category": "bugfix", "outcome": "FALSE_COMPLETION", "seconds": 13.81, "code": "05a845e81cd0"}
+{"task": "D02", "category": "feature", "outcome": "FALSE_COMPLETION", "seconds": 4.34, "code": "05a845e81cd0"}
+{"task": "D03", "category": "test_gap", "outcome": "FALSE_COMPLETION", "seconds": 6.5, "code": "05a845e81cd0"}

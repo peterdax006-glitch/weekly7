@@ -1,0 +1,28 @@
+diff --git a/creator/kernel.py b/creator/kernel.py
+index 5ae5e2af6..72bbaf06a 100644
+--- a/creator/kernel.py
++++ b/creator/kernel.py
+@@ -23,7 +23,6 @@ never pushes to a remote and never touches protected paths (the sandbox refuses
+ from __future__ import annotations
+ 
+ import dataclasses
+-import hashlib
+ import json
+ import shutil
+ import subprocess
+@@ -180,6 +179,7 @@ def assess_tree(cfg: KernelConfig, led: Ledger, root: Path, label: str, run_test
+     """Fresh evidence for `root` (main or a sandbox): run the declared tests, build the self-model, re-check every requirement.
+     Main's round assessment (label "main") serves passing files from an earlier assessment of the byte-identical clean tree;
+     every other label (the candidate replicates, the post-merge check) runs everything."""
++    import hashlib
+     specs = cfg.specs()
+     tests = sorted({t for s in specs for t in s.tests if (root / t).is_file()})
+     evd = cfg.state / "evidence" / label
+@@ -581,6 +581,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
+             checkpoint: bool = True, t0: Optional[float] = None) -> CycleReport:
+     """3-8 for one planned package. `lock` serialises everything that changes the repository itself (sandbox creation, merge,
+     post-merge verification, rollback) when several run in parallel; `cancel` (an Event) is checked between phases."""
++    import hashlib
+     import contextlib
+     t0 = time.monotonic() if t0 is None else t0
+     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
