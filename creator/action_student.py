@@ -37,6 +37,21 @@ Elsewhere = Optional[Callable[[str], bool]]
 CHOOSER_DEFAULT = False                  # flipped only when the held-out measurement shows the chooser beats model+lexical (see chooser_bench)
 
 
+def _state_dir() -> Path:
+    from creator import shadow
+    return shadow.STATE
+
+
+def _policy(state: Path) -> bool:
+    """state/creator/policy.json (written by creator.shadow's pre-registered rule) overrides CHOOSER_DEFAULT."""
+    try:
+        from creator import shadow
+        v = shadow.read_policy(state)
+    except Exception:                                       # noqa: BLE001
+        v = None
+    return CHOOSER_DEFAULT if v is None else v
+
+
 @dataclasses.dataclass(frozen=True)
 class Action:
     kind: str
@@ -361,10 +376,11 @@ class ActionStudent:
 
     def __init__(self, lessons_path: Path, llm: Any = None, k: int = 3, max_tokens: int = 80, max_candidates: int = 30,
                  max_files: int = 4, timeout_s: float = 300.0, rich_labels: bool = True, lexical_prior: bool = True,
-                 use_chooser: Optional[bool] = None, chooser: Any = None) -> None:
+                 use_chooser: Optional[bool] = None, chooser: Any = None, state_dir: Optional[Path] = None) -> None:
         self.rich_labels, self.lexical_prior = rich_labels, lexical_prior
         # learned chooser (creator.chooser): None = the module default CHOOSER_DEFAULT; when on and trained it replaces the lexical stage
-        self.use_chooser = CHOOSER_DEFAULT if use_chooser is None else use_chooser
+        self.state_dir = Path(state_dir) if state_dir is not None else _state_dir()
+        self.use_chooser = use_chooser if use_chooser is not None else _policy(self.state_dir)
         self.chooser = chooser
         self._texts: dict[str, str] = {}
         self.lessons_path, self.llm, self.k = Path(lessons_path), llm, k
@@ -437,6 +453,7 @@ class ActionStudent:
             why = (re.search(r"WHY:\s*(.*)", reply) or re.search(r"(.*)", reply))
             reasoning = (why.group(1).strip() if why else "")[:500]
             picks = parse_choice(reply, len(cands))
+            model_pick = picks[0] if picks and len(picks) == 1 else None
             ch = self._chooser() if self.use_chooser else None
             if ch is not None and (picks is None or len(picks) == 1):
                 alt = ch.pick(str(getattr(package, "objective", "")), cands, self._texts, picks[0] if picks else None)
@@ -446,9 +463,25 @@ class ActionStudent:
                 picks = [alt] if alt else picks
             if not picks:
                 return WorkResult(False, f"model reply held no valid choice: {reply[:120]!r}", calls=self.last_calls, reasoning=reasoning)
-            return self._apply([cands[i - 1] for i in picks], package, workdir, reasoning)
+            res = self._apply([cands[i - 1] for i in picks], package, workdir, reasoning)
+            if res.claimed_done:
+                self._shadow(plan, package, cands, model_pick, picks)
+            return res
         except Exception as e:                              # noqa: BLE001 - a student never crashes the swarm
             return WorkResult(False, f"model call failed: {type(e).__name__}: {str(e)[:200]}", calls=max(self.last_calls, 1))
+
+    def _shadow(self, plan: Any, package: Any, cands: list[Action], model_pick: Optional[int], picks: list[int]) -> None:
+        """Record what the default policy and the chooser each pick for a decision that was applied. Never alters the decision."""
+        try:
+            from creator import shadow
+            obj = str(getattr(package, "objective", ""))
+            default = combine_choice(model_pick, obj, cands)
+            ch = self._chooser()
+            alt = ch.pick(obj, cands, self._texts, model_pick) if ch is not None else None
+            shadow.record(self.state_dir, str(getattr(plan, "package_id", "") or getattr(package, "id", "")), cands, default, alt,
+                          model_pick, "chooser" if self.use_chooser else "default")
+        except Exception as e:                              # noqa: BLE001 - shadowing never affects the student
+            self.last_shadow_error = f"{type(e).__name__}: {e}"
 
     def _apply(self, chosen: list[Action], package: Any, workdir: Path, reasoning: str) -> "WorkResult":
         from creator.kernel import WorkResult
