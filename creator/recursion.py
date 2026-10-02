@@ -159,7 +159,8 @@ def find_weaknesses(led: Ledger, min_n: int = 3) -> list[Weakness]:
 # ------------------------------------------------------------------------------------------------ 2. design
 
 def design_change(w: Weakness, process: ProcessConfig, tried: set[tuple[str, int]]) -> Optional[Change]:
-    """One step up of the first remedy parameter that has room and whose (param, value) was never tried."""
+    """One step up of the first remedy parameter that has room and whose (param, value) was never tried; when every remedy of this
+    weakness was tried, the first untried step of any other parameter (the remedy table is a prior, not a wall)."""
     for param in REMEDIES.get(w.kind, ()):
         cur = getattr(process, param)
         lo, hi = ME.BOUNDS[param]
@@ -167,6 +168,11 @@ def design_change(w: Weakness, process: ProcessConfig, tried: set[tuple[str, int
         if new > hi or new < lo or (param, new) in tried:
             continue
         return Change(param, cur, new, f"{w.kind} {w.key!r}: {w.count} cases ({w.share:.0%}) -> raise {param} {cur} -> {new}")
+    for param in PARAMS:                       # the remedies for this weakness are tried or at their bound: widen to any untried parameter
+        cur = getattr(process, param)
+        new = cur + 1
+        if param not in REMEDIES.get(w.kind, ()) and ME.BOUNDS[param][0] <= new <= ME.BOUNDS[param][1] and (param, new) not in tried:
+            return Change(param, cur, new, f"{w.kind} {w.key!r}: {w.count} cases ({w.share:.0%}); remedies exhausted -> fallback: raise {param} {cur} -> {new}")
     return None
 
 
@@ -274,7 +280,7 @@ def tried_changes(led: Ledger) -> set[tuple[str, int]]:
 
 
 def step(led: Ledger, workload: Workload, initial: Optional[ProcessConfig] = None, min_n: int = 3,
-         forced: Optional[Change] = None) -> StepReport:
+         forced: Optional[Change] = None, min_effect: float = 0.0) -> StepReport:
     """One recursion step. `forced` replaces steps 1-2 (tests of the gate itself); the adoption rule is never bypassed."""
     iteration = len(recorded_steps(led)) + 1
     process = current_process(led, initial)
@@ -297,7 +303,7 @@ def step(led: Ledger, workload: Workload, initial: Optional[ProcessConfig] = Non
         created_by=M.Role.KERNEL, parents=(gap,), hypothesis=f"{change.param} {change.old} -> {change.new} raises the process solve rate",
         design="fixed deterministic workload: dev replicates + within-budget guard + holdout", metrics=(PRIMARY, GUARD), seed=0,
         baseline_ref=process.digest(), candidate_ref=cand.digest(), uses_holdout=True))
-    claim, verdict, detail = ab_test(led, ex, process, cand, workload)
+    claim, verdict, detail = ab_test(led, ex, process, cand, workload, min_effect)
     adopted = verdict is M.Verdict.IMPROVEMENT
     if adopted:
         led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=ex, verdict=M.DecisionVerdict.ADOPT, claim_id=claim,
