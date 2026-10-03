@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
 import importlib.util
 import json
 from pathlib import Path
@@ -180,8 +181,9 @@ def test_the_ledger_is_read_incrementally_and_a_half_written_line_waits(tmp_path
 
 
 def test_main_once_prints_health_and_waste_lines(pl: Plant, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    pl.plan(NOW - 100, "creator/k.py")
-    pl.plan(NOW - 50, "creator/k.py")
+    real_now = time.time()                                      # main() reads the real clock: a fixed NOW aged out of the 24 h window (3 Oct)
+    pl.plan(real_now - 100, "creator/k.py")
+    pl.plan(real_now - 50, "creator/k.py")
     pl.write()
     rc = MON.main(["--once", "--state", str(pl.state), "--history", str(tmp_path / "h.json")])
     out = capsys.readouterr().out.splitlines()
