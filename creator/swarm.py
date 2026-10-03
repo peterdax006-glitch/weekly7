@@ -419,7 +419,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             fillers[:] = [f for f in fillers if f.is_alive()]
             if gov.admit is not None:
                 REG.get("modelpool").tick(gov, free_ram_gb)
-            if not try_fill():
+            if (drain is not None and drain()) or not try_fill():      # 3 Oct: a deploy pause starts nothing new, also during prepare
                 pt.join(poll_s)
         if isinstance(box[0], BaseException):
             raise box[0]

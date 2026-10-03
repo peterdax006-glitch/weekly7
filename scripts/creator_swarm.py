@@ -231,7 +231,8 @@ def main(argv: list[str]) -> int:
             if rnd.outcome == "RAM_TIGHT":
                 time.sleep(60)                                           # memory may free up soon: look again in a minute
             elif rnd.outcome != "WORKED":
-                for _ in range(600):                                     # nothing to do / red audit: look again later (a drain ends the wait)
+                for _ in range(60 if thinking_burst_gb() else 600):     # nothing to do / red audit: look again later (a drain ends the wait;
+                                                                         # thinking focus: 60 s - 3 Oct, ~45 idle min/h in 600 s sleeps)
                     if DRAIN.exists():
                         break
                     time.sleep(1)

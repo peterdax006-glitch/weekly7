@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -521,6 +522,20 @@ def load_test_evidence(path: Path) -> dict[str, TestEvidence]:
     return {k: TestEvidence(**v) for k, v in raw.items()}
 
 
+def _junit_seconds(path: Path) -> float:
+    try:
+        m = re.search(r'time="([0-9.]+)"', path.read_text(encoding="utf-8", errors="replace")[:4000])
+        return float(m.group(1)) if m else float("inf")
+    except OSError:
+        return float("inf")                                             # never timed: run it early
+
+
+def longest_first(test_files: Sequence[str], junit_dir: Path) -> list[str]:
+    """Dispatch order for parallel runs (3 Oct 2026: alphabetical order started the long files mid-queue): longest last-recorded junit time
+    first, never-timed files first of all, ties by name. Only the order changes; every file still runs."""
+    return sorted(test_files, key=lambda tf: (-_junit_seconds(junit_dir / (tf.replace("/", "__") + ".xml")), tf))
+
+
 def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Path, timeout: float = 600.0,
                           junit_dir: Optional[Path] = None, parallel: int = 1,
                           reuse: Optional[Mapping[str, tuple[str, str]]] = None) -> dict[str, TestEvidence]:
@@ -548,7 +563,7 @@ def collect_test_evidence(root: str | Path, test_files: Sequence[str], store: Pa
     if parallel > 1 and len(test_files) > 1:                            # independent files run side by side (1 Oct: the
         from concurrent.futures import ThreadPoolExecutor               # serial suite left the machine idle)
         with ThreadPoolExecutor(max_workers=parallel) as pool:
-            for ev in pool.map(one, test_files):
+            for ev in pool.map(one, longest_first(test_files, jdir)):
                 known[ev.test_file] = ev
     else:
         for tf in test_files:

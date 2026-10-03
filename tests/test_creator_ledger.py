@@ -10,6 +10,7 @@ from creator import ledger as L
 from creator import model as M
 
 K = M.Role.KERNEL
+REAL_PROVENANCE = True        # tests/conftest.py: this file covers current_provenance itself - never the cached one
 
 
 def prov(seed: int = 0) -> M.Provenance:

@@ -578,12 +578,12 @@ class Ledger:
     def append(self, rec: M.Record, seed: Optional[int] = None, config: Optional[Mapping[str, Any]] = None,
                provenance: Optional[M.Provenance] = None) -> str:
         """Validate `rec` against the ledger and append it; returns its id. Refused records raise LedgerError and are not written."""
-        with self._locked():
+        prov = provenance or current_provenance(seed, config)          # 3 Oct: a tree scan independent of the ledger - not under the lock
+        with self._locked():                                            # (it held the cross-process lock for seconds under load)
             self._catch_up()
             errs = self.problems(rec)
             if errs:
                 raise LedgerError(f"refused {rec.RTYPE}: " + "; ".join(errs))
-            prov = provenance or current_provenance(seed, config)
             seq, prev = len(self.view.entries), self.view.head
             rid = record_id(rec, prev, seq)
             env = _envelope(seq, rid, rec.RTYPE, type(rec).VERSION, rec.to_dict(), prov, prev)
