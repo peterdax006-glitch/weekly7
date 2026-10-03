@@ -144,7 +144,7 @@ def make_filler():                                        # type: ignore[no-unty
         focus = REG.optional("focus")
         if focus is not None and focus.current(STATE) == "thinking":
             drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
-                                                          ROOT / "state" / "research")
+                                                          ROOT / "state" / "research", processes=True)   # every core, not one (GIL)
             try:
                 judge = REG.get("judgment").judgment_filler(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1)))
             except Exception as e:                        # noqa: BLE001 - judgment is optional; the drills still run

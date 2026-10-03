@@ -86,3 +86,20 @@ def test_prospective_predictions_that_do_worse_block_trust(tmp_path: Path, monke
     assert sec["heldout"]["n_live"] == 40 and not sec["trusted"]
     assert any("do WORSE" in w for w in sec["why_not"])
     assert T.trust_of(GOOD_HELDOUT | {"n_live": 40})[0]              # the replay alone would have passed: the live check is what refused
+
+
+def test_drills_in_worker_processes_give_the_same_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    monkeypatch.setattr(D, "DEFAULT_STATE", D.DEFAULT_STATE)           # load() sets this module global: restored after the test
+    j = tmp_path / "JOURNAL.md"
+    topics = ["nupen kernel swarm", "spanish app tico", "weekly7 stock backtest"]
+    rnd = random.Random(5)
+    j.write_text("\n".join(f"- 2026-0{1 + i // 28}-{1 + i % 28:02d} {topics[rnd.randrange(3)]} entry {i}" for i in range(150)) + "\n", encoding="utf-8")
+    v = {"decay": 0.97, "k": 3.0}
+    a = D.run_job("journal_persist", v, tmp_path, tmp_path, j, tmp_path, processes=False)
+    b = D.run_job("journal_persist", v, tmp_path, tmp_path, j, tmp_path, processes=True)
+    a.pop("at"), b.pop("at")
+    assert a == b and a["resolved"] > 100
+    assert D._pool().submit(os.getpid).result() != os.getpid()       # the arithmetic really ran in another process
+    rows = [json.loads(ln) for ln in D.runs_path(tmp_path).read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 2                                             # the parent wrote both rows

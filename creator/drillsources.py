@@ -384,13 +384,57 @@ def runs_path(state: Path) -> Path:
     return state / "thinking" / "drill_runs.jsonl"
 
 
-def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, journal: Path, research: Path,
-            lock: Optional[threading.Lock] = None) -> dict[str, Any]:
-    """One drill batch: load the whole dataset, walk forward with this variant, score, append the row. Independent of every other job."""
+def compute_row(source: str, variant: dict[str, Any], state: Path, repo: Path, journal: Path, research: Path) -> dict[str, Any]:
+    """One drill batch's result (no write): load the whole dataset, walk forward with this variant, score. Module-level so a worker process runs it."""
     items = apply_variant(load(source, state, repo, journal, research), variant, journal)
     preds = walk_forward(items, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
     row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
     row["at"] = T.dt.datetime.now(T.dt.timezone.utc).isoformat(timespec="seconds")
+    return row
+
+
+# 3 Oct 2026: drill jobs ran as THREADS of the swarm process - pure-Python walk-forwards share one interpreter lock, so however many fillers
+# the Governor admitted they used about one core (CPU 57%, 19 GB free). With processes=True the arithmetic runs in a pool of worker processes
+# (one per core, below-normal priority: kernel tests and the owner come first); the filler thread only waits, and the parent still does every write.
+_POOL: Any = None
+_POOL_LOCK = threading.Lock()
+
+
+def _low_priority() -> None:
+    try:
+        if os.name == "nt":
+            import ctypes
+            k = ctypes.windll.kernel32                                      # type: ignore[attr-defined]
+            k.SetPriorityClass(k.GetCurrentProcess(), IDLE_PRIORITY)
+        else:
+            getattr(os, "nice")(10)                                       # POSIX only
+    except Exception:                                                       # noqa: BLE001 - a worker at normal priority still works
+        pass
+
+
+def _pool() -> Any:
+    global _POOL
+    with _POOL_LOCK:
+        if _POOL is None:
+            from concurrent.futures import ProcessPoolExecutor
+            _POOL = ProcessPoolExecutor(max_workers=max(1, os.cpu_count() or 2), initializer=_low_priority)
+        return _POOL
+
+
+def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, journal: Path, research: Path,
+            lock: Optional[threading.Lock] = None, processes: bool = False) -> dict[str, Any]:
+    """One drill batch: compute (in a worker process when `processes`), then append the row. Independent of every other job."""
+    global _POOL
+    if processes:
+        from concurrent.futures.process import BrokenProcessPool
+        try:
+            row = _pool().submit(compute_row, source, dict(variant), Path(state), Path(repo), Path(journal), Path(research)).result()
+        except BrokenProcessPool:                                           # a worker died: a fresh pool next time, this job in-thread
+            with _POOL_LOCK:
+                _POOL = None
+            row = compute_row(source, dict(variant), state, repo, journal, research)
+    else:
+        row = compute_row(source, dict(variant), state, repo, journal, research)
     p = runs_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
     with (lock or threading.Lock()), p.open("a", encoding="utf-8") as f:
@@ -415,7 +459,7 @@ def _fast_mod() -> Any:
 
 
 def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
-                 ) -> Callable[[], Optional[Callable[[], None]]]:
+                 processes: bool = False) -> Callable[[], Optional[Callable[[], None]]]:
     """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
     source, then (OPEN-ENDED, owner 2 Oct: the filler must never run dry while there is thinking left to improve) NEW variants proposed by
     `propose` - round-robin over the sources, at most SEARCH_OUTSTANDING in flight per source - until SEARCH_STOP_K consecutive variants fail to
@@ -447,7 +491,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             except Exception:                                       # noqa: BLE001
                 pid = None
             try:
-                row = run_job(s, v, state, Path(repo), Path(journal), Path(research), lock)
+                row = run_job(s, v, state, Path(repo), Path(journal), Path(research), lock, processes)
                 if pid and fp is not None and row.get("select", {}).get("n"):
                     fp.end_safe(pid, int(row["select"]["brier"] < prior), state)
             except Exception as e:                                 # noqa: BLE001
