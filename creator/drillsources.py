@@ -501,11 +501,21 @@ def _repo_items(repo: Path, window: int, mode: str) -> list[BItem]:
     commits = _read_cache(path)                                    # the commits are not kept, only the items (RAM)
     commits.sort(key=lambda c: c["t"])
     tag = sys.intern(f"r:{repo.name}")
-    items = [BItem(tuple(sys.intern(k) for k in it.keys) + (tag,), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}",
-                   {**it.meta, "repo": repo.name} if it.meta else None)
-             for it in _git_events(commits, window, mode)]
+    evs = _git_events(commits, window, mode)
+    # h43: the setup facts (meta) do not depend on the window or mode, so both modes' items share ONE meta per commit, with the file names
+    # interned in a frozenset (equal to the set; nothing modifies it). Kept in 14 drill workers, the per-mode copies were 437 MB per worker.
+    mmk = f"xmeta|{path}"
+    mm = _PARSED.get(mmk)
+    if mm is not None and mm[0] == key and len(mm[1]) == len(evs):
+        metas = mm[1]
+    else:
+        metas = [{**it.meta, "files": frozenset(sys.intern(f) for f in it.meta.get("files") or ()), "repo": repo.name} if it.meta else None
+                 for it in evs]
+    items = [BItem(tuple(sys.intern(k) for k in it.keys) + (tag,), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}", m)
+             for it, m in zip(evs, metas)]
     if _file_key(path) == key:                                     # unchanged while read: safe to keep
         _PARSED[mk] = (key, items)
+        _PARSED[mmk] = (key, metas)
     return list(items)
 
 
