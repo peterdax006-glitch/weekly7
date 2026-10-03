@@ -241,7 +241,19 @@ def test_report_has_accuracy_cis_vs_chance_and_plain_and_the_supply(tmp_path: Pa
 
 
 def _qids(state: Path) -> set[str]:
-    return {json.loads(x).get("qid") for x in R.path(state).read_text(encoding="utf-8").splitlines()} - {None}
+    return {q for q in (json.loads(x).get("qid") for x in R.path(state).read_text(encoding="utf-8").splitlines()) if q and R.REVISIT not in q}
+
+
+def test_when_every_question_is_used_it_revisits_its_mistakes_and_reports_them_apart(tmp_path: Path) -> None:
+    qs = R.gen_files_changed("demo", commits(80))[:12]
+    state, _log = run_filler(tmp_path, qs, 200)
+    rows = [json.loads(x) for x in R.path(state).read_text(encoding="utf-8").splitlines()]
+    rev = [r for r in rows if R.REVISIT in r.get("qid", "")]
+    wrong = {r["qid"] for r in rows if r.get("strategy") == "plain" and not r["correct"] and R.REVISIT not in r["qid"]}
+    assert rev and {r["qid"].split("#")[0] for r in rev} <= wrong
+    rep = R.report_section(state, tag="fake-model.gguf")
+    assert rep["revisits"] and rep["strategies"]["plain"]["n"] == len(qs)        # fresh accuracy never mixes in the second pass
+    assert rep["supply"]["need_acquisition"] is True and rep["supply"]["fresh"] == 0
 
 
 def test_supply_running_low_is_reported_not_silent(tmp_path: Path) -> None:

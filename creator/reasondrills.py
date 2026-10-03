@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import datetime as dt
 import bisect
+import dataclasses
 import hashlib
 import itertools
 import json
@@ -49,6 +50,7 @@ EPOCH_Q = 40                                    # fresh questions per epoch
 HALVING = ((10, 4), (20, 2))                    # (common questions answered, non-control strategies kept)
 CARRY, CHALLENGERS = 2, 2                       # next epoch: the winners plus rotated-back losers
 BATCH = 4                                       # model calls per job (one server lease)
+REVISIT = "#revisit"                            # qid suffix of a second pass over a question the control got wrong
 LOW_FRESH = 300                                 # fewer unanswered questions than this: the report asks for acquisition
 REFRESH_S = 1800.0                              # how often the filler re-reads the repositories (new commits, new repositories)
 MAX_FILES = 6                                   # commits touching more files are not used for files_changed (no single-subject answer)
@@ -735,6 +737,19 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
                 assigned[q.qid] = e
                 qids.append(q.qid)
                 out += [(q, n, e) for n in live]
+        if not out and len(qids) < EPOCH_Q:                     # every question used: REVISIT the ones the control got wrong (a second pass;
+            for r in rows:                                      # the report keeps it apart - it is not fresh) until acquisition brings more
+                q = cache["by"].get(r["qid"])
+                rq = f"{r['qid']}{REVISIT}"
+                if q is None or r["strategy"] != CONTROL or r.get("correct") or REVISIT in r["qid"] or rq in used:
+                    continue
+                q2 = dataclasses.replace(q, qid=rq)
+                cache["by"][rq] = q2
+                assigned[rq] = e
+                qids.append(rq)
+                out += [(q2, n, e) for n in live]
+                if len(qids) >= EPOCH_Q or len(out) >= BATCH:
+                    break
         return out
 
     def next_job() -> Optional[Callable[[], None]]:
@@ -809,7 +824,12 @@ def report_section(state: Path, tag: Optional[str] = None) -> dict[str, Any]:
     rows_all = _jsonl(path(state))
     tag = tag or active_tag()
     rows = _model_rows(rows_all, tag)
+    rev = [r for r in rows if REVISIT in r["qid"]]
+    rows = [r for r in rows if REVISIT not in r["qid"]]                # accuracy is measured on FRESH questions only
     out: dict[str, Any] = {"model": tag, "answers": len(rows), "errors": sum(1 for r in rows_all if r.get("error")), "chance": 0.25}
+    if rev:
+        out["revisits"] = {n: wilson(sum(int(r.get("correct") or 0) for r in rev if r["strategy"] == n), sum(1 for r in rev if r["strategy"] == n))
+                           for n in sorted({r["strategy"] for r in rev})}
     try:
         out["supply"] = json.loads(status_path(state).read_text(encoding="utf-8"))
     except (OSError, ValueError):
