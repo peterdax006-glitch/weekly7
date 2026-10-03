@@ -100,12 +100,25 @@ def model_path(rt: Optional[Path] = None) -> Path:
 def think_model_path(cfg: Optional[Mapping[str, Any]] = None, rt: Optional[Path] = None) -> Optional[Path]:
     """The THINKING model (judgment, reasoning, narrative) - separate from the fast code-edit model. Setting 'think_model' (a path, or a file
     name inside models/) wins; else THINK_MODEL_FILE. None when none is configured or the file is not there (callers fall back to the fast model)."""
-    name = str((settings() if cfg is None else cfg).get("think_model") or "")
+    c = settings() if cfg is None else cfg
+    name = str(c.get("think_model") or "")
     if not name:
         return None
     p = Path(name)
     p = p if p.is_absolute() else (rt or runtime_dir()) / "models" / name
-    return p if p.is_file() else None
+    if p.is_file() or (pulse_on(c) and _gp().serves(_gp().pulse_file(c), p)):   # a GPU pulse may serve a model not on this disk
+        return p
+    return None
+
+
+def pulse_on(cfg: Optional[Mapping[str, Any]] = None) -> bool:
+    """A GPU pulse is switched on (creator.gpupulse): env NUPEN_GPU_PULSE or device setting 'gpu_pulse'. Off = everything stays local."""
+    return bool(os.environ.get("NUPEN_GPU_PULSE") or (cfg or {}).get("gpu_pulse"))
+
+
+def _gp() -> Any:
+    from creator import gpupulse                         # on demand: only while a pulse is switched on
+    return gpupulse
 
 
 def server_gb_for(model: Path) -> float:
@@ -281,6 +294,7 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "llama_servers": 1,                              # local model servers side by side (always-on: from RAM, below)
         "think_model": THINK_MODEL_FILE,                 # the thinking model (file name in models/ or a path); '' = use the fast model
         "think_servers": 0,                              # thinking-model servers allowed at once (from RAM, below)
+        "gpu_pulse": False,                              # True: attach to a rented GPU pod's tunnel (creator.gpupulse); off by default
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
@@ -320,7 +334,10 @@ def load_overrides(path: Optional[Path] = None) -> dict[str, Any]:
 
 
 def settings(refresh: bool = False) -> dict[str, Any]:
-    return derive(get(refresh))
+    out = derive(get(refresh))
+    if pulse_on(out):                                    # a GPU pulse job: its model is the thinker (creator.gpupulse.settings_overlay)
+        out.update(_gp().settings_overlay(_gp().pulse_file(out)))
+    return out
 
 
 def snapshot(dev: Optional[Device] = None, derived: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
