@@ -42,6 +42,22 @@ def path(state: Path) -> Path:
     return state / "thinking" / "judgment.jsonl"
 
 
+LEGACY_TAG = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"        # records written before the thinking model existed carry no 'model'
+
+
+def active_tag() -> str:
+    """The model whose answers are scored and extended now: the THINKING model when one is configured, else the fast default."""
+    from creator import device as DEV
+    from creator import generator as G
+    p = DEV.think_model_path()
+    return (p or G.DEFAULT_MODEL).name
+
+
+def _mine(rows: Sequence[dict[str, Any]], tag: str) -> list[dict[str, Any]]:
+    """Records of one model (a verdict of the 1.5B never counts toward the thinker's trust, and vice versa)."""
+    return [r for r in rows if r.get("model", LEGACY_TAG) == tag]
+
+
 @dataclass
 class Case:
     topic: str
@@ -180,9 +196,9 @@ def _mean_ci(d: Sequence[float]) -> list[float]:
     return [round(m - 1.96 * se, 4), round(m + 1.96 * se, 4)]
 
 
-def score_topic(topic: str, state: Path, repo: Path) -> dict[str, Any]:
+def score_topic(topic: str, state: Path, repo: Path, tag: Optional[str] = None) -> dict[str, Any]:
     """Per strategy: the judge's Brier (raw and Platt-calibrated) against the statistical predictor and the baselines on the SAME subjects."""
-    recs = [r for r in T._jsonl(path(state)) if r.get("topic") == topic and r.get("p") is not None]
+    recs = [r for r in _mine(T._jsonl(path(state)), tag or active_tag()) if r.get("topic") == topic and r.get("p") is not None]
     if not recs:
         return {}
     stat = _stat_preds(topic, state, repo)
@@ -256,15 +272,26 @@ def _append(state: Path, row: dict[str, Any]) -> None:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+class _Skip(Exception):
+    """The thinking model has no RAM right now: the batch is dropped silently and offered again later."""
+
+
+def chat_text(llm: Any, messages: Sequence[dict[str, str]], **kw: Any) -> str:
+    """The answer without a reasoning model's <think> block (fakes in tests only need .chat)."""
+    from creator import generator as G
+    return G.THINK_BLOCK.sub("", str(llm.chat(messages, **kw))).strip()
+
+
 def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any]) -> int:
     """Ask the model each (case, strategy) in the batch under one server lease and record the answers (the outcome is stored beside the answer only
     AFTER the answer exists; the prompt never contained it)."""
     n = 0
     with make_llm() as llm:
+        tag = Path(str(getattr(llm, "model", ""))).name or active_tag()
         for c, s in batch:
-            reply = llm.chat(build_prompt(s, cases, c), max_tokens=120, temperature=0.2, seed=0, timeout=300.0)
+            reply = chat_text(llm, build_prompt(s, cases, c), max_tokens=120, temperature=0.2, seed=0, timeout=300.0)
             _append(state, {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y,
-                            "p": parse(reply), "reply": reply[:300], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
+                            "p": parse(reply), "model": tag, "reply": reply[:300], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
             n += 1
     return n
 
@@ -274,6 +301,10 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
     """next_job() hands out one batch of BATCH (case, strategy) calls, newest cases first, only strategies still alive; None when there is nothing
     to do or `max_servers` batches are already in flight (a batch waits for a model-server slot, so more would only hold threads)."""
     state = Path(state)
+    from creator import device as DEV
+    cfg = DEV.settings()
+    if llm_factory is None and DEV.think_model_path(cfg) is not None:        # a bigger thinking model: only as many at once as RAM allows
+        max_servers = max(1, min(max_servers, int(cfg.get("think_servers", 1)) or 1))
     lock = threading.Lock()
     flight = {"n": 0}
     taken: set[tuple[str, str, str]] = set()
@@ -283,13 +314,16 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         if llm_factory is not None:
             return llm_factory()
         from creator import generator as G
-        return G.LocalModel()
+        lm = G.thinker()                                       # the THINKING model (device 'think_model'); the fast one when none fits
+        if Path(str(lm.model)).name != active_tag():           # RAM said no: wait for room rather than pile up answers of the wrong model
+            raise _Skip()
+        return lm
 
     def pending(topic: str) -> list[tuple[Case, dict[str, Any]]]:
         if topic not in cache:
             cache[topic] = load_cases(topic, state, Path(repo))
         cases = cache[topic]
-        recs = [r for r in T._jsonl(path(state)) if r.get("topic") == topic and "subject" in r]
+        recs = [r for r in _mine(T._jsonl(path(state)), active_tag()) if r.get("topic") == topic and "subject" in r]
         done = {(r["subject"], json.dumps(r["strategy"], sort_keys=True)) for r in recs}
         live = alive(recs)
         out: list[tuple[Case, dict[str, Any]]] = []
@@ -325,6 +359,8 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         def job() -> None:
             try:
                 run_batch(state, batch, cache[topic], make_llm)
+            except _Skip:
+                pass
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm
                 _append(state, {"topic": topic, "error": f"{type(e).__name__}: {e}"[:300]})
             finally:

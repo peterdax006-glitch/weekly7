@@ -426,7 +426,7 @@ class LocalModel:
             if free is None:                                   # unknown free RAM never opens the gate
                 return False
             claimed = self._starting_count(others_only=True) * DEV.SERVER_GB     # loading servers have not taken their RAM yet
-            return free - claimed - DEV.SERVER_GB > testslots.reserve_gb(DEV.get().ram_gb)
+            return free - claimed - DEV.server_gb_for(self.model) > testslots.reserve_gb(DEV.get().ram_gb)
         except Exception:                                      # noqa: BLE001 - an unreadable budget means no extra server
             return False
 
@@ -460,6 +460,10 @@ class LocalModel:
     def __exit__(self, *exc: Any) -> None:
         self._stop()
 
+    def chat_text(self, messages: Sequence[Mapping[str, str]], **kw: Any) -> str:
+        """`chat` with a reasoning model's <think>...</think> block removed (the caller wants the answer, not the scratch work)."""
+        return THINK_BLOCK.sub("", self.chat(messages, **kw)).strip()
+
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
              seed: int = 0, timeout: float = 600.0) -> str:
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
@@ -472,6 +476,28 @@ class LocalModel:
         self.calls += 1
         self.seconds += time.monotonic() - t0
         return str(data["choices"][0]["message"]["content"])
+
+
+THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
+
+
+def thinker(free_gb: Optional[Callable[[], Optional[float]]] = None, cfg: Optional[Mapping[str, Any]] = None, **kw: Any) -> LocalModel:
+    """The 'thinker' role (owner, 2 Oct 2026: Nupen must think and reason much better): the THINKING model of device setting 'think_model',
+    used by creator.judgment and the other live reasoning; the code-editing students keep LocalModel() with the fast model.
+
+    RAM-gated like the other servers: a thinking server starts only while free RAM - its resident size stays above the Governor's floor
+    (and 'think_servers' > 0); otherwise (or when no thinking model is configured / on disk) the fast model answers, so thinking never
+    stalls and never pushes the machine into the floor. How many thinkers run at once is the caller's cap ('think_servers')."""
+    c = DEV.settings() if cfg is None else cfg
+    model = DEV.think_model_path(c)
+    if model is None or int(c.get("think_servers", 0)) < 1:
+        return LocalModel(**kw)
+    lm = LocalModel(model=model, **kw)                    # all machine slots (slot 0 = the original lock): a free slot is a free slot
+    if free_gb is not None:
+        lm.free_gb = free_gb
+    if not lm._ram_allows_extra_server():
+        return LocalModel(**kw)
+    return lm
 
 
 # ------------------------------------------------------------------------------------------------ reading and writing code
