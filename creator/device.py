@@ -237,6 +237,7 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "lm_min_free_gb": round(max(LM_FREE_MIN_GB, LM_FREE_FRACTION * dev.ram_gb), 1),
         "torch_device": "cuda" if cuda else "cpu",
         "disk_floor_gb": 1.0,                            # never start new work with less free disk than this
+        "llama_servers": 1,                              # local model servers side by side (always-on: from RAM, below)
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
@@ -249,6 +250,9 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         # free floor is what remains of THIS machine. Free RAM is measured, so whatever Claude uses is simply not Nupen's.
         out["governor_floor_fraction"] = 0.0
         out["governor_floor_min_gb"] = max(0.5, round(dev.ram_gb - float(target) * 1.073741824, 2))
+    if out["user_aware"] is False and "llama_servers" not in ov:
+        # ~2 GB per server (1.1 GB model + context); up to 60% of RAM, never more servers than physical cores
+        out["llama_servers"] = max(1, min(dev.cores_physical, int(dev.ram_gb * 0.6 / 2.0)))
     if out["user_aware"] is False and "test_slots" not in ov:
         # owner, 2 Oct 2026 (new PC): "use all of it except a single GB" - with no yielding, the per-slot RAM guess is not the
         # limit; every slot is still admitted only while measured free RAM minus the floor holds one more test (testslots)

@@ -163,3 +163,22 @@ def test_plan_batch_never_orphans_a_package_it_planned(tmp_path: Path, monkeypat
     plans = S.plan_batch(cfg, led, SimpleNamespace(model=model), "b", 3)
     in_progress = {i for i, s in led.view.status.items() if s is M.Status.IN_PROGRESS and led.view.by_id[i].rtype == "Gap"}
     assert in_progress <= {p.gap_id for p in plans}, "a gap was marked IN_PROGRESS by a plan that plan_batch dropped"
+
+
+def test_a_gap_left_in_progress_by_a_dead_process_is_released_and_planned_again(world, tmp_path: Path) -> None:
+    """2 Oct 2026 (new PC): K28.exists stayed IN_PROGRESS from the old machine; the scheduler skipped it as 'worker already on
+    it' forever and no development work was planned. A starting swarm releases such orphans so they are planned again."""
+    from creator import swarmops as K
+    led, model = world
+    plan = P.plan_next(led, model, "b", SPECS)
+    assert plan is not None
+    led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
+    assert led.view.status[plan.gap_id] is M.Status.IN_PROGRESS                       # the state the move left behind
+    stuck = S.next_batch(led, 4, SPECS, explain_path=tmp_path / "e.jsonl")
+    assert plan.gap_id not in {n.id for n in stuck.picks}                              # 'worker already on it'
+    freed = K.release_orphans(led, "swarm restarted, no worker survives")
+    assert set(freed) == {plan.work_package_id, plan.gap_id}
+    assert led.view.status[plan.work_package_id] is M.Status.FAILED and led.view.status[plan.gap_id] is M.Status.FAILED
+    again = S.next_batch(led, 4, SPECS, explain_path=tmp_path / "e2.jsonl")
+    assert plan.gap_id in {n.id for n in again.picks}                                  # planned again
+    assert K.release_orphans(led, "again") == []                                       # nothing left: idempotent

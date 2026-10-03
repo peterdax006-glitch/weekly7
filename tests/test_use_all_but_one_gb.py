@@ -83,3 +83,47 @@ def test_a_ledger_lock_left_by_a_killed_writer_is_taken_over_but_a_live_one_is_n
         live.kill()
     lock.write_text("not-a-pid", encoding="utf-8")
     assert not LG._take_over_dead_lock(lock)                                           # unreadable: treated as alive
+
+
+def test_always_on_runs_several_local_model_servers_from_ram() -> None:
+    """Owner, 2 Oct 2026: 'there is more RAM work that needs to be done' - one model server per machine queued every thinking
+    student behind it while ~17 GiB sat free."""
+    never_yield = {"governor_floor_fraction": 0.03, "governor_floor_min_gb": 0.5, "user_aware": False}
+    assert D.derive(_dev(ram=33.78, physical=12), overrides=never_yield, lm_cuda=False)["llama_servers"] == 10
+    assert D.derive(_dev(ram=16.76, physical=8), overrides={}, lm_cuda=False)["llama_servers"] == 1      # yielding: unchanged
+    assert D.derive(_dev(), overrides={**never_yield, "llama_servers": 3}, lm_cuda=False)["llama_servers"] == 3
+
+
+def test_each_local_model_takes_its_own_server_slot_and_the_next_waits(tmp_path: Path) -> None:
+    from creator import generator as G
+    def lm(n: int, wait: float = 60.0) -> "G.LocalModel":
+        return G.LocalModel(model=tmp_path / "m.gguf", exe=tmp_path / "s", pidfile=tmp_path / "llama_server.pid",
+                            servers=n, slot_wait_s=wait, threads=2, gpu_layers=0)
+    a, b = lm(2), lm(2)
+    a._acquire_slot()
+    b._acquire_slot()
+    try:
+        assert a.lock.path.name == "llama_server.lock" and a.pidfile.name == "llama_server.pid"          # slot 0: old names
+        assert b.lock.path.name == "llama_server.1.lock" and b.pidfile.name == "llama_server.1.pid"
+        c = lm(2, wait=1.0)
+        with pytest.raises(TimeoutError):                                               # both slots busy: the third waits
+            c._acquire_slot()
+    finally:
+        a.lock.release()
+        b.lock.release()
+    d = lm(2, wait=5.0)
+    d._acquire_slot()                                                                   # a freed slot is reused
+    d.lock.release()
+
+
+def test_the_swarm_status_line_names_what_stops_more_work(capsys: pytest.CaptureFixture[str]) -> None:
+    """A STATUS line names the first limit, so machine under-use is read from the log, never guessed."""
+    import json
+    def line(free: float, load: int, planned: int, exhausted: bool) -> dict:
+        g = W.Governor(free=lambda: free, total=lambda: 33.78, floor_fraction=0.03, floor_min_gb=0.5, free_disk=lambda: 500.0,
+                       max_workers=64)
+        __import__('creator.swarmops', fromlist=['x']).status_line(g, load, [1] * load, [1] * load, [], [], planned, 64, exhausted, False, 0, True)
+        return json.loads(capsys.readouterr().out.split("STATUS ", 1)[1])
+    assert line(20.0, 3, 3, True)["limit"].startswith("no more work planned")      # RAM free, nothing left to start
+    assert line(0.9, 3, 3, False)["limit"].startswith("RAM:")                       # at the floor
+    assert line(20.0, 64, 64, False)["limit"] == "worker cap 64"

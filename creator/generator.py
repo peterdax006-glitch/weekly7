@@ -257,9 +257,13 @@ class LocalModel:
     (MachineLock next to the pidfile): a second LocalModel waits for the first to finish instead of loading another copy."""
 
     def __init__(self, model: Path = DEFAULT_MODEL, exe: Path = SERVER_EXE, ctx: int = 8192, threads: Optional[int] = None,
-                 startup_s: float = 120.0, pidfile: Path = PIDFILE, gpu_layers: Optional[int] = None) -> None:
+                 startup_s: float = 120.0, pidfile: Path = PIDFILE, gpu_layers: Optional[int] = None,
+                 servers: Optional[int] = None, slot_wait_s: float = 1800.0) -> None:
         cfg = DEV.settings()                                   # threads and GPU layers follow the machine unless given
-        threads = int(cfg["llama_threads"]) if threads is None else threads
+        self.servers = max(1, int(cfg.get("llama_servers", 1)) if servers is None else servers)
+        if threads is None:                                    # several servers share the cores (2x oversubscribed, >= 2 each)
+            threads = int(cfg["llama_threads"]) if self.servers == 1 else max(2, 2 * int(cfg["llama_threads"]) // self.servers)
+        self.base_pidfile, self.slot_wait_s = pidfile, slot_wait_s
         self.gpu_layers = int(cfg["gpu_layers"]) if gpu_layers is None else gpu_layers
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
         self.pidfile = pidfile
@@ -277,7 +281,7 @@ class LocalModel:
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
-        self.lock.acquire()                                    # one local model per machine: wait for the current one
+        self._acquire_slot()                                   # a free server slot on this machine, or wait for one
         try:
             try:
                 reap_stale_server(self.pidfile, self.exe)
@@ -312,6 +316,30 @@ class LocalModel:
                 raise RuntimeError("local model server exited during start-up")
             time.sleep(0.2)
         raise TimeoutError("local model server did not become healthy")
+
+    def _acquire_slot(self) -> None:
+        """Take the first free model-server slot. Owner, 2 Oct 2026 (new PC): 'there is more RAM work that needs to be done' -
+        one server per machine (MachineLock, 1 Oct on 16 GB) made every thinking student queue behind one server while RAM sat
+        idle. `llama_servers` (creator/device.py) slots now run side by side; slot 0 keeps the original lock and pid files, each
+        slot has its own, and the OS still drops a dead holder's lock."""
+        slots = []
+        for i in range(self.servers):
+            sfx = "" if i == 0 else f".{i}"
+            slots.append((MachineLock(self.base_pidfile.with_name(f"llama_server{sfx}.lock")),
+                          self.base_pidfile.with_name(self.base_pidfile.stem + sfx + self.base_pidfile.suffix)))
+        t0 = time.monotonic()
+        while True:
+            for lock, pid in slots:
+                lock.path.parent.mkdir(parents=True, exist_ok=True)
+                lock.fh = open(lock.path, "a+b")
+                if lock._try():
+                    self.lock, self.pidfile = lock, pid
+                    return
+                lock.fh.close()
+                lock.fh = None
+            if time.monotonic() - t0 > self.slot_wait_s:
+                raise TimeoutError(f"all {self.servers} local model server slots stayed busy for {self.slot_wait_s:.0f}s")
+            time.sleep(0.5)
 
     def _stop(self) -> None:
         proc, self.proc = self.proc, None

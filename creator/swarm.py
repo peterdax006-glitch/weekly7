@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import sys
 import threading
 import time
@@ -280,6 +281,8 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
     return plans[:slots]
 
 
+
+
 def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Optional[Governor] = None,
               max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None,
               filler: Optional[Callable[[], Optional[Callable[[], None]]]] = None, filler_budget: int = 0,
@@ -315,6 +318,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     nothing_while: Optional[tuple[str, ...]] = None                     # running set for which planning found nothing
 
     queue: list[Any] = []                                               # planned, not yet started (the ramp spaces the starts)
+    status_at = [0.0]
 
     def start(plan: Any) -> None:
         nonlocal last_start, peak
@@ -355,6 +359,10 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         fillers[:] = [f for f in fillers if f.is_alive()]
         load = len(active) + len(fillers)                               # fillers use memory too (1 Oct run9: uncounted, peak 42 > 32)
         ramped = time.monotonic() - last_start >= gov.ramp_s
+        if time.monotonic() - status_at[0] >= 60.0:                     # once a minute: what runs, and what stops more starting
+            status_at[0] = time.monotonic()
+            REG.get("swarmops").status_line(gov, load, running, active, queue, fillers, planned, max_packages, exhausted, nothing_while == key,
+                         fill_left, ramped)
         if gov.too_tight() and active:
             pool = [r for r in active if not r.cancel.is_set()]
             cheap = [r for r in pool if r.plan.package_id not in HANDED_BACK]

@@ -152,6 +152,12 @@ def main(argv: list[str]) -> int:
                          test_parallel=a.test_parallel)
     n = 0
     with K._KernelLock(STATE):                                           # no single-kernel run at the same time
+        try:                                                             # nothing of an earlier process still runs: release
+            freed = REG.get("swarmops").release_orphans(K.Ledger(cfg.ledger_path, evidence_root=cfg.repo), "swarm restarted, no worker survives")
+            if freed:
+                print("ORPHANS RELEASED " + json.dumps(freed), flush=True)
+        except Exception as e:                                           # noqa: BLE001 - never block the start on bookkeeping
+            print(f"ORPHANS error: {type(e).__name__}: {e}", flush=True)
         while a.rounds == 0 or n < a.rounds:
             n += 1
             try:

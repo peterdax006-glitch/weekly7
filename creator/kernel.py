@@ -458,6 +458,8 @@ def _evidence_file(cfg: KernelConfig, pkg: str, name: str, payload: Any) -> M.Ev
     return M.EvidenceRef.of(p, cfg.repo, "cycle")
 
 
+
+
 def recover(cfg: KernelConfig) -> list[str]:
     """Discard every sandbox a crashed cycle left behind (never adopted unless a merge names it) - worktree and branch."""
     gone = []
