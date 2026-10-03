@@ -35,6 +35,30 @@ GENESIS = "0" * 64
 LOCK_TIMEOUT_S = 30.0
 
 
+def _take_over_dead_lock(path: Path) -> bool:
+    """Remove the lock file only when the process it names is DEAD (an unknown or unreadable holder counts as alive: never
+    steal). The name is re-read just before removing, so a lock another writer has just re-taken is left alone."""
+    try:
+        holder = int(path.read_text(encoding="utf-8").strip() or 0)
+    except (OSError, ValueError):
+        return False
+    if holder <= 0 or holder == os.getpid():
+        return False
+    try:
+        import psutil
+        if psutil.pid_exists(holder) and psutil.Process(holder).status() != psutil.STATUS_ZOMBIE:
+            return False
+    except Exception:                                   # noqa: BLE001 - cannot tell: treat as alive
+        return False
+    try:
+        if path.read_text(encoding="utf-8").strip() != str(holder):
+            return False
+        path.unlink()
+    except OSError:
+        return False
+    return True
+
+
 class LedgerError(RuntimeError):
     """A write was refused or the stored history is not trustworthy. Never caught-and-continued by callers."""
 
@@ -385,6 +409,8 @@ class Ledger:
                 os.close(fd)
                 break
             except FileExistsError:
+                if _take_over_dead_lock(self.lock_path):        # 2 Oct: a writer killed mid-append left the lock forever and
+                    continue                                    # the swarm crash-looped on 'held for > 30s by another writer'
                 if time.monotonic() - t0 > LOCK_TIMEOUT_S:
                     raise LedgerError(f"{self.lock_path}: held for > {LOCK_TIMEOUT_S}s by another writer") from None
                 time.sleep(0.05)

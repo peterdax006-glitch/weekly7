@@ -403,7 +403,10 @@ class PracticeRunner:
 
 
 def swarm_cmd(python: str) -> list[str]:
-    return [python, "-u", str(ROOT / "scripts" / "creator_swarm.py"), "--rounds", "0", "--packages", "24",
+    # owner, 2 Oct 2026: "it should add tasks until it uses 97% of memory" - a round may plan up to the worker cap and fill
+    # any memory still left with filler work; the Governor (free RAM vs the floor) decides how many actually run
+    return [python, "-u", str(ROOT / "scripts" / "creator_swarm.py"), "--rounds", "0",
+            "--packages", str(DEV.settings()["max_workers"]), "--filler", "100000",
             "--teacher-presence"] + (["--user-aware"] if DEV.settings()["user_aware"] else [])   # device_overrides.json can turn it off
 
 

@@ -63,3 +63,23 @@ def test_a_29_gib_target_keeps_the_rest_of_this_machine_free() -> None:
     assert s["governor_floor_fraction"] == 0.0
     assert s["governor_floor_min_gb"] == round(33.78 - 29 * 1.073741824, 2)          # 2.64 GB (decimal) = ~2.5 GiB free
     assert D.derive(_dev(ram=33.78), overrides={"ram_use_target_gib": 40}, lm_cuda=False)["governor_floor_min_gb"] == 0.5
+
+
+def test_a_ledger_lock_left_by_a_killed_writer_is_taken_over_but_a_live_one_is_not(tmp_path: Path) -> None:
+    """2 Oct: a pause killed the swarm mid-append; its lock file stayed and every later append failed after 30 s."""
+    import subprocess
+    import sys
+    from creator import ledger as LG
+    lock = tmp_path / "ledger.jsonl.lock"
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait()
+    lock.write_text(str(dead.pid), encoding="utf-8")
+    assert LG._take_over_dead_lock(lock) and not lock.exists()                         # dead holder: taken over
+    live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        lock.write_text(str(live.pid), encoding="utf-8")
+        assert not LG._take_over_dead_lock(lock) and lock.exists()                     # live holder: never stolen
+    finally:
+        live.kill()
+    lock.write_text("not-a-pid", encoding="utf-8")
+    assert not LG._take_over_dead_lock(lock)                                           # unreadable: treated as alive
