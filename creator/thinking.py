@@ -399,11 +399,14 @@ def trust_of(sc: dict[str, Any]) -> tuple[bool, list[str]]:
     return (not why), why
 
 
-def trust(state: Path, write: bool = True) -> dict[str, Any]:
-    """Score every topic and report state/creator/trust.json. Pure measurement: it enables nothing."""
+def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> dict[str, Any]:
+    """Score every topic and report state/creator/trust.json. Pure measurement: it enables nothing. FIRST in the report: the anticipation rate
+    (creator.anticipation: the share of the owner's directives Nupen had already proposed before they were given), the top-level metric."""
+    from creator import anticipation as ANT                          # on demand: the drills do not need it
     preds = all_preds(state)
     items = load_items(state)
-    rep: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "topics": {}}
+    rep: dict[str, Any] = {"anticipation": ANT.summary(ANT.report(state, owner_dir, write=write)),
+                           "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "topics": {}}
     for t in TOPICS:
         sc = score(preds.get(t, []))
         ok, why = trust_of(sc) if sc.get("n") else (False, ["no scored predictions"])

@@ -38,7 +38,7 @@ def _hours(s: float) -> str:
     return f"{s / 3600:.1f} h" if s < 48 * 3600 else f"{s / 86400:.1f} days"
 
 
-def build(state: Path) -> str:
+def build(state: Path, owner_dir: Optional[Path] = None) -> str:
     items = T.load_items(state)
     done = [i for i in items if i.resolved is not None]
     kl = T._jsonl(state / "kernel_log.jsonl")
@@ -48,7 +48,7 @@ def build(state: Path) -> str:
     obj = [r for r in T._jsonl(state / "ledger.jsonl") if r.get("rtype") == "Objective"]
     statement = (obj[0].get("data", {}).get("statement") if obj else "") or "(no objective in the ledger)"
     current_goal = (obj[-1].get("data", {}).get("statement") if len(obj) > 1 else "")
-    rep = T.trust(state, write=False)
+    rep = T.trust(state, write=False, owner_dir=owner_dir)
 
     secs = [i.seconds for i in done if i.seconds > 0]
     med_s = statistics.median(secs) if secs else T.SLOW_S
@@ -60,6 +60,18 @@ def build(state: Path) -> str:
     w("# Nupen blueprint")
     w(f"\nGenerated {dt.datetime.now().isoformat(timespec='minutes')} from `{state}` (ledger head {str((sm.get('active') or {}).get('ledger_head', ''))[:12]}). "
       "Every number below is computed from the ledger and state files; nothing is typed in.\n")
+    an = rep["anticipation"]
+    w("## 0. Anticipation rate (the top-level trust metric)\n")
+    w("Share of the owner's directives that Nupen had already proposed, in writing, before the owner said them. The goal: the owner's talking is a waste.\n")
+    w(f"- **Anticipation rate: {an.get('anticipated')} of {an.get('directives')} directives ({an.get('rate')})**; of the {an.get('eligible_directives')} given after "
+      f"Nupen began writing proposals: {an.get('rate_eligible')}. Backlog of never-anticipated directives (training targets): {an.get('backlog')}.")
+    dr = an.get("drill") or {}
+    if dr.get("n"):
+        w(f"- Prediction drill (next directive's content words from what existed just before it, precision@10): model {dr['precision_at_10_model']} vs "
+          f"most-frequent-words baseline {dr['precision_at_10_baseline']}, gain {dr['gain']} {dr['gain_ci95']} over {dr['n']} directives.")
+    th = an.get("thresholds") or {}
+    w(f"- Matching rule: an earlier Nupen artefact must share >= {th.get('min_shared')} distinctive words the owner had not already said and reach match score "
+      f"{th.get('match_score')}; matched pairs and the backlog (with the signals that preceded each directive) are in thinking/anticipation.json.\n")
     w("## 1. Vision\n")
     w(f"Objective (ledger): {statement}\n")
     h = (snap.get("headline") or {}).get("current") or {}
@@ -196,11 +208,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--state", default=str(ROOT / "state" / "creator"))
     ap.add_argument("--out", default="")
+    ap.add_argument("--owner-dir", default="", help="folder with OWNER_MESSAGES.md and JOURNAL.md (default: Masterstock)")
     a = ap.parse_args(argv)
     state = Path(a.state)
-    text = build(state)
+    text = build(state, Path(a.owner_dir) if a.owner_dir else None)
     out = Path(a.out) if a.out else state / "BLUEPRINT.md"
     out.write_text(text, encoding="utf-8")
+    from creator import anticipation
+    anticipation.snapshot_blueprint(state, text)               # a dated copy of every blueprint: later directives are matched against earlier ones
     print(f"wrote {out} ({len(text.splitlines())} lines)")
     return 0
 

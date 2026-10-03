@@ -17,6 +17,13 @@ from creator import thinking as T
 T0 = 1_790_000_000.0
 
 
+@pytest.fixture(autouse=True)
+def hermetic_owner_dir(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The anticipation metric reads the owner's files; tests never read the real ones."""
+    from creator import anticipation as A
+    monkeypatch.setattr(A, "DEFAULT_OWNER_DIR", tmp_path_factory.mktemp("owner"))
+
+
 def iso(t: float) -> str:
     import datetime as dt
     return dt.datetime.fromtimestamp(t, dt.timezone.utc).isoformat(timespec="seconds")

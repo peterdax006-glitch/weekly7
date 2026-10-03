@@ -37,6 +37,7 @@ CAPABILITIES: dict[str, str] = {
     "swarmops": "creator.swarmops",
     "thinking": "creator.thinking",
     "drillsources": "creator.drillsources",
+    "anticipation": "creator.anticipation",
     "focus": "creator.focus",
 }
 
