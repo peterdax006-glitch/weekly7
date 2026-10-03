@@ -30,7 +30,7 @@ from typing import Any, Optional, Sequence
 
 from creator import thinking as T
 
-DEFAULT_OWNER_DIR = Path(r"C:\Users\Peter\Masterstock")
+DEFAULT_OWNER_DIR = Path.home() / "Masterstock"            # no hard-coded user path (device portability)
 MIN_SHARED = 3
 MATCH_SCORE = 0.30
 TOP_K = 10
