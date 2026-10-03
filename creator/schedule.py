@@ -41,6 +41,7 @@ class Node:
     files: frozenset[str] = frozenset()
     deps: tuple[str, ...] = ()
     status: str = "ready"                      # ready | running | blocked
+    capacity: bool = False                     # raises Nupen's own capacity to improve itself: runs before every other gap
 
 
 @dataclasses.dataclass(frozen=True)
@@ -100,6 +101,19 @@ def samples_from_ledger(ledger: Ledger) -> list[tuple[str, float, bool]]:
     return out
 
 
+SELF_DEV_CORE = ("K18", "K19", "K20", "K21", "K24", "K25", "K27")      # own worker, autotune, local/own workers, recursion, testgen, goals
+
+
+def capacity_ids(specs: Sequence[SM.CapabilitySpec]) -> frozenset[str]:
+    """Capabilities that raise Nupen's capacity to develop itself: the core self-development ones plus every capability approved
+    from a goal proposal (constraint-loop goals such as K29 learning_signal, student capabilities such as K28)."""
+    try:
+        approved = {x.id for x in SM._read_specs(SM.CAPABILITIES_FILE.with_name(SM.APPROVED_FILE))}
+    except Exception:                                                   # noqa: BLE001 - no approved file: only the core counts
+        approved = set()
+    return frozenset(s.id for s in specs if s.id in SELF_DEV_CORE or s.id in approved)
+
+
 def learn_history(ledger: Ledger) -> History:
     return History.from_samples(samples_from_ledger(ledger))
 
@@ -110,6 +124,7 @@ def build_nodes(ledger: Ledger, specs: Optional[Sequence[SM.CapabilitySpec]] = N
     spec_map = {s.id: s for s in (specs if specs is not None else SM.load_capabilities())}
     hist = history or learn_history(ledger)
     nodes: list[Node] = []
+    cap = capacity_ids(list(spec_map.values()))
     for g in G.ranked(ledger):
         gap = ledger.get(g.gap_id)
         req = next((p for p in gap.parents if ledger.view.by_id[p].rtype == "Requirement"), None)
@@ -123,7 +138,7 @@ def build_nodes(ledger: Ledger, specs: Optional[Sequence[SM.CapabilitySpec]] = N
         spec = spec_map.get(cid)
         status = "running" if st is M.Status.IN_PROGRESS else "blocked" if st in (M.Status.BLOCKED, M.Status.IMPLEMENTED) else "ready"
         nodes.append(Node(g.gap_id, cid, step, g.importance * hist.success_rate(step), hist.cost(step),
-                          frozenset(spec.modules + spec.tests) if spec else frozenset(), g.blocked_by, status))
+                          frozenset(spec.modules + spec.tests) if spec else frozenset(), g.blocked_by, status, cid in cap))
     return nodes
 
 
@@ -197,8 +212,8 @@ def schedule(nodes: Sequence[Node], slots: int, held_components: Sequence[str] =
         if n.status == "running":
             busy_c.add(n.component)
             busy_f |= n.files
-    order = sorted((n for n in nodes if n.status == "ready"),
-                   key=lambda n: (a.slack[n.id], -a.tail[n.id], -n.value / max(n.cost, 1.0), n.id))
+    order = sorted((n for n in nodes if n.status == "ready"),         # capacity-raising gaps first, then the critical path
+                   key=lambda n: (not n.capacity, a.slack[n.id], -a.tail[n.id], -n.value / max(n.cost, 1.0), n.id))
     picks: list[Node] = []
     why: dict[str, str] = {}
     for n in order:
@@ -219,7 +234,7 @@ def schedule(nodes: Sequence[Node], slots: int, held_components: Sequence[str] =
             busy_f |= n.files
             where = (f"on the critical path (length {a.length:.0f}s, tail {a.tail[n.id]:.0f}s)" if a.slack[n.id] == 0
                      else f"off the critical path (slack {a.slack[n.id]:.0f}s), free to run in parallel")
-            why[n.id] = f"{where}; est {n.cost:.0f}s, value {n.value:.2f}"
+            why[n.id] = f"{'raises Nupen own improvement capacity, first; ' if n.capacity else ''}{where}; est {n.cost:.0f}s, value {n.value:.2f}"
     for n in nodes:
         if n.id not in why:
             d = next((by[x] for x in n.deps if x in by), None)

@@ -387,6 +387,52 @@ def recent_failed_targets(ledger: Ledger, window: int = 6) -> list[str]:
     return out
 
 
+EFFICIENCY_OBJECTIVES = ("shrink ", "load less", "cover ")
+TARGET_WINDOW_H = 6.0                       # NUPEN_TARGET_WINDOW_H overrides; how long an unjudged package keeps its target off the plan
+
+
+def target_window_s() -> float:
+    import os
+    try:
+        return float(os.environ.get("NUPEN_TARGET_WINDOW_H", TARGET_WINDOW_H)) * 3600.0
+    except ValueError:
+        return TARGET_WINDOW_H * 3600.0
+
+
+def _at(e: Any) -> float:
+    from datetime import datetime
+    return datetime.fromisoformat(e.provenance.timestamp).timestamp()
+
+
+def target_history(ledger: Ledger) -> dict[str, tuple[float, bool]]:
+    """Per efficiency target, read from the LEDGER (so it survives swarm restarts): (time of its latest package activity, whether
+    that package is still unjudged). Unjudged = planned / in progress / implemented, or released as interrupted/deferred - nothing
+    about it was ever decided. A package with a verdict (adopted, rejected, failed for real) is judged."""
+    last: dict[str, float] = {}
+    for e in ledger.of_type("WorkPackage"):
+        if getattr(e.record, "objective", "").startswith(EFFICIENCY_OBJECTIVES) and getattr(e.record, "outputs"):
+            last[e.id] = _at(e)
+    for e in ledger.view.entries:
+        if e.rtype == "Transition" and getattr(e.record, "subject_id") in last:
+            last[getattr(e.record, "subject_id")] = max(last[getattr(e.record, "subject_id")], _at(e))
+    out: dict[str, tuple[float, bool]] = {}
+    for wid, t in sorted(last.items(), key=lambda kv: kv[1]):
+        pending = ledger.view.status.get(wid) in (M.Status.NOT_STARTED, M.Status.IN_PROGRESS, M.Status.IMPLEMENTED)             or was_interrupted(ledger, wid)
+        out[getattr(ledger.get(wid), "outputs")[0]] = (t, pending)
+    return out
+
+
+def recent_unjudged_targets(ledger: Ledger, now: Optional[float] = None, window_s: Optional[float] = None) -> list[str]:
+    """Targets with an unjudged package inside the window: not planned again until judged or the window passes."""
+    import time
+    now, w = time.time() if now is None else now, target_window_s() if window_s is None else window_s
+    return [t for t, (at, pend) in target_history(ledger).items() if pend and now - at < w]
+
+
+def last_attempts(ledger: Ledger) -> dict[str, float]:
+    return {t: at for t, (at, _) in target_history(ledger).items()}
+
+
 def plan_efficiency(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str] = (), kind: Optional[str] = None) -> Optional[Plan]:
     """Plan one efficiency package: SIZE (shrink the largest module the Creator may edit) or ACTIVATION (load less code at start -
     owner: 'never run any more code than absolutely necessarry'). Kinds alternate unless `kind` is given; when the preferred kind
@@ -409,7 +455,8 @@ def _plan_size(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str]) -
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
     if objective_id is None:
         return None
-    target = E.pick_target(_P(root), avoid=tuple(avoid) + tuple(recent_failed_targets(ledger)))
+    target = E.pick_target(_P(root), avoid=tuple(avoid) + tuple(recent_failed_targets(ledger)) + tuple(recent_unjudged_targets(ledger)),
+                           last=last_attempts(ledger))
     if target is None:
         return None
     path, nodes = target
@@ -465,13 +512,14 @@ def _plan_coverage(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[str
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
     if objective_id is None:
         return None
-    skip = set(avoid) | set(recent_failed_targets(ledger))
+    skip = set(avoid) | set(recent_failed_targets(ledger)) | set(recent_unjudged_targets(ledger))
+    seen = last_attempts(ledger)
     tests = E._test_text(_P(root))
     gaps = {f: E.uncovered_public(_P(root), f, tests) for f in E.production_files(_P(root)) if E.editable(f) and f not in skip}
     gaps = {f: n for f, n in gaps.items() if n}
     if not gaps:
         return None                                                     # every public name is named by some test
-    path = max(gaps, key=lambda f: (len(gaps[f]), f))
+    path = max(gaps, key=lambda f: (-seen.get(f, 0.0), len(gaps[f]), f))     # rotation first, most untested names breaks the tie
     names = ", ".join(gaps[path][:12])
     rid = ledger.view.unique.get(("Requirement", COVERAGE_KEY)) or ledger.append(M.Requirement(
         created_by=M.Role.OWNER, parents=(objective_id,), key=COVERAGE_KEY, priority=M.Priority.MEDIUM,
@@ -519,13 +567,14 @@ def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[s
     objective_id = next((e.id for e in ledger.of_type("Objective") if getattr(e.record, "statement") == O.SELF_STATEMENT), None)
     if objective_id is None:
         return None
-    skip = set(avoid) | set(recent_failed_targets(ledger))
+    skip = set(avoid) | set(recent_failed_targets(ledger)) | set(recent_unjudged_targets(ledger))
+    seen = last_attempts(ledger)
     gains = E.activation_gains(_P(root))
     cands = [m for m, g in gains.items() if g > 0 and E.editable(m) and m not in skip]
     if not cands:
         return None                                                     # nothing could load less: no package is planned
     act = E.activation(_P(root))
-    path = max(cands, key=lambda m: (gains[m], m))
+    path = max(cands, key=lambda m: (-seen.get(m, 0.0), gains[m], m))
     eager = {path: gains[path]}
     rid = ledger.view.unique.get(("Requirement", ACTIVATION_KEY)) or ledger.append(M.Requirement(
         created_by=M.Role.OWNER, parents=(objective_id,), key=ACTIVATION_KEY, priority=M.Priority.HIGH,

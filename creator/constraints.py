@@ -264,6 +264,38 @@ def waste_metrics(state: Path, now: dt.datetime, window_h: float) -> list[Metric
     return out
 
 
+def planning_metrics(state: Path, now: dt.datetime, window_h: float, grace_s: float = 1800.0) -> list[Metric]:
+    """Work the planner spends and never gets an answer for, read from the ledger.
+    wasted_work  = share of packages planned in the window that never reached a verdict (interrupted/cancelled, or still unjudged
+                   once older than `grace_s`; a package younger than that may simply be running).
+    repeat_rate  = share of the window's efficiency packages whose target was already planned by an efficiency package in the
+                   24 h before it (the same file planned again and again). loss = value for both."""
+    from creator import model as M
+    from creator import planner as P
+    from creator.ledger import Ledger
+    path = Path(state) / "ledger.jsonl"
+    lo, label = now - dt.timedelta(hours=window_h), f"last {window_h:g}h"
+    planned: list[tuple[dt.datetime, str, bool]] = []                   # (planned at, efficiency target or "", reached a verdict)
+    if path.is_file():
+        led = Ledger(path)
+        open_states = (M.Status.NOT_STARTED, M.Status.IN_PROGRESS, M.Status.IMPLEMENTED)
+        for e in led.of_type("WorkPackage"):
+            at = dt.datetime.fromtimestamp(P._at(e))
+            eff = getattr(e.record, "objective", "").startswith(P.EFFICIENCY_OBJECTIVES) and getattr(e.record, "outputs")
+            judged = led.view.status.get(e.id) not in open_states and not P.was_interrupted(led, e.id)
+            planned.append((at, getattr(e.record, "outputs")[0] if eff else "", judged))
+    cur = [x for x in planned if lo <= x[0] <= now and (x[2] or (now - x[0]).total_seconds() >= grace_s)]
+    wasted = [x for x in cur if not x[2]]
+    effs = [x for x in cur if x[1]]
+    rep = [x for x in effs if any(y[1] == x[1] and x[0] - dt.timedelta(hours=24) <= y[0] < x[0] for y in planned)]
+    w, r = len(wasted) / len(cur) if cur else 0.0, len(rep) / len(effs) if effs else 0.0
+    return [Metric("wasted_work", round(w, 4), "share of planned packages never judged", label, None, "new", round(w, 4), "throughput",
+                   {"planned": len(cur), "never_judged": len(wasted), "what": "packages interrupted, cancelled or never judged"}, "goal"),
+            Metric("repeat_rate", round(r, 4), "share of efficiency packages on an already-planned target", label, None, "new", round(r, 4),
+                   "throughput", {"efficiency_packages": len(effs), "repeats": len(rep),
+                                  "repeated_targets": sorted({x[1] for x in rep})[:8]}, "goal")]
+
+
 def cycle_time_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
     """Feedback-loop time: median wall-minutes of a completed (ADOPTED/REJECTED) cycle. loss = 1 - p25/median, the slack between a
     typical cycle and the fast quartile (0 when every cycle is as fast as the fast ones). Stage split: evaluation build steps
@@ -519,7 +551,7 @@ def fundamentals_metric(state: Path, now: dt.datetime, window_h: float) -> Metri
 
 
 METRICS: tuple[Callable[[Path, dt.datetime, float], Any], ...] = (
-    waste_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric, fundamentals_metric)
+    waste_metrics, planning_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric, fundamentals_metric)
 
 
 def measure_all(state: Path, now: Optional[dt.datetime] = None, window_h: float = 24.0) -> dict[str, Any]:
@@ -557,6 +589,8 @@ def _append(state: Path, rec: dict[str, Any]) -> None:
 
 def _remedy_text(m: dict[str, Any]) -> str:
     return {"learning_signal": "make every student attempt reach a measured kernel verdict (fewer model timeouts/unusable replies, record cancelled attempts)",
+            "wasted_work": "stop planning work that is never judged: finish or release in-flight packages, rotate targets, plan only what fits the slots",
+            "repeat_rate": "plan efficiency work on targets not planned in the last 24 h (rotate; skip targets with an unjudged package)",
             "student_skill": "raise the student adopted rate on task kinds that every student fails",
             "teacher_dependence": "move task kinds from the teacher to students (handoff-free adoption)",
             "work_supply": "plan more packages per round (more open gaps, wider scheduling)",
