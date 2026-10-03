@@ -42,6 +42,7 @@ CAPABILITIES: dict[str, str] = {
     "judgment": "creator.judgment",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
+    "thinkbench": "creator.thinkbench",
 }
 
 _loaded: dict[str, Any] = {}
