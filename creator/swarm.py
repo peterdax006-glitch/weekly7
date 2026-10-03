@@ -305,7 +305,14 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
             break
         plans.append(eff)
         seen.add(eff.component)
-    return plans[:slots]
+    final = plans[:slots]
+    try:                                                                # FAST-PREDICTION HOOK (creator.fastpred, on demand): which of these reaches a verdict first
+        fp = REG.optional("fastpred")
+        if fp is not None and fp.enabled() and len(final) > 1:
+            fp.plan_begin([(p.package_id, str(p.requirement_key)) for p in final])
+    except Exception:                                                   # noqa: BLE001
+        pass
+    return final
 
 
 

@@ -623,6 +623,14 @@ def _plan_activation(ledger: Ledger, root: Any, base_ref: str, avoid: Sequence[s
 def record_outcome(ledger: Ledger, plan: Plan, success: bool, reason: str) -> None:
     """Close the plan's chain: on failure the work package FAILS and the gap returns to FAILED (re-plannable, counted toward
     max_attempts); on success the gap stays IN_PROGRESS until creator.gaps.sync proves the check on main."""
+    if not reason.startswith("interrupted"):
+        try:                                                           # FAST-PREDICTION HOOK (creator.fastpred, on demand): a verdict closes the plan_first race
+            from creator import registry as REG
+            fp = REG.optional("fastpred")
+            if fp is not None:
+                fp.plan_verdict(plan.package_id)
+        except Exception:                                              # noqa: BLE001
+            pass
     wp_state = ledger.view.status[plan.work_package_id]
     if wp_state is M.Status.NOT_STARTED:
         ledger.transition(plan.work_package_id, M.Status.IN_PROGRESS, "executing", M.Role.KERNEL)

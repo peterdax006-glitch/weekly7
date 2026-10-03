@@ -376,6 +376,16 @@ class PytestConfig:
     env: dict[str, str] = field(default_factory=dict)
 
 
+def _fast(name: str, *args: Any) -> Any:
+    """Fast-prediction hook (creator.fastpred, loaded on demand): never raises, never blocks, a no-op when the module is missing or disabled."""
+    try:
+        from creator import registry as REG
+        m = REG.optional("fastpred")
+        return getattr(m, name)(*args) if m is not None else None
+    except Exception:                                                  # noqa: BLE001
+        return None
+
+
 def run_pytest(root: str | Path, targets: Sequence[str], junit_path: str | Path, *, label: str, tree: str = "",
                config: PytestConfig | None = None, file_of: Mapping[str, str] | None = None) -> TestRun:
     """Run pytest on explicit targets (test files or node ids) inside `root`. Never runs with an empty target list (pytest
@@ -390,6 +400,7 @@ def run_pytest(root: str | Path, targets: Sequence[str], junit_path: str | Path,
         jp.unlink()                        # a stale file from an earlier run must never be read as this run's result
     argv = [cfg.python, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--rootdir", str(root), f"--junitxml={jp}",
             "-o", "junit_family=xunit2", *cfg.extra_args, "--", *sel]
+    pend = _fast("tests_begin", [t.split("::", 1)[0] for t in sel])     # FAST-PREDICTION HOOK (best effort, no-op when absent/disabled)
     proc = run_cmd(argv, root, timeout=cfg.timeout, env=clean_env(root, cfg.env), budget=True)
     fmap = dict(file_of or {})
     for t in sel:
@@ -423,6 +434,8 @@ def run_pytest(root: str | Path, targets: Sequence[str], junit_path: str | Path,
         status = RunStatus.NO_TESTS
     else:
         status = RunStatus.FAILED if any_bad else RunStatus.PASSED
+    if pend:
+        _fast("tests_end", pend, cases, proc.seconds, status is RunStatus.CRASHED)
     return TestRun(label, tree, sel, status, cases, proc.returncode, proc.seconds, proc, str(jp), tuple(problems))
 
 

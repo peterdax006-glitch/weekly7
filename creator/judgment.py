@@ -22,6 +22,7 @@ import json
 import math
 import re
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
@@ -256,15 +257,33 @@ def _append(state: Path, row: dict[str, Any]) -> None:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _fast_mod() -> Any:
+    try:
+        from creator import registry as REG
+        return REG.optional("fastpred")
+    except Exception:                                                  # noqa: BLE001
+        return None
+
+
 def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any]) -> int:
     """Ask the model each (case, strategy) in the batch under one server lease and record the answers (the outcome is stored beside the answer only
     AFTER the answer exists; the prompt never contained it)."""
     n = 0
     with make_llm() as llm:
         for c, s in batch:
+            fp = _fast_mod()
+            pid = None
+            try:                                                   # FAST-PREDICTION HOOK: P(the model beats the statistical predictor here), BEFORE the call
+                if fp is not None and fp.enabled():
+                    pid = fp.begin_safe("judgment_correct", f"{c.topic}:{c.subject}:{json.dumps(s, sort_keys=True)}:{time.time():.0f}",
+                                        f"{c.topic}|{s.get('shots')}|{s.get('hint')}", state=state)
+            except Exception:                                      # noqa: BLE001
+                pid = None
             reply = llm.chat(build_prompt(s, cases, c), max_tokens=120, temperature=0.2, seed=0, timeout=300.0)
             _append(state, {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y,
                             "p": parse(reply), "reply": reply[:300], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
+            if pid and fp is not None:
+                fp.judgment_resolve(state, pid, c.topic, c.subject, parse(reply), c.y)
             n += 1
     return n
 
