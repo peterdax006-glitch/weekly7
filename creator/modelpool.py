@@ -288,13 +288,29 @@ class ModelPool:
 _POOL: Optional[ModelPool] = None
 
 
+def pool_model(state: Optional[Path] = None, cfg: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """What the warm servers load. 3 Oct 2026: in THINKING focus no code student runs, yet the pool kept 6 of 7 slots loaded with the fast code
+    model while every judgment batch queued for the one slot left (and cold-started the thinking model each time). In thinking focus the pool
+    keeps the THINKING model (generator.thinker() leases it: same model and context) and at most 'think_servers' of them, so the other slots
+    stay free for a fast-model student. Otherwise (or with no thinking model on disk) the fast model, as before."""
+    try:
+        from creator import focus as F
+        c = DEV.settings() if cfg is None else cfg
+        think = DEV.think_model_path(c)
+        if think is not None and int(c.get("think_servers", 0)) > 0 and F.current(state or F.DEFAULT_STATE) == "thinking":
+            return {"model": think, "max_servers": int(c["think_servers"]), "server_gb": DEV.server_gb_for(think)}
+    except Exception:                                                  # noqa: BLE001 - an unreadable focus keeps the old pool
+        pass
+    return {}
+
+
 def tick(gov: Any, free_ram: Callable[[], float]) -> Optional[dict[str, Any]]:
     """run_round hook: a REAL-machine governor (admit set) only. The pool is one per process and ends with it."""
     global _POOL
     if gov.admit is None:
         return None
     if _POOL is None or _POOL.closed:
-        _POOL = ModelPool(free_gb=lambda: float(free_ram()))
+        _POOL = ModelPool(free_gb=lambda: float(free_ram()), **pool_model())
     return _POOL.tick(allowed=not gov.too_tight())
 
 

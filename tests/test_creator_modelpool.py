@@ -169,3 +169,18 @@ def test_the_hook_does_nothing_for_a_fake_governor(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(MP, "_POOL", None)
     assert MP.tick(Gov(), lambda: 20.0) is None and MP._POOL is None
+
+
+def test_in_thinking_focus_the_pool_keeps_the_thinking_model(tmp_path: Path) -> None:
+    # 3 Oct: the pool held 6 of 7 slots with the fast code model (no code student runs in thinking focus) while judgment queued for one slot
+    think = tmp_path / "Thinky-Q4.gguf"
+    think.write_bytes(b"x" * 2_000_000)
+    cfg = {"think_model": str(think), "think_servers": 4}
+    st = tmp_path / "state"
+    st.mkdir()
+    assert MP.pool_model(st, cfg) == {}                                  # no focus: the fast model, as before
+    (st / "focus.json").write_text(json.dumps({"focus": "thinking"}), encoding="utf-8")
+    got = MP.pool_model(st, cfg)
+    assert got["model"] == think and got["max_servers"] == 4 and got["server_gb"] > 0
+    assert MP.pool_model(st, {"think_model": str(think), "think_servers": 0}) == {}         # thinking servers not allowed: fast model
+    assert MP.pool_model(st, {"think_model": str(tmp_path / "missing.gguf"), "think_servers": 4}) == {}
