@@ -12,6 +12,18 @@
    ],
    "floor": 0,
    "approved_from": "GP-00aabd0a29"
+  },
+  {
+   "id": "K29",
+   "name": "remove limiting factor learning_signal: make every student attempt reach a measured kernel verdict (fewer model timeouts/unusable replies, record cancelled attempts)",
+   "modules": [
+    "creator/goal_constraint_learning_signal.py"
+   ],
+   "tests": [
+    "tests/test_creator_goal_constraint_learning_signal.py"
+   ],
+   "floor": 0,
+   "approved_from": "GP-4b688021fc"
   }
  ]
 }
