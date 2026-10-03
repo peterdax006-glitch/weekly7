@@ -602,6 +602,14 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                 state_t["cache_flight"] = 0.0
         return job
 
+    def learn_queue() -> list[tuple[str, dict[str, Any]]]:
+        try:
+            from creator import registry as REG
+            ll = REG.optional("learnloop")
+            return list(ll.queued_variants(state)) if ll is not None else []
+        except Exception:                                          # noqa: BLE001 - the queue is optional; the drills run without it
+            return []
+
     def next_job() -> Optional[Callable[[], None]]:
         now = time.time()
         if deferred and now >= state_t["retry_at"]:
@@ -626,6 +634,12 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                 continue
             if (s, json.dumps(v, sort_keys=True), digest_of(s)) in done:
                 continue
+            return wrap(s, v, False)
+        for s, v in learn_queue():                                 # remedies queued by the learning loop (creator.learnloop) for a diagnosed
+            d = digest_of(s)                                       # weakness: ordinary search variants, run even when the search had stopped;
+            if s not in srcs or d == "-" or (s, json.dumps(v, sort_keys=True), d) in done:   # selection is unchanged (select part only)
+                continue
+            done.add((s, json.dumps(v, sort_keys=True), d))
             return wrap(s, v, False)
         for _ in range(len(srcs)):                                 # fixed grid exhausted: open-ended search
             s = srcs[next(rr) % len(srcs)]
