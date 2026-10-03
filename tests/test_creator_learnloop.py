@@ -246,6 +246,15 @@ def test_a_bigger_weakness_becomes_a_thinking_goal_proposal_with_evidence_and_me
     assert v and v[0]["verdict"] == "rejected"
 
 
+def test_every_weakness_maps_to_the_progress_skill_that_must_move() -> None:
+    assert L._skill_of(FEATURE_W) == "drill:git_fixed:heldout"
+    assert L._skill_of(JUDGE_W) == "judgment:git_fixed:vs_statistical"
+    assert L._skill_of({"kind": "live_key", "where": "fast|drill_beats_best|research_bool|search"}) == "fast:drill_beats_best"
+    assert L._skill_of({"kind": "live", "where": "drill_live|git_churn"}) == "drill:git_churn:live"
+    assert L._skill_of({"kind": "live", "where": "predictions|verdict"}) == "thinking:verdict"
+    assert L._skill_of({"kind": "regression", "where": "bench:b_judgment:thinker"}) == "bench:b_judgment:thinker"
+
+
 # ------------------------------------------------------------------------------------------------ 5 need data
 def test_need_data_event_when_the_search_converged_and_no_fresh_items(tmp_path: Path) -> None:
     lim = {"git_fixed": {"data_limited": True, "converged": True, "fresh_items": 0}, "git_churn": {"data_limited": False}}

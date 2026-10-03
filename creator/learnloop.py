@@ -48,6 +48,7 @@ FRESH_WINDOW_S = 86400.0             # new resolved items in this window mean th
 MIN_FRESH = 5                          # a fresh probe needs this many never-selected-on items
 PROBE_MAX = 200
 RESCORE_AFTER_S = 1800.0
+RESCORE_STALE_S = 86400.0              # an unchanged predictor's probe is re-scored once a day (new history can still move its predictions)
 VERIFY_AFTER_S = 2 * 3600.0            # an improvement is judged no earlier than this (and once its queued variants have run)
 NEED_DATA_EVERY_S = 6 * 3600.0
 MAX_OPEN_GOALS = 3                     # learn-loop goal proposals pending at once (the teacher builds them; more would only queue)
@@ -482,9 +483,9 @@ def retention(state: Path, data: Data, now: float, sources: Sequence[str]) -> di
         if d is None or now - _ts(pr["at"]) < RESCORE_AFTER_S:
             continue
         lr = last_rescore.get(pid)
-        sig = json.dumps(d["variant"], sort_keys=True) + f"|{len(d['preds'])}"
-        if lr is not None and lr.get("sig") == sig:
-            continue                                                   # nothing changed since the last re-score
+        sig = json.dumps(d["variant"], sort_keys=True)
+        if lr is not None and (lr.get("sig") == sig and now - _ts(lr["at"]) < RESCORE_STALE_S or now - _ts(lr["at"]) < RESCORE_AFTER_S):
+            continue                                                   # the predictor has not changed (re-checked daily as data grows)
         now_s = _brier_of(d["preds"], {k.split("@")[0] for k in pr["scores"]})
         both = [k for k in pr["scores"] if k in now_s]
         if not both:
@@ -758,6 +759,9 @@ def _skill_of(w: dict[str, Any]) -> str:
         return f"drill:{w['source']}:heldout"
     if w.get("topic"):
         return f"judgment:{w['topic']}:vs_statistical"
+    if w.get("kind") in ("live", "live_key"):                          # prospective groups map to their progress skill
+        f = str(w.get("where")).split("|")
+        return {"fast": f"fast:{f[1]}", "drill_live": f"drill:{f[1]}:live", "predictions": f"thinking:{f[1]}"}.get(f[0], str(w.get("where")))
     return str(w.get("where"))
 
 
