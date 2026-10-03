@@ -133,6 +133,69 @@ def catalog(rt: Optional[Path] = None) -> dict[str, dict[str, Any]]:
     return out
 
 
+_POD_LOCAL: dict[str, dict[str, Any]] = {}            # config 'extra_models' seen by extra_models(): sizes for the VRAM fit of pod-local files
+
+
+def extra_models_file(cfg: Optional[Mapping[str, Any]] = None, env: Optional[Mapping[str, str]] = None) -> Path:
+    """Where jobs register pod-local models mid-run: config 'extra_models_file', else env NUPEN_GPU_EXTRA_MODELS, else
+    <runtime>/gpu/extra_models.json. It is laid over the config's 'extra_models' on every read (the runner holds the config in memory for a
+    whole run, and pulse.json is never rewritten by a job)."""
+    e = os.environ if env is None else env
+    v = (cfg or {}).get("extra_models_file") or e.get("NUPEN_GPU_EXTRA_MODELS")
+    return Path(str(v)) if v else gpu_dir(e) / "extra_models.json"
+
+
+def extra_models(cfg: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Config 'extra_models' (plus extra_models_file()): {name: {"bytes": int, "sha256": hex}} - model files that are ALREADY ON THE POD under <remote_dir>/models
+    (e.g. a GPU-day fine-tune's GGUF, made there by an external job). They are never downloaded; serve() and setup() check the file's size
+    and sha256 on the pod first and refuse a mismatch. A malformed entry is an error (an unverifiable model is never served)."""
+    out: dict[str, dict[str, Any]] = {}
+    entries = dict(cfg.get("extra_models") or {})
+    try:                                                  # registered mid-run by a job (creator.gpuday:register_tuned_job), read fresh each call
+        entries.update(json.loads(extra_models_file(cfg).read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        pass
+    for name, e in entries.items():
+        if not isinstance(e, Mapping):
+            raise PulseError(f"extra_models entry {name!r} must be {{\"bytes\": int, \"sha256\": hex}}")
+        sha, size = str(e.get("sha256", "")).lower(), int(e.get("bytes", 0) or 0)
+        bad_name = "/" in name or "\\" in name or name.startswith(".") or not name.endswith(".gguf")
+        if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha) or size <= 0 or bad_name:
+            raise PulseError(f"extra_models entry {name!r} needs a plain *.gguf name, 'bytes' > 0 and a 64-hex 'sha256'")
+        out[name] = {"bytes": size, "sha256": sha, "pod_local": True}
+    _POD_LOCAL.update(out)
+    return out
+
+
+def pod_model_script(rdir: str, name: str, size: int, sha: str) -> str:
+    """Verify a pod-local model (extra_models): present, the recorded size, and the sha256 computed NOW from the file (a stale .ok marker is
+    not trusted). A mismatch is refused, and the file is left in place (it is the job's output; the caller decides)."""
+    q, f = shlex.quote(rdir), shlex.quote(name)
+    return f"""set -u
+cd {q}/models 2>/dev/null || {{ echo "@@error=no models directory on the pod"; exit 3; }}
+[ -f {f} ] || {{ echo "@@error=pod-local model {name} is not on the pod"; exit 3; }}
+sz="$(stat -c %s {f} 2>/dev/null || wc -c < {f} | tr -d ' ')"
+[ "$sz" = "{size}" ] || {{ rm -f {f}.ok; echo "@@error=size mismatch: got $sz want {size}"; exit 4; }}
+got="$(sha256sum {f} | cut -d' ' -f1)"
+[ "$got" = "{sha}" ] || {{ rm -f {f}.ok; echo "@@error=sha256 mismatch: got $got want {sha}"; exit 4; }}
+echo "{sha}" > {f}.ok && echo "@@verified=1"
+"""
+
+
+def verify_pod_models(cfg: Mapping[str, Any], models: Sequence[str], sh: "Shell") -> list[str]:
+    """Check every pod-local model among `models` on the pod; PulseError on the first that is missing or differs. Returns those checked."""
+    extra = extra_models(cfg)
+    done = []
+    for m in models:
+        if m in extra:
+            r = _kv(sh.run(pod_model_script(str(cfg["remote_dir"]), m, int(extra[m]["bytes"]), str(extra[m]["sha256"])), timeout=1800,
+                           check=False)[1])
+            if not r.get("verified"):
+                raise PulseError(f"pod-local model {m}: {r.get('error', 'not verified')} - refusing to serve it")
+            done.append(m)
+    return done
+
+
 def model_url(name: str, cat: Mapping[str, Mapping[str, Any]], base: str = HF_BASE) -> str:
     e = cat[name]
     return f"{base.rstrip('/')}/{e['repo']}/resolve/main/{e.get('file', name)}"
@@ -140,7 +203,7 @@ def model_url(name: str, cat: Mapping[str, Mapping[str, Any]], base: str = HF_BA
 
 def vram_need_gb(name: str, slots: int, ctx_per_slot: int, cat: Optional[Mapping[str, Mapping[str, Any]]] = None) -> float:
     """GB of VRAM one server needs: weights + f16 KV cache of all slots + compute buffers (MODELS.json entries count; unknown KV size: 160 MiB/1k)."""
-    e = (cat or CATALOG).get(name) or catalog().get(name) or {"bytes": 0}
+    e = (cat or CATALOG).get(name) or _POD_LOCAL.get(name) or catalog().get(name) or {"bytes": 0}
     kv = float(e.get("kv_mib_per_1k", 160)) * slots * ctx_per_slot / 1024 / 1024
     return round(float(e["bytes"]) / 2**30 + kv + COMPUTE_BUFFER_GB, 2)
 
@@ -476,7 +539,13 @@ def setup(cfg: Mapping[str, Any], shell: Optional[Shell] = None, serve_models: O
     models = list(cfg.get("models") or [])
     fetched: list[str] = []
     cached: list[str] = []
+    pod_local = extra_models(cfg)
     for m in models:
+        if m in pod_local:                                # made on the pod (e.g. a fine-tune): verified, never downloaded
+            verify_pod_models(cfg, [m], sh)
+            cached.append(m)
+            say(f"model {m}: pod-local, sha256 verified")
+            continue
         if m not in cat:
             raise PulseError(f"model {m} has no pinned sha256 (CATALOG / MODELS.json): refusing to download an unverifiable file")
         r = _kv(sh.run(model_script(rdir, m, model_url(m, cat, str(cfg.get("hf_base", HF_BASE))), int(cat[m]["bytes"]), str(cat[m]["sha256"])),
@@ -545,6 +614,7 @@ def serve(cfg: Mapping[str, Any], models: Sequence[str], shell: Optional[Shell] 
         exe = _kv(sh.run(probe_script(rdir), timeout=120)[1]).get("exe", "")
         if not exe:
             raise PulseError("no llama-server on the pod: run setup first")
+    verify_pod_models(cfg, models, sh)                    # pod-local models (extra_models): size + sha256 checked before serving
     inst = max(1, int(cfg.get("instances", 1)))
     sl = served_slots(cfg, models)
     need = sum(vram_need_gb(m, *sl[m]) * inst for m in models)
@@ -839,13 +909,16 @@ def ext_job(spec: Mapping[str, Any]) -> dict[str, Any]:
       minutes       expected minutes (the plan's estimate; required)
       max_minutes   hard cap (default 0 = none; the budget cap always applies)
       outputs       pod paths (relative to remote_dir) copied home after the job: <runtime>/gpu/outputs/<pulse>/<name>/ (or 'home')
-      low_util_abort_minutes   override of the idle-GPU stop for this job (0 = never; e.g. a job with a long CPU-side phase)"""
+      low_util_abort_minutes   override of the idle-GPU stop for this job (0 = never; e.g. a job with a long CPU-side phase)
+      args          dict handed to a 'call' job as ctx['args'] (e.g. which earlier job's model to register)"""
     j = dict(spec)
     kinds = [k for k in ("call", "command", "remote") if j.get(k)]
     if not j.get("name") or len(kinds) != 1 or "minutes" not in j:
         raise PulseError(f"bad external job {spec!r}: needs name, minutes and exactly one of call / command / remote")
     if kinds[0] == "call" and ":" not in str(j["call"]):
         raise PulseError(f"external job {j['name']}: call must be 'package.module:function'")
+    if not isinstance(j.get("args") or {}, Mapping):
+        raise PulseError(f"external job {j['name']}: args must be a dict (passed to a 'call' job as ctx['args'])")
     j.update(kind="ext", via=kinds[0], model=str(j.get("model") or ""), n=0, max_minutes=float(j.get("max_minutes") or 0.0),
              minutes=float(j["minutes"]), spec=f"ext:{j['name']}", outputs=[str(o) for o in j.get("outputs") or []])
     return j
@@ -1186,7 +1259,7 @@ def run_job_here(job: Mapping[str, Any], state: Path, repo: Path, owner_dir: Pat
         import importlib
         mod, _, fn = str(job["call"]).partition(":")
         ctx = {"state": Path(state), "repo": Path(repo), "owner_dir": Path(owner_dir), "workers": workers, "deadline": deadline, "pulse": pulse,
-               "tunnel_file": pf, "model": job.get("model", ""), "endpoints": endpoints(pf)}
+               "tunnel_file": pf, "model": job.get("model", ""), "endpoints": endpoints(pf), "args": dict(job.get("args") or {})}
         r = getattr(importlib.import_module(mod), fn)(ctx)
         return dict(r or {}, seconds=round(time.monotonic() - t0, 1))
     if job["kind"] in ("smoke", "probe", "traces"):
@@ -1272,7 +1345,17 @@ def run_jobs(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Pat
             close_tunnel()
             served, pf, plan_ = None, None, {}
         elif j["model"] and j["model"] != served:
-            plan_ = serve(cfg, [j["model"]], sh, say=say)
+            try:
+                plan_ = serve(cfg, [j["model"]], sh, say=say)
+            except BudgetExceeded:
+                raise
+            except PulseError as e:                       # e.g. a tuned model whose fine-tune skipped itself: this job only, the day goes on
+                say(f"job {j['spec']} skipped: {j['model']} could not be served: {e}")
+                res0 = {"job": j["spec"], "skipped": f"model not served: {e}", "gpu_pulse": pulse["id"], "usd_spent_total": budget.spent()}
+                out.append(res0)
+                _record(state, res0)
+                served, pf, plan_ = None, None, {}
+                continue
             pf = (tunnel or (lambda pl: open_tunnel(cfg, pl, pulse["id"])))(plan_)
             served = j["model"]
         slots = served_slots(cfg, [j["model"]])[j["model"]][0] * max(1, int(cfg.get("instances", 1))) if j["model"] else 1
@@ -1370,8 +1453,11 @@ def prepare(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Path
     parsed = [parse_job(j) for j in jobs]
     cat = catalog()
     models = list(dict.fromkeys(j["model"] for j in parsed if j["model"]))
-    checks["models_pinned"] = {m: bool(m in cat and cat[m].get("sha256")) for m in models}
-    missing_cfg = [m for m in models if m not in list(cfg.get("models") or [])]
+    extra = extra_models(cfg)
+    later = {str(j["args"]["serve_as"]) for j in parsed if isinstance(j.get("args"), Mapping) and j["args"].get("serve_as")}
+    checks["models_pinned"] = {m: bool((m in cat and cat[m].get("sha256")) or m in extra or m in later) for m in models}
+    checks["models_registered_mid_run"] = sorted(m for m in models if m in later and m not in extra)
+    missing_cfg = [m for m in models if m not in list(cfg.get("models") or []) and m not in extra and m not in later]
     checks["models_in_config"] = not missing_cfg
     key = Path(str(cfg.get("key_path") or "~/.ssh/nupen_vast")).expanduser()
     checks["ssh_key"] = key.is_file() and key.with_suffix(key.suffix + ".pub").is_file()
