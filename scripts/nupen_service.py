@@ -52,6 +52,7 @@ LM_MINUTES = 20
 LM_MIX = "dialogue"                 # training mix for the idle trainer: "dialogue" (stories + dialogue turns) or "none" (stories only)
 LM_DIALOGUE_SHARE = 0.2
 LM_GRACE_S = 90.0                    # how long a run gets to stop itself via its STOP file before the process tree is ended
+LM_YIELD_MAX_S = 300.0               # after a finished session the trainer waits at most this long for a ready practice run to take its turn
 LM_RESTART_GAP_S = 60.0              # never relaunch faster than this (a crashing trainer must not spin)
 
 
@@ -218,7 +219,8 @@ class LMTrainer:
 
     def __init__(self, python: Path = LM_PYTHON, idle=None, free_gb=None, spawn=None, stop_file: Path | None = None,
                  stop=None, clock=time.monotonic, log=_lm_log, idle_s: float = LM_IDLE_S, min_free_gb: float = LM_MIN_FREE_GB,
-                 grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S, blocked=None) -> None:    # type: ignore[no-untyped-def]
+                 grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S, blocked=None, yield_to=None,
+                 yield_max_s: float = LM_YIELD_MAX_S) -> None:    # type: ignore[no-untyped-def]
         if idle is None or free_gb is None:
             from creator import swarm as W
             idle, free_gb = idle or owner_idle_seconds(W), free_gb or W.free_ram_gb
@@ -232,6 +234,11 @@ class LMTrainer:
         self.last_start = -1e18
         self.warned = False
         self.blocked = blocked or (lambda: False)          # another background job (practice) runs: one at a time
+        # fair turns (2 Oct: a continuous trainer starved practice forever): after every FINISHED session the trainer yields while the
+        # other job is ready to run, for at most yield_max_s, so practice and training alternate session by session
+        self.yield_to = yield_to or (lambda: False)
+        self.yield_max_s = yield_max_s
+        self.yield_since: float | None = None
 
     def cmd(self) -> list[str]:
         c = [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
@@ -262,6 +269,8 @@ class LMTrainer:
         """One supervision step. `halt` = NUPEN_STOP exists (the whole of Nupen is switched off)."""
         if self.proc is not None and self.proc.poll() is not None:
             self.log(f"LM trainer exited code={self.proc.returncode}")
+            if self.stopping_since is None and self.proc.returncode == 0 and not halt:
+                self.yield_since = self.clock()                             # a finished session: practice's turn if it is ready
             self.proc, self.stopping_since = None, None
         if self.proc is not None:
             if halt:
@@ -275,6 +284,11 @@ class LMTrainer:
             return
         if halt or self.clock() - self.last_start < self.restart_gap_s or self.blocked():
             return
+        if self.yield_since is not None:
+            if self.clock() - self.yield_since < self.yield_max_s and self.yield_to():
+                return                                                      # practice is ready: it takes this turn
+            self.log("LM trainer: practice had its turn (or none was ready): training resumes")
+            self.yield_since = None
         if not Path(self.python).is_file():
             if not self.warned:
                 self.warned = True
@@ -363,6 +377,11 @@ class PracticeRunner:
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
+
+    def wants_turn(self) -> bool:
+        """True when a practice run could start right now except that the LM trainer holds the machine (idle/RAM/gap rules met)."""
+        return (self.proc is None and self.clock() >= self.next_start and self.idle() >= self.idle_s
+                and self.free_gb() >= self.min_free_gb)
 
     def _end(self, why: str) -> None:
         self.log(f"ending the practice job ({self.stage}): {why}")
@@ -500,6 +519,7 @@ def _supervise(python: str, poll_s: float) -> None:
     if pr and lm:
         pr.lm_running = lm.running
         lm.blocked = pr.running
+        lm.yield_to = pr.wants_turn
     beat()
     _safe("watchdog check", ensure_watchdog)
     try:

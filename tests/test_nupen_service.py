@@ -397,3 +397,88 @@ def test_supervisor_start_reaps_before_it_starts_a_swarm_and_records_the_new_one
     monkeypatch.setattr(svc.time, "sleep", lambda s: (tmp_path / "stop").write_text("", encoding="utf-8"))
     svc.run(sys.executable, poll_s=0.01)
     assert started == [FakeProc.pid]
+
+
+# ---- fair turns: LM training and practice alternate (2 Oct: the continuous trainer starved practice forever) ----------
+
+def _pair(tmp_path: Path, idle: list, free: list):                          # type: ignore[no-untyped-def]
+    svc = _load("nupen_service")
+    py = tmp_path / "python.exe"
+    py.write_text("", encoding="utf-8")
+    clock = [1000.0]
+    spawned: list = []
+    logs: list = []
+
+    def spawn(cmd):                                                         # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        return _FakeProc()
+    kill = lambda p: setattr(p, "returncode", 1)                            # noqa: E731
+    lm = svc.LMTrainer(python=py, idle=lambda: idle[0], free_gb=lambda: free[0], spawn=spawn, stop_file=tmp_path / "STOP",
+                       stop=kill, clock=lambda: clock[0], log=logs.append, grace_s=90.0, restart_gap_s=60.0, yield_max_s=300.0)
+    pr = svc.PracticeRunner(python="py", idle=lambda: idle[0], free_gb=lambda: free[0], spawn=spawn, stop=kill,
+                            clock=lambda: clock[0], log=logs.append, rows_path=tmp_path / "rows.jsonl", gap_s=300.0, empty_gap_s=1800.0)
+    pr.lm_running, lm.blocked, lm.yield_to = lm.running, pr.running, pr.wants_turn
+    return lm, pr, spawned, clock
+
+
+def _step(lm, pr, clock, halt=False):                                       # type: ignore[no-untyped-def]
+    clock[0] += 10
+    lm.tick(halt)                                                           # the supervisor's order: trainer first, then practice
+    pr.tick(halt)
+
+
+def test_practice_gets_a_turn_between_lm_sessions(tmp_path: Path) -> None:
+    lm, pr, spawned, clock = _pair(tmp_path, [float("inf")], [8.0])
+    _step(lm, pr, clock)
+    assert "train" in spawned[-1] and not pr.running()                      # trainer first
+    lm.proc.returncode = 0                                                  # a session finished cleanly
+    _step(lm, pr, clock)
+    assert pr.running() and not lm.running()                                # practice takes the turn, trainer yields
+    for _ in range(5):
+        _step(lm, pr, clock)
+    assert not lm.running()                                                 # still practising: one job at a time
+    pr.proc.returncode = 0                                                  # practice done, no rows: long gap
+    _step(lm, pr, clock)
+    _step(lm, pr, clock)
+    assert lm.running() and not pr.running()                                # the trainer resumes
+
+
+def test_trainer_never_waits_for_a_practice_run_that_cannot_start(tmp_path: Path) -> None:
+    free = [8.0]
+    lm, pr, spawned, clock = _pair(tmp_path, [float("inf")], free)
+    _step(lm, pr, clock)
+    pr.next_start = clock[0] + 99999                                        # practice is in its gap: not ready
+    lm.proc.returncode = 0
+    clock[0] += 100
+    _step(lm, pr, clock)
+    assert lm.running()                                                     # no wasted time waiting for it
+    lm.proc.returncode = 0
+    pr.next_start = -1.0
+    free[0] = 1.0                                                           # practice ready except RAM: not ready either
+    assert not pr.wants_turn()
+    clock[0] += 100
+    lm.tick()
+    assert not lm.running()                                                 # the trainer itself needs RAM too
+    free[0] = 8.0
+    pr.next_start = clock[0] + 99999
+    clock[0] += 100
+    lm.tick()
+    assert lm.running()
+
+
+def test_yield_is_bounded_and_nupen_stop_and_ram_rule_still_hold(tmp_path: Path) -> None:
+    lm, pr, spawned, clock = _pair(tmp_path, [float("inf")], [8.0])
+    lm.yield_to = lambda: True                                              # a practice that never starts must not starve the trainer
+    pr.tick(True)                                                           # (halt) so practice does not start
+    _step(lm, pr, clock)
+    lm.proc.returncode = 0
+    lm.tick()
+    assert not lm.running()
+    clock[0] += 400
+    lm.tick()
+    assert lm.running()                                                     # yield timed out
+    lm.proc.returncode = 0
+    lm.tick(True)                                                           # NUPEN_STOP: no yield bookkeeping, no start
+    clock[0] += 400
+    lm.tick(True)
+    assert not lm.running()
