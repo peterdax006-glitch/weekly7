@@ -41,7 +41,7 @@ def main(argv: list[str]) -> int:
     out, ex = Path(a.out), Path(a.export)
     out.mkdir(parents=True, exist_ok=True)
     data = out / "sft4.jsonl"
-    rows = [ln for ln in (ex / "coder_sft_mix.jsonl").read_text(encoding="utf-8").splitlines() if ln.strip()][:4]
+    rows = sorted((ln for ln in (ex / "coder_sft_mix.jsonl").read_text(encoding="utf-8").splitlines() if ln.strip()), key=len)[:4]
     data.write_text("\n".join(rows) + "\n", encoding="utf-8")
     pref = ex / "pref_train.jsonl"
     rl = out / "rl4.jsonl"
@@ -49,7 +49,7 @@ def main(argv: list[str]) -> int:
     pick = [r for r in rlrows if r["split"] == "train"][:4] + [r for r in rlrows if r["split"] == "eval"][:2]
     rl.write_text("".join(json.dumps(r) + "\n" for r in pick), encoding="utf-8")
     py, ft = sys.executable, str(HERE / "finetune.py")
-    tiny = ["--max-seq", "512", "--max-steps", "2", "--batch", "1", "--accum", "1", "--r", "4", "--alpha", "8", "--hf"]
+    tiny = ["--max-seq", "16384", "--max-steps", "2", "--batch", "1", "--accum", "1", "--r", "4", "--alpha", "8", "--hf"]
     q = Path(a.llama_bin) / ("llama-quantize.exe" if sys.platform == "win32" else "llama-quantize")
     ok = run([py, ft, "sft", "--base", a.model, "--data", str(data), "--out", str(out / "sft"), *tiny], out / "sft.log")
     ok = ok and run([py, ft, "pref", "--method", "dpo", "--base", a.model, "--adapter", str(out / "sft" / "adapter"), "--data", str(pref),

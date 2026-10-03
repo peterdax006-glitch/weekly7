@@ -106,6 +106,25 @@ def to_prompt_completion(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def fit_rows(rows: list[dict[str, Any]], tok: Any, max_seq: int) -> tuple[list[dict[str, Any]], int]:
+    """Rows whose whole conversation fits `max_seq` tokens. A longer row would be truncated from the END - its answer cut off or masked
+    away entirely (TRL then drops it silently) - so it is left out and counted instead."""
+    keep, n = [], 0
+    for r in rows:
+        msgs = list(r.get("prompt") or []) + list(r.get("completion") or r.get("chosen") or [])
+        try:
+            ids = tok.apply_chat_template(msgs, tokenize=True)
+            length = len(ids["input_ids"] if isinstance(ids, dict) else ids)
+        except Exception:                               # noqa: BLE001 - no template: count the plain text
+            length = len(tok("
+".join(str(m.get("content", "")) for m in msgs))["input_ids"])
+        if length <= max_seq:
+            keep.append(r)
+        else:
+            n += 1
+    return keep, n
+
+
 def common_args(a: argparse.Namespace, cls: Any, **extra: Any) -> Any:
     import torch
     cuda = torch.cuda.is_available()
@@ -126,9 +145,9 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
     from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
     model, tok, a.backend = load(a.base, a.max_seq, a.qlora, a.r, a.alpha, a.hf, a.adapter)
-    rows = to_prompt_completion(read_jsonl(Path(a.data)))
+    rows, too_long = fit_rows(to_prompt_completion(read_jsonl(Path(a.data))), tok, a.max_seq)
     if not rows:
-        raise SystemExit(f"no training rows in {a.data}")
+        raise SystemExit(f"no training rows in {a.data} fit {a.max_seq} tokens ({too_long} too long)")
     ds = Dataset.from_list(rows)
     cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=False)
     tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, processing_class=tok)
@@ -137,7 +156,7 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
     model.save_pretrained(str(ad))
     tok.save_pretrained(str(ad))
     losses = [h["loss"] for h in tr.state.log_history if "loss" in h]
-    return write_result(Path(a.out), "sft", {"backend": a.backend, "base": a.base, "rows": len(rows), "steps": st.global_step,
+    return write_result(Path(a.out), "sft", {"backend": a.backend, "base": a.base, "rows": len(rows), "too_long": too_long, "steps": st.global_step,
                                              "loss_first": losses[0] if losses else None, "loss_last": losses[-1] if losses else None,
                                              "seconds": round(time.time() - t0, 1), "adapter": str(ad),
                                              "files": files_info(sorted(ad.glob("adapter_*")))})
@@ -147,9 +166,9 @@ def cmd_pref(a: argparse.Namespace) -> dict[str, Any]:
     t0 = time.time()
     from datasets import Dataset
     model, tok, a.backend = load(a.base, a.max_seq, a.qlora, a.r, a.alpha, a.hf, a.adapter)
-    rows = read_jsonl(Path(a.data))
+    rows, too_long = fit_rows(read_jsonl(Path(a.data)), tok, a.max_seq)
     if not rows:
-        raise SystemExit(f"no preference rows in {a.data}")
+        raise SystemExit(f"no preference rows in {a.data} fit {a.max_seq} tokens ({too_long} too long)")
     ds = Dataset.from_list(rows)
     if a.method == "dpo":
         from trl import DPOConfig, DPOTrainer
@@ -167,7 +186,8 @@ def cmd_pref(a: argparse.Namespace) -> dict[str, Any]:
     model.save_pretrained(str(ad))
     tok.save_pretrained(str(ad))
     losses = [h["loss"] for h in tr.state.log_history if "loss" in h]
-    return write_result(Path(a.out), a.method, {"backend": a.backend, "base": a.base, "rows": len(rows), "steps": st.global_step,
+    return write_result(Path(a.out), a.method, {"backend": a.backend, "base": a.base, "rows": len(rows), "too_long": too_long,
+                                                "steps": st.global_step,
                                                 "loss_first": losses[0] if losses else None, "loss_last": losses[-1] if losses else None,
                                                 "seconds": round(time.time() - t0, 1), "adapter": str(ad),
                                                 "files": files_info(sorted(ad.glob("adapter_*")))})
