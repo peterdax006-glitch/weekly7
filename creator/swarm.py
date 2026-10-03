@@ -341,7 +341,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     nothing_while: Optional[tuple[str, ...]] = None                     # running set for which planning found nothing
 
     queue: list[Any] = []                                               # planned, not yet started (the ramp spaces the starts)
-    status_at = [0.0]
+    status_at = [time.monotonic()]                                     # first STATUS after a minute: never disturbs the start
     drain_t0: Optional[float] = None
 
     def start(plan: Any) -> None:
@@ -467,9 +467,15 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         fillers[:] = [f for f in fillers if f.is_alive()]
         if not running and not fillers and not queue and (exhausted or planned >= max_packages):
             break
-        if not running and not fillers and not queue and not gov.can_start(0):        # too tight to start anything: end the round so the
-            starved = True                                              # runner records it and retries later (never a silent
-            break                                                       # wait forever - found by the tight-RAM test, 2 Oct)
+        if not running and not fillers and not gov.can_start(0):        # too tight to start anything: end the round so the
+            for q in queue:                                             # runner records it and retries later (never a silent wait
+                try:                                                    # forever - 2 Oct: a QUEUED plan under tight RAM looped
+                    P.record_outcome(led, q, False, "interrupted: RAM too tight to start it")   # here forever; released, not an attempt
+                except Exception:                                       # noqa: BLE001 - the round still ends
+                    pass
+            queue.clear()
+            starved = True
+            break
         time.sleep(poll_s)
     Ledger(cfg.ledger_path, evidence_root=cfg.repo).checkpoint(f"swarm round: {len(reports)} packages, peak {peak} parallel")
     outcome = "DRAINED" if drain_t0 is not None else "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
