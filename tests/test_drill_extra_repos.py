@@ -82,3 +82,23 @@ def test_a_missing_cache_is_built_by_the_filler_before_any_job(tmp_path: Path, r
     row = D.run_job("x_git_fixed", {"decay": 1.0, "k": 2.0}, tmp_path / "state", tmp_path, tmp_path / "J.md", tmp_path)
     assert row["items"] == 8 and "error" not in row
     assert json.dumps(row).find("x.py") < 0                                   # results carry scores, never paths
+
+
+def test_cached_projects_drill_while_others_are_still_being_read(tmp_path: Path, runtime: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # 3 Oct: cpython's first read and clones still in progress held back every other project's drills (digest '-' until ALL were cached)
+    a = _repo(tmp_path / "pub", "aproj", [("x.py", "fix: a")] * 6)
+    b = _repo(tmp_path / "pub", "bproj", [("x.py", "feat: b")] * 6)
+    _repo(tmp_path / "pub", "cproj.tmp", [("x.py", "feat: c")] * 2)                    # a clone in progress
+    monkeypatch.setattr(D.Path, "home", staticmethod(lambda: tmp_path / "nohome"))
+    (runtime / "public_repos").mkdir(parents=True)
+    for r in (a, b, tmp_path / "pub" / "cproj.tmp"):
+        r.rename(runtime / "public_repos" / r.name)
+    a, b = runtime / "public_repos" / "aproj", runtime / "public_repos" / "bproj"
+    assert [r.name for r in D.extra_repos()] == ["aproj", "bproj"]                       # in-progress clones are not projects yet
+    D.build_extra_cache(a)                                                               # b not read yet
+    assert D.source_digest("x_git_churn", tmp_path, tmp_path, tmp_path / "J.md", tmp_path).startswith("x")
+    items = D.extra_git_items(3, "churn")
+    assert {i.keys[-1] for i in items} == {"r:aproj"}                                    # drills on what is cached now
+    d1 = D.source_digest("x_git_churn", tmp_path, tmp_path, tmp_path / "J.md", tmp_path)
+    D.build_extra_cache(b)
+    assert D.source_digest("x_git_churn", tmp_path, tmp_path, tmp_path / "J.md", tmp_path) != d1     # a newly cached project = new data

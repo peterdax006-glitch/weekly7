@@ -259,7 +259,13 @@ def extra_repos() -> list[Path]:
     from creator import device as DEV
     pub = DEV.runtime_dir() / "public_repos"                          # owner 3 Oct: "you can also use public information it can learn off of"
     public = sorted(d for d in pub.iterdir() if d.is_dir()) if pub.is_dir() else []
-    return [r for r in own + public if (r / ".git").exists()]
+    return [r for r in own + public if (r / ".git").exists() and not r.name.endswith(".tmp") and not r.name.startswith(".")]   # .tmp = clone in progress
+
+
+def cached_extra_repos() -> list[Path]:
+    """The projects whose history is already cached: drills use these now; a missing one is built in the background without blocking the rest
+    (3 Oct: one huge first read - cpython - and clones still in progress held back every other project's drills)."""
+    return [r for r in extra_repos() if extra_cache_path(r).exists()]
 
 
 def extra_cache_path(repo: Path) -> Path:
@@ -298,7 +304,11 @@ def build_extra_cache(repo: Path) -> int:
 def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = None) -> list[BItem]:
     """Every archived project's commits as git items (windows never cross projects), tagged 'r:<project>', in creation order."""
     out: list[BItem] = []
-    for repo in (extra_repos() if repos is None else repos):
+    if repos is None:
+        repos = cached_extra_repos()
+        if not repos:
+            raise GitCacheMissing("no other project's history is cached yet; the extra-history job builds them")
+    for repo in repos:
         path = extra_cache_path(repo)
         if not path.exists():
             raise GitCacheMissing(f"{path} not built yet; the extra-history job builds it")
@@ -428,9 +438,9 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
     try:
         if SOURCES[source] == "git":
             return _git_head(repo)[:12]
-        if SOURCES[source] == "gitx":                       # archived: the caches' sizes; "-" (retry later) until every one is built
-            xs = extra_repos()
-            if not xs or not all(extra_cache_path(r).exists() for r in xs):
+        if SOURCES[source] == "gitx":                       # the cached projects' sizes (a newly cached project = new data); "-" while none is
+            xs = cached_extra_repos()
+            if not xs:
                 return "-"
             return "x" + str(sum(extra_cache_path(r).stat().st_size for r in xs))
         if SOURCES[source] == "journal":
