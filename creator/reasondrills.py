@@ -755,7 +755,7 @@ def write_status(state: Path, qs: Sequence[Question], rows: Sequence[dict[str, A
 
 
 def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm: Callable[[], Any], solved: Sequence[tuple[Question, Optional[int], float]],
-              extra: Optional[dict[str, Any]] = None, traces: Optional[Mapping[str, str]] = None) -> int:
+              traces: Optional[Mapping[str, str]] = None, extra: Optional[dict[str, Any]] = None) -> int:
     """Ask each (question, strategy, epoch) under one server lease; the correct answer is attached to the record only after the answer exists."""
     n = 0
     with make_llm() as llm:
@@ -955,7 +955,7 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
 
         def job() -> None:
             try:
-                run_batch(state, batch, make_llm, solved, extra, traces)
+                run_batch(state, batch, make_llm, solved, traces=traces, extra=extra)
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm; _Skip = no RAM now
                 with lock:
                     for q, n, _e in batch:
