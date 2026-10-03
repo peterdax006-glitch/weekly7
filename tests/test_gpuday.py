@@ -355,3 +355,79 @@ def test_pod_scripts_parse_and_finetune_trains_on_the_answer_only() -> None:
                                                 {"role": "assistant", "content": "a"}]}, {"messages": [{"role": "user", "content": "x"}]}])
     assert pc == [{"prompt": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
                    "completion": [{"role": "assistant", "content": "a"}]}]
+
+
+# ------------------------------------------------------------------------------------------------ hook H3: a tuned model becomes servable
+def _ft_row(pulse: str = "P1", job: str = "ext:ft1_17b", rc: int = 0, **result: Any) -> dict[str, Any]:
+    return {"job": job, "rc": rc, "gpu_pulse": pulse, "result": result}
+
+
+def _runs(state: Path, *rows: dict[str, Any]) -> None:
+    (state / "thinking").mkdir(parents=True, exist_ok=True)
+    (state / "thinking" / "gpu_pulse_runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def test_register_tuned_job_records_the_gguf_of_this_pulse_in_an_injected_file(tmp_path: Path) -> None:
+    from creator import gpupulse as GP
+    sha_old, sha = "11" * 32, "AB" * 32
+    gg = lambda s, n: {"quant": "Q4_K_M", "files": {"model-Q4_K_M.gguf": {"bytes": n, "sha256": s}}}  # noqa: E731
+    _runs(tmp_path, _ft_row("P0", gguf=gg(sha_old, 7)), _ft_row("P1", gguf=gg(sha, 1234)), _ft_row("P1", job="ext:other", gguf=gg(sha_old, 9)))
+    reg = tmp_path / "rt" / "extra_models.json"
+    reg.parent.mkdir()
+    reg.write_text(json.dumps({"Keep.gguf": {"bytes": 3, "sha256": "cd" * 32}}), encoding="utf-8")
+    ctx = {"state": tmp_path, "pulse": "P1", "args": {"source": "ft1_17b", "serve_as": "Qwen3-1.7B-gpuday-ft1.gguf", "extra_models_file": str(reg)}}
+    r = GD.register_tuned_job(ctx)
+    assert r["registered"] and r["bytes"] == 1234 and r["sha256"] == sha.lower()
+    got = GP.extra_models({"extra_models_file": str(reg)})                     # exactly what the runner will read
+    assert got["Qwen3-1.7B-gpuday-ft1.gguf"]["sha256"] == sha.lower() and "Keep.gguf" in got
+    assert not (tmp_path / "rt" / "pulse.json").exists()
+
+
+def test_register_tuned_job_refuses_skipped_failed_or_absent_fine_tunes(tmp_path: Path) -> None:
+    reg = tmp_path / "extra_models.json"
+    base = {"state": tmp_path, "pulse": "P1", "args": {"source": "ft1_17b", "serve_as": "T.gguf", "extra_models_file": str(reg)}}
+    _runs(tmp_path, _ft_row(skipped="fewer than 200 rows in worked_train.jsonl"))
+    r = GD.register_tuned_job(base)
+    assert not r["registered"] and "fewer than 200" in r["reason"]
+    _runs(tmp_path, _ft_row(rc=5, gguf={"files": {"model-Q4_K_M.gguf": {"bytes": 1, "sha256": "ab" * 32}}}))
+    assert "rc 5" in GD.register_tuned_job(base)["reason"]
+    _runs(tmp_path, _ft_row("P0", gguf={"files": {"model-Q4_K_M.gguf": {"bytes": 1, "sha256": "ab" * 32}}}))
+    assert "no run of ft1_17b in this pulse" in GD.register_tuned_job(base)["reason"]       # an earlier pulse's model is never registered
+    _runs(tmp_path, _ft_row(gguf={"files": {"model-Q4_K_M.gguf": {"bytes": 1, "sha256": "not-hex"}}}))
+    with pytest.raises(Exception):
+        GD.register_tuned_job(base)                                               # validated the runner's way before anything is written
+    assert not reg.exists()
+    assert not GD.register_tuned_job({"state": tmp_path, "args": {}})["registered"]
+
+
+def test_day_jobs_register_each_tuned_model_before_serving_it(tmp_path: Path, repo: Path) -> None:
+    from creator import gpupulse as GP
+    st = _state(tmp_path, repo)
+    out = tmp_path / "export"
+    GD.export(st, repo, out, eval_frac=0.5, commit_limit=0)
+    base = {"gpuday_export": str(out), "gpuday_frozen": str(st / "thinkbench" / "items.json"), "gpuday_gpu": "NVIDIA GeForce RTX 5090, 32607 MiB, 12.0"}
+    jobs = GD.day_jobs(base)
+    specs = [GP.parse_job(j) for j in jobs]
+    label = [s.get("name") or s["spec"] for s in specs]
+    for src, model in (("ft1_17b", "Qwen3-1.7B-gpuday-ft1.gguf"), ("ft1_4b", "Qwen3-4B-gpuday-ft1.gguf"), ("ft2_coder", "Qwen3-14b-gpuday-coder.gguf")):
+        reg = label.index(f"register_{src}")
+        assert label.index(src) < reg < min(i for i, s in enumerate(specs) if s["model"] == model)
+        assert specs[reg]["args"] == {"source": src, "serve_as": model}
+    ft2 = next(s for s in specs if s.get("name") == "ft2_coder")["remote"]
+    assert "-lt 110 ]" in ft2 and "gpuday/python" in ft2 and "ln -f" in ft2
+    assert all("gpuday/python" in s["remote"] for s in specs if s.get("via") == "remote" and s["name"] != "gpuday_upload")
+    small = {s.get("name") or s["spec"]: s for s in (GP.parse_job(j) for j in GD.day_jobs(dict(base, gpuday_ft_gguf=False)))}
+    assert not any(k.startswith(("register_", "coder_trial_tuned", "thinkbench:Qwen3-1.7B-gpuday")) for k in small)
+    assert "--llama-cpp" not in small["ft1_4b"]["remote"] and "-lt 10 ]" in small["ft1_4b"]["remote"]
+
+
+def test_ft_script_skips_itself_when_the_pod_disk_is_short(tmp_path: Path) -> None:
+    pod = tmp_path / "pod"
+    (pod / "gpuday" / "data").mkdir(parents=True)
+    (pod / "gpuday" / "data" / "d.jsonl").write_text("{}\n" * 5, encoding="utf-8")
+    s = GD.ft_script("x", "base", "d.jsonl", min_rows=2, disk_gb=10 ** 7)        # more than any disk has
+    r = subprocess.run(["bash", "-s"], input=s, cwd=pod, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    res = json.loads(r.stdout.split("@@result=", 1)[1].splitlines()[0])
+    assert res["skipped"].startswith("disk: ") and "needs ~10000000 GB" in res["skipped"]
+    assert not (pod / "gpuday" / "runs").exists()

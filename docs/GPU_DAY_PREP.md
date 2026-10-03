@@ -169,7 +169,7 @@ tasks. The next source is Nupen's own unit tests (run a test file against a mode
 |---|---|
 | H1 job list | `gpu_pulse.py run --jobs-from creator.gpuday:day_jobs` (or `scripts/gpuday/jobs.py write` -> `--jobs-file`). Built-in strings plus `ext_job` dicts: `gpuday_upload` (remote), `coder_trial_*` / `best_of_n_goals` (call `creator.gpuday:harness_job`), `embed_index` / `ft1_*` / `ft2_coder` / `rl_poc` (remote, `free_gpu`, `outputs`), `gpuday_reexport` (call). |
 | H2 setup | config `"setup_steps": [{"name": "gpuday_stack", "script_file": "scripts/gpuday/pod_setup.sh", "timeout_s": 1800}]` |
-| H3 serve a tuned model | each FT job copies its Q4_K_M GGUF to `remote_dir/models/<name>` and writes `<name>.ok` = sha256 (the runner's own "verified copy" marker). The runner still needs a catalog entry to serve a name that is not on Hugging Face. **Ask of the runner:** accept config `extra_models: {name: {bytes, sha256}}` (no download, served when present), or let a job's result register one. Until then the `thinkbench:<tuned>` and `coder_trial_tuned` jobs fail fast and say so. |
+| H3 serve a tuned model | DONE. Each FT job hard-links its Q4_K_M GGUF to `remote_dir/models/<name>` (+ `<name>.ok`). The next job, `register_<ft job>` (`creator.gpuday:register_tuned_job`, args `{source, serve_as}`), reads that FT job's row of THIS pulse from `<state>/thinking/gpu_pulse_runs.jsonl` and writes `{name: {bytes, sha256}}` into the extra_models file (config `extra_models_file`, else env `NUPEN_GPU_EXTRA_MODELS`, else `<runtime>/gpu/extra_models.json`; pulse.json is never rewritten). The runner lays that file over config `extra_models` on every read, re-hashes the file ON THE POD before serving (size + sha256; mismatch refused), and never downloads it. A job whose model cannot be served (FT skipped, thin data, short disk) is recorded as skipped and the day goes on. |
 | H4 upload | there is none in the runner by design. `gpuday_upload` is a remote job whose script carries an audited base64 tarball (scripts + this module as `gpuday_lib.py` + the export's training files; sha256 checked on the pod), so it passes `outbound_ok`. |
 | H5 outputs | small files only: `result.json`, `adapter/` (LoRA safetensors 35-260 MB), `index/`. Big GGUFs stay on the pod; bring one home only for a winner (an `outputs` entry naming the GGUF, 1.1 / 2.5 / 9 / 18.6 GB). |
 | H6 env | `harness_job` reads `GPUDAY_N` (best-of-N, default 1); the export dir is `~/creator_runtime/gpuday/export` (cfg `gpuday_export`). |
@@ -192,3 +192,18 @@ tasks. The next source is Nupen's own unit tests (run a test file against a mode
 
 The total is 24 h, about $8.23 plus bandwidth. If FINE-TUNE 1 skips itself because the bank is too thin, its 3 h go to more traces or
 judgment rounds.
+
+## 9. Pod facts that shape the scripts (live 5090 pod, 3 Oct)
+
+- **Python.** Ubuntu 24 system Python is PEP 668 externally-managed. `pod_setup.sh` picks `$GPUDAY_PY`, else `/venv/main/bin/python`
+  (Vast images), else `gpuday/venv`, else system python3 only if it is not externally managed (otherwise it makes
+  `gpuday/venv --system-site-packages`). It never uses `--break-system-packages`. The choice is written to `gpuday/python`, and every pod job
+  (ft, embed, rl) reads it (`creator.gpuday.POD_PY`). `PIP_NO_CACHE_DIR=1` is set.
+- **Torch.** If the driver is CUDA >= 13.0, setup tries the cu130 index first, then cu128, and keeps whichever runs a kernel on the card.
+  A torch that already works is kept.
+- **llama.cpp.** The source (convert scripts, gguf-py) is cloned at the pod's `llama-server --version` build (`b<N>`), so the converter matches
+  the server. `$GPUDAY_LLAMA_TAG` overrides this. `llama-quantize` is also looked for under `/opt/llama.cpp`.
+- **Disk.** Each fine-tune checks free space in the working directory and in `$HOME` first. If either is short, it skips itself with
+  `disk: N GB free, needs ~M GB`. It needs (`FT_DISK_GB`, GB) 1.7B 12, 4B 27, 8B 60, 14B QLoRA 110, 30B 210. With
+  `"gpuday_ft_gguf": false` the jobs train adapters only, with no merge, GGUF or serving, and need the base download alone (`FT_DL_GB`:
+  5 / 10 / 8 / 12 / 64). The adapters come home through `outputs`. `"gpuday_skip_disk_check": true` turns the check off.

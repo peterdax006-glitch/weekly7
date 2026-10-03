@@ -482,3 +482,71 @@ def test_endpoints_document_the_tunnel_for_external_scripts(rt: Path) -> None:
     e = GP.endpoints(pf)
     assert e == {"pulse": "P2", "models": {GP.M8: {"urls": ["http://127.0.0.1:18120/v1"], "slots": 12}}, "extra": {"tensorboard": "http://127.0.0.1:16006"}}
     assert GP.endpoints(rt / "gpu" / "none.json") == {}
+
+
+# ------------------------------------------------------------------------------------------------ pod-local models (extra_models, hook H3)
+def test_extra_models_are_validated_and_the_registration_file_is_laid_over(tmp_path: Path, rt: Path) -> None:
+    sha = "ab" * 32
+    cfg = {"extra_models": {"Tuned.gguf": {"bytes": 10, "sha256": sha.upper()}}, "extra_models_file": str(tmp_path / "reg.json")}
+    assert GP.extra_models(cfg) == {"Tuned.gguf": {"bytes": 10, "sha256": sha, "pod_local": True}}
+    (tmp_path / "reg.json").write_text(json.dumps({"Later.gguf": {"bytes": 5, "sha256": "cd" * 32}}), encoding="utf-8")
+    assert set(GP.extra_models(cfg)) == {"Tuned.gguf", "Later.gguf"}                 # read fresh on every call (mid-run registration)
+    assert GP.extra_models_file({}) == rt / "gpu" / "extra_models.json"               # default: the runtime dir, never pulse.json
+    assert GP.extra_models_file({}, env={"NUPEN_GPU_EXTRA_MODELS": str(tmp_path / "e.json")}) == tmp_path / "e.json"
+    assert GP.vram_need_gb("Later.gguf", 1, 1024) > GP.COMPUTE_BUFFER_GB                # its size counts in the VRAM fit
+    for bad in ({"x.gguf": {"bytes": 0, "sha256": sha}}, {"x.gguf": {"bytes": 1, "sha256": "nothex"}}, {"../x.gguf": {"bytes": 1, "sha256": sha}},
+                {"x.bin": {"bytes": 1, "sha256": sha}}, {"x.gguf": "sha"}):
+        with pytest.raises(GP.PulseError):
+            GP.extra_models({"extra_models": bad, "extra_models_file": str(tmp_path / "none.json")})
+
+
+def test_pod_local_models_are_hashed_on_the_pod_before_serving(tmp_path: Path, rt: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = _pod_cfg(tmp_path, rt, monkeypatch)
+    models = tmp_path / "pod" / "models"
+    models.mkdir(parents=True)
+    data = b"tuned" * 100
+    (models / "Tuned.gguf").write_bytes(data)
+    good = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    cfg.update(extra_models={"Tuned.gguf": good}, extra_models_file=str(tmp_path / "none.json"))
+    sh = GP.shell_for(cfg)
+    assert GP.verify_pod_models(cfg, [FAKE_MODEL, "Tuned.gguf"], sh) == ["Tuned.gguf"]      # catalog models are not re-checked here
+    assert (models / "Tuned.gguf.ok").read_text(encoding="utf-8").strip() == good["sha256"]
+    cfg["extra_models"] = {"Tuned.gguf": dict(good, sha256="0" * 64)}
+    with pytest.raises(GP.PulseError, match="sha256 mismatch"):
+        GP.verify_pod_models(cfg, ["Tuned.gguf"], sh)
+    assert not (models / "Tuned.gguf.ok").exists() and (models / "Tuned.gguf").is_file()   # marker dropped, the job's output kept
+    cfg["extra_models"] = {"Tuned.gguf": dict(good, bytes=len(data) + 1)}
+    with pytest.raises(GP.PulseError, match="size mismatch"):
+        GP.verify_pod_models(cfg, ["Tuned.gguf"], sh)
+    cfg["extra_models"] = {"Gone.gguf": good}
+    with pytest.raises(GP.PulseError, match="not on the pod"):
+        GP.verify_pod_models(cfg, ["Gone.gguf"], sh)
+
+
+def test_a_job_whose_model_cannot_be_served_is_skipped_and_the_day_goes_on(tmp_path: Path, rt: Path, monkeypatch: pytest.MonkeyPatch, fake_server: int) -> None:
+    cfg = GP.load_config(rt / "gpu" / "pulse.json")
+    cfg.update(budget_usd=100.0, monitor_s=0.0, shell_argv=["unused"])
+
+    def serve(c: Any, models: Any, sh: Any = None, exe: str = "", say: Any = print) -> dict[str, list[int]]:
+        if models[0] == "Never-made.gguf":
+            raise GP.PulseError("pod-local model Never-made.gguf is not on the pod")
+        return {models[0]: [fake_server]}
+    monkeypatch.setattr(GP, "serve", serve)
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parent) + os.pathsep + str(ROOT))
+    call = {"name": "embed", "call": "gpupulse_fake_server:ext_call", "model": FAKE_MODEL, "minutes": 10}
+    out = GP.run_jobs(cfg, ["thinkbench:Never-made.gguf", call], tmp_path / "state", ROOT, tmp_path / "owner", say=lambda s: None, poll_s=0.05,
+                      tunnel=lambda plan: GP.write_tunnel(plan, "P7", path=rt / "gpu" / "tunnel.json", slots={FAKE_MODEL: 2}))
+    assert "not on the pod" in out[0]["skipped"] and out[1]["rc"] == 0 and out[1]["result"]["models"] == [FAKE_MODEL]
+    rows = (tmp_path / "state" / "thinking" / "gpu_pulse_runs.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 2 and "skipped" in json.loads(rows[0])
+
+
+def test_prepare_counts_a_model_registered_mid_run_as_pinned(tmp_path: Path, rt: Path) -> None:
+    cfg = GP.load_config(rt / "gpu" / "pulse.json")
+    jobs = [{"name": "register_ft", "call": "creator.gpuday:register_tuned_job", "args": {"source": "ft", "serve_as": "T.gguf"}, "minutes": 1},
+            "thinkbench:T.gguf"]
+    r = GP.prepare(cfg, jobs, tmp_path / "state", ROOT)
+    assert r["checks"]["models_pinned"] == {"T.gguf": True} and r["checks"]["models_registered_mid_run"] == ["T.gguf"]
+    assert r["missing_from_config"] == []
+    with pytest.raises(GP.PulseError, match="args must be a dict"):
+        GP.parse_job({"name": "x", "call": "m:f", "args": ["no"], "minutes": 1})

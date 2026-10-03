@@ -969,6 +969,11 @@ UPLOAD_DATA = ("handoff_train.jsonl", "handoff_eval.jsonl", "pref_train.jsonl", 
 MODELS_HF = {"1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B", "8b": "unsloth/Qwen3-8B-unsloth-bnb-4bit",
              "14b": "unsloth/Qwen3-14B-unsloth-bnb-4bit", "coder30b": "unsloth/Qwen3-Coder-30B-A3B-Instruct"}
 MERGE_BASE = {"8b": "Qwen/Qwen3-8B", "14b": "Qwen/Qwen3-14B", "coder30b": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
+# Peak pod disk of one fine-tune, GB: the base download (HF cache) + the 16-bit merge base (QLoRA) + merged weights + f16 GGUF + the quantised
+# GGUF (merged and f16 are deleted by finetune.py only after the quantised file exists). bf16 sizes: 1.7B 3.4, 4B 8.0, 8B 16.4, 14B 29.5,
+# 30B-A3B 61 GB; the bnb-4bit repos ~1/3 of that. ft_script skips itself (with the reason) instead of filling the pod's disk mid-run.
+FT_DISK_GB = {"1.7b": 12, "4b": 27, "8b": 60, "14b": 110, "coder30b": 210}
+FT_DL_GB = {"1.7b": 5, "4b": 10, "8b": 8, "14b": 12, "coder30b": 64}      # adapters only (gpuday_ft_gguf false): the base download + headroom
 
 
 def upload_bundle(export_dir: Path, frozen: Frozen, repo: Path = ROOT) -> tuple[bytes, dict[str, Any]]:
@@ -1010,9 +1015,11 @@ def upload_script(blob: bytes, info: Mapping[str, Any]) -> str:
 
 def ft_script(name: str, base: str, data: str, *, qlora: bool = False, pref: str = "", method: str = "dpo", max_seq: int = 8192,
               epochs: float = 2.0, batch: int = 2, accum: int = 8, lr: float = 2e-4, quant: str = "Q4_K_M", gguf: bool = True,
-              min_rows: int = 1, serve_as: str = "", merge_base: str = "") -> str:
+              min_rows: int = 1, serve_as: str = "", merge_base: str = "", disk_gb: int = 0) -> str:
     """Remote script of one fine-tune: SFT (+ optional DPO/ORPO) -> merge -> GGUF -> sha256; with `serve_as` the GGUF is also placed in the
-    runner's models/ with its .ok hash so the runner can serve it without a download (see docs/GPU_DAY_PREP.md, hook H3)."""
+    runner's models/ with its .ok hash so the runner can serve it without a download (see docs/GPU_DAY_PREP.md, hook H3; the runner serves
+    it once register_tuned_job has recorded its size + sha256). `disk_gb` > 0: skipped with the reason when the pod's working directory or
+    $HOME (the Hugging Face cache) has less free space than that."""
     d = f"{POD_DIR}/runs/{name}"
     opts = (f"--base {base} --data {POD_DIR}/data/{data} --out {d} --max-seq {max_seq} --epochs {epochs} --batch {batch} --accum {accum} "
             f"--lr {lr}" + (" --qlora" if qlora else "") + (f" --merge-base {merge_base}" if merge_base else ""))
@@ -1020,14 +1027,28 @@ def ft_script(name: str, base: str, data: str, *, qlora: bool = False, pref: str
         opts += f" --llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\" --quant {quant}"
     if pref:
         opts += f" --pref {POD_DIR}/data/{pref} --method {method}"
-    py = "PY=$(command -v python3 || command -v python)"
     count = f"n=$(wc -l < {POD_DIR}/data/{data} 2>/dev/null || echo 0)"
     skip = f"if [ \"$n\" -lt {min_rows} ]; then echo '@@result={{\"skipped\": \"fewer than {min_rows} rows in {data}\"}}'; exit 0; fi"
+    if disk_gb > 0:
+        skip += "\n" + disk_check(int(disk_gb))
     place = ""
-    if gguf and serve_as:
-        place = (f"\ng={d}/model-{quant}.gguf; if [ -f \"$g\" ]; then cp -f \"$g\" models/{serve_as} && sha256sum models/{serve_as} | cut -d' ' -f1 "
-                 f"> models/{serve_as}.ok; echo \"@@served_as={serve_as}\"; fi")
-    return f"set -e\n{py}\n{count}\n{skip}\nmkdir -p {d}\n\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {d}/train.log 2>&1 || {{ tail -40 {d}/train.log; exit 5; }}{place}\ncat {d}/result.json | tr -d '\\n' | sed 's/^/@@result=/'\necho\n"
+    if gguf and serve_as:                     # a hard link (same disk, no second copy of a 1-9 GB file); a copy only across filesystems
+        place = (f"\ng={d}/model-{quant}.gguf; if [ -f \"$g\" ]; then ln -f \"$g\" models/{serve_as} 2>/dev/null || cp -f \"$g\" models/{serve_as}; "
+                 f"sha256sum models/{serve_as} | cut -d' ' -f1 > models/{serve_as}.ok; echo \"@@served_as={serve_as}\"; fi")
+    return (f"set -e\n{POD_PY}\n{count}\n{skip}\nmkdir -p {d}\nexport PIP_NO_CACHE_DIR=1\n\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {d}/train.log 2>&1 "
+            f"|| {{ tail -40 {d}/train.log; exit 5; }}{place}\ncat {d}/result.json | tr -d '\\n' | sed 's/^/@@result=/'\necho\n")
+
+
+# The pod's Python for every GPU-day job: the interpreter pod_setup.sh chose and wrote to gpuday/python (a venv: the image's system Python
+# is PEP 668 externally-managed on Ubuntu 24), else python3 on PATH.
+POD_PY = f"PY=\"$(cat {POD_DIR}/python 2>/dev/null || true)\"; [ -n \"$PY\" ] && [ -x \"$PY\" ] || PY=$(command -v python3 || command -v python)"
+
+
+def disk_check(need_gb: int) -> str:
+    """Shell lines: skip the job (exit 0, '@@result={"skipped": ...}') when the working directory or $HOME has under `need_gb` GB free."""
+    return ("free=$(df -Pk . \"$HOME\" 2>/dev/null | awk 'NR>1 {g=int($4/1048576); if (m==\"\" || g<m) m=g} END {print m+0}')\n"
+            f"if [ \"$free\" -lt {int(need_gb)} ]; then printf '@@result={{\"skipped\": \"disk: %s GB free, needs ~{int(need_gb)} GB\"}}\\n' \"$free\"; "
+            "exit 0; fi")
 
 
 def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[Any]:
@@ -1047,6 +1068,15 @@ def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[
     gm = lambda m: scaled_minutes(m, "gen", prof)                           # noqa: E731
     out = lambda name, extra=(): [f"{POD_DIR}/runs/{name}/result.json", f"{POD_DIR}/runs/{name}/adapter", *extra]  # noqa: E731
     thinkers = [m17, m4, m8] + ([m14] if prof["vram_gb"] >= 14 else [])
+    gg = bool(cfg.get("gpuday_ft_gguf", True))       # False: adapters only (no merge / GGUF / serving) - for a small pod disk
+    disk = (lambda k: 0) if cfg.get("gpuday_skip_disk_check") else (lambda k: FT_DISK_GB[k] if gg else FT_DL_GB[k])  # noqa: E731
+
+    def register(src: str, name: str) -> list[Any]:
+        """After a fine-tune: its GGUF's bytes + sha256 into extra_models, then the jobs that serve it (they skip if it never came)."""
+        if not gg:
+            return []
+        return [{"name": f"register_{src}", "call": "creator.gpuday:register_tuned_job", "args": {"source": src, "serve_as": name},
+                 "minutes": 1, "low_util_abort_minutes": 0}]
     jobs: list[Any] = [
         "probe:" + m4,
         {"name": "gpuday_upload", "remote": upload_script(blob, info), "minutes": 1},
@@ -1054,29 +1084,34 @@ def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[
         {"name": "coder_trial_base", "call": "creator.gpuday:harness_job", "model": prof["best_of_n_model"], "minutes": gm(40),
          "max_minutes": gm(60), "low_util_abort_minutes": 0},
         f"traces:{best}:0:200",
-        {"name": "embed_index", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/embed_pod.py build "
+        {"name": "embed_index", "remote": f"{POD_PY}; \"$PY\" {POD_DIR}/embed_pod.py build "
          f"--docs {POD_DIR}/data/embed_docs.jsonl --out {POD_DIR}/index --model Qwen3-Embedding-0.6B-Q8_0.gguf --models-dir models",
          "free_gpu": True, "minutes": gm(10), "outputs": [f"{POD_DIR}/index"]},
         f"judgment:{best}:0:120", f"drills:{best}:0:80",
         {"name": "gpuday_reexport", "call": "creator.gpuday:reexport_job", "minutes": 5},
         {"name": "ft1_17b", "remote": ft_script("ft1_17b", MODELS_HF["1.7b"], "worked_train.jsonl", max_seq=4096, batch=prof["ft1_batch_17b"],
-                                                accum=max(1, 16 // prof["ft1_batch_17b"]), min_rows=200, serve_as="Qwen3-1.7B-gpuday-ft1.gguf"),
+                                                accum=max(1, 16 // prof["ft1_batch_17b"]), min_rows=200, serve_as="Qwen3-1.7B-gpuday-ft1.gguf",
+                                                gguf=gg, disk_gb=disk("1.7b")),
          "free_gpu": True, "minutes": tm(50), "max_minutes": tm(80), "outputs": out("ft1_17b")},
+        *register("ft1_17b", "Qwen3-1.7B-gpuday-ft1.gguf"),
         {"name": "ft1_4b", "remote": ft_script("ft1_4b", MODELS_HF["4b"], "worked_train.jsonl", max_seq=4096, batch=prof["ft1_batch_4b"],
-                                               accum=max(1, 16 // prof["ft1_batch_4b"]), min_rows=200, serve_as="Qwen3-4B-gpuday-ft1.gguf"),
+                                               accum=max(1, 16 // prof["ft1_batch_4b"]), min_rows=200, serve_as="Qwen3-4B-gpuday-ft1.gguf",
+                                               gguf=gg, disk_gb=disk("4b")),
          "free_gpu": True, "minutes": tm(80), "max_minutes": tm(110), "outputs": out("ft1_4b")},
-        "thinkbench:Qwen3-1.7B-gpuday-ft1.gguf", "thinkbench:Qwen3-4B-gpuday-ft1.gguf",
+        *register("ft1_4b", "Qwen3-4B-gpuday-ft1.gguf"),
+        *(["thinkbench:Qwen3-1.7B-gpuday-ft1.gguf", "thinkbench:Qwen3-4B-gpuday-ft1.gguf"] if gg else []),
         {"name": "ft2_coder", "remote": ft_script("ft2_coder", MODELS_HF[coder], "coder_sft_mix.jsonl", qlora=bool(prof["coder_qlora"]),
                                                   pref="pref_train.jsonl" if int(cfg.get("gpuday_pref_rows", 0)) >= 20 else "",
                                                   max_seq=int(prof["coder_max_seq"]), batch=int(prof["coder_batch"]),
                                                   accum=max(1, 16 // int(prof["coder_batch"])), epochs=2, lr=1e-4, min_rows=50,
-                                                  merge_base=MERGE_BASE[coder], serve_as=serve_coder),
+                                                  merge_base=MERGE_BASE[coder], serve_as=serve_coder, gguf=gg, disk_gb=disk(coder)),
          "free_gpu": True, "minutes": tm(150), "max_minutes": tm(240), "outputs": out("ft2_coder")},
-        {"name": "coder_trial_tuned", "call": "creator.gpuday:harness_job", "model": serve_coder, "minutes": gm(40),
-         "max_minutes": gm(60), "low_util_abort_minutes": 0},
+        *register("ft2_coder", serve_coder),
+        *([{"name": "coder_trial_tuned", "call": "creator.gpuday:harness_job", "model": serve_coder, "minutes": gm(40),
+            "max_minutes": gm(60), "low_util_abort_minutes": 0}] if gg else []),
         {"name": "best_of_n_goals", "call": "creator.gpuday:harness_bon_job", "model": str(cfg.get("gpuday_bon_model") or prof["best_of_n_model"]),
          "minutes": gm(150), "max_minutes": gm(180), "low_util_abort_minutes": 0},
-        {"name": "rl_poc", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/rl_grpo.py --base {MODELS_HF['1.7b']} "
+        {"name": "rl_poc", "remote": f"{POD_PY}; \"$PY\" {POD_DIR}/rl_grpo.py --base {MODELS_HF['1.7b']} "
          f"--tasks {POD_DIR}/data/rl_tasks.jsonl --out {POD_DIR}/runs/rl_poc --steps 150",
          "free_gpu": True, "minutes": tm(100), "max_minutes": tm(120), "outputs": [f"{POD_DIR}/runs/rl_poc/result.json"]},
     ]
@@ -1121,6 +1156,72 @@ def reexport_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     _idle_priority()
     man = export(Path(str(ctx["state"])), Path(str(ctx["repo"])), default_out())
     return {k: v.get("rows") for k, v in man["files"].items()}
+
+
+def tuned_gguf(row: Mapping[str, Any], quant: str = "Q4_K_M") -> Optional[dict[str, Any]]:
+    """{"bytes", "sha256"} of the quantised GGUF a fine-tune job's runner row reports (its result.json, sent back as '@@result='), or None
+    when the job failed, skipped itself, or made no GGUF."""
+    if row.get("rc") not in (0, None) or row.get("stopped"):
+        return None
+    res = row.get("result")
+    files = ((res.get("gguf") or {}).get("files") or {}) if isinstance(res, Mapping) else {}
+    e = files.get(f"model-{quant}.gguf")
+    if not isinstance(e, Mapping) or not e.get("sha256") or not int(e.get("bytes") or 0):
+        return None
+    return {"bytes": int(e["bytes"]), "sha256": str(e["sha256"]).lower()}
+
+
+def register_tuned(name: str, entry: Mapping[str, Any], path: Path) -> dict[str, Any]:
+    """Add/replace one pod-local model in the extra_models file (atomic write; other entries kept) and validate the whole file the way the
+    runner reads it (gpupulse.extra_models): a malformed entry raises and the previous file stays."""
+    from creator import gpupulse as GP
+    p = Path(path)
+    try:
+        cur = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cur = {}
+    if not isinstance(cur, dict):
+        cur = {}
+    cur[name] = {"bytes": int(entry["bytes"]), "sha256": str(entry["sha256"]).lower()}
+    GP.extra_models({"extra_models": cur, "extra_models_file": str(p.with_name(p.name + ".absent"))})   # validate before writing
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    tmp.write_text(json.dumps(cur, indent=1, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, p)
+    return cur
+
+
+def register_tuned_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """gpupulse 'call' job (hook H3), right after a fine-tune job: args {"source": <ft job name>, "serve_as": <models/ file name>[, "quant",
+    "extra_models_file"]}. Reads the fine-tune's row of THIS pulse from <state>/thinking/gpu_pulse_runs.jsonl and records the GGUF's bytes +
+    sha256 in the extra_models file (ctx/args 'extra_models_file', else env NUPEN_GPU_EXTRA_MODELS, else <runtime>/gpu/extra_models.json),
+    which the runner lays over the config's extra_models on every read. The runner then re-hashes the file ON THE POD before serving it."""
+    from creator import gpupulse as GP
+    a = dict(ctx.get("args") or {})
+    src, name, quant = str(a.get("source") or ""), str(a.get("serve_as") or ""), str(a.get("quant") or "Q4_K_M")
+    if not src or not name:
+        return {"registered": False, "reason": "args need 'source' (fine-tune job name) and 'serve_as' (model file name)"}
+    pulse = str(ctx.get("pulse") or "")
+    row: Optional[dict[str, Any]] = None
+    try:
+        for ln in (Path(str(ctx["state"])) / "thinking" / "gpu_pulse_runs.jsonl").read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("job") == f"ext:{src}" and (not pulse or str(r.get("gpu_pulse") or "") == pulse):
+                row = r                                                # the last one of this pulse wins
+    except OSError:
+        pass
+    if row is None:
+        return {"registered": False, "reason": f"no run of {src} in this pulse"}
+    e = tuned_gguf(row, quant)
+    if e is None:
+        why = (row.get("result") or {}).get("skipped") if isinstance(row.get("result"), Mapping) else None
+        return {"registered": False, "reason": f"{src} made no model-{quant}.gguf" + (f" (skipped: {why})" if why else f" (rc {row.get('rc')})")}
+    path = Path(str(a.get("extra_models_file") or ctx.get("extra_models_file") or GP.extra_models_file()))
+    register_tuned(name, e, path)
+    return {"registered": True, "model": name, "bytes": e["bytes"], "sha256": e["sha256"], "file": str(path)}
 
 
 def run_harness(repo: Path, eval_files: Sequence[Path], url: str, n: int = 1, deadline: float = 0.0, scratch: Optional[Path] = None,
