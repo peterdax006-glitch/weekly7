@@ -240,7 +240,12 @@ def decide(p: Profile, m: Machine, running_cores: float, running: int, oversub: 
     if running <= 0:
         return Decision(True, "nothing of ours is running: always progress", pri)
     saturated = m.cpu_pct >= SATURATED_PCT
-    if saturated and p.cpu_heavy:
+    # h43 (3 Oct 2026): the lowest class, IDLE (the thinking fillers: IDLE threads; the drill/model processes they start run BELOW_NORMAL),
+    # is not deferred by saturation - "~200% CPU managed by priority", the oversubscription bound below still applies, and a filler always
+    # loses the CPU to cycles and to the owner's programs. Replaying the live samples of 2-3 Oct through
+    # the Admitter: once h38 made saturation visible, a new filler was admitted in 31.8% of samples instead of 100%; now 100% again, while
+    # BELOW_NORMAL CPU-heavy work (cycles) is still deferred as h38 intended.
+    if saturated and p.cpu_heavy and pri != "IDLE":
         return Decision(False, f"CPU saturated ({m.cpu_pct:.0f}%): CPU-heavy work deferred, RAM work preferred", pri, "ram")
     if running_cores + p.cores > oversub * m.cores:
         return Decision(False, f"oversubscribed: {running_cores + p.cores:.1f} runnable cores > {oversub:g} x {m.cores}", pri, "ram")
