@@ -442,3 +442,66 @@ def test_a_second_run_of_the_day_starts_with_a_fresh_upload(tmp_path: Path, repo
     assert names[:3] == ["gpuday_upload", "ft1_17b", "register_ft1_17b"] and "gpuday_reexport" not in names and names[-1] == "rl_poc"
     with pytest.raises(ValueError):
         GD.day_jobs(dict(base, gpuday_start_at="nope"))
+
+
+def test_harness_job_fills_every_slot_and_feeds_at_below_normal(tmp_path, monkeypatch):
+    """h51 (3 Oct): the 14B served 16 slots but the harness kept a fixed 4 generations in flight; it now keeps the runner's slot count."""
+    from creator import gpuday as GD
+    seen: dict = {}
+    monkeypatch.setattr(GD, "_idle_priority", lambda feeds_gpu=False: seen.update(feeds_gpu=feeds_gpu))
+    monkeypatch.setattr(GD, "default_out", lambda: tmp_path / "export")
+    monkeypatch.setattr(GD, "harness_clone", lambda path, source: path)
+    monkeypatch.setattr(GD, "run_harness", lambda repo, files, url, **kw: seen.update(url=url, **kw) or {"ok": True})
+    ctx = {"model": "M.gguf", "repo": str(tmp_path), "workers": 16,
+           "endpoints": {"models": {"M.gguf": {"urls": ["http://127.0.0.1:18130/v1"], "slots": 16}}}}
+    assert GD.harness_job(ctx) == {"ok": True}
+    assert seen["gen_threads"] == 16 and seen["feeds_gpu"] is True and seen["url"] == "http://127.0.0.1:18130"
+    assert GD.harness_job(dict(ctx, workers=0)) == {"ok": True} and seen["gen_threads"] == 4
+
+
+def test_harness_sandbox_timeout_is_a_failed_candidate_not_a_dead_job(tmp_path: Path, repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """h51 (3 Oct): `git worktree add` timed out (120 s) on the busy PC and the whole coder_trial_base job died (rc=1) with the GPU paid for."""
+    from creator import sandbox as S
+    head = sh(repo, "rev-parse", "HEAD").strip()
+    case = GD.Case("c1", "CP0100", head, "fix add", GD.coder_messages("fix add", {"pkg/mathx.py": "x"}), ["pkg/mathx.py"])
+    right = "REASONING: plus\nFILE: pkg/mathx.py\n<<<<<<< SEARCH\n    return a - b\n=======\n    return a + b\n>>>>>>> REPLACE\n"
+    seen: list = []
+
+    def slow_open(*a: Any, **kw: Any) -> Any:
+        seen.append(kw.get("omit"))
+        raise subprocess.TimeoutExpired(["git", "worktree", "add"], 120.0)
+    monkeypatch.setattr(S.Sandbox, "open", slow_open)
+    res = GD.replay_case(repo, case, FakeModel([right]), n=2, scratch=tmp_path / "scratch")
+    assert [c["would_pass"] for c in res["candidates"]] == [False, False] and not res["pass_best_of_n"]
+    assert all("sandbox: TimeoutExpired" in c["error"] for c in res["candidates"])
+    assert seen == [GD.HARNESS_OMIT] * 2
+
+
+def test_harness_omits_what_the_kernel_omits() -> None:
+    from creator import kernel as K
+    assert tuple(GD.HARNESS_OMIT) == tuple(K.OMIT)
+
+
+def test_run_harness_evaluates_in_parallel_and_keeps_every_result(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+    import time as _t
+    cases = [GD.Case(f"c{i}", "CP0100", "HEAD", "t", [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], []) for i in range(6)]
+    monkeypatch.setattr(GD, "harness_cases", lambda f: cases)
+    monkeypatch.setattr(GD, "chat_http", lambda url, think=False: (lambda *a: "reply"))
+    live, peak, lock = [0], [0], threading.Lock()
+
+    def replay(repo: Path, c: Any, ask: Any, n: int = 1, scratch: Any = None) -> dict:
+        with lock:
+            live[0] += 1
+            peak[0] = max(peak[0], live[0])
+        _t.sleep(0.2)
+        with lock:
+            live[0] -= 1
+        return {"case": c.id, "package": c.package, "base": "HEAD", "n": n, "candidates": [{"i": 0, "would_pass": True}], "picked": 0,
+                "pass_at_1": True, "pass_best_of_n": True}
+    monkeypatch.setattr(GD, "replay_case", replay)
+    f = tmp_path / "e.jsonl"
+    f.write_text("x", encoding="utf-8")
+    rep = GD.run_harness(tmp_path, [f], "http://127.0.0.1:1", gen_threads=6, eval_workers=3)
+    assert rep["cases_total"] == 6 and peak[0] >= 2 and peak[0] <= 3
+    assert 1 <= GD.harness_eval_workers() <= 4

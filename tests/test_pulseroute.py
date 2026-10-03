@@ -207,3 +207,52 @@ def test_private_prompt_is_answered_locally_without_touching_pod(tmp_path: Path,
 def test_route_is_off_in_derived_defaults() -> None:
     from creator import device as DEV
     assert DEV.derive(DEV.get(), overrides={})["pulse_route"] == "off"
+
+
+def _backfill(tmp_path: Path, model: str = MODEL, port: int = 18300, slots: int = 8, age_h: float = 0.0) -> Path:
+    p = tmp_path / "tunnel.backfill.json"
+    p.write_text(json.dumps({"pulse": "bf1", "models": {model: [port]}, "slots": {model: slots}, "created": time.time()}), encoding="utf-8")
+    if age_h:
+        t = time.time() - age_h * 3600
+        os.utime(p, (t, t))
+    return p
+
+
+def test_backfill_tunnel_merges_with_runner_tunnel(tmp_path: Path, _clean: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    pf = _tunnel(tmp_path, models={"Qwen3-14B-Q4_K_M.gguf": [18130]})
+    _backfill(tmp_path)
+    _clean.up.update({18130, 18300})
+    s = PR.status(AUTO, pf)
+    assert s["up"] and s["models"] == {"Qwen3-14B-Q4_K_M.gguf": [18130], MODEL: [18300]}
+    monkeypatch.setattr(PR, "tunnel_file", lambda: pf)
+    assert PR.attach(MODEL, AUTO) == (18300, "bf1")             # the answer carries the backfill's own pulse id
+    assert PR.attach("Qwen3-14B-Q4_K_M.gguf", AUTO) == (18130, "pz1")
+    assert PR.pod_slots(MODEL, AUTO) == 8
+
+
+def test_backfill_alone_routes_when_runner_tunnel_is_gone(tmp_path: Path, _clean: Any) -> None:
+    _backfill(tmp_path)
+    _clean.up.add(18300)
+    s = PR.status(AUTO, tmp_path / "tunnel.json")
+    assert s["up"] and s["models"] == {MODEL: [18300]} and s["pulse"] == "bf1"
+
+
+def test_same_model_in_both_files_sums_capacity(tmp_path: Path, _clean: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    pf = _tunnel(tmp_path)                                      # MODEL on 18100, 18101 at 4 slots each
+    _backfill(tmp_path, slots=8)
+    _clean.up.update({18100, 18101, 18300})
+    monkeypatch.setattr(PR, "tunnel_file", lambda: pf)
+    assert PR.status(AUTO, pf)["models"][MODEL] == [18100, 18101, 18300]
+    assert PR.pod_slots(MODEL, AUTO) == 16
+
+
+def test_stale_or_silent_backfill_is_ignored(tmp_path: Path, _clean: Any) -> None:
+    pf = _tunnel(tmp_path, models={"Qwen3-14B-Q4_K_M.gguf": [18130]})
+    _backfill(tmp_path, age_h=PR.MAX_AGE_H + 1)
+    _clean.up.update({18130, 18300})
+    assert MODEL not in PR.status(AUTO, pf)["models"]
+    PR.invalidate()
+    _backfill(tmp_path)
+    _clean.up.discard(18300)
+    assert MODEL not in PR.status(AUTO, pf)["models"]
+    assert PR.status(AUTO, pf)["up"]                            # the runner's server still routes

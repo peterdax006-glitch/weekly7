@@ -755,6 +755,11 @@ def default_judge(sb: Any, base: str, outputs: Sequence[str]) -> dict[str, Any]:
             "would_pass": bool(ev.clean and not weak and not missing)}
 
 
+# Never checked out in a harness sandbox (= creator.kernel.OMIT): state/research is 44k of the repo's 47k tracked files and nothing in the
+# Creator's tests reads it; checking it out made `git worktree add` time out (120 s) on the busy PC and crashed coder_trial_base (h51, 3 Oct).
+HARNESS_OMIT: tuple[str, ...] = ("state/research",)
+
+
 def replay_case(repo: Path, case: Case, ask: Any, n: int = 1, temperature: float = 0.6, max_tokens: int = 6000,
                 judge: Any = None, scratch: Optional[Path] = None) -> dict[str, Any]:
     """Best-of-N for one held-out handoff: N answers, each applied in its OWN fresh sandbox at the recorded base and judged;
@@ -775,7 +780,12 @@ def replay_case(repo: Path, case: Case, ask: Any, n: int = 1, temperature: float
             continue
         rec["model_s"] = round(time.monotonic() - t0, 1)
         edits = G.parse_edits(reply)
-        sb = S.Sandbox.open(repo, base, scratch=scratch, label=f"gpuday-{case.package}")
+        try:
+            sb = S.Sandbox.open(repo, base, scratch=scratch, label=f"gpuday-{case.package}", omit=HARNESS_OMIT)
+        except Exception as e:                                      # noqa: BLE001 - a slow/failed checkout is one failed candidate, not a dead job
+            rec.update(error=f"sandbox: {type(e).__name__}: {str(e)[:300]}", would_pass=False, seconds=round(time.monotonic() - t0, 1))
+            cands.append(rec)
+            continue
         try:
             (sb.path / S.HANDOFF_FILES[0]).write_text(case.task, encoding="utf-8")
             applied, refused = G.apply_edits(sb.path, edits) if edits else ([], ["no usable search/replace edit"])
@@ -788,7 +798,10 @@ def replay_case(repo: Path, case: Case, ask: Any, n: int = 1, temperature: float
         except Exception as e:                                      # noqa: BLE001
             rec.update(error=f"evaluation: {type(e).__name__}: {str(e)[:300]}", would_pass=False)
         finally:
-            S.discard(sb)
+            try:
+                S.discard(sb)
+            except Exception as e:                                  # noqa: BLE001 - a leftover sandbox is swept by sandbox.recover, not fatal
+                rec["discard_error"] = f"{type(e).__name__}: {str(e)[:200]}"
         rec["seconds"] = round(time.monotonic() - t0, 1)
         cands.append(rec)
     pick = next((c["i"] for c in cands if c.get("would_pass")), None)
@@ -1126,8 +1139,9 @@ def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[
 
 def harness_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     """gpupulse 'call' job: replay held-out cases against the served model (best-of-N from cfg). Runs on the PC: the process drops itself
-    to IDLE priority first, and evaluations run ONE at a time while N generations per case are in flight on the GPU."""
-    _idle_priority()
+    to BELOW-NORMAL priority first (it feeds the rented GPU: at IDLE behind Nupen's swarm it starved the GPU, 3 Oct), and evaluations run ONE
+    at a time while as many generations as the server has slots (ctx 'workers', the runner's slot count) are in flight on the GPU."""
+    _idle_priority(feeds_gpu=True)
     ep = ctx.get("endpoints") or {}
     urls = ((ep.get("models") or {}).get(str(ctx.get("model")), {}) or {}).get("urls") or []
     if not urls:
@@ -1137,7 +1151,8 @@ def harness_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     deadline = float(ctx.get("deadline") or 0)
     repo = harness_clone(ex.parent / "harness_repo", Path(str(ctx["repo"])))     # never the main repository: sandboxes make branches
     res = run_harness(repo, [ex / "commit_eval.jsonl", ex / "handoff_eval.jsonl"], urls[0].rsplit("/v1", 1)[0], n=n,
-                      deadline=deadline, scratch=ex.parent / "harness_sandboxes", out=ex.parent / f"harness_{ctx.get('model')}.json")
+                      deadline=deadline, scratch=ex.parent / "harness_sandboxes", out=ex.parent / f"harness_{ctx.get('model')}.json",
+                      gen_threads=max(4, int(ctx.get("workers") or 4)))     # was a fixed 4: 4 of the 14B's 16 slots busy (h51, 3 Oct)
     return res
 
 
@@ -1231,9 +1246,9 @@ def register_tuned_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def run_harness(repo: Path, eval_files: Sequence[Path], url: str, n: int = 1, deadline: float = 0.0, scratch: Optional[Path] = None,
-                out: Optional[Path] = None, gen_threads: int = 4, think: bool = False) -> dict[str, Any]:
-    """Every case of the eval files: generations run `gen_threads` cases ahead (the GPU stays busy) while sandbox evaluations run one at a
-    time on this PC (they are the heavy home-side part)."""
+                out: Optional[Path] = None, gen_threads: int = 4, think: bool = False, eval_workers: int = 0) -> dict[str, Any]:
+    """Every case of the eval files: generations run `gen_threads` cases ahead (the GPU stays busy) while sandbox evaluations run
+    `eval_workers` at a time on this PC (they are the heavy home-side part; 0 = harness_eval_workers(): sized to the idle cores)."""
     import concurrent.futures as cf
     cases = [c for f in eval_files if Path(f).is_file() for c in harness_cases(Path(f))]
     ask = chat_http(url, think=think)
@@ -1248,16 +1263,29 @@ def run_harness(repo: Path, eval_files: Sequence[Path], url: str, n: int = 1, de
                 rs.append(f"(model error: {type(e).__name__}: {str(e)[:200]})")
         return c.id, rs
     results = []
-    with cf.ThreadPoolExecutor(max_workers=max(1, gen_threads)) as pool:
+
+    def evaluate(c: Case, rs: list[str]) -> dict[str, Any]:
+        it = iter(rs)
+        return replay_case(repo, c, lambda *a, **k: next(it), n=len(rs), scratch=scratch)
+    ew = eval_workers or harness_eval_workers()
+    with cf.ThreadPoolExecutor(max_workers=max(1, gen_threads)) as pool, cf.ThreadPoolExecutor(max_workers=max(1, ew)) as evals:
         futs = {pool.submit(gen, c): c for c in cases}
+        pending = []
         for fut in cf.as_completed(futs):
             c = futs[fut]
             if deadline and time.monotonic() > deadline:
                 break
             cid, rs = fut.result()
             replies[cid] = rs
-            it = iter(rs)
-            results.append(replay_case(repo, c, lambda *a, **k: next(it), n=len(rs), scratch=scratch))
+            pending.append(evals.submit(evaluate, c, rs))
+        for ef in pending:
+            if deadline and time.monotonic() > deadline and not ef.done():
+                ef.cancel()
+                continue
+            try:
+                results.append(ef.result())
+            except cf.CancelledError:
+                pass
     rep = dict(harness_report(results), url=url, n=n, cases_total=len(cases))
     if out:
         outside_repo(out)
@@ -1266,8 +1294,23 @@ def run_harness(repo: Path, eval_files: Sequence[Path], url: str, n: int = 1, de
     return rep
 
 
-def _idle_priority() -> None:
-    """Teacher rule (3 Oct): home-side GPU-day work yields the CPU to Nupen (IDLE class on Windows, nice 19 elsewhere)."""
+def harness_eval_workers(cap: int = 4) -> int:
+    """Parallel sandbox evaluations: about one per 4 idle logical cores right now (1..cap). Each evaluation is a git worktree + a pytest
+    subprocess; under Nupen's ~85% CPU this is 1, on an idle PC up to `cap`."""
+    n = os.cpu_count() or 2
+    busy = 0.0
+    try:
+        import psutil                                                 # optional
+        busy = float(psutil.cpu_percent(interval=0.5)) / 100.0
+    except Exception:                                                 # noqa: BLE001 - no psutil: assume half busy
+        busy = 0.5
+    return max(1, min(int(cap), int(n * (1.0 - busy) // 4)))
+
+
+def _idle_priority(feeds_gpu: bool = False) -> None:
+    """Teacher rule (3 Oct): home-side GPU-day work yields the CPU to Nupen (IDLE class on Windows, nice 19 elsewhere). Work the rented GPU
+    WAITS on (feeds_gpu: the harness's clone + request feeding) is BELOW_NORMAL / nice 10 instead: still behind Nupen's normal-priority swarm,
+    but not starved by it while the paid GPU idles."""
     import sys as _sys
     try:
         if _sys.platform == "win32":
@@ -1275,9 +1318,9 @@ def _idle_priority() -> None:
             k = ctypes.windll.kernel32                                 # type: ignore[attr-defined]
             k.GetCurrentProcess.restype = ctypes.c_void_p
             k.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-            k.SetPriorityClass(k.GetCurrentProcess(), 0x00000040)
+            k.SetPriorityClass(k.GetCurrentProcess(), 0x00004000 if feeds_gpu else 0x00000040)
         else:
-            getattr(os, "nice")(19)
+            getattr(os, "nice")(10 if feeds_gpu else 19)
     except (OSError, AttributeError):
         pass
 

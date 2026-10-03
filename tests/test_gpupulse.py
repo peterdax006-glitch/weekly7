@@ -550,3 +550,18 @@ def test_prepare_counts_a_model_registered_mid_run_as_pinned(tmp_path: Path, rt:
     assert r["missing_from_config"] == []
     with pytest.raises(GP.PulseError, match="args must be a dict"):
         GP.parse_job({"name": "x", "call": "m:f", "args": ["no"], "minutes": 1})
+
+
+def test_server_flags_pass_through_and_change_the_signature() -> None:
+    """h51 (3 Oct): extra llama-server flags (e.g. a bigger prefill micro-batch) from config; none = the old command and signature."""
+    from creator import gpupulse as GP
+    assert GP.server_flags({}) == ()
+    assert GP.server_flags({"server_flags": "-ub 2048 -fa on"}) == ("-ub", "2048", "-fa", "on")
+    assert GP.server_flags({"server_flags": ["-ctk", "q8_0"]}) == ("-ctk", "q8_0")
+    for bad in ("-ub 2048; rm -rf /", "$(id)", "--x=`y`"):
+        with pytest.raises(GP.PulseError):
+            GP.server_flags({"server_flags": bad})
+    plain = GP.server_script("/w", "/opt/llama-server", "M.gguf", 18100, 16, 8192)
+    tuned = GP.server_script("/w", "/opt/llama-server", "M.gguf", 18100, 16, 8192, flags=("-ub", "2048"))
+    assert "--no-webui > 18100.log" in plain and 'echo "M.gguf|16|8192" > 18100.sig' in plain
+    assert "--no-webui -ub 2048 > 18100.log" in tuned and 'echo "M.gguf|16|8192|-ub 2048" > 18100.sig' in tuned

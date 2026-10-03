@@ -28,6 +28,7 @@ import dataclasses
 import datetime as dt
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -362,12 +363,28 @@ mv -f {f}.part {f} && echo "{sha}" > {f}.ok && echo "@@fetched=1"
 """
 
 
-def server_script(rdir: str, exe: str, name: str, port: int, slots: int, ctx: int) -> str:
+SERVER_FLAG = re.compile(r"^-{1,2}[A-Za-z][A-Za-z0-9-]*$|^[A-Za-z0-9_.]+$")   # flags and plain values only: no shell metacharacters
+
+
+def server_flags(cfg: Mapping[str, Any]) -> tuple[str, ...]:
+    """Config 'server_flags' (a list or a space-separated string): extra llama-server arguments, e.g. ["-ub", "2048", "-fa", "on"]. h51 (3 Oct):
+    the 14B traces job spent ~54% of server time in prompt processing at the default micro-batch (512); a larger -ub speeds prefill on a big
+    GPU. Default none (unchanged behaviour). A token that is not a plain flag/value raises (it would reach a remote shell)."""
+    raw = cfg.get("server_flags") or ()
+    toks = tuple(str(raw).split()) if isinstance(raw, str) else tuple(str(x) for x in raw)
+    bad = [t for t in toks if not SERVER_FLAG.match(t)]
+    if bad:
+        raise PulseError(f"server_flags: refusing {bad!r}")
+    return toks
+
+
+def server_script(rdir: str, exe: str, name: str, port: int, slots: int, ctx: int, flags: Sequence[str] = ()) -> str:
     """Start (or keep) one llama-server on 127.0.0.1:port with every layer on the GPU. Kept when its recorded arguments are the same and
     /health answers; otherwise the old process is stopped and a new one started (nohup, survives the SSH session)."""
     q = shlex.quote(rdir)
-    args = f"-m {q}/models/{shlex.quote(name)} --host 127.0.0.1 --port {port} -ngl 99 -np {slots} -c {slots * ctx} --metrics --no-webui"
-    sig = f"{name}|{slots}|{ctx}"
+    extra = "".join(f" {shlex.quote(f)}" for f in flags)
+    args = f"-m {q}/models/{shlex.quote(name)} --host 127.0.0.1 --port {port} -ngl 99 -np {slots} -c {slots * ctx} --metrics --no-webui{extra}"
+    sig = f"{name}|{slots}|{ctx}" + (f"|{' '.join(flags)}" if flags else "")
     return f"""set -u
 cd {q}/run
 if [ "$(cat {port}.sig 2>/dev/null)" = "{sig}" ] && [ -f {port}.pid ] && kill -0 "$(cat {port}.pid)" 2>/dev/null \\
@@ -625,7 +642,7 @@ def serve(cfg: Mapping[str, Any], models: Sequence[str], shell: Optional[Shell] 
     sh.run(stop_servers_script(rdir, keep), timeout=60)
     for m, ports in plan.items():
         for p in ports:
-            r = _kv(sh.run(server_script(rdir, exe, m, p, *sl[m]), timeout=60)[1])
+            r = _kv(sh.run(server_script(rdir, exe, m, p, *sl[m], flags=server_flags(cfg)), timeout=60)[1])
             say(f"server {m} on pod port {p} (-np {sl[m][0]}, {sl[m][1]} tokens per slot): {'kept (healthy, same arguments)' if r.get('kept') else 'started'}")
     h = _kv(sh.run(health_script(rdir, keep, int(cfg.get("health_timeout_s", 300))), timeout=float(cfg.get("health_timeout_s", 300)) + 30)[1])
     for p in keep:

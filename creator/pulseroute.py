@@ -14,6 +14,7 @@ Health is cached TTL_S seconds per tunnel file (one /health per forwarded port),
 the explicit pulse switch (env NUPEN_GPU_PULSE / setting 'gpu_pulse', runner jobs) takes precedence. Loaded on demand only while switched on."""
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
@@ -61,31 +62,73 @@ def invalidate() -> None:
         _CACHE.clear()
 
 
+def tunnel_files(p: Path) -> list[Path]:
+    """The runner's tunnel file plus its BACKFILL siblings '<stem>.<name><suffix>' (e.g. tunnel.backfill.json: an extra pod server - say a
+    CPU-only thinking model on the pod's idle cores - that the runner does not own; same schema as gpupulse.write_tunnel). The runner only
+    ever closes/rewrites tunnel.json, so a backfill file outlives job switches; delete it to stop routing there."""
+    p = Path(p)
+    try:
+        sib = sorted(x for x in p.parent.glob(f"{p.stem}.*{p.suffix}") if x.name != p.name)
+    except OSError:
+        sib = []
+    return [p, *sib]
+
+
+def _read(p: Path) -> dict[str, Any]:
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
 def status(cfg: Optional[Mapping[str, Any]] = None, pf: Optional[Path] = None) -> dict[str, Any]:
-    """{"up": bool, "pulse": id, "models": {model file name: [healthy local ports]}, "slots": {model: n}, "why": reason when down}.
-    Down when switched off, no tunnel file, a stale one, or no forwarded server answers."""
+    """{"up": bool, "pulse": id, "models": {model file name: [healthy local ports]}, "slots": {model: n per server}, "capacity": {model:
+    parallel requests over all healthy ports}, "pulse_of": {port: pulse id}, "why": reason when down}. The runner's tunnel file and its
+    backfill siblings (tunnel_files) are merged. Down when switched off, no tunnel file, only stale ones, or no forwarded server answers."""
     if not enabled(cfg):
         return {"up": False, "pulse": "", "models": {}, "slots": {}, "why": "off"}
     p = Path(pf) if pf else tunnel_file()
     now = CLOCK["fn"]()
-    try:
-        st = p.stat()
-    except OSError:
+    stats: list[tuple[Path, os.stat_result]] = []
+    for f in tunnel_files(p):
+        try:
+            stats.append((f, f.stat()))
+        except OSError:
+            pass
+    if not stats:
         return {"up": False, "pulse": "", "models": {}, "slots": {}, "why": "no tunnel"}
-    key = (str(p), st.st_mtime_ns, st.st_size)
+    key = tuple((str(f), st.st_mtime_ns, st.st_size) for f, st in stats)
     with _LOCK:
         hit = _CACHE.get("v")
         if hit is not None and _CACHE.get("key") == key and now - float(_CACHE.get("t", -1e18)) < TTL_S:
             return dict(hit)
     max_age = float((cfg or {}).get(MAX_AGE_KEY) or MAX_AGE_H)
-    from creator import gpupulse as GP
-    t = GP._tunnel(p)
-    if time.time() - st.st_mtime > max_age * 3600:
+    good: dict[str, list[int]] = {}
+    slots: dict[str, int] = {}
+    cap: dict[str, int] = {}
+    pulse_of: dict[int, str] = {}
+    pulse, fresh = "", 0
+    for f, st in stats:
+        if time.time() - st.st_mtime > max_age * 3600:
+            continue
+        fresh += 1
+        t = _read(f)
+        pid = str(t.get("pulse") or "pulse")
+        for m, ps in (t.get("models") or {}).items():
+            ok = [int(x) for x in ps if HEALTH["fn"](int(x))]
+            if not ok:
+                continue
+            per = int((t.get("slots") or {}).get(m) or 8)
+            good.setdefault(str(m), []).extend(x for x in ok if x not in good.get(str(m), []))
+            slots.setdefault(str(m), per)
+            cap[str(m)] = cap.get(str(m), 0) + per * len(ok)
+            pulse_of.update({x: pid for x in ok})
+            pulse = pulse or pid
+    if not fresh:
         v: dict[str, Any] = {"up": False, "pulse": "", "models": {}, "slots": {}, "why": "stale tunnel file"}
     else:
-        good = {str(m): [int(x) for x in ps if HEALTH["fn"](int(x))] for m, ps in (t.get("models") or {}).items()}
-        good = {m: ps for m, ps in good.items() if ps}
-        v = {"up": bool(good), "pulse": str(t.get("pulse") or "pulse"), "models": good, "slots": dict(t.get("slots") or {}),
+        v = {"up": bool(good), "pulse": pulse or "pulse", "models": good, "slots": slots, "capacity": cap, "pulse_of": pulse_of,
              "why": "" if good else "no forwarded server answers"}
     with _LOCK:
         _CACHE.update(key=key, t=now, v=v)
@@ -112,14 +155,19 @@ def attach(model: Any, cfg: Optional[Mapping[str, Any]] = None) -> Optional[tupl
     with _LOCK:
         _RR["i"] += 1
         i = _RR["i"]
-    return int(ports[i % len(ports)]), str(s["pulse"])
+    port = int(ports[i % len(ports)])
+    return port, str((s.get("pulse_of") or {}).get(port) or s["pulse"])
 
 
 def pod_slots(model: Any, cfg: Optional[Mapping[str, Any]] = None) -> int:
-    """Parallel requests the pod takes for this model (slots per server x healthy servers); 0 when not routed."""
+    """Parallel requests the pod takes for this model (slots per server summed over healthy servers of every tunnel file); 0 when not routed."""
     s = status(cfg)
-    ports = s["models"].get(Path(str(model)).name) or []
-    return int(s["slots"].get(Path(str(model)).name) or 8) * len(ports) if ports else 0
+    name = Path(str(model)).name
+    ports = s["models"].get(name) or []
+    if not ports:
+        return 0
+    cap = (s.get("capacity") or {}).get(name)
+    return int(cap) if cap else int(s["slots"].get(name) or 8) * len(ports)
 
 
 def may_leave(messages: Any) -> bool:
