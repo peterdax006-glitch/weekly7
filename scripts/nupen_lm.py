@@ -25,6 +25,19 @@ def cmd_eval() -> int:
     return 0
 
 
+def settle_pending(evaluate, train) -> bool:                      # type: ignore[no-untyped-def]
+    """A cycle that completed but died before its promotion check: run the check FIRST (same rule), then clear the marker."""
+    p = train.read_pending()
+    if p is None:
+        return False
+    w = Path(p["weights"])
+    if w.is_file():
+        ok, why, _res = evaluate.consider(w, {k: p[k] for k in ("step", "tokens", "params") if k in p})
+        print("PENDING CYCLE", "PROMOTED" if ok else "NOT PROMOTED", why)
+    train.clear_pending()
+    return True
+
+
 def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "none", share: float = 0.2,
               cycle_minutes: float | None = None) -> int:
     from creator.lm import data, evaluate, train
@@ -32,6 +45,7 @@ def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "non
     from creator.lm.tokenizer import BPETokenizer
     tok = BPETokenizer.load(data.data_dir() / "tokenizer.json")
     texts = data.eval_texts()
+    settle_pending(evaluate, train)
     if evaluate.read_current() is None:
         import torch
         torch.manual_seed(0)
@@ -45,6 +59,7 @@ def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "non
         print(f"CYCLE INCOMPLETE {out['cycle_progress']:.0%}: resumes the same annealing cycle next session, no promotion attempt")
         return 0
     ok, why, res = evaluate.consider(Path(out["weights"]), {"step": out["step"], "tokens": out["tokens"], "params": out["params"]})
+    train.clear_pending()
     print("PROMOTED" if ok else "NOT PROMOTED", why)
     print("AFTER:", json.dumps({k: res[k] for k in ("bpb", "lo", "hi", "n")}))
     return 0

@@ -482,3 +482,12 @@ def test_yield_is_bounded_and_nupen_stop_and_ram_rule_still_hold(tmp_path: Path)
     clock[0] += 400
     lm.tick(True)
     assert not lm.running()
+
+
+def test_crashing_trainer_still_gives_practice_its_turn(tmp_path: Path) -> None:
+    lm, pr, spawned, clock = _pair(tmp_path, [float("inf")], [8.0])
+    _step(lm, pr, clock)
+    lm.proc.returncode = 1                                                  # a crash, not a finished session
+    clock[0] += 100
+    _step(lm, pr, clock)
+    assert pr.running() and not lm.running()

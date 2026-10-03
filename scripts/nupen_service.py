@@ -271,8 +271,8 @@ class LMTrainer:
         """One supervision step. `halt` = NUPEN_STOP exists (the whole of Nupen is switched off)."""
         if self.proc is not None and self.proc.poll() is not None:
             self.log(f"LM trainer exited code={self.proc.returncode}")
-            if self.stopping_since is None and self.proc.returncode == 0 and not halt:
-                self.yield_since = self.clock()                             # a finished session: practice's turn if it is ready
+            if self.stopping_since is None and not halt:
+                self.yield_since = self.clock()                             # a finished OR crashed session: practice's turn if it is ready
             self.proc, self.stopping_since = None, None
         if self.proc is not None:
             if halt:

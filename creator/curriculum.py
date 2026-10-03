@@ -51,9 +51,9 @@ def is_skill_signal(les: "Lesson") -> bool:
     return not str(les.verdict).lower().startswith(tuple(v + ":" for v in (*NO_SIGNAL.values(), "interrupted")))
 
 
-# A "not claimed done" note that only says the student's RUNTIME failed (model call timed out, server down, RAM pull-back) is not a
+# A "not claimed done" note that only says the student's RUNTIME failed (model call failed, local model server not healthy, RAM pull-back) is not a
 # judgement of the student's skill: it never counts towards a skip (the 37/37 'no measurable work' deadlock of 2 Oct was mostly this).
-INFRA_FAILURE = ("model call failed", "timeout", "timed out", "server", "unavailable", "ram ", "pulled back", "connection", "out of memory")
+INFRA_FAILURE = ("model call failed", "local model server did not become healthy", "pulled back", "cancelled:", "interrupted:")
 
 
 def is_judged(les: "Lesson") -> bool:
@@ -62,7 +62,8 @@ def is_judged(les: "Lesson") -> bool:
     if les.adopted is None or not is_skill_signal(les):
         return False
     v = str(les.verdict).lower()
-    return not (v.startswith("not claimed done") and any(k in v for k in INFRA_FAILURE))
+    note = v.removeprefix("not claimed done:").strip() if v.startswith("not claimed done") else ""
+    return not (note and note.startswith(INFRA_FAILURE))        # the note BEGINS with an infrastructure failure; a mention elsewhere is not one
 
 
 def student_version(student: Any) -> str:
