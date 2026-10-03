@@ -127,6 +127,15 @@ BLUEPRINT_EVERY_S = 3600.0                                # a dated blueprint sn
 _THINK_LAST = {"run": 0.0, "blueprint": 0.0}
 
 
+def _drill_live() -> None:
+    """Prospective drill predictions (3 Oct 2026: git drills beat their baselines on held-out history, calibrated, yet could never be trusted -
+    no prediction had ever been made before its outcome existed)."""
+    try:
+        REG.get("drillsources").live_pass(STATE, ROOT)
+    except Exception as e:                                # noqa: BLE001 - measuring never stops the swarm
+        print(f"DRILL LIVE error: {type(e).__name__}: {e}", flush=True)
+
+
 def make_filler():                                        # type: ignore[no-untyped-def]
     """Leftover-capacity work. In THINKING focus (state/creator/focus.json; owner, 2 Oct 2026: 'have Nupen work souly on thinking
     until its opinion is trust worthy') it is the thinking drills over all local data, the live predictions every THINK_EVERY_S and
@@ -146,7 +155,7 @@ def make_filler():                                        # type: ignore[no-unty
                 now = time.time()
                 if now - _THINK_LAST["run"] >= THINK_EVERY_S:
                     _THINK_LAST["run"] = now
-                    return lambda: REG.get("thinking").run(STATE)
+                    return lambda: (_drill_live(), REG.get("thinking").run(STATE))   # live drill predictions first: trust.json counts them
                 if now - _THINK_LAST["blueprint"] >= BLUEPRINT_EVERY_S:
                     _THINK_LAST["blueprint"] = now
                     import subprocess

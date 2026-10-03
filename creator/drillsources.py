@@ -531,13 +531,101 @@ def trust_section(state: Path) -> dict[str, Any]:
     search status. Selection used only the earlier 60% of the time order; the held-out tail never chose anything."""
     out: dict[str, Any] = {}
     rep = search_report(state)
+    live = live_preds(state)
     for s in SOURCES:
         b = best_variant(state, s)
         if b is None:
             continue
-        sc = b["heldout"]
+        sc = dict(b["heldout"])
+        lp = live.get(s, [])
+        sc["n_live"] = len(lp)                                          # the prospective ones are the stored live predictions, resolved since
         ok, why = T.trust_of(sc) if sc.get("n") else (False, ["no held-out predictions"])
-        out[s] = {"trusted": ok, "why_not": why, "variant": b["variant"], "heldout": sc, "variants_tried": b["variants_tried"], "search": rep.get(s)}
+        lsc = T.score(lp) if lp else {}
+        hi = (lsc.get("gain_ci95") or [None, None])[1]
+        if len(lp) >= T.MIN_LIVE and hi is not None and hi < 0:        # the future contradicts the replay: never trusted on the replay alone
+            ok = False
+            why.append(f"its {len(lp)} prospective predictions do WORSE than the best baseline (gain CI upper bound {hi})")
+        out[s] = {"trusted": ok, "why_not": why, "variant": b["variant"], "heldout": sc, "live": lsc, "variants_tried": b["variants_tried"],
+                  "search": rep.get(s)}
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ prospective (live) drill predictions
+LIVE_SOURCES = ("git_fixed", "git_churn")   # subjects are commit hashes (stable; main is never rewritten). Journal subjects are line positions: not live.
+
+
+def live_path(state: Path) -> Path:
+    return state / "thinking" / "drill_live.jsonl"
+
+
+def _live_records(state: Path) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for r in T._jsonl(live_path(state)):
+        if "resolved" in r and r.get("id") in out:
+            out[r["id"]].update(outcome=r["resolved"], resolved_at=r.get("at"))
+        elif "p" in r:
+            out[r["id"]] = dict(r)
+    return out
+
+
+def predict_open(items: Sequence[BItem], source: str, variant: dict[str, Any]) -> list[T.Pred]:
+    """The best variant's P for every item whose outcome does not exist yet, from the history resolved strictly before the item was created -
+    exactly what the walk-forward replay would have said. The open items get a resolution at +infinity (after every creation), so their
+    placeholder outcome can never reach any prediction."""
+    shadow = [BItem(it.keys, it.created, it.resolved if it.resolved is not None else math.inf, it.y if it.resolved is not None else 0, it.subject)
+              for it in items]
+    open_subjects = {it.subject for it in items if it.resolved is None}
+    preds = walk_forward(shadow, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
+    return [p for p in preds if p.subject in open_subjects]
+
+
+def live_pass(state: Path, repo: Path, journal: Optional[Path] = None, now: Optional[float] = None, max_new: int = 200) -> dict[str, int]:
+    """Record BEFORE-the-fact predictions for the commits whose outcome window is still open (the best variant at this moment), and resolve
+    the stored ones whose window has since closed. Idempotent: one prediction per (source, commit), never after its outcome exists."""
+    now = time.time() if now is None else now
+    state, repo = Path(state), Path(repo)
+    journal = journal if journal is not None else Path.home() / "Masterstock" / "JOURNAL.md"
+    known = _live_records(state)
+    new = resolved = 0
+    rows: list[dict[str, Any]] = []
+    for s in LIVE_SOURCES:
+        b = best_variant(state, s)
+        if b is None:
+            continue
+        try:
+            items = apply_variant(load(s, state, repo, journal, state), b["variant"], journal)
+        except (GitCacheMissing, OSError, RuntimeError, subprocess.SubprocessError):
+            continue
+        truth = {it.subject: it for it in items if it.resolved is not None}
+        for pid, rec in known.items():
+            if rec.get("source") == s and rec.get("outcome") is None and rec["subject"] in truth:
+                rows.append({"id": pid, "resolved": truth[rec["subject"]].y, "at": truth[rec["subject"]].resolved})
+                resolved += 1
+        for p in predict_open(items, s, b["variant"]):
+            pid = f"{s}:{p.subject}"
+            if pid in known or new >= max_new:
+                continue
+            rows.append({"id": pid, "source": s, "subject": p.subject, "made_at": now, "created": p.made_at, "p": p.p, "base": p.base,
+                         "last": p.last, "mode": "live", "variant": b["variant"]})
+            new += 1
+    if rows:
+        path = live_path(state)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r, sort_keys=True) + "\n")
+    return {"new": new, "resolved": resolved}
+
+
+def live_preds(state: Path) -> dict[str, list[T.Pred]]:
+    """Per source: the stored live predictions whose outcome has arrived (mode 'live')."""
+    out: dict[str, list[T.Pred]] = {}
+    for rec in _live_records(state).values():
+        if rec.get("outcome") is not None:
+            out.setdefault(rec["source"], []).append(T.Pred(rec["source"], rec["subject"], rec["made_at"], rec["p"], rec["base"], rec["last"],
+                                                           int(rec["outcome"]), "live"))
+    for v in out.values():
+        v.sort(key=lambda p: p.made_at)
     return out
 
 
