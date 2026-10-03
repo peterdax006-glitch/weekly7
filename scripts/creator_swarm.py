@@ -158,6 +158,10 @@ def main(argv: list[str]) -> int:
                 print("ORPHANS RELEASED " + json.dumps(freed), flush=True)
         except Exception as e:                                           # noqa: BLE001 - never block the start on bookkeeping
             print(f"ORPHANS error: {type(e).__name__}: {e}", flush=True)
+        try:                                                             # independent verdicts that are current reach the ledger
+            print("REVALIDATE " + REG.get("swarmops").revalidate(cfg.repo), flush=True)
+        except Exception as e:                                           # noqa: BLE001 - bookkeeping never blocks the start
+            print(f"REVALIDATE error: {type(e).__name__}: {e}", flush=True)
         while a.rounds == 0 or n < a.rounds:
             n += 1
             try:
