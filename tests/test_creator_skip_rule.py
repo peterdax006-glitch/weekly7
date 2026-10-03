@@ -57,3 +57,11 @@ def test_lesson_version_roundtrip_and_student_version() -> None:
     S.version = "m2"
     assert CUR.student_version(S()) != a
     assert CUR.Lesson.from_dict(les(1, "x", version="q").to_dict()).version == "q"
+
+
+def test_infra_failure_matches_the_note_prefix_not_a_mention() -> None:
+    for note in ("model call failed: TimeoutError: x", "local model server did not become healthy", "pulled back before evaluation"):
+        assert not CUR.is_judged(les(1, f"not claimed done: {note}")), note
+    for note in ("no edit applied: server.py unchanged", "model reply held no usable edit about a timeout", "prescreen: no candidate (ram use)"):
+        assert CUR.is_judged(les(1, f"not claimed done: {note}")), note
+    assert CUR.Router().skip_reason([les(i, "not claimed done: no edit applied to server.py timeouts") for i in range(10)], "stu", "shrink", now=NOW)

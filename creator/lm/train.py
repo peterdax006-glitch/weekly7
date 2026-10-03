@@ -33,6 +33,27 @@ def lr_at(lr: float, cycle_spent: float, cycle_budget: float, cycle_steps: int, 
     return lr * min(1.0, (cycle_steps + 1) / warm) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * frac)))
 
 
+def pending_path() -> Any:
+    return ckpt_dir() / "cycle_complete_pending.json"
+
+
+def read_pending() -> dict[str, Any] | None:
+    """The completed-cycle weights whose promotion check has not run yet (the process died between the final save and evaluate.consider)."""
+    import json
+    try:
+        d = json.loads(pending_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) and d.get("weights") else None
+
+
+def clear_pending() -> None:
+    try:
+        pending_path().unlink()
+    except OSError:
+        pass
+
+
 def session_limits(minutes: float, cycle_minutes: float | None, cycle_spent: float) -> tuple[float, float]:
     """(cycle_budget_s, session_budget_s): the session ends at its own budget or when the cycle completes, whichever is first."""
     cycle_budget = (cycle_minutes if cycle_minutes else minutes) * 60.0
@@ -127,6 +148,10 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
     elapsed_total += session
     name = f"weights_step{step}.pt"
     save(name)
+    if done:                                                         # written AFTER the weights exist, cleared by the caller once consider() ran
+        import json
+        pending_path().write_text(json.dumps({"weights": str(ck / name), "step": step, "tokens": tokens_seen, "params": n_params}),
+                                  encoding="utf-8")
     return {"step": step, "tokens": tokens_seen, "params": n_params, "weights": str(ck / name),
             "session_seconds": session, "cycle_complete": done, "cycle_progress": min(1.0, (cycle_spent0 + session) / cycle_budget), "session_tok_per_s": (step - s0) * batch * accum * cfg.ctx / max(session, 1e-9),
             "last_loss": sum(losses[-20:]) / max(1, len(losses[-20:]))}

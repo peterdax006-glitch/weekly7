@@ -78,3 +78,26 @@ def test_lr_schedule_resumes_inside_a_cycle_and_anneals_only_at_its_end():
     assert lr_at(2e-3, 0.0, 3600.0, 0) < 2e-3 / 20                    # warm-up at the cycle start only
     assert lr_at(2e-3, 3600.0, 3600.0, 500) == pytest.approx(2e-4)    # annealed to 10% when the cycle completes
     assert lr_at(2e-3, 9999.0, 3600.0, 500) == pytest.approx(2e-4)    # never past the floor
+
+
+def test_completed_cycle_whose_promotion_check_never_ran_is_settled_first(tmp_path, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    import sys
+    from types import SimpleNamespace
+    from creator.lm import train as T
+    monkeypatch.setattr(T, "ckpt_dir", lambda: tmp_path)
+    assert T.read_pending() is None
+    w = tmp_path / "weights_step9.pt"
+    w.write_text("x")
+    T.pending_path().write_text('{"weights": "%s", "step": 9, "tokens": 5, "params": 3}' % str(w).replace("\\", "/"), encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("nupen_lm_t", Path(__file__).resolve().parents[1] / "scripts" / "nupen_lm.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["nupen_lm_t"] = mod
+    spec.loader.exec_module(mod)
+    seen = []
+    ev = SimpleNamespace(consider=lambda p, meta: (seen.append((p, meta)) or (False, "within noise", {})))
+    assert mod.settle_pending(ev, T) is True
+    assert seen and seen[0][0] == w and seen[0][1]["step"] == 9
+    assert T.read_pending() is None                                   # cleared: never considered twice
+    assert mod.settle_pending(ev, T) is False
