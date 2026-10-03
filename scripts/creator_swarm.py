@@ -179,13 +179,10 @@ def make_filler():                                        # type: ignore[no-unty
 
 
 def thinking_burst_gb() -> Optional[float]:
-    """3 Oct 2026: in thinking focus the fillers are short drills and judgment batches, and the 15 s start spacing kept ONE running
-    (CPU 29-65%, 19 GB free). They may burst inside the spacing window while free RAM covers each start at 3 GB (above a thinking
-    model server, ~2.6 GB). Any other filler (the heavy self-bench of 1 Oct run9) keeps the plain spacing."""
+    """The filler burst allowance (creator.focus.burst_gb, loaded on demand); None = the safe plain spacing."""
     try:
-        focus = REG.optional("focus")
-        return 3.0 if focus is not None and focus.current(STATE) == "thinking" else None
-    except Exception:                                     # noqa: BLE001 - unknown focus: the safe plain spacing
+        return REG.optional("focus").burst_gb(STATE)                   # type: ignore[union-attr]
+    except Exception:                                     # noqa: BLE001 - no focus module / unknown focus
         return None
 
 

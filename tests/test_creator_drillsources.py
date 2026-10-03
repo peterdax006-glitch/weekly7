@@ -73,7 +73,8 @@ def test_journal_and_plan_sources(tmp_path: Path) -> None:
     assert len(pl) == 6 and [p.y for p in pl] == [1, 0, 1, 0, 1, 0]
 
 
-def test_git_drills_use_windows_and_ignore_the_future(tmp_path: Path) -> None:
+def test_git_drills_use_windows_and_ignore_the_future(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(D, "DEFAULT_STATE", None)                # load() in an earlier test leaves this module global set: this test reads git directly
     def git(*a: str) -> None:
         subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
     git("init", "-q")

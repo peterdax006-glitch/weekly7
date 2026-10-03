@@ -230,9 +230,18 @@ def sample(chat: Callable[..., str], msgs: list[dict[str, str]], parse: Callable
         first = first or reply
         toks += (sum(len(m["content"]) for m in msgs) + len(reply)) // 4 if i else len(reply) // 4
         p = parse(reply)
+        if p is None and reply.strip():                                 # 3 Oct: 6% of answers (36% for zero-shot) ended before the PROBABILITY line;
+            follow = list(msgs) + [{"role": "assistant", "content": reply[-1500:]},      # a short follow-up keeps the 30 s already spent
+                                   {"role": "user", "content": FINAL_LINE}]
+            again = chat(follow, max_tokens=16, temperature=0.0, seed=i, timeout=120.0)
+            toks += len(again) // 4 + 16
+            p = parse(again)
         if p is not None:
             ps.append(p)
     return ps, first, toks
+
+
+FINAL_LINE = "Reply with only your final answer line, exactly in this form: PROBABILITY: <a number between 0 and 1>"
 
 
 def paired_gain(base: Sequence[float], other: Sequence[float], ys: Sequence[int]) -> list[float]:

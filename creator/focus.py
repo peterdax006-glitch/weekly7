@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Union
+from typing import Any, Mapping, Optional, Union
 
 THINKING = "thinking"
 EFFICIENCY_KINDS = frozenset({"shrink", "efficiency", "coverage", "tests", "start_load", "startload", "activation", "size"})
@@ -93,3 +93,10 @@ def allowed(item: Any, state: Union[str, Path, None] = None) -> bool:
     if is_efficiency(item):
         return False
     return is_thinking_work(item)
+
+
+def burst_gb(state: Union[str, Path]) -> Optional[float]:
+    """3 Oct 2026: in thinking focus the fillers are short drills and judgment batches, and the 15 s start spacing kept ONE running
+    (CPU 29-65%, 19 GB free). They may burst inside the spacing window while free RAM covers each start at 3 GB (above a thinking
+    model server, ~2.6 GB). Any other filler (the heavy self-bench of 1 Oct run9) keeps the plain spacing (None)."""
+    return 3.0 if current(state) == THINKING else None

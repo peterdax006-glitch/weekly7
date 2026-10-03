@@ -97,3 +97,19 @@ def test_alive_over_the_wide_pool_keeps_the_best_method() -> None:
         for s in J.ALL_STRATEGIES:
             recs.append({"subject": f"s{i}", "strategy": s, "y": i % 2, "p": (0.9 if i % 2 else 0.1) if s == best else 0.5})
     assert J.alive(recs, J.ALL_STRATEGIES, J.HALVING_ALL) == [best]
+
+
+def test_an_answer_cut_off_before_its_probability_is_recovered_with_one_short_follow_up() -> None:
+    # 3 Oct: 6% of Qwen3 answers (36% for zero-shot strategies) ended before the PROBABILITY line and were thrown away
+    from creator import judgment as J
+    calls: list[list[dict[str, str]]] = []
+
+    def chat(msgs: list[dict[str, str]], **kw: object) -> str:
+        calls.append(msgs)
+        return "Let me think about the history of this file and the" if len(calls) == 1 else "PROBABILITY: 0.42"
+    ps, first, _ = RM.sample(chat, [{"role": "user", "content": "q"}], J.parse, 1, 120)
+    assert ps == [0.42] and first.startswith("Let me think")
+    assert len(calls) == 2 and calls[1][-1]["content"] == RM.FINAL_LINE and calls[1][-2]["role"] == "assistant"
+    calls.clear()
+    ps2, _, _ = RM.sample(lambda m, **k: (calls.append(m), "PROBABILITY: 0.1")[1], [{"role": "user", "content": "q"}], J.parse, 1, 120)
+    assert ps2 == [0.1] and len(calls) == 1                           # a complete answer costs no extra call
