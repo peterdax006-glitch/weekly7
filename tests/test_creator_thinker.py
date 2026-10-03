@@ -29,7 +29,7 @@ def test_server_size_follows_the_model_file_and_think_servers_follow_ram(tmp_pat
     big = tmp_path / "big.gguf"
     with big.open("wb") as fh:
         fh.truncate(int(3 * 2**30))
-    assert DEV.server_gb_for(big) == 3.7 and DEV.server_gb_for(tmp_path / "missing") == DEV.SERVER_GB
+    assert DEV.server_gb_for(big) == round(1.9 * 3 + 0.7, 2) and DEV.server_gb_for(tmp_path / "missing") == DEV.SERVER_GB
     s = DEV.derive(dev(), overrides={"think_model": "t.gguf"})
     assert s["think_model"] == "t.gguf" and s["think_servers"] == 2           # 25% of 33.8 GB fits two, capped at two
     assert DEV.derive(dev(8.0), overrides={"think_model": "t.gguf"})["think_servers"] == 0     # a small machine keeps one fast model only
@@ -135,9 +135,10 @@ def test_threads_follow_the_servers_that_really_run_at_once() -> None:
 
 def test_timeouts_grow_with_the_model_and_keep_the_fast_models_values(tmp_path: Path) -> None:
     assert DEV.call_timeout_s(tmp_path / "missing.gguf", 300.0) == 300.0
-    assert DEV.call_timeout_s(_sparse(tmp_path / "small.gguf", 1.0), 300.0) == 300.0           # 1 GiB: the fast model's size
+    assert DEV.call_timeout_s(_sparse(tmp_path / "small.gguf", 0.5), 300.0) == 300.0           # a server no bigger than SERVER_GB keeps the base
+    assert 300.0 < DEV.call_timeout_s(_sparse(tmp_path / "q17.gguf", 1.03), 300.0) < 500.0     # the 1.7B thinker (2.66 GB): a little longer
     big = _sparse(tmp_path / "big.gguf", 4.7)                                                  # an 8B Q4_K_M
-    assert DEV.call_timeout_s(big, 300.0) == round(300.0 * (4.7 + DEV.THINK_OVERHEAD_GB) / DEV.SERVER_GB, 1) > 850
+    assert DEV.call_timeout_s(big, 300.0) == round(300.0 * DEV.server_gb_for(big) / DEV.SERVER_GB, 1) > 1500
 
 
 def test_think_servers_are_sized_by_the_thinking_models_own_file(tmp_path: Path) -> None:
@@ -146,7 +147,7 @@ def test_think_servers_are_sized_by_the_thinking_models_own_file(tmp_path: Path)
     _sparse(tmp_path / "models" / "small.gguf", 1.0)
     _sparse(tmp_path / "models" / "big.gguf", 4.7)
     assert DEV.derive(d, overrides={"think_model": "small.gguf"})["think_servers"] == 2
-    assert DEV.derive(d, overrides={"think_model": "big.gguf"})["think_servers"] == 1          # 5.4 GB servers: one in 25% of 33.8 GB
+    assert DEV.derive(d, overrides={"think_model": "big.gguf"})["think_servers"] == 1          # 9.6 GB servers: none fits 25%, one is kept (RAM-gated)
     assert DEV.derive(d, overrides={"think_model": "big.gguf", "think_servers": 4})["think_servers"] == 4   # the owner's pin still wins
 
 
@@ -162,10 +163,10 @@ def test_a_cold_thinker_gets_the_threads_and_startup_of_its_size(tmp_path: Path)
 def test_a_loading_big_thinker_is_counted_at_its_own_size(tmp_path: Path) -> None:
     big = _sparse(tmp_path / "big.gguf", 4.7)
     lm = G.LocalModel(model=big, pidfile=tmp_path / "llama_server.pid", servers=3)
-    lm.free_gb = lambda: 12.0
-    assert lm._ram_allows_extra_server()                       # 12 - 5.4 leaves room
+    lm.free_gb = lambda: 15.0
+    assert lm._ram_allows_extra_server()                       # 15 - 9.6 leaves room
     (tmp_path / "llama_server.1.starting").write_text("x", encoding="utf-8")       # another big server is loading and has not taken its RAM
-    assert not lm._ram_allows_extra_server()                   # 12 - 2 x 5.4 does not (it was counted as 1.8 before)
+    assert not lm._ram_allows_extra_server()                   # 15 - 2 x 9.6 does not (it was counted as 1.8 before)
 
 
 def test_an_unclosed_think_block_is_scratch_work_too() -> None:
@@ -201,4 +202,4 @@ def test_judgment_calls_get_a_timeout_scaled_to_the_thinking_model(tmp_path: Pat
     cs = [J.Case("verdict", f"p{i}", 1000.0 + i * 10, 1000.0 + i * 10 + 15, i % 2, "K", f"case {i}") for i in range(6)]
     J.run_batch(st, [(cs[-1], {"shots": 0, "hint": 0})], cs, lambda: L(big, []))
     J.run_batch(st, [(cs[-1], {"shots": 0, "hint": 0})], cs, lambda: L(tmp_path / "missing.gguf", []))
-    assert seen == [DEV.call_timeout_s(big, 300.0), 300.0] and seen[0] > 850
+    assert seen == [DEV.call_timeout_s(big, 300.0), 300.0] and seen[0] > 1500
