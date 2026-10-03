@@ -45,6 +45,7 @@ CAPABILITIES: dict[str, str] = {
     "publiccases": "creator.publiccases",
     "fastpred": "creator.fastpred",
     "reasonmethods": "creator.reasonmethods",
+    "reasondrills": "creator.reasondrills",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
     "thinkbench": "creator.thinkbench",
