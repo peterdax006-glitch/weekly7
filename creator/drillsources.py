@@ -158,8 +158,37 @@ def _git(repo: Path, args: list[str], timeout: float) -> str:
     return p.stdout
 
 
+def _head_fast(repo: Path) -> Optional[str]:
+    """HEAD's commit read straight from .git (HEAD -> loose ref -> packed-refs), no subprocess: a `git rev-parse` started at idle priority on
+    a saturated machine waited seconds per call (3 Oct audit: 3 git calls = 8.1 of a git drill's 8.7 s). None when anything is unusual (a
+    worktree's .git file, a symbolic chain, an unreadable file) - the caller then asks git itself."""
+    try:
+        gd = Path(repo) / ".git"
+        if not gd.is_dir():
+            return None
+        head = (gd / "HEAD").read_text(encoding="utf-8").strip()
+        if re.fullmatch(r"[0-9a-f]{40}", head):
+            return head
+        if not head.startswith("ref: "):
+            return None
+        ref = head[5:].strip()
+        loose = gd / ref
+        if loose.is_file():
+            h = loose.read_text(encoding="utf-8").strip()
+            return h if re.fullmatch(r"[0-9a-f]{40}", h) else None
+        packed = gd / "packed-refs"
+        if packed.is_file():
+            for ln in packed.read_text(encoding="utf-8").splitlines():
+                parts = ln.split(" ")
+                if len(parts) == 2 and parts[1] == ref and re.fullmatch(r"[0-9a-f]{40}", parts[0]):
+                    return parts[0]
+    except (OSError, UnicodeDecodeError):
+        return None
+    return None
+
+
 def _git_head(repo: Path, timeout: float = 60.0) -> str:
-    return _git(repo, ["rev-parse", "HEAD"], timeout).strip() or "-"
+    return _head_fast(repo) or _git(repo, ["rev-parse", "HEAD"], timeout).strip() or "-"
 
 
 def cache_path(state: Path) -> Path:
@@ -186,6 +215,14 @@ def refresh_git_cache(repo: Path, state: Path, full_timeout: float = GIT_FULL_TI
     """Bring state/creator/thinking/git_history.jsonl up to HEAD: the first call parses the whole history once, later calls read only
     `<last cached>..HEAD`. Appends in log order (a half-finished read writes nothing). A timeout raises and leaves the cache as it was."""
     path = cache_path(state)
+    tip_file = path.with_suffix(".tip")
+    head = _head_fast(repo)                                        # read BEFORE the log: the tip never claims more than the log saw
+    if head and path.exists():
+        try:
+            if tip_file.read_text(encoding="utf-8").strip() == head:
+                return 0                                           # already read up to this HEAD: no git process at all
+        except OSError:
+            pass
     have = _read_cache(path)
     rng = ""
     timeout = full_timeout
@@ -197,13 +234,23 @@ def refresh_git_cache(repo: Path, state: Path, full_timeout: float = GIT_FULL_TI
         except RuntimeError:                                       # history was rewritten: rebuild from scratch
             have = []
             path.unlink(missing_ok=True)
+            tip_file.unlink(missing_ok=True)
     args = ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
     new = _parse_log(_git(repo, args + ([rng] if rng else []), timeout))
     seen = {c["h"] for c in have}
     new = [c for c in new if c["h"] not in seen]
     if new:
         _append_cache(path, new)
+    if head:
+        _write_atomic(tip_file, head)
     return len(new)
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def _parse_log(text: str) -> list[dict[str, Any]]:
@@ -250,11 +297,34 @@ def git_commits(repo: Path, state: Optional[Path] = None, allow_full: bool = Fal
     except (subprocess.SubprocessError, RuntimeError, OSError):
         if not path.exists():
             raise
-    commits = _read_cache(path)
-    commits.sort(key=lambda c: c["t"])
+    commits = _parsed_file(path, "own")
     _GIT_CACHE.clear()
     _GIT_CACHE[f"{repo}|{commits[-1]['h'] if commits else '-'}"] = commits
     return commits
+
+
+# Parsed caches kept in THIS process between jobs (a pool worker serves many jobs): keyed by the file's exact (size, mtime_ns), so any
+# append or rewrite re-reads it. The keyed file is the only input, so a hit returns exactly what a fresh read would.
+_PARSED: dict[str, tuple[Any, Any]] = {}
+
+
+def _file_key(path: Path) -> tuple[int, int]:
+    st = path.stat()
+    return (st.st_size, st.st_mtime_ns)
+
+
+def _parsed_file(path: Path, tag: str) -> list[dict[str, Any]]:
+    """_read_cache(path) time-sorted, memoised per (size, mtime_ns). Callers must not mutate the result."""
+    key = _file_key(path)
+    k = f"{tag}|{path}"
+    hit = _PARSED.get(k)
+    if hit is not None and hit[0] == key:
+        return list(hit[1])
+    commits = _read_cache(path)
+    commits.sort(key=lambda c: c["t"])
+    if _file_key(path) == key:                                     # unchanged while it was read: safe to remember
+        _PARSED[k] = (key, commits)
+    return list(commits)
 
 
 def git_items(repo: Path, window: int, mode: str, state: Optional[Path] = None) -> list[BItem]:
@@ -406,12 +476,18 @@ def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = No
         repos = cached_extra_repos()
         if not repos:
             raise GitCacheMissing("no other project's history is cached yet; the extra-history job builds them")
+    keys: list[tuple[str, tuple[int, int]]] = []
     for repo in repos:
         path = extra_cache_path(repo)
         if not path.exists():
             raise GitCacheMissing(f"{path} not built yet; the extra-history job builds it")
-        commits = _read_cache(path)
-        commits.sort(key=lambda c: c["t"])
+        keys.append((str(path), _file_key(path)))
+    mk = f"xitems|{window}|{mode}|{[str(r) for r in repos]}"
+    hit = _PARSED.get(mk)
+    if hit is not None and hit[0] == tuple(keys):                  # same files, same sizes and stamps: the same items
+        return list(hit[1])
+    for repo in repos:
+        commits = _parsed_file(extra_cache_path(repo), "x")
         for it in _git_events(commits, window, mode):
             out.append(BItem(it.keys + (f"r:{repo.name}",), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}"))
     out.sort(key=lambda it: it.created)
@@ -479,32 +555,117 @@ def plan_items(state: Path) -> list[BItem]:
 
 
 def research_items(root: Path, max_files: int = 60000) -> list[BItem]:
+    return research_scan(root, max_files)[0]
+
+
+# Parsed research files kept between jobs (3 Oct audit: every research_bool job re-parsed ~44,000 JSON files, 41-66 s, then walked them again
+# for the digest, 8 s). Each file's top-level yes/no fields are remembered under its exact (size, mtime_ns); the tree is still walked every job,
+# so a new, changed or deleted file is seen exactly as a fresh read would see it. The memo is per process and also kept on disk (state/thinking)
+# so a new worker process starts warm.
+_RESEARCH: dict[str, tuple[int, int, float, list[tuple[str, bool]]]] = {}
+_RESEARCH_DISK_LOADED: set[str] = set()
+
+
+def _research_disk(root: Path) -> Optional[Path]:
+    if DEFAULT_STATE is None:
+        return None
+    return Path(DEFAULT_STATE) / "thinking" / f"research_parse_{hashlib.sha256(str(Path(root).resolve()).encode()).hexdigest()[:10]}.json"
+
+
+def _research_walk(top: str, pruned: bool) -> Iterable[tuple[str, bool, list[tuple[str, Any]]]]:
+    """os.walk(top) order (top-down, scandir order, symlinked dirs listed but not entered), yielding (dir, inside an excluded dir, files with
+    their DirEntry). Unreadable dirs are skipped like os.walk does."""
+    try:
+        with os.scandir(top) as it:
+            ents = list(it)
+    except OSError:
+        return
+    dirs, files = [], []
+    for e in ents:
+        try:
+            isdir = e.is_dir()
+        except OSError:
+            isdir = False
+        (dirs if isdir else files).append(e)
+    yield top, pruned, [(e.name, e) for e in files]
+    for e in dirs:
+        try:
+            if e.is_symlink():
+                continue
+        except OSError:
+            continue
+        yield from _research_walk(os.path.join(top, e.name), pruned or excluded(e.name))
+
+
+def research_scan(root: Path, max_files: int = 60000) -> tuple[list[BItem], str]:
+    """(research items, source_digest of the same walk). Items are identical to parsing every file afresh; the digest counts every file
+    under root (excluded dirs too), exactly like source_digest('research_bool')."""
     out: list[BItem] = []
     n = 0
-    for dp, dirs, fs in os.walk(root):
-        dirs[:] = [d for d in dirs if not excluded(d)]
-        for f in fs:
+    count = 0
+    disk = _research_disk(root)
+    if disk is not None and str(disk) not in _RESEARCH_DISK_LOADED:
+        _RESEARCH_DISK_LOADED.add(str(disk))
+        try:
+            for p, v in json.loads(disk.read_text(encoding="utf-8")).items():
+                if p not in _RESEARCH:
+                    _RESEARCH[p] = (int(v[0]), int(v[1]), float(v[2]), [(str(k), bool(b)) for k, b in v[3]])
+        except (OSError, ValueError, TypeError, IndexError):
+            pass
+    parsed = 0
+    seen: set[str] = set()
+    root_s = str(root)
+    for dp, pruned, fs in _research_walk(root_s, False):
+        count += len(fs)
+        if pruned:
+            continue
+        for f, ent in fs:
             if not f.endswith(".json") or excluded(f) or n >= max_files:
                 continue
             p = os.path.join(dp, f)
             n += 1
             try:
-                if os.path.getsize(p) > 200_000:
+                st = ent.stat()
+            except OSError:
+                continue
+            if st.st_size > 200_000:
+                continue
+            seen.add(p)
+            hit = _RESEARCH.get(p)
+            if hit is not None and hit[0] == st.st_size and hit[1] == st.st_mtime_ns:
+                mt, bools = hit[2], hit[3]
+            else:
+                try:
+                    text = Path(p).read_text(encoding="utf-8")
+                    st2 = os.stat(p)
+                except (OSError, ValueError):
                     continue
-                d = json.loads(Path(p).read_text(encoding="utf-8"))
-                mt = os.path.getmtime(p)
-            except (OSError, ValueError):
+                try:
+                    d = json.loads(text)
+                except ValueError:                                 # not JSON: no items, like a fresh read; remembered as such
+                    d = None
+                mt = st2.st_mtime
+                bools = [(k, v) for k, v in d.items() if isinstance(v, bool)] if isinstance(d, dict) else []
+                parsed += 1
+                if st2.st_size == st.st_size and st2.st_mtime_ns == st.st_mtime_ns:      # unchanged while read: safe to remember
+                    _RESEARCH[p] = (st.st_size, st.st_mtime_ns, mt, bools)
+                else:
+                    _RESEARCH.pop(p, None)
+            if not bools:
                 continue
-            if not isinstance(d, dict):
-                continue
-            rel = os.path.relpath(p, root).replace("\\", "/").split("/")
+            rel = os.path.relpath(p, root_s).replace("\\", "/").split("/")
             fam = "/".join(rel[:2]) if len(rel) > 2 else rel[0]
             stem = re.sub(r"\d+", "#", Path(f).stem)
-            for k, v in d.items():
-                if isinstance(v, bool):
-                    out.append(BItem((f"{k}|fam:{fam}", f"{k}|stem:{stem}", f"{k}"), mt, mt, int(v), f"{rel[-1]}:{k}"))
+            for k, v in bools:
+                out.append(BItem((f"{k}|fam:{fam}", f"{k}|stem:{stem}", f"{k}"), mt, mt, int(v), f"{rel[-1]}:{k}"))
     out.sort(key=lambda b: b.created)
-    return out
+    if parsed and disk is not None:
+        try:
+            keep = {p: [v[0], v[1], v[2], v[3]] for p, v in _RESEARCH.items() if p in seen}
+            _write_atomic(disk, json.dumps(keep))
+        except OSError:
+            pass
+    return out, str(count)
 
 
 SOURCES: dict[str, str] = {"git_fixed": "git", "git_churn": "git", "journal_persist": "journal", "plan_choice": "plan", "research_bool": "research",
@@ -530,6 +691,17 @@ def load(source: str, state: Path, repo: Path, journal: Path, research: Path) ->
     if source == "research_bool":
         return research_items(research)
     raise KeyError(source)
+
+
+def load_with_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> tuple[list[BItem], str]:
+    """load() plus the source's digest. research_bool takes both from ONE walk (the digest then describes exactly the files read); every
+    other source computes the digest after the load, as compute_row always did."""
+    if source == "research_bool":
+        global DEFAULT_STATE
+        DEFAULT_STATE = Path(state)
+        return research_scan(research)
+    items = load(source, state, repo, journal, research)
+    return items, source_digest(source, state, repo, journal, research)
 
 
 def source_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> str:
@@ -568,9 +740,10 @@ def runs_path(state: Path) -> Path:
 
 def compute_row(source: str, variant: dict[str, Any], state: Path, repo: Path, journal: Path, research: Path) -> dict[str, Any]:
     """One drill batch's result (no write): load the whole dataset, walk forward with this variant, score. Module-level so a worker process runs it."""
-    items = apply_variant(load(source, state, repo, journal, research), variant, journal)
+    loaded, dg = load_with_digest(source, state, repo, journal, research)
+    items = apply_variant(loaded, variant, journal)
     preds = walk_forward(items, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
-    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
+    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": dg, "items": len(items), "resolved": len(preds), **split_score(preds)}
     row["at"] = T.dt.datetime.now(T.dt.timezone.utc).isoformat(timespec="seconds")
     return row
 
