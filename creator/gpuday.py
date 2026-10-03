@@ -1115,6 +1115,12 @@ def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[
          f"--tasks {POD_DIR}/data/rl_tasks.jsonl --out {POD_DIR}/runs/rl_poc --steps 150",
          "free_gpu": True, "minutes": tm(100), "max_minutes": tm(120), "outputs": [f"{POD_DIR}/runs/rl_poc/result.json"]},
     ]
+    start = str(cfg.get("gpuday_start_at") or "")
+    if start:                  # a second run of the day (e.g. after gpuday_reexport): a fresh upload carries the grown export, then `start` on
+        label = [j.get("name") if isinstance(j, Mapping) else str(j) for j in jobs]
+        if start not in label:
+            raise ValueError(f"gpuday_start_at {start!r} is not a job of the day: {label}")
+        jobs = [jobs[1]] + [j for j in jobs[label.index(start):] if j is not jobs[1]]
     return jobs
 
 

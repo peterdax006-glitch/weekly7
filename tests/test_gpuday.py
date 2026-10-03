@@ -431,3 +431,14 @@ def test_ft_script_skips_itself_when_the_pod_disk_is_short(tmp_path: Path) -> No
     res = json.loads(r.stdout.split("@@result=", 1)[1].splitlines()[0])
     assert res["skipped"].startswith("disk: ") and "needs ~10000000 GB" in res["skipped"]
     assert not (pod / "gpuday" / "runs").exists()
+
+
+def test_a_second_run_of_the_day_starts_with_a_fresh_upload(tmp_path: Path, repo: Path) -> None:
+    st = _state(tmp_path, repo)
+    out = tmp_path / "export"
+    GD.export(st, repo, out, eval_frac=0.5, commit_limit=0)
+    base = {"gpuday_export": str(out), "gpuday_frozen": str(st / "thinkbench" / "items.json"), "gpuday_start_at": "ft1_17b"}
+    names = [j["name"] if isinstance(j, dict) else j for j in GD.day_jobs(base)]
+    assert names[:3] == ["gpuday_upload", "ft1_17b", "register_ft1_17b"] and "gpuday_reexport" not in names and names[-1] == "rl_poc"
+    with pytest.raises(ValueError):
+        GD.day_jobs(dict(base, gpuday_start_at="nope"))

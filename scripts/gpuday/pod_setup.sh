@@ -60,10 +60,14 @@ if ! torch_ok; then
   torch_ok || { echo "torch from $IDXS does not run on this card"; exit 3; }
 fi
 echo "@@t_torch=$(( $(date +%s) - t ))"
+# From here on torch is pinned to the build that just ran a kernel on this card: no later pip install (Unsloth, gguf-py) may swap it.
+echo "torch==$("$PY" -c 'import torch; print(torch.__version__)')" > gpuday/constraints.txt
+export PIP_CONSTRAINT="$PWD/gpuday/constraints.txt"
+echo "@@torch_pin=$(cat gpuday/constraints.txt)"
 t=$(date +%s)
 if ! "$PY" -c "import unsloth, trl, peft, datasets" >/dev/null 2>&1; then
   echo "@@unsloth_preinstalled=0"
-  "$PY" -m pip install -q unsloth unsloth_zoo trl peft datasets >/dev/null 2>&1 || exit 4
+  "$PY" -m pip install -q -c gpuday/constraints.txt unsloth unsloth_zoo trl peft datasets >/dev/null 2>&1 || exit 4
   torch_ok || { echo "installing Unsloth replaced torch with one that does not run on this card"; exit 4; }
 else
   echo "@@unsloth_preinstalled=1"

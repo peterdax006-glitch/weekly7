@@ -207,3 +207,8 @@ judgment rounds.
   `disk: N GB free, needs ~M GB`. It needs (`FT_DISK_GB`, GB) 1.7B 12, 4B 27, 8B 60, 14B QLoRA 110, 30B 210. With
   `"gpuday_ft_gguf": false` the jobs train adapters only, with no merge, GGUF or serving, and need the base download alone (`FT_DL_GB`:
   5 / 10 / 8 / 12 / 64). The adapters come home through `outputs`. `"gpuday_skip_disk_check": true` turns the check off.
+- **Torch pin.** After torch passes the kernel check, `pod_setup.sh` writes `torch==<that version>` to `gpuday/constraints.txt` and exports
+  `PIP_CONSTRAINT`, so neither Unsloth nor gguf-py can replace that torch.
+- **Second run of the day.** The upload bundle is built when the job list is made. The worked rows that `gpuday_reexport` produces
+  therefore reach the pod only through a second run: set `"gpuday_start_at": "ft1_17b"` and run again. That list starts with a fresh
+  `gpuday_upload` and then continues from `ft1_17b`.
