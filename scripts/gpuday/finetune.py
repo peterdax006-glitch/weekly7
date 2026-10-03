@@ -244,6 +244,7 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
     if a.llama_cpp:
         ma = argparse.Namespace(**vars(a))
         ma.adapter, ma.out = adapter, str(out / "merged")
+        ma.base = a.merge_base or a.base                  # QLoRA trains on a 4-bit repo; the merge always goes into the 16-bit weights
         res["merge"] = cmd_merge(ma)
         ga = argparse.Namespace(**vars(a))
         ga.merged, ga.out = str(out / "merged"), str(out / f"model-{a.quant}.gguf")
@@ -306,6 +307,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--quant", default="Q4_K_M")
     p.add_argument("--keep-f16", action="store_true")
     p.add_argument("--keep-merged", action="store_true")
+    p.add_argument("--merge-base", default="", help="16-bit base for the merge (QLoRA runs train on a pre-quantised repo)")
     p.add_argument("--bf16", action="store_true")
     a = ap.parse_args(argv)
     a.backend = "hf"

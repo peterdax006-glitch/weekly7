@@ -25,6 +25,7 @@ import dataclasses
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import subprocess
 import time
@@ -645,6 +646,8 @@ def export(state: Path, repo: Path, out: Path, *, strict: bool = False, bank: Op
     # coder fine-tune mix: gold handoffs + public commits (train sides only); held-out handoffs stay for the harness
     mix = [e for n in ("handoff_train", "commit_train") for e in jsonl_rows(out / f"{n}.jsonl")]
     files["coder_sft_mix"] = {"rows": _write_jsonl(out / "coder_sft_mix.jsonl", mix)}
+    docs = embed_corpus(Path(state), Path(repo), frozen, drops, with_commits=with_commits)
+    files["embed_docs"] = {"rows": _write_jsonl(out / "embed_docs.jsonl", docs)}
     qs = question_splits(Path(state), frozen, eval_frac)
     (out / "splits.json").write_text(json.dumps(qs, indent=1), encoding="utf-8")
     man = {"created": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "strict": strict, "frozen_hash": frozen.hash[:12],
@@ -930,3 +933,206 @@ DAY: tuple[Block, ...] = (
 def day_plan() -> dict[str, Any]:
     return {"usd_per_hr": USD_PER_HR, "total_hours": sum(b.hours for b in DAY), "total_usd": round(sum(b.usd for b in DAY), 2),
             "blocks": [dict(dataclasses.asdict(b), hours=b.hours, usd=b.usd) for b in DAY]}
+
+
+
+# ------------------------------------------------------------------------------------------------ runner hook: the day's job list (gpupulse ext jobs)
+POD_DIR = "gpuday"                                  # under the runner's remote_dir on the pod
+SCRIPTS = ("scripts/gpuday/finetune.py", "scripts/gpuday/embed_pod.py", "scripts/gpuday/rl_grpo.py", "scripts/gpuday/pod_setup.sh")
+UPLOAD_DATA = ("handoff_train.jsonl", "handoff_eval.jsonl", "pref_train.jsonl", "pref_eval.jsonl", "commit_train.jsonl", "commit_eval.jsonl",
+               "worked_train.jsonl", "worked_eval.jsonl", "coder_sft_mix.jsonl", "embed_docs.jsonl", "rl_tasks.jsonl", "MANIFEST.json")
+MODELS_HF = {"1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B", "14b": "unsloth/Qwen3-14B-unsloth-bnb-4bit",
+             "coder30b": "unsloth/Qwen3-Coder-30B-A3B-Instruct"}
+
+
+def upload_bundle(export_dir: Path, frozen: Frozen, repo: Path = ROOT) -> tuple[bytes, dict[str, Any]]:
+    """The ONE upload of the day (gzip tar, sent inside a remote job's script): the pod scripts, this module as gpuday_lib.py and the
+    training files of an export. Refused whole when the export audit finds anything private or frozen."""
+    import io
+    import tarfile
+    bad = audit_export(export_dir, frozen)
+    if bad:
+        raise ValueError(f"export audit failed, nothing is uploaded: {bad[:5]}")
+    members: list[tuple[str, bytes]] = [(Path(s).name, (Path(repo) / s).read_bytes()) for s in SCRIPTS if (Path(repo) / s).is_file()]
+    members.append(("gpuday_lib.py", (Path(repo) / "creator" / "gpuday.py").read_bytes()))
+    for n in UPLOAD_DATA:
+        p = Path(export_dir) / n
+        if p.is_file():
+            members.append((f"data/{n}", p.read_bytes()))
+    for name, data in members:
+        why = private_reason(data.decode("utf-8", "replace")) if name.startswith("data/") else ""
+        if why:
+            raise ValueError(f"{name}: {why} - nothing is uploaded")
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        for name, data in members:
+            ti = tarfile.TarInfo(name)
+            ti.size, ti.mtime, ti.mode = len(data), 0, 0o644
+            tf.addfile(ti, io.BytesIO(data))
+    blob = buf.getvalue()
+    return blob, {"files": [m[0] for m in members], "bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest()}
+
+
+def upload_script(blob: bytes, info: Mapping[str, Any]) -> str:
+    import base64
+    b64 = base64.encodebytes(blob).decode("ascii")
+    return (f"set -e\nmkdir -p {POD_DIR}\nbase64 -d > {POD_DIR}/upload.tgz <<'GPUDAY_B64'\n{b64}GPUDAY_B64\n"
+            f"test \"$(sha256sum {POD_DIR}/upload.tgz | cut -d' ' -f1)\" = \"{info['sha256']}\"\n"
+            f"tar -xzf {POD_DIR}/upload.tgz -C {POD_DIR} && rm -f {POD_DIR}/upload.tgz\n"
+            f"echo '@@result={json.dumps({'uploaded': len(info['files']), 'bytes': info['bytes']})}'\n")
+
+
+def ft_script(name: str, base: str, data: str, *, qlora: bool = False, pref: str = "", method: str = "dpo", max_seq: int = 8192,
+              epochs: float = 2.0, batch: int = 2, accum: int = 8, lr: float = 2e-4, quant: str = "Q4_K_M", gguf: bool = True,
+              min_rows: int = 1, serve_as: str = "", merge_base: str = "") -> str:
+    """Remote script of one fine-tune: SFT (+ optional DPO/ORPO) -> merge -> GGUF -> sha256; with `serve_as` the GGUF is also placed in the
+    runner's models/ with its .ok hash so the runner can serve it without a download (see docs/GPU_DAY_PREP.md, hook H3)."""
+    d = f"{POD_DIR}/runs/{name}"
+    opts = (f"--base {base} --data {POD_DIR}/data/{data} --out {d} --max-seq {max_seq} --epochs {epochs} --batch {batch} --accum {accum} "
+            f"--lr {lr}" + (" --qlora" if qlora else "") + (f" --merge-base {merge_base}" if merge_base else ""))
+    if gguf:
+        opts += f" --llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\" --quant {quant}"
+    if pref:
+        opts += f" --pref {POD_DIR}/data/{pref} --method {method}"
+    py = "PY=$(command -v python3 || command -v python)"
+    count = f"n=$(wc -l < {POD_DIR}/data/{data} 2>/dev/null || echo 0)"
+    skip = f"if [ \"$n\" -lt {min_rows} ]; then echo '@@result={{\"skipped\": \"fewer than {min_rows} rows in {data}\"}}'; exit 0; fi"
+    place = ""
+    if gguf and serve_as:
+        place = (f"\ng={d}/model-{quant}.gguf; if [ -f \"$g\" ]; then cp -f \"$g\" models/{serve_as} && sha256sum models/{serve_as} | cut -d' ' -f1 "
+                 f"> models/{serve_as}.ok; echo \"@@served_as={serve_as}\"; fi")
+    return f"set -e\n{py}\n{count}\n{skip}\nmkdir -p {d}\n\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {d}/train.log 2>&1 || {{ tail -40 {d}/train.log; exit 5; }}{place}\ncat {d}/result.json | tr -d '\\n' | sed 's/^/@@result=/'\necho\n"
+
+
+def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[Any]:
+    """`gpu_pulse.py run --jobs-from creator.gpuday:day_jobs`: the whole day after setup, as gpupulse job specs. The upload job carries
+    the audited bundle; the training jobs free the GPU; every job's small outputs come home through the runner's 'outputs'."""
+    ex = Path(export_dir or cfg.get("gpuday_export") or default_out())
+    frozen_p = Path(str(cfg.get("gpuday_frozen") or ROOT / "state" / "creator" / "thinkbench" / "items.json"))
+    frozen = Frozen.load(frozen_p) if frozen_p.is_file() else Frozen.empty()
+    blob, info = upload_bundle(ex, frozen)
+    m17, m4, m8, m14 = "Qwen3-1.7B-Q4_K_M.gguf", "Qwen3-4B-Q4_K_M.gguf", "Qwen3-8B-Q4_K_M.gguf", "Qwen3-14B-Q4_K_M.gguf"
+    best = str(cfg.get("best_model") or m8)
+    big_coder = str(cfg.get("gpuday_coder", "14b"))
+    out = lambda name, extra=(): [f"{POD_DIR}/runs/{name}/result.json", f"{POD_DIR}/runs/{name}/adapter", *extra]  # noqa: E731
+    jobs: list[Any] = [
+        "probe:" + m4,
+        {"name": "gpuday_upload", "remote": upload_script(blob, info), "minutes": 1},
+        f"thinkbench:{m17}", f"thinkbench:{m4}", f"thinkbench:{m8}", f"thinkbench:{m14}",
+        {"name": "coder_trial_base", "call": "creator.gpuday:harness_job", "model": m14, "minutes": 40, "max_minutes": 60,
+         "low_util_abort_minutes": 0},
+        f"traces:{best}:0:200",
+        {"name": "embed_index", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/embed_pod.py build "
+         f"--docs {POD_DIR}/data/embed_docs.jsonl --out {POD_DIR}/index --model Qwen3-Embedding-0.6B-Q8_0.gguf --models-dir models",
+         "free_gpu": True, "minutes": 10, "outputs": [f"{POD_DIR}/index"]},
+        f"judgment:{best}:0:120", f"drills:{best}:0:80",
+        {"name": "gpuday_reexport", "call": "creator.gpuday:reexport_job", "minutes": 5},
+        {"name": "ft1_17b", "remote": ft_script("ft1_17b", MODELS_HF["1.7b"], "worked_train.jsonl", max_seq=4096, batch=8, accum=2,
+                                                min_rows=200, serve_as="Qwen3-1.7B-gpuday-ft1.gguf"),
+         "free_gpu": True, "minutes": 50, "max_minutes": 80, "outputs": out("ft1_17b")},
+        {"name": "ft1_4b", "remote": ft_script("ft1_4b", MODELS_HF["4b"], "worked_train.jsonl", max_seq=4096, batch=4, accum=4,
+                                               min_rows=200, serve_as="Qwen3-4B-gpuday-ft1.gguf"),
+         "free_gpu": True, "minutes": 80, "max_minutes": 110, "outputs": out("ft1_4b")},
+        "thinkbench:Qwen3-1.7B-gpuday-ft1.gguf", "thinkbench:Qwen3-4B-gpuday-ft1.gguf",
+        {"name": "ft2_coder", "remote": ft_script("ft2_coder", MODELS_HF[big_coder], "coder_sft_mix.jsonl", qlora=True,
+                                                  pref="pref_train.jsonl" if int(cfg.get("gpuday_pref_rows", 0)) >= 20 else "",
+                                                  max_seq=12288, batch=1, accum=16, epochs=2, lr=1e-4, min_rows=50,
+                                                  merge_base={"14b": "Qwen/Qwen3-14B", "coder30b": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}[big_coder],
+                                                  serve_as=f"Qwen3-{big_coder}-gpuday-coder.gguf"),
+         "free_gpu": True, "minutes": 150, "max_minutes": 240, "outputs": out("ft2_coder")},
+        {"name": "coder_trial_tuned", "call": "creator.gpuday:harness_job", "model": f"Qwen3-{big_coder}-gpuday-coder.gguf", "minutes": 40,
+         "max_minutes": 60, "low_util_abort_minutes": 0},
+        {"name": "best_of_n_goals", "call": "creator.gpuday:harness_job", "model": str(cfg.get("gpuday_bon_model") or m14), "minutes": 150,
+         "max_minutes": 180, "low_util_abort_minutes": 0},
+        {"name": "rl_poc", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/rl_grpo.py --base {MODELS_HF['1.7b']} "
+         f"--tasks {POD_DIR}/data/rl_tasks.jsonl --out {POD_DIR}/runs/rl_poc --steps 150",
+         "free_gpu": True, "minutes": 100, "max_minutes": 120, "outputs": [f"{POD_DIR}/runs/rl_poc/result.json"]},
+    ]
+    return jobs
+
+
+def harness_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """gpupulse 'call' job: replay held-out cases against the served model (best-of-N from cfg). Runs on the PC: the process drops itself
+    to IDLE priority first, and evaluations run ONE at a time while N generations per case are in flight on the GPU."""
+    _idle_priority()
+    ep = ctx.get("endpoints") or {}
+    urls = ((ep.get("models") or {}).get(str(ctx.get("model")), {}) or {}).get("urls") or []
+    if not urls:
+        return {"error": f"model {ctx.get('model')} is not served"}
+    ex = default_out()
+    n = int(os.environ.get("GPUDAY_N", "1"))
+    deadline = float(ctx.get("deadline") or 0)
+    repo = harness_clone(ex.parent / "harness_repo", Path(str(ctx["repo"])))     # never the main repository: sandboxes make branches
+    res = run_harness(repo, [ex / "commit_eval.jsonl", ex / "handoff_eval.jsonl"], urls[0].rsplit("/v1", 1)[0], n=n,
+                      deadline=deadline, scratch=ex.parent / "harness_sandboxes", out=ex.parent / f"harness_{ctx.get('model')}.json")
+    return res
+
+
+def harness_clone(path: Path, source: Path) -> Path:
+    """A separate clone for the harness's sandboxes (their branches never touch the main repository's refs); refreshed on each use."""
+    if not (Path(path) / ".git").exists():
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "clone", "-q", str(source), str(path)], check=True, timeout=1800)
+    else:
+        subprocess.run(["git", "-C", str(path), "fetch", "-q", "origin"], check=False, timeout=600)
+        subprocess.run(["git", "-C", str(path), "checkout", "-q", "--detach", "origin/HEAD"], check=False, timeout=600)
+    return Path(path)
+
+
+def reexport_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """Re-export after the bank grew (the worked examples for FINE-TUNE 1), at IDLE priority; the next upload carries it."""
+    _idle_priority()
+    man = export(Path(str(ctx["state"])), Path(str(ctx["repo"])), default_out())
+    return {k: v.get("rows") for k, v in man["files"].items()}
+
+
+def run_harness(repo: Path, eval_files: Sequence[Path], url: str, n: int = 1, deadline: float = 0.0, scratch: Optional[Path] = None,
+                out: Optional[Path] = None, gen_threads: int = 4, think: bool = False) -> dict[str, Any]:
+    """Every case of the eval files: generations run `gen_threads` cases ahead (the GPU stays busy) while sandbox evaluations run one at a
+    time on this PC (they are the heavy home-side part)."""
+    import concurrent.futures as cf
+    cases = [c for f in eval_files if Path(f).is_file() for c in harness_cases(Path(f))]
+    ask = chat_http(url, think=think)
+    replies: dict[str, list[str]] = {}
+
+    def gen(c: Case) -> tuple[str, list[str]]:
+        rs = []
+        for i in range(max(1, n)):
+            try:
+                rs.append(ask(c.messages, 0.6 if n > 1 else 0.2, 6000, 1000 + i))
+            except Exception as e:                                     # noqa: BLE001
+                rs.append(f"(model error: {type(e).__name__}: {str(e)[:200]})")
+        return c.id, rs
+    results = []
+    with cf.ThreadPoolExecutor(max_workers=max(1, gen_threads)) as pool:
+        futs = {pool.submit(gen, c): c for c in cases}
+        for fut in cf.as_completed(futs):
+            c = futs[fut]
+            if deadline and time.monotonic() > deadline:
+                break
+            cid, rs = fut.result()
+            replies[cid] = rs
+            it = iter(rs)
+            results.append(replay_case(repo, c, lambda *a, **k: next(it), n=len(rs), scratch=scratch))
+    rep = dict(harness_report(results), url=url, n=n, cases_total=len(cases))
+    if out:
+        outside_repo(out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({"report": rep, "results": results}, indent=1), encoding="utf-8")
+    return rep
+
+
+def _idle_priority() -> None:
+    """Teacher rule (3 Oct): home-side GPU-day work yields the CPU to Nupen (IDLE class on Windows, nice 19 elsewhere)."""
+    import sys as _sys
+    try:
+        if _sys.platform == "win32":
+            import ctypes
+            k = ctypes.windll.kernel32                                 # type: ignore[attr-defined]
+            k.GetCurrentProcess.restype = ctypes.c_void_p
+            k.SetPriorityClass.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+            k.SetPriorityClass(k.GetCurrentProcess(), 0x00000040)
+        else:
+            getattr(os, "nice")(19)
+    except (OSError, AttributeError):
+        pass

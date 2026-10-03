@@ -210,7 +210,7 @@ def test_harness_best_of_n_tests_pick_and_nothing_is_merged(tmp_path: Path, repo
     branches = sh(repo, "branch", "--list")
     case = GD.Case("c1", "CP0100", head, "fix add", GD.coder_messages("fix add", {"pkg/mathx.py": "def add(a, b):\n    return a - b\n"}),
                    ["pkg/mathx.py"])
-    wrong = "REASONING: no\nFILE: pkg/mathx.py\n<<<<<<< SEARCH\n    return a - b\n=======\n    return a * b\n>>>>>>> REPLACE\n"
+    wrong = "REASONING: no\nFILE: pkg/mathx.py\n<<<<<<< SEARCH\n    return a - b\n=======\n    return a +\n>>>>>>> REPLACE\n"
     junk = "I think it is fine."
     right = "REASONING: plus\nFILE: pkg/mathx.py\n<<<<<<< SEARCH\n    return a - b\n=======\n    return a + b\n>>>>>>> REPLACE\n"
     m = FakeModel([wrong, junk, right])
@@ -269,3 +269,39 @@ def test_day_plan_covers_24_hours_without_gaps() -> None:
 
 def _unused(_: Any) -> None:
     """(keeps Any imported for the helper signatures above)"""
+
+
+# ------------------------------------------------------------------------------------------------ the runner hook
+def test_day_jobs_are_valid_runner_jobs_and_the_upload_unpacks(tmp_path: Path, repo: Path) -> None:
+    from creator import gpupulse as GP
+    st = _state(tmp_path, repo)
+    out = tmp_path / "export"
+    GD.export(st, repo, out, eval_frac=0.5, commit_limit=0)
+    jobs = GD.day_jobs({"gpuday_export": str(out), "gpuday_frozen": str(st / "thinkbench" / "items.json")})
+    parsed = [GP.parse_job(j) for j in jobs]
+    names = [p.get("name") for p in parsed if p["kind"] == "ext"]
+    assert names[0] == "gpuday_upload" and "ft2_coder" in names and len(set(names)) == len(names)
+    assert all(p["free_gpu"] for p in parsed if p.get("name", "").startswith(("ft", "rl_", "embed")))
+    up = next(p for p in parsed if p.get("name") == "gpuday_upload")
+    GP.outbound_ok([{"content": up["remote"]}])                           # the runner's private-marker guard passes
+    pod = tmp_path / "pod"
+    pod.mkdir()
+    r = subprocess.run(["bash", "-s"], input=up["remote"], cwd=pod, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (pod / "gpuday" / "gpuday_lib.py").is_file() and (pod / "gpuday" / "finetune.py").is_file()
+    assert (pod / "gpuday" / "data" / "coder_sft_mix.jsonl").is_file() and "@@result=" in r.stdout
+    assert "CP0009" not in "".join(p.read_text(encoding="utf-8") for p in (pod / "gpuday" / "data").glob("*.jsonl"))
+
+
+def test_upload_is_refused_when_the_export_audit_fails(tmp_path: Path) -> None:
+    out = tmp_path / "export"
+    out.mkdir()
+    (out / "coder_sft_mix.jsonl").write_text(json.dumps({"messages": [{"role": "user", "content": "from ~/Masterstock"}]}) + "\n",
+                                             encoding="utf-8")
+    with pytest.raises(ValueError):
+        GD.upload_bundle(out, GD.Frozen.empty())
+
+
+def test_ft_script_skips_thin_data_and_places_the_gguf_for_serving() -> None:
+    s = GD.ft_script("ft1", "Qwen/Qwen3-1.7B", "worked_train.jsonl", min_rows=200, serve_as="X.gguf", merge_base="Qwen/Qwen3-1.7B")
+    assert "-lt 200" in s and "models/X.gguf.ok" in s and "--merge-base Qwen/Qwen3-1.7B" in s and "finetune.py pipeline" in s
