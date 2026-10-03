@@ -85,3 +85,19 @@ def test_platt_calibration_repairs_overconfidence() -> None:
     a, b = P.platt(raw, y)
     p = 1 / (1 + math.exp(-(a * math.log(0.95 / 0.05) + b)))
     assert abs(p - 0.3) < 0.08
+
+
+def test_live_pass_and_trust_section_from_cache(tmp_path: Any) -> None:
+    from creator import drillsources as D
+    cs = _commits(260)
+    D._append_cache(D.cache_path(tmp_path), cs)
+    now = cs[-1]["t"] + 10.0
+    r1 = P.live_pass(tmp_path, now)
+    assert r1["new"] > 0 and P.live_pass(tmp_path, now)["new"] == 0           # idempotent, only still-open events
+    later = now + 1e7
+    assert P.live_pass(tmp_path, later)["resolved"] == 0                       # nothing newer exists in the cache: windows stay open
+    sec = P.trust_section(tmp_path)
+    assert "git_fixed" in sec and sec["git_fixed"]["heldout"]["n"] > 50 and "frequency_model_heldout" in sec["git_fixed"]
+    for r in T._jsonl(P._store(tmp_path)):
+        if "p" in r:
+            assert r["made_at"] == now and r["outcome"] is None                # recorded before any outcome existed

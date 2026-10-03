@@ -160,7 +160,7 @@ def fit_gbm(X: Any, y: Any, trees: int = 60) -> Callable[[Any], Any]:
     m = lgb.LGBMClassifier(n_estimators=trees, learning_rate=0.05, num_leaves=5, min_child_samples=25, subsample=0.8, subsample_freq=1, colsample_bytree=0.8,
                            reg_lambda=5.0, n_jobs=1, verbose=-1, random_state=0)
     m.fit(X, y)
-    return lambda Xn: m.predict_proba(Xn)[:, 1]
+    return lambda Xn: m.predict_proba(Xn)[:, 1]  # type: ignore[call-overload]
 
 
 LEARNERS: dict[str, Callable[..., Callable[[Any], Any]]] = {"logit": fit_logit, "gbm": fit_gbm}
@@ -224,7 +224,7 @@ def walk_forward_model(rows: Sequence[Row], topic: str, learner: str = "logit", 
             if calibrate and model is not None and cal_at > 0:
                 z = math.log(min(1 - 1e-4, max(1e-4, raw)) / (1 - min(1 - 1e-4, max(1e-4, raw))))
                 p = 1 / (1 + math.exp(-(ab[0] * z + ab[1])))
-            out.append(T.Pred(topic, rs[i].subject, rs[i].created, min(1 - CAP, max(CAP, p)), base, last, rs[i].y, extra={"learner": learner}))
+            out.append(T.Pred(topic, rs[i].subject, rs[i].created, min(1 - CAP, max(CAP, p)), base, last, rs[i].y, extra={"learner": learner, "raw": round(raw, 5)}))
     return out
 
 
@@ -249,3 +249,111 @@ def select_and_report(rows: Sequence[Row], topic: str, candidates: Sequence[dict
     ps = best[2]
     cut = int(len(ps) * SELECT_SPLIT)
     return {"chosen": best[1], "tried": tried, "heldout": T.score(ps[cut:]), "select": T.score(ps[:cut]), "preds": ps}
+
+
+# ------------------------------------------------------------------------------------------------ plugging into the trust report and live drills
+import json                                                    # noqa: E402
+from pathlib import Path                                       # noqa: E402
+
+TOPIC_ROWS = {"git_fixed": ("git", 20, "fixed"), "git_churn": ("git", 10, "churn"), "verdict": ("pkg", 0, ""), "duration": ("pkg", 0, ""), "cost": ("pkg", 0, "")}
+
+
+def topic_rows(state: Path, topic: str) -> list[Row]:
+    """Rows of a topic from state only: the git topics from the persistent history cache (no git call), the package topics from the ledger."""
+    kind, window, mode = TOPIC_ROWS[topic]
+    if kind == "git":
+        from creator import drillsources as D                  # on demand
+        cs = D._read_cache(D.cache_path(state))
+        cs.sort(key=lambda c: c["t"])
+        return git_rows(cs, window, mode) if cs else []
+    return pkg_rows(T.load_items(state), topic)
+
+
+def _store(state: Path) -> Path:
+    return Path(state) / "thinking" / "feat_predictions.jsonl"
+
+
+def _add(path: Path, rec: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, sort_keys=True) + "\n")
+
+
+def live_pass(state: Path, now: float, max_new: int = 40) -> dict[str, int]:
+    """Prospective predictions of the feature models: each still-open git event (window not yet closed) gets ONE prediction from a model fitted on
+    rows resolved before `now`; resolved later by the same labels. Idempotent per (topic, subject)."""
+    st = _store(state)
+    recs = T._jsonl(st)
+    known = {r["id"] for r in recs if "p" in r}
+    done = {r["id"] for r in recs if "resolved" in r}
+    new = res = 0
+    for topic in ("git_fixed", "git_churn"):
+        rows = topic_rows(state, topic)
+        by = {r.subject: r for r in rows}
+        for r in rows:
+            pid = f"{topic}:{r.subject}"
+            if r.resolved is not None and pid in known and pid not in done and r.resolved <= now:
+                _add(st, {"id": pid, "resolved": r.y, "at": r.resolved})
+                res += 1
+        trainable = [r for r in rows if r.resolved is not None and r.resolved < now]
+        opens = [r for r in rows if r.resolved is None and f"{topic}:{r.subject}" not in known][-max_new:]
+        if opens and len(trainable) >= MIN_TRAIN and len({r.y for r in trainable}) == 2:
+            np = _np()
+            model = fit_logit(np.array([r.x for r in trainable]), np.array([float(r.y) for r in trainable]), lam=5.0 if topic == "git_churn" else 30.0)
+            for r in opens:
+                p = min(1 - CAP, max(CAP, float(model(np.array([r.x]))[0])))
+                ev = [x.y for x in trainable]
+                _add(st, {"id": f"{topic}:{r.subject}", "topic": topic, "subject": r.subject, "made_at": now, "p": p, "base": T._laplace(ev), "last": T._last(ev),
+                                    "mode": "live", "outcome": None})
+                new += 1
+    return {"new": new, "resolved": res}
+
+
+def stored_live(state: Path) -> dict[str, list[T.Pred]]:
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in T._jsonl(_store(state)):
+        if "p" in r:
+            out.setdefault(r["topic"], {})[r["id"]] = r
+    for r in T._jsonl(_store(state)):
+        if "resolved" in r:
+            for d in out.values():
+                if r["id"] in d:
+                    d[r["id"]]["outcome"] = r["resolved"]
+    return {t: [T.Pred(t, r["subject"], r["made_at"], r["p"], r["base"], r["last"], r["outcome"], "live") for r in d.values() if r.get("outcome") is not None]
+            for t, d in out.items()}
+
+
+def trust_section(state: Path) -> dict[str, Any]:
+    """For trust.json: per topic the learner chosen on the SELECT part with its HELD-OUT score and the gate's verdict. The gate's counts include the
+    held-out replay plus resolved prospective predictions (live)."""
+    out: dict[str, Any] = {}
+    live = stored_live(state)
+    for topic in TOPIC_ROWS:
+        try:
+            rows = topic_rows(state, topic)
+            if len(rows) < 2 * MIN_TRAIN:
+                continue
+            r = select_and_report(rows, topic, refit_every=25 if topic.startswith("git") else 5)
+        except Exception as e:                                 # noqa: BLE001 - a failing feature model never breaks the trust report
+            out[topic] = {"error": f"{type(e).__name__}: {e}"}
+            continue
+        if not r.get("heldout"):
+            continue
+        ps = r.pop("preds")
+        cut = int(len(ps) * SELECT_SPLIT)
+        sc = T.score(ps[cut:] + live.get(topic, []))
+        ok, why = T.trust_of(sc) if sc.get("n") else (False, ["no held-out predictions"])
+        freq = T.score(_freq_preds(state, topic)[int(len(ps) * SELECT_SPLIT):])
+        out[topic] = {"trusted": ok, "why_not": why, "chosen": r["chosen"], "tried": r["tried"], "heldout": sc, "frequency_model_heldout": freq}
+    return out
+
+
+def _freq_preds(state: Path, topic: str) -> list[T.Pred]:
+    """The existing frequency model on the same events (the 'before')."""
+    if topic in ("verdict", "duration", "cost"):
+        return T.replay(T.load_items(state), topic)
+    from creator import drillsources as D                      # on demand
+    _k, window, mode = TOPIC_ROWS[topic]
+    cs = D._read_cache(D.cache_path(state))
+    cs.sort(key=lambda c: c["t"])
+    return D.walk_forward([i for i in D._git_events(cs, window, mode) if i.resolved is not None], topic)
