@@ -89,8 +89,7 @@ def test_filler_hands_out_independent_jobs_and_is_idempotent(tmp_path: Path) -> 
     st = tmp_path / "st"
     st.mkdir()
     (st / "plan_explanations.jsonl").write_text(
-        "\n".join(json.dumps({"at": f"2026-10-02T06:48:{i:02d}Z", "chosen": i % 3 == 0, "step": "s", "component": "K1", "value": 0.2, "node": f"n{i}"}) for i in range(40)) + "
-", encoding="utf-8")
+        "\n".join(json.dumps({"at": f"2026-10-02T06:48:{i:02d}Z", "chosen": i % 3 == 0, "step": "s", "component": "K1", "value": 0.2, "node": f"n{i}"}) for i in range(40)) + "\n", encoding="utf-8")
     nj = D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"])
     jobs = []
     while (j := nj()) is not None:
