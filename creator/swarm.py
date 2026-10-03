@@ -46,7 +46,6 @@ def free_ram_gb() -> float:
 
 def sandbox_memory_gb(scratch: Any) -> float:
     """Resident memory of every process running inside the swarm's sandboxes (their cwd is under `scratch`)."""
-    from pathlib import Path
     try:
         import psutil
     except ImportError:
@@ -68,8 +67,6 @@ def stop_worker_processes(scratch: Any, package_id: str) -> int:
     """HARD pull-back: kill the processes running inside a worker's sandbox (found by their working directory), so memory is
     released now - not at the worker's next checkpoint (1 Oct: memory spiked faster than workers reached one and the host
     stopped the whole swarm). Only processes whose cwd is inside that sandbox are touched."""
-    import json
-    from pathlib import Path
     try:
         import psutil
     except ImportError:
@@ -197,6 +194,7 @@ class Governor:
     idle: Optional[Callable[[], float]] = None          # seconds since the owner's last input (None = user_idle_seconds)
     disk_floor_gb: float = 1.0                          # owner, 2 Oct 2026: use the storage too, "except a single GB"
     free_disk: Optional[Callable[[], float]] = None     # free GB on the repo's drive (None = shutil.disk_usage)
+    admit: Any = None                                   # creator.resources.Admitter or None
 
     def disk_ok(self) -> bool:
         try:
@@ -299,6 +297,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             mem_peak["gb"] = max(mem_peak["gb"], per)
             return mem_peak["gb"] or None
         gov.observe = observe
+    state_dir, RS = Path(cfg.ledger_path).parent, REG.get("resources")
+    RS.attach(gov, state_dir, free_ram_gb)
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     REG.get("goals").maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
     REG.get("constraints").maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
@@ -345,6 +345,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
 
     def finish(r: _Running) -> None:
+        RS.learn(gov, state_dir, r.plan.step, r.started, len(running))
         if r.result:
             reports.append(r.result[0])
             if on_report:
@@ -361,6 +362,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         ramped = time.monotonic() - last_start >= gov.ramp_s
         if time.monotonic() - status_at[0] >= 60.0:                     # once a minute: what runs, and what stops more starting
             status_at[0] = time.monotonic()
+            RS.lower_sandbox_priority(scratch_dir) if gov.admit else 0
             REG.get("swarmops").status_line(gov, load, running, active, queue, fillers, planned, max_packages, exhausted, nothing_while == key,
                          fill_left, ramped)
         if gov.too_tight() and active:
@@ -374,7 +376,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 stop_worker_processes(cfg.scratch or REG.get("device").sandbox_root(cfg.repo),
                                       youngest.plan.package_id)
                 pulled += 1
-        elif queue and ramped and gov.can_start(load):                  # a planned package starts once the ramp allows
+        elif queue and ramped and gov.can_start(load) and RS.ok(gov, f"cycle:{queue[0].step}", load):
             start(queue.pop(0))
             continue
         elif (not queue and not exhausted and planned < max_packages and ramped and gov.can_start(load)
@@ -405,11 +407,15 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 planned += len(plans)
                 queue.extend(plans)
                 continue
+        if RS.ram_thread(gov, state_dir, load, ramped, fillers):
+            last_start = time.monotonic()
+            continue
         if ((exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
-                and gov.can_start(load)):
+                and gov.can_start(load) and RS.ok(gov, "filler", load)):
             job_fn = filler()                                           # leftover memory: useful measurement work
             if job_fn is not None:
                 fill_left -= 1
+                job_fn = RS.idle_thread(job_fn) if gov.admit else job_fn
                 ft = threading.Thread(target=job_fn, name="swarm-filler", daemon=True)
                 fillers.append(ft)
                 ft.start()
@@ -432,8 +438,6 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
 def self_bench_filler(store: Any, tasks: Optional[list[Any]] = None) -> Callable[[], Optional[Callable[[], None]]]:
     """Filler work for leftover memory: benchmark the system's OWN search worker on dev tasks it has not measured for the current
     code (holdout never touched). Results append to `store` - real data on what the system can already do by itself."""
-    import json
-    from pathlib import Path
     from creator import devbench as D
     from creator import generator as G
     store = Path(store)

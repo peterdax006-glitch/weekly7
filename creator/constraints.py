@@ -518,8 +518,23 @@ def fundamentals_metric(state: Path, now: dt.datetime, window_h: float) -> Metri
                   _trend(cur, prev if pn else None), round(min(0.5, 0.05 * cur), 4), "information", {"candidates": n, "by_principle": by}, "work")
 
 
+def resource_balance_metric(state: Path, now: dt.datetime, window_h: float) -> Metric:
+    """CPU and RAM used together (owner, 2 Oct 2026: when CPU is out look for RAM work and the reverse). Over the last hour of
+    resource samples (creator.resources): a = share with CPU saturated (>= 95%) while RAM is idle (< 60% used), b = share with RAM
+    > 85% used while CPU < 60%. loss = min(1, a + b) x 0.6: a documented estimate - an idle half of the machine is not the whole
+    improvement capacity, but it is the cheapest to reclaim. No samples -> 0 (nothing to judge)."""
+    from creator import resources as RS
+    ts = now.timestamp()
+    cur, prev = RS.balance_shares(state, 3600.0, ts), RS.balance_shares(state, 3600.0, ts - 3600.0)
+    s = cur["cpu_full_ram_idle"] + cur["ram_full_cpu_idle"]
+    p = prev["cpu_full_ram_idle"] + prev["ram_full_cpu_idle"] if prev["samples"] else None
+    return Metric("resource_balance", round(s, 4), "share of samples with one resource full and the other idle", "last 1h", None if p is None else round(p, 4),
+                  _trend(s, p), round(min(1.0, s) * 0.6, 4) if cur["samples"] else 0.0, "throughput", {**cur, "previous": prev}, "goal")
+
+
 METRICS: tuple[Callable[[Path, dt.datetime, float], Any], ...] = (
-    waste_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric, fundamentals_metric)
+    waste_metrics, cycle_time_metric, eval_cost_metric, supply_metric, availability_metric, learning_metrics, recursion_metric, audit_metric, fundamentals_metric,
+    resource_balance_metric)
 
 
 def measure_all(state: Path, now: Optional[dt.datetime] = None, window_h: float = 24.0) -> dict[str, Any]:
@@ -561,6 +576,7 @@ def _remedy_text(m: dict[str, Any]) -> str:
             "teacher_dependence": "move task kinds from the teacher to students (handoff-free adoption)",
             "work_supply": "plan more packages per round (more open gaps, wider scheduling)",
             "cycle_time": "shorten the evaluation feedback loop (the dominant stage)",
+            "resource_balance": "when CPU is saturated and RAM idle run RAM-specific work (model-cache warming, hot caches, data preload); when RAM is full and CPU idle start CPU-light work (creator.resources)",
             "recursion_idle": "run a recursion step on the development process",
             "fundamentals_violations": "feed principles_for(kind) into package text and filter candidates on the worst-violated principle"}.get(m["name"], f"reduce {m['name']}")
 
