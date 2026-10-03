@@ -173,6 +173,15 @@ def test_parse_vote_and_solved_examples_only_from_the_past_or_other_repos() -> N
     assert msgs[-1]["content"].endswith(q.prompt())
 
 
+def test_order_lets_kinds_and_repositories_take_turns() -> None:
+    cs = commits(200)
+    qs = R.gen_files_changed("a", cs) + R.gen_files_changed("b", cs) + R.gen_which_first("a", cs) + R.gen_co_change("a", commits(400))
+    o = R.order(qs)
+    assert sorted(q.qid for q in o) == sorted(q.qid for q in qs)
+    first = o[:9]
+    assert {q.kind for q in first} == {"files_changed", "which_first", "co_change"} and {q.source for q in first if q.kind == "files_changed"} == {"a", "b"}
+
+
 class FakeLLM:
     """Right only when asked to eliminate (or, for the control, on every 4th question): eliminate must win the search."""
     model = "fake-model.gguf"

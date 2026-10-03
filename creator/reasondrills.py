@@ -417,22 +417,26 @@ def generate(sources: Sequence[tuple[str, Path]], state: Path, kinds: Sequence[s
     return out
 
 
-def order(qs: Iterable[Question]) -> list[Question]:
-    """Fresh-question order: interleaved over (kind, source) so every epoch has a spread of kinds, repositories and difficulty."""
-    groups: dict[tuple[str, str], list[Question]] = {}
-    for q in qs:
-        groups.setdefault((q.kind, q.source), []).append(q)
-    for k, g in groups.items():
-        g.sort(key=lambda q: hashlib.sha256(q.qid.encode("utf-8")).hexdigest())
+def _round_robin(groups: dict[str, list[Question]]) -> list[Question]:
     out: list[Question] = []
-    keys = sorted(groups)
-    i = 0
-    while any(groups.values()):
-        k = keys[i % len(keys)]
-        if groups[k]:
-            out.append(groups[k].pop(0))
-        i += 1
+    lists = [list(groups[k]) for k in sorted(groups)]
+    while any(lists):
+        for g in lists:
+            if g:
+                out.append(g.pop(0))
     return out
+
+
+def order(qs: Iterable[Question]) -> list[Question]:
+    """Fresh-question order: kinds take turns (so the first halving cut is not judged on one kind), and inside a kind the repositories take
+    turns; inside one repository a stable hash order (difficulty and time mixed)."""
+    by: dict[str, dict[str, list[Question]]] = {}
+    for q in qs:
+        by.setdefault(q.kind, {}).setdefault(q.source, []).append(q)
+    for srcs in by.values():
+        for g in srcs.values():
+            g.sort(key=lambda q: hashlib.sha256(q.qid.encode("utf-8")).hexdigest())
+    return _round_robin({k: _round_robin(srcs) for k, srcs in by.items()})
 
 
 # ------------------------------------------------------------------------------------------------ prompts, answers, the model-free control
