@@ -13,7 +13,11 @@ For each declared component it advances the Capability only as far as computed e
                   not a verdict). It goes through INTENDED_BEHAVIOR_VERIFIED, both steps carrying the report + log as evidence.
 Nothing is ever moved backwards here and nothing is invented: a failing test stops the component where it is.
 
-    python scripts/record_validation.py [--dry-run] [--only K01,K02]
+    python scripts/record_validation.py [--dry-run] [--only K01,K02] [--due-only]
+
+--due-only (run by the swarm at start): touch only the components whose independent verdict is VALIDATED, whose code is byte-identical to
+the verdict commit and whose Capability is not yet VALIDATED - tests are run for those alone. It creates no verdict and relaxes no rule:
+a component without a current independent verdict is never advanced past TESTED.
 """
 from __future__ import annotations
 
@@ -112,6 +116,7 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--only", default="")
+    ap.add_argument("--due-only", action="store_true")
     a = ap.parse_args(argv)
     specs = SM.load_capabilities()
     only = {x for x in a.only.split(",") if x}
@@ -132,12 +137,15 @@ def main(argv: list[str]) -> int:
         c = model.capability(cid)
         checks = {k: O.CHECKS[k](model, c, led, cap)[0] for k in ("exists", "no_stubs", "integrated")}
         target = M.Status.IMPLEMENTED if checks["exists"] and checks["no_stubs"] else None
+        vsha = (explicit_commit(report[cid]) or first_validated_commit(cid)) if report.get(cid, {}).get("verdict") == "VALIDATED" else None
+        fresh = vsha is not None and unchanged_since(vsha, [*spec.modules, *spec.tests])
+        if a.due_only and not (report.get(cid, {}).get("verdict") == "VALIDATED" and fresh and checks["integrated"]
+                               and cur is not M.Status.VALIDATED):
+            continue
         counts, dur, log = ({}, 0.0, None) if (a.dry_run or target is None) else run_tests(cid, list(spec.tests))
         tests_pass = bool(counts) and counts["passed"] > 0 and not counts["failed"] and not counts["errors"]
         if target and tests_pass:
             target = M.Status.TESTED
-        vsha = (explicit_commit(report[cid]) or first_validated_commit(cid)) if report.get(cid, {}).get("verdict") == "VALIDATED" else None
-        fresh = vsha is not None and unchanged_since(vsha, [*spec.modules, *spec.tests])
         if target is M.Status.TESTED and checks["integrated"] and fresh:
             target = M.Status.VALIDATED
         row.update(checks=checks, tests=counts, verdict=report.get(cid, {}).get("verdict"), verdict_commit=vsha, fresh=fresh,

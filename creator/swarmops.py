@@ -5,7 +5,10 @@ status_line: once a minute, what runs and the first reason no more work starts (
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from creator import model as M
@@ -18,13 +21,48 @@ def release_orphans(led: Ledger, why: str) -> list[str]:
     any failed attempt) so their gaps are re-planned. 2 Oct 2026: after the move to the new PC, gap K28.exists stayed IN_PROGRESS
     from the old machine - the scheduler skipped it as 'worker already on it' forever and planned no development work at all."""
     released: list[str] = []
-    for kind in ("WorkPackage", "Gap"):                                 # packages first: a gap's state follows its package's
-        for rid, st in list(led.view.status.items()):
-            rec = led.view.by_id.get(rid)
-            if st is M.Status.IN_PROGRESS and rec is not None and rec.rtype == kind:
-                led.transition(rid, M.Status.FAILED, f"interrupted: {why}", M.Role.KERNEL)
-                released.append(rid)
+    judged = {M.Status.IMPLEMENTED, M.Status.TESTED, M.Status.INTENDED_BEHAVIOR_VERIFIED, M.Status.VALIDATED}
+    st = led.view.status
+
+    def pkgs(gap: str) -> list[str]:
+        return [c for c in led.view.children.get(gap, []) if led.view.by_id[c].rtype == "WorkPackage"]
+
+    def fail(rid: str) -> None:
+        if st.get(rid) is M.Status.NOT_STARTED:                           # never started: the legal path is via IN_PROGRESS
+            led.transition(rid, M.Status.IN_PROGRESS, f"interrupted: {why}", M.Role.KERNEL)
+        led.transition(rid, M.Status.FAILED, f"interrupted: {why}", M.Role.KERNEL)
+        released.append(rid)
+
+    for rid, s_ in list(st.items()):                                    # packages first: a gap's state follows its package's
+        rec = led.view.by_id.get(rid)
+        if s_ is M.Status.IN_PROGRESS and rec is not None and rec.rtype == "WorkPackage":
+            fail(rid)
+    for rid, s_ in list(st.items()):
+        rec = led.view.by_id.get(rid)
+        if s_ is not M.Status.IN_PROGRESS or rec is None or rec.rtype != "Gap":
+            continue
+        kids = pkgs(rid)
+        if any(st.get(k) in judged for k in kids):                      # real work awaits judgement: gaps.sync closes the gap
+            continue
+        for k in kids:
+            if st.get(k) is M.Status.NOT_STARTED:                       # CP0172: IN_PROGRESS gap, package never started
+                fail(k)
+        fail(rid)
     return released
+
+
+def revalidate(repo: Path, timeout_s: float = 1800.0) -> str:
+    """The independent validator's verdicts must reach the ledger or every '<K>.validated' gap stays open for ever (8 of ~13 unmet
+    requirements, 2 Oct 2026). Run at swarm start, under the kernel lock (no other writer), the EXISTING reconciliation
+    scripts/record_validation.py --due-only: it advances only a component whose independent report says VALIDATED, whose code is
+    byte-identical to the verdict commit and whose tests pass now. It creates no verdict: a stale or missing verdict stays open
+    until an independent validator re-reads the code. Returns the script's last output line (or why it did not run)."""
+    try:
+        p = subprocess.run([sys.executable, "scripts/record_validation.py", "--due-only"], cwd=repo, capture_output=True, text=True,
+                           timeout=timeout_s)
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"not run: {type(e).__name__}: {e}"
+    return f"exit {p.returncode}: " + ((p.stdout + p.stderr).strip().splitlines() or [""])[-1][:300]
 
 
 def status_line(gov: Any, load: int, running: list[Any], active: list[Any], queue: list[Any], fillers: list[Any],
