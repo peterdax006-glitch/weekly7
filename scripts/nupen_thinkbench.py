@@ -3,7 +3,8 @@
   python scripts/nupen_thinkbench.py --baseline [--no-model]   freeze the items (once), run them, write baseline_<ISO>.json
   python scripts/nupen_thinkbench.py --compare [--no-model]    re-run the SAME items now, print the morning report (plain English first), write now_<ISO>.json
   python scripts/nupen_thinkbench.py --freeze                  only freeze the items
-Options: --state DIR (default <repo>/state/creator), --owner-dir DIR (default ~/Masterstock), --hours N (verdict window, default 12), --workers 1|2."""
+Options: --state DIR (default <repo>/state/creator), --owner-dir DIR (default ~/Masterstock), --hours N (verdict window, default 12), --workers 1|2,
+  --model fast|thinker, --think-model GGUF (measure a candidate thinker without touching the live setting), --repo DIR (with a --state copy)."""
 from __future__ import annotations
 
 import argparse
@@ -114,9 +115,17 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--model", choices=("fast", "thinker"), default="fast",
                     help="fast = the fixed benchmark model (comparable runs); thinker = device think_model (labelled in versions)")
+    ap.add_argument("--think-model", default="",
+                    help="with --model thinker: measure THIS gguf as the thinker (a candidate); the live device setting is not touched")
+    ap.add_argument("--repo", default="", help="the repository the drills read (default: two levels above --state); use with a --state copy")
     a = ap.parse_args()
     state, owner = Path(a.state), Path(a.owner_dir)
-    repo = state.parents[1]
+    repo = Path(a.repo) if a.repo else state.parents[1]
+    if a.think_model:
+        if a.model != "thinker" or not Path(a.think_model).is_file():
+            print("--think-model needs --model thinker and an existing .gguf file")
+            return 2
+        TB.THINK_MODEL_OVERRIDE = Path(a.think_model)
 
     def prog(i: int, n: int) -> None:
         if i % 10 == 0 or i == n:

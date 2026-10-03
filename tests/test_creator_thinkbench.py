@@ -175,3 +175,29 @@ def test_thinker_answers_lose_their_think_block() -> None:
             return "<think>the outcome was ...</think>PROBABILITY: 0.30"
     with TB._Thinking(Inner()) as llm:
         assert llm.chat([{"role": "user", "content": "q"}], max_tokens=10) == "PROBABILITY: 0.30"
+
+
+def test_a_candidate_thinker_is_measured_by_override_with_a_size_scaled_timeout(tmp_path: Path, monkeypatch: Any) -> None:
+    cand = tmp_path / "Qwen3-8B-Q4_K_M.gguf"
+    with cand.open("wb") as fh:
+        fh.truncate(int(4.7 * 2**30))
+    monkeypatch.setattr(TB, "THINK_MODEL_OVERRIDE", cand)
+    assert TB.model_path("thinker") == cand
+    t = TB.thinker_llm_factory(0)
+    assert Path(str(t.model)) == cand and t.call_timeout > TB.CALL_TIMEOUT_S
+    seen: list[float] = []
+
+    class L:
+        call_timeout = 777.0
+
+        def __enter__(self) -> "L":
+            return self
+
+        def __exit__(self, *a: Any) -> None:
+            pass
+
+        def chat(self, msgs: Any, **kw: Any) -> str:
+            seen.append(kw["timeout"])
+            return "ok"
+    assert TB.ask_all([("k", [{"role": "user", "content": "q"}], 10, 0.0)], lambda i: L(), workers=1) == {"k": "ok"}
+    assert seen == [777.0]

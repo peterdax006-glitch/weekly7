@@ -104,8 +104,8 @@ class ModelPool:
         self.base, self.model, self.exe, self.ctx = Path(base_pidfile), Path(model), Path(exe), ctx
         self.slots = max(1, int(cfg.get("llama_servers", 1)) if slots is None else slots)
         self.max_servers = self.slots if max_servers is None else min(self.slots, max_servers)
-        self.threads = int(cfg["llama_threads"]) if self.slots == 1 else \
-            max(2, min(DEV.SERVER_MAX_THREADS, 2 * int(cfg["llama_threads"]) // self.slots))
+        # threads for the servers that may REALLY run at once (a 2-server thinking pool of 7 slots: 4 each, not 3)
+        self.threads = DEV.server_threads(cfg, self.max_servers)
         self.gpu_layers = int(cfg["gpu_layers"])
         self.floor_gb = floor_gb if floor_gb is not None else self._floor()
         self.server_gb, self.headroom_gb = server_gb, headroom_gb
@@ -203,7 +203,8 @@ class ModelPool:
                 self.job.adopt(proc)
             pidfile.write_text(json.dumps({"pid": proc.pid, "parent": os.getpid()}), encoding="utf-8")
             last = self.clock()
-            while not self.closed and self.clock() - t0 < 240.0:
+            limit = DEV.call_timeout_s(self.model, 240.0)              # a bigger model loads longer
+            while not self.closed and self.clock() - t0 < limit:
                 if self.clock() - last > 2.0:
                     os.utime(marker)
                     last = self.clock()
