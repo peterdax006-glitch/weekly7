@@ -491,3 +491,15 @@ def test_crashing_trainer_still_gives_practice_its_turn(tmp_path: Path) -> None:
     clock[0] += 100
     _step(lm, pr, clock)
     assert pr.running() and not lm.running()
+
+
+def test_a_process_in_another_session_counts_as_alive() -> None:
+    """3 Oct 2026: the boot task's supervisor ran in session 0; the logon copy read OpenProcess 'access denied' as dead, took the
+    pidfile and started a duplicate Nupen whose swarm crash-looped on the kernel lock. Access denied means the process EXISTS."""
+    import sys as _sys
+    if _sys.platform != "win32":
+        pytest.skip("Windows sessions")
+    svc = _load("nupen_service")
+    assert svc.alive(4) is True                       # PID 4 = System: always running, never openable by a user process
+    assert svc.alive(os.getpid()) is True
+    assert svc.alive(2**31 - 7) is False              # no such process

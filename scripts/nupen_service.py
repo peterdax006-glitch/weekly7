@@ -72,9 +72,12 @@ def alive(pid: int) -> bool:
         import ctypes
         k = ctypes.windll.kernel32                                          # type: ignore[attr-defined]
         k.OpenProcess.restype = ctypes.c_void_p
+        k.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
         h = k.OpenProcess(0x1000, False, pid)                               # PROCESS_QUERY_LIMITED_INFORMATION
         if not h:
-            return False
+            # ERROR_ACCESS_DENIED (5): the process EXISTS in a session we may not open (3 Oct: the boot task's supervisor ran in
+            # session 0; the logon copy read 'access denied' as dead, took the pidfile and started a duplicate Nupen)
+            return bool(k.GetLastError() == 5)
         code = ctypes.c_ulong()
         ok = k.GetExitCodeProcess(ctypes.c_void_p(h), ctypes.byref(code))
         k.CloseHandle(ctypes.c_void_p(h))
