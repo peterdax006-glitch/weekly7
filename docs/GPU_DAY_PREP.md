@@ -15,35 +15,62 @@ merged as h45/batch5). This branch (h44/gpu-prep) adds the parts the runner call
 | RL proof of concept (GRPO, unit-test reward) | `scripts/gpuday/rl_grpo.py` | PC (`make-tasks`), pod (training) |
 | job list / plan | `scripts/gpuday/jobs.py`, `creator.gpuday:day_jobs` | PC |
 
-## 1. Template and training stack: one choice
+## 1. Host, image and training stack (provider- and GPU-agnostic)
 
-**Rent the 4090 with the Vast "Unsloth Studio" image, `vastai/unsloth-studio:2026.9.14-cuda-12.9-py312`, not the Llama.cpp image.
-llama.cpp gets installed on it by the runner's existing fallback.**
+The original offer is gone. The owner rents wherever value is best at the time: Vast.ai, RunPod or any SSH-able Linux NVIDIA host. All
+choices follow from the card the pod reports, not from one template.
 
-- The image already has torch (CUDA 12.9 build), Unsloth, TRL, PEFT and transformers (9.3 GB image, pushed 2 Oct 2026; Docker Hub tag list
-  read 3 Oct). The CUDA 12.9 tag runs natively on the host's 13.1 driver.
-- llama.cpp on that image: the runner's `setup` finds no `llama-server`, so it runs `fallback_install_script`. That script downloads the
-  ggml-org prebuilt CUDA 12.8 release (`b11379`, a tarball of tens of MB) plus cudart. At ~880 Mbps that takes **about 1 minute**, with no
-  compiling. `pod_setup.sh` (a runner `setup_step`) then shallow-clones the llama.cpp source at the same tag to get
-  `convert_hf_to_gguf.py` / `convert_lora_to_gguf.py` and pip-installs its `gguf-py` (**about 0.5-1 minute**). It also finds
-  `llama-quantize` from that release; if the release lacks it, it builds just that one tool on the CPU (1-3 minutes). It prints the time of
-  each phase (`@@t_*`).
-- The alternative was keeping `vastai/llama-cpp:...-cuda-12.9` and pip-installing Unsloth at pod start. That means torch, triton,
-  bitsandbytes, xformers and unsloth_zoo: **about 5-15 minutes**, over 4 GB of wheels, and risks resolver or CUDA-wheel mismatches that are
-  then debugged on the paid clock. `pod_setup.sh` still has this as a slow fallback, but it is not the plan.
-- Total setup on the clock: about **2-3 minutes** of installs, plus the image pull (9.3 GB). The pull happens while the instance is
-  "loading", before the GPU rental starts. Model downloads go into the same 0:00-0:30 block either way.
-- **Why Unsloth and not Axolotl.** This is one GPU and one day. Unsloth's loader halves VRAM and roughly doubles speed for LoRA and QLoRA. It
-  supports Qwen3 dense and MoE, and DPO / ORPO / GRPO through the same TRL trainers. Axolotl's YAML adds a layer we would debug on the pod.
-  The exported data still loads in Axolotl unchanged (`type: chat_template`, `field_messages: messages`).
-- **VRAM, from the sources.** Unsloth's Qwen3 guide: "Qwen3 (14B) fits comfortably in a Google Colab 16GB VRAM Tesla T4 GPU" (QLoRA), and
-  "Qwen3-30B-A3B works on just 17.5GB VRAM with Unsloth". For MoE QLoRA "the full 16-bit model must be downloaded and converted to 4-bit on
-  the fly" (about 61 GB for 30B-A3B: ~10 min at 880 Mbps; the disk is ample). Qwen3-1.7B and Qwen3-4B with bf16 LoRA need about 4 GB and
-  about 9-10 GB of weights plus activations, so both fit 24 GB at 4-8k tokens with Unsloth's gradient checkpointing. These are vendor
-  claims. The first training job's `result.json` records the real time.
-- **Owner checklist change.** In section 3 of `gpu_pulse.py checklist`, choose template "Unsloth Studio" (image tag above) instead of
-  'Llama.cpp'. Set disk to **150 GB** (needed by the 30B option: 61 GB download plus merge; 80 GB is enough for the 14B plan). Keep SSH on.
-  The Studio web UI may stay off.
+**Image, best first.** `pod_setup.sh` handles all three. It is a runner `setup_step`, every phase is timed, and it prints `@@gpu=` and
+writes `gpuday/gpu.json`.
+
+| Provider | Image / template | Torch + Unsloth on the clock |
+|---|---|---|
+| Vast.ai | "Unsloth Studio" `vastai/unsloth-studio:2026.9.14-cuda-12.9-py312` (9.3 GB, 2 Oct) | none: checked only (~1 min) |
+| Vast.ai | "PyTorch" `vastai/pytorch:cuda-12.8.1-auto` (or `cuda-12.9.2-auto`) | torch kept; pip Unsloth/TRL/PEFT (~3-6 min) |
+| RunPod | "PyTorch" `runpod/pytorch:1.4.1-rc.171-cu1290-torch291-ubuntu2204` (1 Oct) | torch kept; pip Unsloth/TRL/PEFT (~3-6 min) |
+| Vast.ai | "Llama.cpp" `vastai/llama-cpp:<b>-cuda-12.9` | torch wheel matched to the DRIVER, then Unsloth (~5-15 min, last resort) |
+
+Torch wheels are matched to the driver. If an image's torch cannot run a 64x64 matmul kernel on the card, `pod_setup.sh` installs from
+the PyTorch index that fits the driver's CUDA: cu128 for drivers at 12.8 or later, else cu126 or cu124. A Blackwell card (compute
+capability 12.x, e.g. RTX 5090) on a driver older than CUDA 12.8 stops setup at once with "rent another host". After installing Unsloth
+it re-checks torch, in case Unsloth replaced it with a wheel that lacks the card's architecture.
+
+llama.cpp: the runner's own fallback installs the ggml-org prebuilt CUDA 12.8 release (~1 min) wherever the image has no `llama-server`.
+`pod_setup.sh` adds the source at the same tag (convert scripts and gguf-py) and `llama-quantize`, building that one tool on the CPU if
+needed. Open point: confirm that the prebuilt 12.8 release includes sm_120 kernels before renting a 5090. If it does not, the runner's
+`allow_build` (cmake, `CMAKE_CUDA_ARCHITECTURES`) is the fallback, and it currently pins 89 (H-ask in section 7).
+
+**Card -> choices** (`creator.gpuday.gpu_profile`, from `@@gpu=` = name, memory, compute capability; tested):
+
+| Card | VRAM | Coder fine-tune | 4B / 1.7B batch | Precision | Train / gen speed vs 4090 |
+|---|---|---|---|---|---|
+| RTX 3090 (sm_86) | 24 GB | Qwen3-14B QLoRA, batch 1, 12k tokens | 4 / 8 | bf16, no FP8 | 0.55 / 0.93 |
+| RTX 4090 (sm_89) | 24 GB | Qwen3-14B QLoRA, batch 1, 12k | 4 / 8 | bf16 | 1.0 / 1.0 |
+| RTX 5090 (sm_120) | 32 GB | Qwen3-14B QLoRA, batch 2, 16k | 8 / 16 | bf16; CUDA >= 12.8 | 1.35 / 1.75 |
+| 48 GB 4090 / A6000 / L40S | 48 GB | Qwen3-Coder-30B-A3B QLoRA, batch 2, 16k | 16 / 32 | bf16 | per card |
+| <= 16 GB | 16 GB | Qwen3-8B QLoRA | 2 / 4 | bf16 or fp16 | per card |
+
+`finetune.py` also decides precision on the pod (`torch.cuda.is_bf16_supported()`: bf16, else fp16). No FP8 path exists anywhere.
+QLoRA always merges into the 16-bit base (`--merge-base`).
+
+**Time scales with the card.** Each block has a fixed slot. `day_plan(gpu)` scales the 4090-sized work by training speed for the
+fine-tune and RL blocks, and by memory bandwidth for generation blocks. Each job's `minutes` / `max_minutes` are scaled the same way
+in `day_jobs`. Example: `jobs.py plan --gpu "NVIDIA GeForce RTX 3090, 24576 MiB, 8.6" --rate 0.16` shows FINE-TUNE 2 needing ~9.1 h of
+work in a 5 h slot. On a 3090, either accept fewer epochs (the job is cut at max_minutes, and adapters are only saved at the end, so
+lower `--epochs`), or rent longer. The cost is 24 h x $0.16 = $3.84.
+
+**Why Unsloth and not Axolotl.** This is one GPU and one day. Unsloth's loader halves VRAM and roughly doubles speed for LoRA and QLoRA.
+It supports Qwen3 dense and MoE, and DPO / ORPO / GRPO run through the same TRL trainers. Axolotl's YAML adds a layer we would debug on
+the pod. The exported data loads in Axolotl unchanged (`type: chat_template`, `field_messages: messages`).
+
+**VRAM, from the sources.** Unsloth's Qwen3 guide: "Qwen3 (14B) fits comfortably in a Google Colab 16GB VRAM Tesla T4 GPU" (QLoRA), and
+"Qwen3-30B-A3B works on just 17.5GB VRAM with Unsloth". For MoE QLoRA "the full 16-bit model must be downloaded and converted to 4-bit on
+the fly" (~61 GB for 30B-A3B: ~10 min at ~900 Mbps). Disk: 150 GB for the 30B option, 80 GB otherwise. These are vendor claims. The first
+training job's `result.json` records the real numbers.
+
+**Owner checklist, per provider.** Pick the image from the table. Disk: 80 GB, or 150 GB for a 48 GB card (30B coder). SSH on. Add the
+`gpuday_stack` setup step to `pulse.json`. After `setup`, paste the `@@gpu=` line as `"gpuday_gpu"` in `pulse.json` (or pass `--gpu` to
+`jobs.py`). Set `usd_per_hr` to the rented rate.
 
 ## 2. Training data: what exists (honest counts, export of 3 Oct 2026 ~14:05 local)
 

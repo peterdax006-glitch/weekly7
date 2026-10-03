@@ -82,7 +82,7 @@ def load(base: str, max_seq: int, qlora: bool, r: int, alpha: int, force_hf: boo
     from peft import LoraConfig, PeftModel, get_peft_model
     from transformers import AutoModelForCausalLM, AutoTokenizer
     cuda = torch.cuda.is_available()
-    kw: dict[str, Any] = {"torch_dtype": torch.bfloat16 if cuda else torch.float32}
+    kw: dict[str, Any] = {"torch_dtype": (torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16) if cuda else torch.float32}
     if qlora and cuda:
         from transformers import BitsAndBytesConfig
         kw["quantization_config"] = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16)
@@ -109,9 +109,10 @@ def to_prompt_completion(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def common_args(a: argparse.Namespace, cls: Any, **extra: Any) -> Any:
     import torch
     cuda = torch.cuda.is_available()
+    bf16 = cuda and torch.cuda.is_bf16_supported()       # Ampere and newer: bf16; older cards fp16; no FP8 path is used anywhere
     kw: dict[str, Any] = dict(output_dir=str(Path(a.out) / "ckpt"), per_device_train_batch_size=a.batch, gradient_accumulation_steps=a.accum,
                               learning_rate=a.lr, num_train_epochs=a.epochs, max_steps=a.max_steps if a.max_steps else -1,
-                              logging_steps=1, save_strategy="no", report_to=[], bf16=cuda, fp16=False, seed=3407,
+                              logging_steps=1, save_strategy="no", report_to=[], bf16=bf16, fp16=cuda and not bf16, seed=3407,
                               lr_scheduler_type="cosine", warmup_ratio=0.05, gradient_checkpointing=cuda and a.backend == "hf",
                               use_cpu=not cuda)
     kw.update(extra)
@@ -179,7 +180,8 @@ def cmd_merge(a: argparse.Namespace) -> dict[str, Any]:
     import torch
     from peft import PeftModel
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    dtype = torch.bfloat16 if torch.cuda.is_available() or a.bf16 else torch.float32
+    dtype = torch.bfloat16 if (torch.cuda.is_available() and torch.cuda.is_bf16_supported()) or a.bf16 else (
+        torch.float16 if torch.cuda.is_available() else torch.float32)
     base = AutoModelForCausalLM.from_pretrained(a.base, torch_dtype=dtype)
     model = PeftModel.from_pretrained(base, a.adapter).merge_and_unload()
     out = Path(a.out)

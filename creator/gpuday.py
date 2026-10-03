@@ -39,6 +39,9 @@ FROZEN_HASH = "1f520b202ac4"                    # thinkbench items.json 'hash' (
 PRIVATE_MARKERS = ("Masterstock", "MASTERSTOCK", "Latest owner directives", "owner journal", "JOURNAL.md", "livesim", "oldpc",
                    "BEGIN OPENSSH PRIVATE KEY", "BEGIN RSA PRIVATE KEY", "PRIVATE KEY-----", "OPEN_BUTTON_TOKEN", "pulse.json",
                    "Google Voice")
+MARKER_KIND = {"Masterstock": "owner journal", "MASTERSTOCK": "owner journal", "Latest owner directives": "owner journal",
+               "owner journal": "owner journal", "JOURNAL.md": "owner journal", "livesim": "live trading state", "oldpc": "old-PC projects",
+               "Google Voice": "owner contact", "pulse.json": "credentials", "OPEN_BUTTON_TOKEN": "credentials"}
 SECRET_RES = (re.compile(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}"), re.compile(r"\bhf_[A-Za-z0-9]{20,}"), re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"),
               re.compile(r"\bAKIA[0-9A-Z]{16}\b"), re.compile(r"(?i)\b(?:api[_-]?key|secret|password|token)\s*[=:]\s*['\"][^'\"\s]{12,}['\"]"))
 # harmless mentions of private NAMES inside Nupen's own prompts (the protected-path list) are removed before the marker check
@@ -369,8 +372,8 @@ class Drops:
     def add(self, why: str) -> None:
         k = why.split(" ")[0] if why.startswith(("frozen", "marker")) else why
         k = {"frozen": "frozen benchmark"}.get(k, k)
-        if k == "marker":
-            k = "private " + why
+        if k == "marker":                          # a category, never the marker itself (the manifest travels with the data)
+            k = "private: " + MARKER_KIND.get(why.split("'")[1] if "'" in why else "", "other")
         self.counts[k] = self.counts.get(k, 0) + 1
 
 
@@ -656,7 +659,8 @@ def export(state: Path, repo: Path, out: Path, *, strict: bool = False, bank: Op
            "splits": {k: {"train": len(v["train"]), "eval": len(v["eval"])} for k, v in qs.items()},
            "format": {"sft": "{'messages': [system, user, assistant]} - Unsloth/TRL SFTTrainer; Axolotl type chat_template",
                       "pref": "{'prompt': [system, user], 'chosen': [assistant], 'rejected': [assistant]} - TRL/Unsloth DPO, ORPO"},
-           "privacy": "rows with private markers/secrets dropped; names, e-mails, home paths scrubbed; never: state/livesim, ~/oldpc, Masterstock"}
+           "privacy": "rows with private markers or secrets dropped (never: the live trading state, the old-PC projects, the owner journal); "
+                      "names, e-mails, home paths scrubbed"}
     (out / "MANIFEST.json").write_text(json.dumps(man, indent=1), encoding="utf-8")
     return man
 
@@ -893,6 +897,7 @@ class Block:
     jobs: tuple[str, ...]           # 'thinkbench:/judgment:/drills:' = gpupulse jobs; 'pod:' = scripts/gpuday/pod.sh on the pod; 'home:' = this PC
     comes_home: str
     ready: str                      # READY / READY-UNPROVEN-ON-GPU / THIN-DATA / NOT-READY - honest, from the CPU tests
+    kind: str = "gen"               # what bounds its speed: 'train' (tensor throughput) or 'gen' (memory bandwidth)
 
     @property
     def hours(self) -> float:
@@ -916,23 +921,32 @@ DAY: tuple[Block, ...] = (
     Block(10.0, 13.0, "FINE-TUNE 1: distil correct worked examples into Qwen3-1.7B / 4B (LoRA bf16)",
           ("home:export_data --bank worked_bank.jsonl", "pod:upload", "pod:ft1 Qwen/Qwen3-1.7B", "pod:ft1 Qwen/Qwen3-4B",
            "thinkbench:<tuned gguf> (frozen benchmark; keep only if better, paired CI)"),
-          "LoRA adapters (~35-70 MB) + adapter GGUF (~35-70 MB); Q4_K_M GGUF of a winner only (1.1 / 2.5 GB)", "READY-UNPROVEN-ON-GPU"),
+          "LoRA adapters (~35-70 MB) + adapter GGUF (~35-70 MB); Q4_K_M GGUF of a winner only (1.1 / 2.5 GB)", "READY-UNPROVEN-ON-GPU", "train"),
     Block(13.0, 18.0, "FINE-TUNE 2: coder on Nupen's handoff history (SFT + DPO)",
           ("pod:ft2 Qwen/Qwen3-14B (QLoRA, coder_sft_mix)", "pod:dpo (pref_train; skipped below 20 pairs)",
            "home:coder_harness --url <tuned server> (held-out commit_eval + handoff_eval)"),
-          "LoRA adapter (~130-260 MB); the 9 GB 14B GGUF ONLY if it beats the untuned 14B on held-out", "THIN-DATA"),
-    Block(18.0, 21.0, "best-of-N on real open goals (home kernel judges)", ("home:coder_harness --open-goals --n 8",),
-          "candidate patches (KB); judged by the home sandbox, never merged", "READY-UNPROVEN-ON-GPU"),
+          "LoRA adapter (~130-260 MB); the 9 GB 14B GGUF ONLY if it beats the untuned 14B on held-out", "THIN-DATA", "train"),
+    Block(18.0, 21.0, "best-of-N (N=8) on the held-out handoffs/commits; home sandbox judges", ("call creator.gpuday:harness_bon_job",),
+          "candidate patches (KB); judged by the home sandbox, never merged",
+          "READY-UNPROVEN-ON-GPU on held-out cases; on LIVE open goals NOT READY (needs the kernel to export its open packages as cases)"),
     Block(21.0, 23.0, "RL proof of concept (GRPO, unit-test reward)", ("home:rl_grpo tasks", "pod:rl Qwen/Qwen3-1.7B"),
-          "rl result.json (+ adapter ~35 MB if the reward rose on held-out tasks)", "READY-UNPROVEN-ON-GPU (tiny CPU run only)"),
+          "rl result.json (+ adapter ~35 MB if the reward rose on held-out tasks)", "READY-UNPROVEN-ON-GPU (tiny CPU run only)", "train"),
     Block(23.0, 24.0, "results home + teardown", ("pod:pack", "home:gpu_pulse teardown --destroy"), "home.tar (result.json files, adapters, index)",
           "READY"),
 )
 
 
-def day_plan() -> dict[str, Any]:
-    return {"usd_per_hr": USD_PER_HR, "total_hours": sum(b.hours for b in DAY), "total_usd": round(sum(b.usd for b in DAY), 2),
-            "blocks": [dict(dataclasses.asdict(b), hours=b.hours, usd=b.usd) for b in DAY]}
+def day_plan(gpu: Any = None, usd_per_hr: float = USD_PER_HR) -> dict[str, Any]:
+    """The blocks on the rented card: each block keeps its slot, and 'work_hours' is the 4090-sized work scaled to this card; work beyond
+    the slot ('overflow_hours') is cut by the job's max_minutes, so a slower card does less in the same slot rather than overrunning."""
+    prof = gpu_profile(parse_gpu(gpu) if isinstance(gpu, str) else gpu)
+    blocks = []
+    for b in DAY:
+        work = scaled_minutes(b.hours * 60, b.kind, prof) / 60
+        blocks.append(dict(dataclasses.asdict(b), hours=b.hours, usd=round(b.hours * usd_per_hr, 2), work_hours=round(work, 2),
+                           overflow_hours=round(max(0.0, work - b.hours), 2)))
+    return {"gpu": prof, "usd_per_hr": usd_per_hr, "total_hours": sum(b.hours for b in DAY),
+            "total_usd": round(sum(b.hours for b in DAY) * usd_per_hr, 2), "blocks": blocks}
 
 
 
@@ -941,8 +955,9 @@ POD_DIR = "gpuday"                                  # under the runner's remote_
 SCRIPTS = ("scripts/gpuday/finetune.py", "scripts/gpuday/embed_pod.py", "scripts/gpuday/rl_grpo.py", "scripts/gpuday/pod_setup.sh")
 UPLOAD_DATA = ("handoff_train.jsonl", "handoff_eval.jsonl", "pref_train.jsonl", "pref_eval.jsonl", "commit_train.jsonl", "commit_eval.jsonl",
                "worked_train.jsonl", "worked_eval.jsonl", "coder_sft_mix.jsonl", "embed_docs.jsonl", "rl_tasks.jsonl", "MANIFEST.json")
-MODELS_HF = {"1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B", "14b": "unsloth/Qwen3-14B-unsloth-bnb-4bit",
-             "coder30b": "unsloth/Qwen3-Coder-30B-A3B-Instruct"}
+MODELS_HF = {"1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B", "8b": "unsloth/Qwen3-8B-unsloth-bnb-4bit",
+             "14b": "unsloth/Qwen3-14B-unsloth-bnb-4bit", "coder30b": "unsloth/Qwen3-Coder-30B-A3B-Instruct"}
+MERGE_BASE = {"8b": "Qwen/Qwen3-8B", "14b": "Qwen/Qwen3-14B", "coder30b": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}
 
 
 def upload_bundle(export_dir: Path, frozen: Frozen, repo: Path = ROOT) -> tuple[bytes, dict[str, Any]]:
@@ -1013,40 +1028,46 @@ def day_jobs(cfg: Mapping[str, Any], export_dir: Optional[Path] = None) -> list[
     blob, info = upload_bundle(ex, frozen)
     m17, m4, m8, m14 = "Qwen3-1.7B-Q4_K_M.gguf", "Qwen3-4B-Q4_K_M.gguf", "Qwen3-8B-Q4_K_M.gguf", "Qwen3-14B-Q4_K_M.gguf"
     best = str(cfg.get("best_model") or m8)
-    big_coder = str(cfg.get("gpuday_coder", "14b"))
+    gpu = cfg.get("gpuday_gpu")
+    prof = gpu_profile(parse_gpu(gpu) if isinstance(gpu, str) else gpu)      # e.g. "NVIDIA GeForce RTX 3090, 24576 MiB, 8.6" from the probe
+    coder = str(cfg.get("gpuday_coder") or prof["coder"])
+    serve_coder = f"Qwen3-{coder}-gpuday-coder.gguf"
+    tm = lambda m: scaled_minutes(m, "train", prof)                         # noqa: E731
+    gm = lambda m: scaled_minutes(m, "gen", prof)                           # noqa: E731
     out = lambda name, extra=(): [f"{POD_DIR}/runs/{name}/result.json", f"{POD_DIR}/runs/{name}/adapter", *extra]  # noqa: E731
+    thinkers = [m17, m4, m8] + ([m14] if prof["vram_gb"] >= 14 else [])
     jobs: list[Any] = [
         "probe:" + m4,
         {"name": "gpuday_upload", "remote": upload_script(blob, info), "minutes": 1},
-        f"thinkbench:{m17}", f"thinkbench:{m4}", f"thinkbench:{m8}", f"thinkbench:{m14}",
-        {"name": "coder_trial_base", "call": "creator.gpuday:harness_job", "model": m14, "minutes": 40, "max_minutes": 60,
-         "low_util_abort_minutes": 0},
+        *[f"thinkbench:{m}" for m in thinkers],
+        {"name": "coder_trial_base", "call": "creator.gpuday:harness_job", "model": prof["best_of_n_model"], "minutes": gm(40),
+         "max_minutes": gm(60), "low_util_abort_minutes": 0},
         f"traces:{best}:0:200",
         {"name": "embed_index", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/embed_pod.py build "
          f"--docs {POD_DIR}/data/embed_docs.jsonl --out {POD_DIR}/index --model Qwen3-Embedding-0.6B-Q8_0.gguf --models-dir models",
-         "free_gpu": True, "minutes": 10, "outputs": [f"{POD_DIR}/index"]},
+         "free_gpu": True, "minutes": gm(10), "outputs": [f"{POD_DIR}/index"]},
         f"judgment:{best}:0:120", f"drills:{best}:0:80",
         {"name": "gpuday_reexport", "call": "creator.gpuday:reexport_job", "minutes": 5},
-        {"name": "ft1_17b", "remote": ft_script("ft1_17b", MODELS_HF["1.7b"], "worked_train.jsonl", max_seq=4096, batch=8, accum=2,
-                                                min_rows=200, serve_as="Qwen3-1.7B-gpuday-ft1.gguf"),
-         "free_gpu": True, "minutes": 50, "max_minutes": 80, "outputs": out("ft1_17b")},
-        {"name": "ft1_4b", "remote": ft_script("ft1_4b", MODELS_HF["4b"], "worked_train.jsonl", max_seq=4096, batch=4, accum=4,
-                                               min_rows=200, serve_as="Qwen3-4B-gpuday-ft1.gguf"),
-         "free_gpu": True, "minutes": 80, "max_minutes": 110, "outputs": out("ft1_4b")},
+        {"name": "ft1_17b", "remote": ft_script("ft1_17b", MODELS_HF["1.7b"], "worked_train.jsonl", max_seq=4096, batch=prof["ft1_batch_17b"],
+                                                accum=max(1, 16 // prof["ft1_batch_17b"]), min_rows=200, serve_as="Qwen3-1.7B-gpuday-ft1.gguf"),
+         "free_gpu": True, "minutes": tm(50), "max_minutes": tm(80), "outputs": out("ft1_17b")},
+        {"name": "ft1_4b", "remote": ft_script("ft1_4b", MODELS_HF["4b"], "worked_train.jsonl", max_seq=4096, batch=prof["ft1_batch_4b"],
+                                               accum=max(1, 16 // prof["ft1_batch_4b"]), min_rows=200, serve_as="Qwen3-4B-gpuday-ft1.gguf"),
+         "free_gpu": True, "minutes": tm(80), "max_minutes": tm(110), "outputs": out("ft1_4b")},
         "thinkbench:Qwen3-1.7B-gpuday-ft1.gguf", "thinkbench:Qwen3-4B-gpuday-ft1.gguf",
-        {"name": "ft2_coder", "remote": ft_script("ft2_coder", MODELS_HF[big_coder], "coder_sft_mix.jsonl", qlora=True,
+        {"name": "ft2_coder", "remote": ft_script("ft2_coder", MODELS_HF[coder], "coder_sft_mix.jsonl", qlora=bool(prof["coder_qlora"]),
                                                   pref="pref_train.jsonl" if int(cfg.get("gpuday_pref_rows", 0)) >= 20 else "",
-                                                  max_seq=12288, batch=1, accum=16, epochs=2, lr=1e-4, min_rows=50,
-                                                  merge_base={"14b": "Qwen/Qwen3-14B", "coder30b": "Qwen/Qwen3-Coder-30B-A3B-Instruct"}[big_coder],
-                                                  serve_as=f"Qwen3-{big_coder}-gpuday-coder.gguf"),
-         "free_gpu": True, "minutes": 150, "max_minutes": 240, "outputs": out("ft2_coder")},
-        {"name": "coder_trial_tuned", "call": "creator.gpuday:harness_job", "model": f"Qwen3-{big_coder}-gpuday-coder.gguf", "minutes": 40,
-         "max_minutes": 60, "low_util_abort_minutes": 0},
-        {"name": "best_of_n_goals", "call": "creator.gpuday:harness_job", "model": str(cfg.get("gpuday_bon_model") or m14), "minutes": 150,
-         "max_minutes": 180, "low_util_abort_minutes": 0},
+                                                  max_seq=int(prof["coder_max_seq"]), batch=int(prof["coder_batch"]),
+                                                  accum=max(1, 16 // int(prof["coder_batch"])), epochs=2, lr=1e-4, min_rows=50,
+                                                  merge_base=MERGE_BASE[coder], serve_as=serve_coder),
+         "free_gpu": True, "minutes": tm(150), "max_minutes": tm(240), "outputs": out("ft2_coder")},
+        {"name": "coder_trial_tuned", "call": "creator.gpuday:harness_job", "model": serve_coder, "minutes": gm(40),
+         "max_minutes": gm(60), "low_util_abort_minutes": 0},
+        {"name": "best_of_n_goals", "call": "creator.gpuday:harness_bon_job", "model": str(cfg.get("gpuday_bon_model") or prof["best_of_n_model"]),
+         "minutes": gm(150), "max_minutes": gm(180), "low_util_abort_minutes": 0},
         {"name": "rl_poc", "remote": f"PY=$(command -v python3 || command -v python); \"$PY\" {POD_DIR}/rl_grpo.py --base {MODELS_HF['1.7b']} "
          f"--tasks {POD_DIR}/data/rl_tasks.jsonl --out {POD_DIR}/runs/rl_poc --steps 150",
-         "free_gpu": True, "minutes": 100, "max_minutes": 120, "outputs": [f"{POD_DIR}/runs/rl_poc/result.json"]},
+         "free_gpu": True, "minutes": tm(100), "max_minutes": tm(120), "outputs": [f"{POD_DIR}/runs/rl_poc/result.json"]},
     ]
     return jobs
 
@@ -1060,12 +1081,17 @@ def harness_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     if not urls:
         return {"error": f"model {ctx.get('model')} is not served"}
     ex = default_out()
-    n = int(os.environ.get("GPUDAY_N", "1"))
+    n = int(ctx.get("n") or os.environ.get("GPUDAY_N", "1"))
     deadline = float(ctx.get("deadline") or 0)
     repo = harness_clone(ex.parent / "harness_repo", Path(str(ctx["repo"])))     # never the main repository: sandboxes make branches
     res = run_harness(repo, [ex / "commit_eval.jsonl", ex / "handoff_eval.jsonl"], urls[0].rsplit("/v1", 1)[0], n=n,
                       deadline=deadline, scratch=ex.parent / "harness_sandboxes", out=ex.parent / f"harness_{ctx.get('model')}.json")
     return res
+
+
+def harness_bon_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """Best-of-N (N = env GPUDAY_N or 8): N candidates per case, the home sandbox tests pick."""
+    return harness_job(dict(ctx, n=int(os.environ.get("GPUDAY_N", "8"))))
 
 
 def harness_clone(path: Path, source: Path) -> Path:
@@ -1136,3 +1162,72 @@ def _idle_priority() -> None:
             getattr(os, "nice")(19)
     except (OSError, AttributeError):
         pass
+
+
+
+# ------------------------------------------------------------------------------------------------ provider- and GPU-agnostic choices
+# Relative speed vs an RTX 4090 (= 1.0). 'train' ~ dense bf16 tensor throughput as LoRA training sees it; 'gen' ~ memory bandwidth (token
+# generation is bandwidth-bound). Sources: vendor specs (bandwidth 3090 936 GB/s, 4090 1008, 5090 1792, A6000 768, L40S 864, A100-80 2039,
+# H100 SXM 3350 GB/s); the teacher's note of 3 Oct: a 3090 trains ~1.5-2x slower than a 4090 with similar generation speed.
+GPU_SPEED: dict[str, dict[str, float]] = {
+    "3090": {"train": 0.55, "gen": 0.93}, "4090": {"train": 1.0, "gen": 1.0}, "5090": {"train": 1.35, "gen": 1.75},
+    "a6000": {"train": 0.6, "gen": 0.76}, "l40s": {"train": 0.95, "gen": 0.86}, "a100": {"train": 1.1, "gen": 1.9},
+    "h100": {"train": 2.2, "gen": 3.0}, "4080": {"train": 0.7, "gen": 0.71}, "3080": {"train": 0.45, "gen": 0.75},
+}
+DEFAULT_GPU: dict[str, Any] = {"name": "NVIDIA GeForce RTX 4090", "vram_gb": 24.0, "cc": 8.9}
+
+
+def parse_gpu(text: str) -> dict[str, Any]:
+    """'NVIDIA GeForce RTX 3090, 24576 MiB, ..., 8.6' (nvidia-smi csv: name, memory.total[, ...][, compute_cap]) or 'RTX 3090,24,8.6'."""
+    parts = [p.strip() for p in str(text).split(",")]
+    name = parts[0] if parts and parts[0] else DEFAULT_GPU["name"]
+    vram, cc = 0.0, 0.0
+    for p in parts[1:]:
+        m = re.match(r"^([\d.]+)\s*(MiB|GiB|GB)?$", p)
+        if not m:
+            continue
+        v = float(m.group(1))
+        if m.group(2) == "MiB" or v > 1000:
+            vram = vram or round(v / 1024, 1)
+        elif m.group(2) in ("GiB", "GB") or (v >= 10 and not vram):
+            vram = vram or v
+        elif v < 13:
+            cc = v
+    return {"name": name, "vram_gb": vram or float(DEFAULT_GPU["vram_gb"]), "cc": cc or _cc_from_name(name)}
+
+
+def _cc_from_name(name: str) -> float:
+    n = name.lower()
+    for k, cc in (("5090", 12.0), ("5080", 12.0), ("4090", 8.9), ("4080", 8.9), ("l40", 8.9), ("3090", 8.6), ("3080", 8.6), ("a6000", 8.6),
+                  ("a100", 8.0), ("h100", 9.0), ("h200", 9.0), ("v100", 7.0), ("t4", 7.5)):
+        if k in n:
+            return cc
+    return 8.0
+
+
+def gpu_profile(gpu: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
+    """Every size/precision choice of the day from the detected card: VRAM picks the coder base and QLoRA vs LoRA and the batch; the
+    compute capability picks bf16 (>= 8.0) vs fp16 and never an FP8 path (we use none; Ampere has none); Blackwell (cc >= 12) needs CUDA
+    >= 12.8 wheels (pod_setup.sh enforces it). Speeds scale the plan's minutes."""
+    g = dict(DEFAULT_GPU, **(gpu or {}))
+    vram, cc, name = float(g["vram_gb"]), float(g["cc"]), str(g["name"])
+    key = next((k for k in GPU_SPEED if k in name.lower()), "4090")
+    sp = GPU_SPEED[key]
+    if vram >= 40:        # 48 GB modded 4090, A6000, L40S, A100: the MoE coder fits in QLoRA with room; 4B trains in bigger batches
+        coder, coder_q, coder_batch, coder_seq, ft1_batch, judge_model = "coder30b", True, 2, 16384, 16, "Qwen3-14B-Q4_K_M.gguf"
+    elif vram >= 30:      # 32 GB (5090)
+        coder, coder_q, coder_batch, coder_seq, ft1_batch, judge_model = "14b", True, 2, 16384, 8, "Qwen3-14B-Q4_K_M.gguf"
+    elif vram >= 22:      # 24 GB (3090, 4090)
+        coder, coder_q, coder_batch, coder_seq, ft1_batch, judge_model = "14b", True, 1, 12288, 4, "Qwen3-14B-Q4_K_M.gguf"
+    else:                 # 16 GB and below: no 14B; the 8B coder in QLoRA
+        coder, coder_q, coder_batch, coder_seq, ft1_batch, judge_model = "8b", True, 1, 8192, 2, "Qwen3-8B-Q4_K_M.gguf"
+    return {"gpu": name, "vram_gb": vram, "cc": cc, "speed_key": key, "train_speed": sp["train"], "gen_speed": sp["gen"],
+            "dtype": "bf16" if cc >= 8.0 else "fp16", "fp8": False, "min_cuda": "12.8" if cc >= 12.0 else "12.1",
+            "coder": coder, "coder_qlora": coder_q, "coder_batch": coder_batch, "coder_max_seq": coder_seq,
+            "ft1_batch_4b": ft1_batch, "ft1_batch_17b": ft1_batch * 2, "best_of_n_model": judge_model}
+
+
+def scaled_minutes(minutes: float, kind: str, prof: Mapping[str, Any]) -> float:
+    """A 4090-based estimate scaled to the detected card ('train' jobs by training speed, everything else by generation speed)."""
+    s = float(prof["train_speed"] if kind == "train" else prof["gen_speed"])
+    return round(minutes / max(s, 0.1), 1)

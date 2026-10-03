@@ -66,8 +66,17 @@ def candidates(repo: Path) -> list[tuple[str, ast.FunctionDef, str]]:
     return out
 
 
+def _tree(root: Path) -> dict[str, int]:
+    return {str(p): p.stat().st_mtime_ns for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+
+
 def make_tasks(repo: Path, out: Path, per_fn: int = 8, seed: int = 7, eval_frac: float = 0.25) -> dict[str, Any]:
-    sys.path.insert(0, str(repo))
+    """The oracle functions run in a throw-away COPY of the package (their module ROOT points there), so a function that writes files
+    writes into the copy - and is then dropped: any file created or changed during its calls disqualifies it."""
+    import shutil
+    work = Path(tempfile.mkdtemp(prefix="gpuday_rl_"))
+    shutil.copytree(repo / "creator", work / "creator", ignore=shutil.ignore_patterns("__pycache__"))
+    sys.path.insert(0, str(work))
     r = random.Random(seed)
     tasks, skipped = [], 0
     for mod, node, src in candidates(repo):
@@ -76,6 +85,7 @@ def make_tasks(repo: Path, out: Path, per_fn: int = 8, seed: int = 7, eval_frac:
         except Exception:                                        # noqa: BLE001 - a module that does not import is skipped
             skipped += 1
             continue
+        before = _tree(work)
         anns = [ast.unparse(a.annotation) for a in node.args.args if a.annotation]
         cases = []
         for _ in range(per_fn * 3):
@@ -92,6 +102,12 @@ def make_tasks(repo: Path, out: Path, per_fn: int = 8, seed: int = 7, eval_frac:
                 cases.append((args, y1))
             if len(cases) >= per_fn:
                 break
+        if _tree(work) != before:                                # side effects: not a pure function
+            skipped += 1
+            continue
+        if all(len(a) == 1 and a[0] == y for a, y in cases):     # identity on every sample teaches nothing
+            skipped += 1
+            continue
         if len(cases) < 3 or len({json.dumps(y) for _, y in cases}) < 2:   # constant functions teach nothing
             skipped += 1
             continue
@@ -109,6 +125,7 @@ def make_tasks(repo: Path, out: Path, per_fn: int = 8, seed: int = 7, eval_frac:
         t["split"] = "eval" if t["module"] in held else "train"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("".join(json.dumps(t) + "\n" for t in tasks), encoding="utf-8")
+    shutil.rmtree(work, ignore_errors=True)
     return {"tasks": len(tasks), "train": sum(t["split"] == "train" for t in tasks), "eval": sum(t["split"] == "eval" for t in tasks),
             "skipped": skipped}
 

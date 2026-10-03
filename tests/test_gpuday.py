@@ -305,3 +305,37 @@ def test_upload_is_refused_when_the_export_audit_fails(tmp_path: Path) -> None:
 def test_ft_script_skips_thin_data_and_places_the_gguf_for_serving() -> None:
     s = GD.ft_script("ft1", "Qwen/Qwen3-1.7B", "worked_train.jsonl", min_rows=200, serve_as="X.gguf", merge_base="Qwen/Qwen3-1.7B")
     assert "-lt 200" in s and "models/X.gguf.ok" in s and "--merge-base Qwen/Qwen3-1.7B" in s and "finetune.py pipeline" in s
+
+
+# ------------------------------------------------------------------------------------------------ provider- and GPU-agnostic choices
+def test_gpu_profiles_follow_vram_and_compute_capability() -> None:
+    g3090 = GD.parse_gpu("NVIDIA GeForce RTX 3090, 24576 MiB, 8.6")
+    assert g3090 == {"name": "NVIDIA GeForce RTX 3090", "vram_gb": 24.0, "cc": 8.6}
+    p = GD.gpu_profile(g3090)
+    assert p["coder"] == "14b" and p["coder_qlora"] and p["coder_batch"] == 1 and p["dtype"] == "bf16" and not p["fp8"]
+    assert p["train_speed"] < 0.7 and p["gen_speed"] > 0.85                   # trains ~1.5-2x slower, generates about as fast
+    p5 = GD.gpu_profile(GD.parse_gpu("NVIDIA GeForce RTX 5090, 32607 MiB, 12.0"))
+    assert p5["min_cuda"] == "12.8" and p5["coder_batch"] == 2 and p5["vram_gb"] > 31
+    p48 = GD.gpu_profile(GD.parse_gpu("NVIDIA GeForce RTX 4090, 49140 MiB, 8.9"))
+    assert p48["coder"] == "coder30b" and p48["ft1_batch_4b"] > GD.gpu_profile(None)["ft1_batch_4b"]
+    assert GD.gpu_profile({"name": "Tesla V100", "vram_gb": 16, "cc": 7.0})["dtype"] == "fp16"
+    assert GD.parse_gpu("RTX 3090,24,8.6")["cc"] == 8.6
+
+
+def test_day_plan_scales_training_blocks_with_the_card() -> None:
+    p4, p3 = GD.day_plan(), GD.day_plan("NVIDIA GeForce RTX 3090, 24576 MiB, 8.6", usd_per_hr=0.16)
+    ft4 = next(b for b in p4["blocks"] if b["name"].startswith("FINE-TUNE 1"))
+    ft3 = next(b for b in p3["blocks"] if b["name"].startswith("FINE-TUNE 1"))
+    assert ft4["overflow_hours"] == 0 and ft3["work_hours"] > 1.6 * ft3["hours"] and ft3["overflow_hours"] > 0
+    assert p3["total_usd"] == round(24 * 0.16, 2) and p3["total_hours"] == 24
+
+
+def test_day_jobs_size_the_coder_from_the_card(tmp_path: Path, repo: Path) -> None:
+    st = _state(tmp_path, repo)
+    out = tmp_path / "export"
+    GD.export(st, repo, out, eval_frac=0.5, commit_limit=0)
+    base = {"gpuday_export": str(out), "gpuday_frozen": str(st / "thinkbench" / "items.json")}
+    j48 = {j["name"]: j for j in GD.day_jobs(dict(base, gpuday_gpu="NVIDIA GeForce RTX 4090, 49140 MiB, 8.9")) if isinstance(j, dict)}
+    j24 = {j["name"]: j for j in GD.day_jobs(dict(base, gpuday_gpu="NVIDIA GeForce RTX 3090, 24576 MiB, 8.6")) if isinstance(j, dict)}
+    assert "Qwen3-Coder-30B-A3B" in j48["ft2_coder"]["remote"] and "Qwen3-14B" in j24["ft2_coder"]["remote"]
+    assert j24["ft2_coder"]["minutes"] > j48["ft2_coder"]["minutes"]          # the 3090 is given more time for the same work

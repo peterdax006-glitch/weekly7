@@ -22,15 +22,23 @@ def main(argv: list[str]) -> int:
     ap.add_argument("cmd", choices=["plan", "write", "check"])
     ap.add_argument("--out", default="")
     ap.add_argument("--export", default=str(GD.default_out()))
+    ap.add_argument("--gpu", default="", help="the card, e.g. 'NVIDIA GeForce RTX 3090, 24576 MiB, 8.6' (setup prints @@gpu=...)")
+    ap.add_argument("--rate", type=float, default=GD.USD_PER_HR, help="$/h of the rented host")
     a = ap.parse_args(argv)
     if a.cmd == "plan":
-        p = GD.day_plan()
+        p = GD.day_plan(a.gpu or None, a.rate)
+        g = p["gpu"]
+        print(f"{g['gpu']} {g['vram_gb']} GB cc {g['cc']}: train x{g['train_speed']} gen x{g['gen_speed']} vs a 4090; coder {g['coder']} "
+              f"{'QLoRA' if g['coder_qlora'] else 'LoRA'} batch {g['coder_batch']}; {g['dtype']}; CUDA >= {g['min_cuda']}")
         for b in p["blocks"]:
-            print(f"{b['start_h']:5.1f}-{b['end_h']:4.1f} h  ${b['usd']:5.2f}  [{b['ready']}]  {b['name']}\n      home: {b['comes_home']}")
+            over = f"  (work {b['work_hours']} h: {b['overflow_hours']} h cut by max_minutes)" if b["overflow_hours"] else ""
+            print(f"{b['start_h']:5.1f}-{b['end_h']:4.1f} h  ${b['usd']:5.2f}  [{b['ready']}]  {b['name']}{over}\n      home: {b['comes_home']}")
         print(f"total {p['total_hours']} h  ${p['total_usd']}")
         return 0
     from creator import gpupulse as GP
-    cfg = GP.load_config()
+    cfg = dict(GP.load_config())
+    if a.gpu:
+        cfg["gpuday_gpu"] = a.gpu
     jobs = GD.day_jobs(cfg, Path(a.export))
     for j in jobs:
         GP.ext_job(j) if isinstance(j, dict) else GP.parse_job(j)
