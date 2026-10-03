@@ -700,8 +700,14 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         pcfg = sandbox_pytest(cfg)
         served = TC.TreeCache(cfg.state / "evidence" / "tree_cache").lookup(TC.tree_key(cfg.repo, pcfg.python, rev=base_sha,
                                                                                          require_clean=False))
+        from creator import registry as REG                             # trusted predictions may only make testing STRICTER
+        D = REG.optional("decide")
+        widen = D.kernel_gate(cfg.state, plan, list(change.files), sb) if D else ""
+        if widen:
+            rep.details["decide"] = {"full_suite": widen}
         with stage("evaluation"):
-            ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()})
+            ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()},
+                             widen_reason=widen)
         _eval_stages(stage.sec, ev)
         with stage("audit_checks"):
             before, after = _test_sources(sb.path, base_sha, change.files)

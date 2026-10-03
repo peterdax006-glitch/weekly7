@@ -11,12 +11,13 @@ held_files)` then start one worker per returned Plan. `plan_one` is untouched; p
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import statistics
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence
 
 from creator import gaps as G
 from creator import model as M
@@ -206,8 +207,11 @@ class Batch:
 
 
 def schedule(nodes: Sequence[Node], slots: int, held_components: Sequence[str] = (), held_files: Iterable[str] = (),
-             steps: Optional[Sequence[str]] = None) -> Batch:
-    """Up to `slots` ready nodes with no open dependency (and a step in `steps`), no component or file in common with each other or running work."""
+             steps: Optional[Sequence[str]] = None, pred: Optional[Mapping[str, float]] = None) -> Batch:
+    """Up to `slots` ready nodes with no open dependency (and a step in `steps`), no component or file in common with each other or running work.
+    `pred` (node id -> predicted value per cost, only from TRUSTED predictions: creator.decide) reorders ready nodes WITHIN their priority
+    class (capacity first, then critical path first, both unchanged); dependencies, exclusions and slots apply afterwards exactly as before.
+    Without it the order is the old one."""
     a = analyse(nodes)
     by = {n.id: n for n in nodes}
     busy_c, busy_f = set(held_components), set(held_files)
@@ -215,8 +219,13 @@ def schedule(nodes: Sequence[Node], slots: int, held_components: Sequence[str] =
         if n.status == "running":
             busy_c.add(n.component)
             busy_f |= n.files
-    order = sorted((n for n in nodes if n.status == "ready"),         # capacity-raising gaps first, then the critical path
-                   key=lambda n: (not n.capacity, a.slack[n.id], -a.tail[n.id], -n.value / max(n.cost, 1.0), n.id))
+    if pred is None:
+        order = sorted((n for n in nodes if n.status == "ready"),         # capacity-raising gaps first, then the critical path
+                       key=lambda n: (not n.capacity, a.slack[n.id], -a.tail[n.id], -n.value / max(n.cost, 1.0), n.id))
+    else:
+        order = sorted((n for n in nodes if n.status == "ready"),
+                       key=lambda n: (not n.capacity, a.slack[n.id] != 0, -pred.get(n.id, n.value / max(n.cost, 1.0)), a.slack[n.id],
+                                      -a.tail[n.id], -n.value / max(n.cost, 1.0), n.id))
     picks: list[Node] = []
     why: dict[str, str] = {}
     for n in order:
@@ -251,12 +260,48 @@ def schedule(nodes: Sequence[Node], slots: int, held_components: Sequence[str] =
 
 def next_batch(ledger: Ledger, slots: int, specs: Optional[Sequence[SM.CapabilitySpec]] = None, held_components: Sequence[str] = (),
                held_files: Iterable[str] = (), history: Optional[History] = None, explain_path: Optional[Path] = None,
-               steps: Optional[Sequence[str]] = None) -> Batch:
-    """The swarm's call: what to run together now, and why. Writes the reasons when `explain_path` is given."""
-    b = schedule(build_nodes(ledger, specs, history), slots, held_components, held_files, steps)
+               steps: Optional[Sequence[str]] = None, state: Optional[Path] = None) -> Batch:
+    """The swarm's call: what to run together now, and why. Writes the reasons when `explain_path` is given. With `state`, TRUSTED
+    predictions (creator.decide) may reorder the ready gaps; untrusted ones change nothing."""
+    hist = history or learn_history(ledger)
+    held_files = list(held_files)                                       # read twice when predictions reorder
+    nodes = build_nodes(ledger, specs, hist)
+    b = schedule(nodes, slots, held_components, held_files, steps)
+    if state is not None:
+        b = _predicted_batch(Path(state), nodes, hist, b, slots, held_components, held_files, steps)
     if explain_path is not None:
         record_explanations(explain_path, [r for r in b.reasons if r["chosen"] or r["slack_s"] == 0], b.analysis)
     return b
+
+
+def _predicted_batch(state: Path, nodes: Sequence[Node], hist: History, old: Batch, slots: int, held_components: Sequence[str],
+                     held_files: Iterable[str], steps: Optional[Sequence[str]]) -> Batch:
+    """REORDER by trusted predictions (creator.decide): the old batch unless a ranking topic is trusted right now; a holdout share of rounds
+    keeps the old batch on purpose. Every round with a prediction is logged with both batches. A broken predictor returns the old batch."""
+    from creator import registry as REG
+    D = REG.optional("decide")
+    ready = [n for n in nodes if n.status == "ready"]
+    if D is None or not ready:
+        return old
+    try:
+        sc = D.rank_scores(state, [n.step for n in ready])
+        if sc is None:
+            return old
+        pred = {n.id: D.ev_per_cost(n.value / hist.success_rate(n.step), sc.get(n.step, {}), hist.success_rate(n.step), n.cost)
+                for n in ready}
+        new = schedule(nodes, slots, held_components, list(held_files), steps, pred)
+    except Exception as e:                                              # noqa: BLE001 - a broken predictor never changes the plan
+        D.record(state, {"kind": "rank", "error": f"{type(e).__name__}: {e}"[:300]})
+        return old
+    unit = "|".join(sorted(n.id for n in ready)) + f"@{int(time.time() // 600)}"
+    arm = "holdout" if D.holdout(unit) else "treated"
+    use = new if arm == "treated" else old
+    D.record(state, {"kind": "rank", "unit": hashlib.sha256(unit.encode()).hexdigest()[:16], "arm": arm, "topics": sorted({k for v in sc.values() for k in v}),
+                     "did": [n.id for n in use.picks], "old_rule": [n.id for n in old.picks], "new_rule": [n.id for n in new.picks],
+                     "changed": [n.id for n in new.picks] != [n.id for n in old.picks] and arm == "treated",
+                     "picks_req": [f"{n.component}.{n.step}" for n in use.picks], "scores": {k: round(v, 8) for k, v in pred.items()},
+                     "predictions": sc})
+    return use
 
 
 def explain_path_for(ledger_path: Any) -> Path:
@@ -310,7 +355,8 @@ def plan_batch(cfg: Any, led: Ledger, main: Any, base_sha: str, slots: int, held
     steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)
     taken = list(held)
     if cfg.mode in ("auto", "gaps"):
-        b = next_batch(led, slots, specs, held, held_files, explain_path=explain_path_for(cfg.ledger_path), steps=steps)
+        b = next_batch(led, slots, specs, held, held_files, explain_path=explain_path_for(cfg.ledger_path), steps=steps,
+                       state=getattr(cfg, "state", None))
         for n in b.picks:
             p = P.plan_next(led, main.model, base_sha, specs, steps=steps, exclude_components=taken, prefer=(n.id,))
             if p is not None:                       # even when plan_next moved past a pick it gave up on: the package it wrote is
