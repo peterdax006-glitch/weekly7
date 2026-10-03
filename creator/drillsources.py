@@ -580,7 +580,8 @@ def _research_walk(top: str, pruned: bool) -> Iterable[tuple[str, bool, list[tup
             ents = list(it)
     except OSError:
         return
-    dirs, files = [], []
+    dirs: list[Any] = []
+    files: list[Any] = []
     for e in ents:
         try:
             isdir = e.is_dir()
