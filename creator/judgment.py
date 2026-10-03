@@ -4,6 +4,8 @@ The statistical predictors (creator.thinking, creator.drillsources) count; this 
 a warm pooled server when one is loaded; nothing leaves the machine) to JUDGE: it reads a case exactly as it stood BEFORE the outcome and answers
 with a probability and one line of reasoning. Cases: `verdict` (a kernel package: will the cycle be ADOPTED?) and `git_fixed` (a commit: will a later
 fix/revert touch one of its files within FIX_WINDOW commits?).
+PUBLIC topics `pub_git_fixed` / `pub_git_churn` (creator.publiccases, 3 Oct 2026): ~23,000 commits of public open-source repositories,
+searched in ROUNDS of fresh subjects (open_round) with hundreds of the same subjects per strategy and the winners re-tested out of sample.
 
 NO FUTURE INFORMATION: a case shows only its setup features and the history of items RESOLVED strictly before the case was created (base rates, the
 last outcomes, few-shot examples drawn from those items). Calibration (Platt scaling) is fitted at SCORING time on the strategy's own earlier records
@@ -17,6 +19,7 @@ the gate (thinking.trust_of). RAM-heavy (a model server), CPU-moderate: `judgmen
 batch per server slot at a time, so the resource-aware admission decides when they run."""
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import json
 import math
@@ -42,9 +45,25 @@ EXTRA_STRATEGIES: list[dict[str, Any]] = [
 ]
 ALL_STRATEGIES = STRATEGIES + EXTRA_STRATEGIES
 HALVING_ALL = ((8, 10), (16, 6), (24, 3), (40, 2), (60, 1))   # the wider pool is cut more gently: new methods get a fair number of subjects first
+# PUBLIC COMMIT TOPICS (creator.publiccases; 3 Oct 2026: the search chose on noise with 8-76 subjects per strategy). Tens of thousands of public
+# commits: each strategy now gets hundreds of the SAME subjects before it can be dropped, and the search runs in ROUNDS of fresh subjects so a
+# winner is re-tested out of sample (pinned into the next round) instead of being trusted once.
+PUB_TOPICS = ("pub_git_fixed", "pub_git_churn")
+ALL_TOPICS = TOPICS + PUB_TOPICS
+REF_STRATEGY: dict[str, Any] = {"shots": 0, "hint": 1}
+OWN_STRATEGIES: list[dict[str, Any]] = [{"shots": 0, "hint": 1, "own": 6}, {"shots": 0, "hint": 1, "retrieve": 4, "own": 4}]
+# teacher traces and plan notes are about Nupen's own packages: on public commits they would only repeat the plain prompt, so they are left out
+PUB_STRATEGIES: list[dict[str, Any]] = ([s for s in ALL_STRATEGIES if not s.get("traces") and not s.get("plans")] + OWN_STRATEGIES)
+PUB_HALVING = ((40, 8), (100, 4), (200, 2), (400, 1))
+ROUND_SIZE = 400                                   # fresh subjects per search round (the last cutoff: the winner answers all of them)
+PUB_SPAN = 2000                                    # per repository: the recent cases a round walks forward through first
+PUB_MIN_HISTORY = 50                               # a public case is asked only with at least this many cases resolved before it
+PUB_BATCH = 6                                      # public cases are short: more calls per server lease
+PUB_REFRESH_S = 1800.0                             # new public repositories / fetched commits are read at most this often
 SAMPLE_T = 0.7
 MAX_SUBJECTS = 300
 BATCH = 4                                          # model calls per job (one server lease each)
+REFIT_ALWAYS = 200                                 # below this many prior records the Platt fit is redone for every case
 MIN_CAL = 15                                       # earlier records needed before Platt scaling replaces the raw probability
 PROB = re.compile(r"PROBABILITY\s*[:=]\s*(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)", re.I)
 
@@ -94,6 +113,11 @@ def load_cases(topic: str, state: Path, repo: Path) -> list[Case]:
             out.append(Case(topic, it.pkg, it.created, it.resolved, int(it.outcome == "ADOPTED"), it.kind,
                             f"A development package for requirement kind '{it.kind}' (requirement {it.req or '?'}) is planned at {_iso(it.created)} UTC. "
                             f"Its written spec has {it.spec_len} characters and it lists {it.n_files} output files. Will the kernel ADOPT its result?"))
+    elif topic in PUB_TOPICS:                                          # public repositories only (publiccases refuses anything else)
+        from creator import registry as REG
+        for repo, bi, mcls, text in REG.get("publiccases").raw_cases(topic):
+            if bi.resolved is not None:
+                out.append(Case(topic, bi.subject, bi.created, bi.resolved, bi.y, f"{repo}/{mcls}", text))
     elif topic == "git_fixed":
         try:
             items = D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state)
@@ -115,7 +139,33 @@ def history(cases: Sequence[Case], c: Case) -> list[Case]:
     return sorted((x for x in cases if x.resolved < c.created), key=lambda x: x.resolved)
 
 
-def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index: Optional[RM.Index] = None) -> list[dict[str, str]]:
+def own_index(recs: Sequence[dict[str, Any]], cases: Sequence[Case]) -> RM.Index:
+    """MEMORY OF ITS OWN ANSWERS (owner, 3 Oct 2026: Nupen learns from itself): every subject this model has answered, as 'the case -> my forecast,
+    what happened', known when the outcome resolved (the search shows a record only to cases created strictly after that)."""
+    text = {c.subject: c for c in cases}
+    by: dict[str, list[float]] = {}
+    for r in recs:
+        if r.get("p") is not None and r.get("subject") in text and "knn" not in (r.get("strategy") or {}):
+            by.setdefault(r["subject"], []).append(float(r["p"]))
+    out = []
+    for k, ps in by.items():
+        c = text[k]
+        out.append(RM.Rec(c.resolved, "answer", c.topic, c.text[:260],
+                          f"my forecast was {sum(ps) / len(ps):.2f}; the event {'happened' if c.y else 'did not happen'}", c.y))
+    return RM.Index(out)
+
+
+def own_block(own: Optional[RM.Index], strategy: dict[str, Any], c: Case) -> str:
+    k = int(strategy.get("own", 0))
+    if not k or own is None:
+        return ""
+    got = [r for r in own.search(c.text, c.created, k, kinds=("answer",), topic=c.topic) if r.known < c.created]
+    return ("Your own earlier forecasts on similar cases (all resolved before this one), to correct your bias:\n"
+            + "\n".join("- " + RM.fmt(r, 200) for r in got) + "\n") if got else ""
+
+
+def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index: Optional[RM.Index] = None,
+                 own: Optional[RM.Index] = None) -> list[dict[str, str]]:
     hist = history(cases, c)
     sys_msg = ("You are a careful forecaster for a software-development system. You estimate the probability that the event in the question "
                "happens, from the case and the past record only. Answer with ONE short line of reasoning, then a final line "
@@ -134,6 +184,9 @@ def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index
     block = RM.retrieved_block(index, strategy, c) if index is not None else ""
     if block:
         lines.append(block.rstrip())
+    mine = own_block(own, strategy, c)
+    if mine:
+        lines.append(mine.rstrip())
     k = int(strategy.get("shots", 0))
     if k and hist:
         pool = [x for x in hist if x.group == c.group][-k:]
@@ -188,20 +241,42 @@ def calibrated(recs: Sequence[dict[str, Any]]) -> list[tuple[dict[str, Any], flo
     """Walk the records in creation order; each case's calibrated p uses a Platt fit on records of the SAME strategy whose outcome was resolved
     before this case was created. Returns (record, p, calibrated?)."""
     rs = sorted((r for r in recs if r.get("p") is not None), key=lambda r: r["created"])
+    by_res = sorted(rs, key=lambda r: r["resolved"])
+    xs: list[float] = []
+    ys: list[int] = []
+    j, fit, fit_n = 0, (1.0, 0.0), -1
     out = []
     for r in rs:
-        prior = [x for x in rs if x["resolved"] < r["created"]]
-        if len(prior) >= MIN_CAL:
-            a, b = platt_fit([_logit(x["p"]) for x in prior], [x["y"] for x in prior])
+        while j < len(by_res) and by_res[j]["resolved"] < r["created"]:     # the prior set only grows as creation time grows
+            xs.append(_logit(by_res[j]["p"]))
+            ys.append(by_res[j]["y"])
+            j += 1
+        n = len(xs)
+        if n >= MIN_CAL:
+            if n != fit_n and (n < REFIT_ALWAYS or n >= fit_n * 1.02):      # long records: refit when the prior grew by 2% (O(n) fits, not O(n^2))
+                fit, fit_n = platt_fit(xs, ys), n
+            a, b = fit
             out.append((r, min(0.97, max(0.03, 1 / (1 + math.exp(-(a * _logit(r["p"]) + b))))), True))
         else:
             out.append((r, r["p"], False))
     return out
 
 
+_STAT_CACHE: dict[str, dict[str, T.Pred]] = {}
+
+
 def _stat_preds(topic: str, state: Path, repo: Path) -> dict[str, T.Pred]:
     if topic == "verdict":
         preds = T.replay(T.load_items(state), "verdict")
+    elif topic in PUB_TOPICS:                                          # ~23,000 items: walked once per change of the public caches
+        from creator import registry as REG
+        PC = REG.get("publiccases")
+        key = f"{topic}|{PC.signature()}"
+        if key not in _STAT_CACHE:
+            if len(_STAT_CACHE) > 4:
+                _STAT_CACHE.clear()
+            _STAT_CACHE[key] = {p.subject: p for p in D.walk_forward(PC.items(topic), topic)}
+        return _STAT_CACHE[key]
     else:
         preds = D.walk_forward(D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state), "git_fixed")
     return {p.subject: p for p in preds}
@@ -218,7 +293,7 @@ def _mean_ci(d: Sequence[float]) -> list[float]:
 
 def score_topic(topic: str, state: Path, repo: Path, tag: Optional[str] = None) -> dict[str, Any]:
     """Per strategy: the judge's Brier (raw and Platt-calibrated) against the statistical predictor and the baselines on the SAME subjects."""
-    recs = [r for r in _mine(T._jsonl(path(state)), tag or active_tag()) if r.get("topic") == topic and r.get("p") is not None]
+    recs = [r for r in _mine(_records(state), tag or active_tag()) if r.get("topic") == topic and r.get("p") is not None]
     if not recs:
         return {}
     stat = _stat_preds(topic, state, repo)
@@ -247,6 +322,7 @@ def score_topic(topic: str, state: Path, repo: Path, tag: Optional[str] = None) 
                     "accuracy": round(sum(1 for r, p, _c in cal if (p >= 0.5) == bool(r["y"])) / len(cal), 4),
                     "seconds_per_item": round(sum(float(r.get("seconds") or 0) for r, _p, _c in cal) / len(cal), 2),
                     "tokens_per_item": round(sum(float(r.get("tokens") or 0) for r, _p, _c in cal) / len(cal), 1)}
+        out[sid]["brier_ci"] = _mean_ci([T.brier(p, r["y"]) for r, p, _c in cal])
         per[sid] = {r["subject"]: p for r, p, _c in cal}
         ys.update({r["subject"]: r["y"] for r, _p, _c in cal})
         multi = [r for r, _p, _c in cal if len(r.get("ps") or []) > 1]
@@ -271,8 +347,14 @@ def trust_section(state: Path, repo: Optional[Path] = None) -> dict[str, Any]:
     and the gate's verdict. Judgment is not trusted unless it also beats the statistical predictor with confidence."""
     repo = repo or Path(__file__).resolve().parents[1]
     out: dict[str, Any] = {}
-    for t in TOPICS:
-        sc = score_topic(t, state, repo)
+    for t in ALL_TOPICS:
+        try:
+            sc = score_topic(t, state, repo)
+        except Exception as e:                                         # noqa: BLE001 - one topic's missing data never hides the others
+            if t in PUB_TOPICS:
+                out[t] = {"trusted": False, "why_not": [f"unscored: {type(e).__name__}: {e}"[:200]]}
+                continue
+            raise
         if not sc:
             continue
         top = max(v["n"] for v in sc.values())
@@ -283,8 +365,22 @@ def trust_section(state: Path, repo: Optional[Path] = None) -> dict[str, Any]:
         if not beats:
             why.append("does not beat the statistical predictor on the same subjects (95% CI lower bound <= 0)")
         out[t] = {"trusted": ok and beats, "why_not": why, "best_strategy": json.loads(sid), "n": b["n"], "judge_calibrated": b["judge_calibrated"],
-                  "statistical": b["statistical"], "gain_vs_statistical": b["gain_vs_statistical_calibrated"], "strategies_tried": len(sc)}
+                  "statistical": b["statistical"], "gain_vs_statistical": b["gain_vs_statistical_calibrated"], "strategies_tried": len(sc),
+                  "strategies": strategy_table(sc)}
+        if t in PUB_TOPICS:                                            # public replay: measures and trains the judge, never grants trust by itself
+            out[t]["trusted"] = False
+            out[t]["replay_only"] = True
+            out[t]["why_not"] = why + ["public replay topic: it measures the judge, it never grants trust on its own"]
+            out[t]["rounds"] = rounds_report(state, t)
     return out
+
+
+def strategy_table(sc: dict[str, Any]) -> dict[str, Any]:
+    """Every strategy with its n, calibrated Brier and that Brier's 95% CI, and its paired gains (vs statistical, vs the default prompt), most
+    answered first: a choice made on few subjects shows as a wide interval."""
+    return {k: {"n": v["n"], "brier_calibrated": v["judge_calibrated"].get("brier"), "brier_ci": v.get("brier_ci"),
+                "brier_raw": v["judge_raw"].get("brier"), "gain_vs_statistical": v["gain_vs_statistical_calibrated"],
+                "gain_vs_default": v.get("gain_vs_default")} for k, v in sorted(sc.items(), key=lambda kv: -kv[1]["n"])}
 
 
 # ------------------------------------------------------------------------------------------------ the strategy search and the job factory
@@ -308,6 +404,137 @@ def alive(topic_recs: Sequence[dict[str, Any]], pool: Optional[Sequence[dict[str
             return sum(T.brier(rs[k]["p"] if rs[k].get("p") is not None else 0.5, rs[k]["y"]) for k in common) / len(common)
         live = sorted(live, key=brier)[:keep]
     return live
+
+
+def ranked(recs: Sequence[dict[str, Any]], pool: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`pool` sorted by raw Brier on the subjects all of them answered (pool order when there are none)."""
+    by: dict[str, dict[str, dict[str, Any]]] = {}
+    for r in recs:
+        by.setdefault(json.dumps(r["strategy"], sort_keys=True), {})[r["subject"]] = r
+    sets = [set(by.get(json.dumps(s, sort_keys=True), {})) for s in pool]
+    common = set.intersection(*sets) if sets else set()
+    if not common:
+        return list(pool)
+
+    def brier(s: dict[str, Any]) -> float:
+        rs = by[json.dumps(s, sort_keys=True)]
+        return sum(T.brier(rs[k]["p"] if rs[k].get("p") is not None else 0.5, rs[k]["y"]) for k in common) / len(common)
+    return sorted(pool, key=brier)
+
+
+def rounds_path(state: Path) -> Path:
+    return state / "thinking" / "judgment_rounds.jsonl"
+
+
+def load_rounds(state: Path, topic: str, tag: str) -> list[dict[str, Any]]:
+    return [r for r in T._jsonl(rounds_path(state)) if r.get("topic") == topic and r.get("model") == tag]
+
+
+def _uniq(ss: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out = []
+    for s in ss:
+        k = json.dumps(s, sort_keys=True)
+        if k not in seen:
+            seen.add(k)
+            out.append(s)
+    return out
+
+
+def round_state(rnd: dict[str, Any], recs: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Where one round stands: its records, the strategies still alive (halving over the round's own subjects), the strategies asked (alive +
+    pinned), what is left to ask, and the winner once nothing is."""
+    subs = set(rnd["subjects"])
+    mine = [r for r in recs if r.get("round") == rnd["round"] and r.get("subject") in subs]
+    live = alive(mine, PUB_STRATEGIES, PUB_HALVING)
+    ask = _uniq(live + list(rnd.get("pinned", [])))
+    done = {(r["subject"], json.dumps(r["strategy"], sort_keys=True)) for r in mine}
+    todo = [(k, s) for k in rnd["subjects"] for s in ask if (k, json.dumps(s, sort_keys=True)) not in done]
+    winner = ranked(mine, live)[0] if not todo and live else None
+    return {"recs": mine, "live": live, "ask": ask, "todo": todo, "winner": winner}
+
+
+def open_round(state: Path, topic: str, tag: str, cases: Sequence[Case], recs: Sequence[dict[str, Any]], rounds: Sequence[dict[str, Any]],
+               size: Optional[int] = None) -> Optional[dict[str, Any]]:
+    """A new round on FRESH subjects: never in an earlier round and never answered by this model. Per repository the round walks FORWARD
+    through its most recent PUB_SPAN cases (oldest unused first), so every later round - and every newly fetched commit - comes after the
+    answers already given and can learn from them (own-answer memory sees only what resolved before); when a repository's recent span is used
+    up it goes back in time, newest unused first. Repositories are interleaved, so every round spans the projects and a new repository joins
+    at once. The winners of the last two closed rounds are PINNED - they answer every subject of the new round, an out-of-sample re-test - with
+    the reference prompt and the model-free kNN control. None when no fresh subject is left."""
+    used = {k for r in rounds for k in r["subjects"]} | {r["subject"] for r in recs if "subject" in r}
+    res = sorted(c.resolved for c in cases)
+    by_repo: dict[str, list[Case]] = {}
+    for c in sorted(cases, key=lambda c: c.created):
+        if bisect.bisect_left(res, c.created) >= PUB_MIN_HISTORY:
+            by_repo.setdefault(c.subject.split(":")[0], []).append(c)
+    per: dict[str, list[Case]] = {}
+    for name, cs in by_repo.items():
+        cut = max(0, len(cs) - PUB_SPAN)
+        per[name] = [c for c in cs[cut:] if c.subject not in used] + [c for c in reversed(cs[:cut]) if c.subject not in used]
+    size = ROUND_SIZE if size is None else size
+    pick: list[str] = []
+    queues = [per[k] for k in sorted(per)]
+    while len(pick) < size and any(queues):
+        for q in queues:
+            if q and len(pick) < size:
+                pick.append(q.pop(0).subject)
+    if not pick:
+        return None
+    winners: list[dict[str, Any]] = []
+    for prev in rounds:
+        w = round_state(prev, recs)["winner"]
+        if w is not None:
+            winners = _uniq(winners + [w])[-2:]
+    row = {"topic": topic, "model": tag, "round": len(rounds), "subjects": pick, "pinned": _uniq(winners + [REF_STRATEGY, {"knn": 8}]),
+           "previous_winners": winners, "opened": time.time()}
+    p = rounds_path(state)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, sort_keys=True) + "\n")
+    return row
+
+
+def rounds_report(state: Path, topic: str, tag: Optional[str] = None) -> list[dict[str, Any]]:
+    """Per round: subjects, answers, strategies alive, the winner, and the OUT-OF-SAMPLE re-test of the previous winners on this round's fresh
+    subjects (paired raw-Brier gain over the reference prompt [mean, CI low, CI high, n]) beside the gain that strategy showed in the round
+    that chose it (selection on noise shows as an in-sample gain that does not survive)."""
+    tag = tag or active_tag()
+    recs = [r for r in _mine(_records(state), tag) if r.get("topic") == topic and "subject" in r and r.get("p") is not None]
+    rounds = load_rounds(state, topic, tag)
+
+    def gain(mine: Sequence[dict[str, Any]], s: dict[str, Any]) -> list[float]:
+        a = {r["subject"]: r for r in mine if r["strategy"] == REF_STRATEGY}
+        b = {r["subject"]: r for r in mine if r["strategy"] == s}
+        both = sorted(set(a) & set(b))
+        return [*RM.paired_gain([a[k]["p"] for k in both], [b[k]["p"] for k in both], [a[k]["y"] for k in both]), len(both)]
+    states = [round_state(r, recs) for r in rounds]
+    out: list[dict[str, Any]] = []
+    for i, (rnd, st) in enumerate(zip(rounds, states)):
+        out.append({"round": rnd["round"], "subjects": len(rnd["subjects"]), "answers": len(st["recs"]), "alive": len(st["live"]),
+                    "winner": st["winner"], "winner_gain_vs_reference_in_sample": gain(st["recs"], st["winner"]) if st["winner"] else None,
+                    "retest": [{"strategy": w, "out_of_sample_gain_vs_reference": gain(st["recs"], w),
+                                "in_sample_gain_when_chosen": next((gain(states[j]["recs"], w) for j in range(i - 1, -1, -1)
+                                                                    if states[j]["winner"] == w), None)}
+                               for w in rnd.get("previous_winners", [])]})
+    return out
+
+
+_REC_CACHE: dict[str, Any] = {"key": None, "rows": []}
+
+
+def _records(state: Path) -> list[dict[str, Any]]:
+    """judgment.jsonl, re-read only when it changed (the filler asks often; the file grows to thousands of rows)."""
+    p = path(state)
+    try:
+        st = p.stat()
+    except OSError:
+        return []
+    key = (str(p), st.st_size, st.st_mtime_ns)
+    if _REC_CACHE["key"] != key:
+        _REC_CACHE["rows"] = T._jsonl(p)
+        _REC_CACHE["key"] = key
+    return list(_REC_CACHE["rows"])
 
 
 def _append(state: Path, row: dict[str, Any]) -> None:
@@ -336,9 +563,9 @@ def chat_text(llm: Any, messages: Sequence[dict[str, str]], **kw: Any) -> str:
 
 
 def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any],
-              index: Optional[RM.Index] = None) -> int:
+              index: Optional[RM.Index] = None, own: Optional[RM.Index] = None, extra: Optional[dict[str, Any]] = None) -> int:
     """Ask the model each (case, strategy) in the batch under one server lease and record the answers (the outcome is stored beside the answer only
-    AFTER the answer exists; the prompt never contained it)."""
+    AFTER the answer exists; the prompt never contained it). `extra` fields (the search round) are stored on every row."""
     n = 0
     t_end = dt.datetime.now(dt.timezone.utc)
     with make_llm() as llm:
@@ -354,13 +581,13 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
                 pid = None
             t0 = time.monotonic()
             row: dict[str, Any] = {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y,
-                                   "model": tag}
+                                   "model": tag, **(extra or {})}
             if "knn" in s:                                          # the model-free control: no call, no cost
                 hist = history(cases, c)
                 base = sum(x.y for x in hist) / len(hist) if hist else 0.5
                 row.update(p=RM.knn_probability(index, c, int(s["knn"]), base) if index is not None else None, reply="knn", tokens=0)
             else:
-                msgs = build_prompt(s, cases, c, index)
+                msgs = build_prompt(s, cases, c, index, own)
                 ps, first, toks = RM.sample(lambda m, **kw: chat_text(llm, m, **kw), msgs, parse, int(s.get("samples", 1)),
                                             300 if s.get("structured") else 120)
                 row.update(p=RM.aggregate(ps), reply=first[:300], tokens=toks)
@@ -375,9 +602,13 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
 
 
 def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: Optional[Callable[[], Any]] = None,
-                    ) -> Callable[[], Optional[Callable[[], None]]]:
-    """next_job() hands out one batch of BATCH (case, strategy) calls, newest cases first, only strategies still alive; None when there is nothing
-    to do or `max_servers` batches are already in flight (a batch waits for a model-server slot, so more would only hold threads)."""
+                    topics: Sequence[str] = ALL_TOPICS) -> Callable[[], Optional[Callable[[], None]]]:
+    """next_job() hands out one batch of (case, strategy) calls; None when there is nothing to do or `max_servers` batches are already in flight
+    (a batch waits for a model-server slot, so more would only hold threads). Topics take turns (round robin) so the public topics' long
+    searches never starve Nupen's own; Nupen's topics go newest case first over the strategies still alive, the public ones round by round
+    (open_round): when a round's search has converged a new round opens on fresh subjects with the winners pinned for an out-of-sample re-test.
+    New public repositories / fetched commits are read every PUB_REFRESH_S (creator.publiccases.refresh_all, inside a public job or on its own
+    when nothing else is to do) and the cases reload when the caches changed."""
     state = Path(state)
     from creator import device as DEV
     cfg = DEV.settings()
@@ -388,6 +619,8 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
     taken: set[tuple[str, str, str]] = set()
     cache: dict[str, list[Case]] = {}
     idx: dict[str, RM.Index] = {}
+    sig: dict[str, Any] = {"checked": 0.0, "value": None, "refreshed": 0.0, "refreshing": False}
+    turn = {"i": 0}
 
     def make_llm() -> Any:
         if llm_factory is not None:
@@ -402,7 +635,7 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         if topic not in cache:
             cache[topic] = load_cases(topic, state, Path(repo))
         cases = cache[topic]
-        recs = [r for r in _mine(T._jsonl(path(state)), active_tag()) if r.get("topic") == topic and "subject" in r]
+        recs = [r for r in _mine(_records(state), active_tag()) if r.get("topic") == topic and "subject" in r]
         done = {(r["subject"], json.dumps(r["strategy"], sort_keys=True)) for r in recs}
         live = alive(recs, ALL_STRATEGIES, HALVING_ALL)
         out: list[tuple[Case, dict[str, Any]]] = []
@@ -417,35 +650,104 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
                 break
         return out
 
+    def public_changed() -> None:
+        """Reload the public cases when a cache grew or a repository appeared (checked at most once a minute)."""
+        now = time.time()
+        if now - sig["checked"] < 60.0 and all(t in cache for t in topics if t in PUB_TOPICS):
+            return
+        sig["checked"] = now
+        from creator import registry as REG
+        v = REG.get("publiccases").signature()
+        if v != sig["value"]:
+            sig["value"] = v
+            for t in PUB_TOPICS:
+                cache.pop(t, None)
+                idx.pop(t, None)
+
+    def pending_pub(topic: str) -> tuple[list[tuple[Case, dict[str, Any]]], Optional[int]]:
+        public_changed()
+        if topic not in cache:
+            cache[topic] = load_cases(topic, state, Path(repo))
+        cases = cache[topic]
+        if not cases:
+            return [], None
+        cmap = {c.subject: c for c in cases}
+        tag = active_tag()
+        recs = [r for r in _mine(_records(state), tag) if r.get("topic") == topic and "subject" in r]
+        rounds = load_rounds(state, topic, tag)
+        todo = [(k, s) for k, s in round_state(rounds[-1], recs)["todo"] if k in cmap] if rounds else []
+        if not todo:                                               # converged (or first time): a fresh round, winners pinned
+            rnd = open_round(state, topic, tag, cases, recs, rounds)
+            if rnd is None:
+                return [], None
+            rounds = list(rounds) + [rnd]
+            todo = [(k, s) for k, s in round_state(rnd, recs)["todo"] if k in cmap]
+        out = [(cmap[k], s) for k, s in todo if (topic, k, json.dumps(s, sort_keys=True)) not in taken][:PUB_BATCH]
+        return out, int(rounds[-1]["round"])
+
+    def refresh_due() -> bool:
+        return not sig["refreshing"] and time.time() - sig["refreshed"] >= PUB_REFRESH_S and any(t in PUB_TOPICS for t in topics)
+
+    def refresh() -> None:
+        try:
+            from creator import registry as REG
+            REG.get("publiccases").refresh_all()
+        except Exception as e:                                     # noqa: BLE001
+            _append(state, {"topic": "public_refresh", "error": f"{type(e).__name__}: {e}"[:300]})
+        finally:
+            sig["refreshed"], sig["refreshing"], sig["checked"] = time.time(), False, 0.0
+
     def next_job() -> Optional[Callable[[], None]]:
         with lock:
             if flight["n"] >= max_servers:
                 return None
-            for topic in TOPICS:
+            order = [topics[(turn["i"] + j) % len(topics)] for j in range(len(topics))]
+            batch: list[tuple[Case, dict[str, Any]]] = []
+            extra: Optional[dict[str, Any]] = None
+            topic = ""
+            for topic in order:
                 try:
-                    todo = pending(topic)
+                    if topic in PUB_TOPICS:
+                        batch, rnd = pending_pub(topic)
+                        extra = {"round": rnd}
+                    else:
+                        batch, extra = pending(topic)[:BATCH], None
                 except Exception:                                  # noqa: BLE001 - a topic without data is skipped
                     continue
-                if todo:
-                    batch = todo[:BATCH]
-                    for c, s in batch:
-                        taken.add((topic, c.subject, json.dumps(s, sort_keys=True)))
-                    flight["n"] += 1
+                if batch:
                     break
-            else:
+            if not batch:
+                if refresh_due():                                  # nothing to ask: read new public repositories / commits on its own
+                    sig["refreshing"] = True
+                    return refresh
                 return None
+            turn["i"] = (list(topics).index(topic) + 1) % len(topics)
+            keys = [(topic, c.subject, json.dumps(s, sort_keys=True)) for c, s in batch]
+            taken.update(keys)
+            flight["n"] += 1
+            do_refresh = topic in PUB_TOPICS and refresh_due()
+            if do_refresh:
+                sig["refreshing"] = True
 
         def job() -> None:
+            skipped = False
             try:
+                if do_refresh:
+                    refresh()
                 if topic not in idx:
                     idx[topic] = RM.Index(RM.build_corpus(state, cache[topic]))
-                run_batch(state, batch, cache[topic], make_llm, idx[topic])
+                own = None
+                if topic in PUB_TOPICS and any(s.get("own") for _c, s in batch):
+                    own = own_index([r for r in _mine(_records(state), active_tag()) if r.get("topic") == topic], cache[topic])
+                run_batch(state, batch, cache[topic], make_llm, idx[topic], own, extra)
             except _Skip:
-                pass
+                skipped = True
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm
                 _append(state, {"topic": topic, "error": f"{type(e).__name__}: {e}"[:300]})
             finally:
                 with lock:
                     flight["n"] -= 1
+                    if skipped:                                    # no RAM for the thinking model: offered again later
+                        taken.difference_update(keys)
         return job
     return next_job
