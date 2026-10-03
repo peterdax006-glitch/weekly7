@@ -73,3 +73,15 @@ def test_filler_runs_batches_newest_first_one_in_flight_and_scores(tmp_path: Pat
     monkeypatch.setattr(J, "_stat_preds", lambda t, s, r: {f"p{i}": T.Pred("verdict", f"p{i}", 1.0, 0.5, 0.5, 0.5) for i in range(30)})
     sec = J.trust_section(st, tmp_path)
     assert sec["verdict"]["n"] > 0 and sec["verdict"]["trusted"] is False and sec["verdict"]["why_not"]
+
+
+def test_prompt_never_carries_the_items_outcome_or_post_creation_fields() -> None:
+    """Rendered prompt for an item: no outcome words, no 'resolved' wording, no resolution time, no example that is the item itself."""
+    cs = [J.Case("verdict", f"PKG{i:03d}", 1000.0 + i * 10, 1000.0 + i * 10 + 15, int(i % 2 == 0), "K" if i % 2 else "E",
+                 f"package PKG{i:03d} spec {i}") for i in range(60)]
+    c = cs[40]
+    for s in J.STRATEGIES:
+        blob = json.dumps(J.build_prompt(s, cs, c))
+        assert not any("esolved" in m["content"] for m in J.build_prompt(s, cs, c) if m["role"] == "assistant") and "ADOPTED" not in blob.replace("will the kernel ADOPT", "")
+        assert c.subject not in blob.replace(c.text, "") and str(c.resolved) not in blob
+        assert not any(f"PKG{i:03d}" in blob for i in range(40, 60) if i != 40)         # nothing created or resolved after / at the item

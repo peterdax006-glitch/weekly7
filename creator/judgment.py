@@ -105,7 +105,7 @@ def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case) -> li
             pool = (pool + [x for x in reversed(hist) if x not in pool])[:k]
         for x in pool:
             msgs.append({"role": "user", "content": x.text})
-            msgs.append({"role": "assistant", "content": f"Resolved case. PROBABILITY: {'0.85' if x.y else '0.15'}"})
+            msgs.append({"role": "assistant", "content": f"PROBABILITY: {'0.85' if x.y else '0.15'}"})
     msgs.append({"role": "user", "content": ("\n".join(lines) + "\n" if lines else "") + c.text})
     return msgs
 
