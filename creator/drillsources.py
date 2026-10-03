@@ -184,7 +184,7 @@ def refresh_git_cache(repo: Path, state: Path, full_timeout: float = GIT_FULL_TI
         except RuntimeError:                                       # history was rewritten: rebuild from scratch
             have = []
             path.unlink(missing_ok=True)
-    args = ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
+    args = ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
     new = _parse_log(_git(repo, args + ([rng] if rng else []), timeout))
     seen = {c["h"] for c in have}
     new = [c for c in new if c["h"] not in seen]
@@ -213,7 +213,7 @@ def _parse_log(text: str) -> list[dict[str, Any]]:
 
 
 def _git_commits(repo: Path) -> list[dict[str, Any]]:
-    commits = _parse_log(_git(repo, ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"], GIT_FULL_TIMEOUT_S))
+    commits = _parse_log(_git(repo, ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"], GIT_FULL_TIMEOUT_S))
     commits.sort(key=lambda c: c["t"])
     return commits
 
