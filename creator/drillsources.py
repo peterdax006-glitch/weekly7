@@ -61,6 +61,18 @@ class BItem:
 
 # ------------------------------------------------------------------------------------------------ the generic time-ordered binary model
 def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
+    """The compiled loop (creator.fastwalk, numba; same predictions as walk_forward_reference, tests/test_fastwalk.py) when available,
+    else the reference."""
+    try:
+        from creator import fastwalk as FW
+        if FW.enabled():
+            return list(FW.walk_forward(items, topic, decay, k, agg, cap))
+    except Exception:                                                  # noqa: BLE001 - never lose a drill to the accelerator
+        pass
+    return walk_forward_reference(items, topic, decay, k, agg, cap)
+
+
+def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
     """Predict each resolved item at its creation time using only items resolved strictly before; learn from every resolution as it happens.
     Per feature key a decayed (n, positives); p = mean over the item's keys of (pos_k + k*global)/(n_k + k). Baselines: running base rate, last value."""
     ev: list[tuple[float, int, int]] = []                    # (time, 0=resolve first / 1=create, index)
