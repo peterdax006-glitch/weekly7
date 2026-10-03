@@ -43,6 +43,7 @@ CAPABILITIES: dict[str, str] = {
     "judgment": "creator.judgment",
     "fastpred": "creator.fastpred",
     "reasonmethods": "creator.reasonmethods",
+    "reasondrills": "creator.reasondrills",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
     "thinkbench": "creator.thinkbench",

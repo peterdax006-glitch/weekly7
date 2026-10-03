@@ -420,10 +420,21 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
         rep["fast_topics"] = REG.get("fastpred").trust_section(state)     # fast-resolving prospective topics, same gate (creator.fastpred)
     except Exception as e:                                           # noqa: BLE001 - a missing drill module never breaks the trust report
         rep["drills_error"] = f"{type(e).__name__}: {e}"
+    rep["reasoning"] = reasoning_section(state)
     if write:
         state.mkdir(parents=True, exist_ok=True)
         (state / "trust.json").write_text(json.dumps(rep, indent=1, sort_keys=True), encoding="utf-8")
     return rep
+
+
+def reasoning_section(state: Path) -> dict[str, Any]:
+    """The reasoning drills' report (creator.reasondrills: per-strategy accuracy on fresh multiple-choice questions, CIs vs chance and vs the
+    plain prompt, the epoch curve, the fresh-question supply). A reader only: it is not a trust topic and never enters the gate."""
+    try:
+        from creator import registry as REG
+        return dict(REG.get("reasondrills").report_section(state))
+    except Exception as e:                                           # noqa: BLE001 - a missing/broken module never breaks the trust report
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 def independent(state: Path, topic: str) -> bool:

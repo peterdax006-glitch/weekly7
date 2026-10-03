@@ -145,11 +145,12 @@ def make_filler():                                        # type: ignore[no-unty
         if focus is not None and focus.current(STATE) == "thinking":
             drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
                                                           ROOT / "state" / "research", processes=True)   # every core, not one (GIL)
-            try:
-                judge = REG.get("judgment").judgment_filler(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1)))
-            except Exception as e:                        # noqa: BLE001 - judgment is optional; the drills still run
-                print(f"JUDGMENT filler unavailable: {type(e).__name__}: {e}", flush=True)
-                judge = None
+            models = []                                   # local-model batches: judgment, and (3 Oct 2026) the reasoning drills
+            for name, make in (("judgment", "judgment_filler"), ("reasondrills", "reasoning_filler")):
+                try:
+                    models.append(getattr(REG.get(name), make)(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1))))
+                except Exception as e:                    # noqa: BLE001 - optional; the drills still run
+                    print(f"{name.upper()} filler unavailable: {type(e).__name__}: {e}", flush=True)
 
             def next_job():                               # type: ignore[no-untyped-def]
                 now = time.time()
@@ -161,12 +162,13 @@ def make_filler():                                        # type: ignore[no-unty
                     import subprocess
                     return lambda: subprocess.run([sys.executable, str(ROOT / "scripts" / "nupen_blueprint.py"), "--state", str(STATE)],
                                                   capture_output=True, timeout=1800, cwd=ROOT)
-                _THINK_LAST["n"] = _THINK_LAST.get("n", 0) + 1
-                if judge is not None and _THINK_LAST["n"] % 3 == 0:        # every third call: a local-model judgment batch (RAM-heavy; admission decides)
-                    j = judge()
+                n = _THINK_LAST["n"] = _THINK_LAST.get("n", 0) + 1
+                k = n // 3 % max(1, len(models))          # every third call a model batch first (RAM-heavy; admission decides), in turns
+                for f in ((models[k:] + models[:k]) if n % 3 == 0 else []) + [drills] + models:
+                    j = f()
                     if j is not None:
                         return j
-                return drills() or (judge() if judge is not None else None)
+                return None
             return next_job
     except Exception as e:                                # noqa: BLE001 - a broken thinking module never stops the swarm
         print(f"THINKING filler unavailable: {type(e).__name__}: {e}", flush=True)
