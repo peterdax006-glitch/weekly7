@@ -204,6 +204,15 @@ def _lm_log(msg: str) -> None:
         f.write(f"{dt.datetime.now().isoformat(timespec='seconds')} {msg}\n")
 
 
+def owner_idle_seconds(W: Any) -> Any:                                    # type: ignore[no-untyped-def]
+    """How the LM trainer and practice see the owner. With user_aware off (owner, 2 Oct 2026, new PC: "whenever my computer is
+    on Nupen is building itself no matter what ... utilizing all but 1 GB") they never wait for the owner to be idle - only the
+    RAM rule (min_free_gb) and NUPEN_STOP still apply."""
+    if DEV.settings()["user_aware"]:
+        return W.user_idle_seconds
+    return lambda: float("inf")
+
+
 class LMTrainer:
     """Runs `nupen_lm.py train` only while the machine is idle, at most one at a time. `tick()` is called every poll."""
 
@@ -212,7 +221,7 @@ class LMTrainer:
                  grace_s: float = LM_GRACE_S, restart_gap_s: float = LM_RESTART_GAP_S, blocked=None) -> None:    # type: ignore[no-untyped-def]
         if idle is None or free_gb is None:
             from creator import swarm as W
-            idle, free_gb = idle or W.user_idle_seconds, free_gb or W.free_ram_gb
+            idle, free_gb = idle or owner_idle_seconds(W), free_gb or W.free_ram_gb
         self.python, self.idle, self.free_gb, self.clock, self.log = python, idle, free_gb, clock, log
         self.spawn = spawn or self._spawn
         self.stop_tree = stop or stop_tree
@@ -326,7 +335,7 @@ class PracticeRunner:
                  minutes: int = PRACTICE_MINUTES) -> None:
         if idle is None or free_gb is None:
             from creator import swarm as W
-            idle, free_gb = idle or W.user_idle_seconds, free_gb or W.free_ram_gb
+            idle, free_gb = idle or owner_idle_seconds(W), free_gb or W.free_ram_gb
         venv = ROOT / ".venv" / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
         self.python = python or str(venv if venv.exists() else sys.executable)
         self.idle, self.free_gb, self.clock, self.log = idle, free_gb, clock, log

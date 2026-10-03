@@ -30,6 +30,11 @@ from creator import schedule as SCHED
 from creator.ledger import Ledger
 
 
+def _free_disk_gb() -> float:
+    import shutil
+    return shutil.disk_usage(Path(__file__).resolve().parents[1]).free / 2**30
+
+
 def free_ram_gb() -> float:
     try:
         import psutil
@@ -189,6 +194,15 @@ class Governor:
     test_parallel: int = 0                              # test processes ONE worker's evaluation runs side by side (0 = not counted)
     eval_reserve: Callable[[int, int, int], float] = TS.eval_reserve_gb   # (running, test_parallel, extra) -> GB set aside
     idle: Optional[Callable[[], float]] = None          # seconds since the owner's last input (None = user_idle_seconds)
+    disk_floor_gb: float = 1.0                          # owner, 2 Oct 2026: use the storage too, "except a single GB"
+    free_disk: Optional[Callable[[], float]] = None     # free GB on the repo's drive (None = shutil.disk_usage)
+
+    def disk_ok(self) -> bool:
+        try:
+            free = self.free_disk() if self.free_disk is not None else _free_disk_gb()
+        except OSError:
+            return True                                 # unknown: never block work on a failed measurement
+        return free >= self.disk_floor_gb
 
     def floor(self) -> float:
         frac = self.floor_fraction
@@ -206,7 +220,7 @@ class Governor:
         return self.eval_reserve(running, self.test_parallel, extra)
 
     def can_start(self, running: int) -> bool:
-        return (running < self.max_workers
+        return (running < self.max_workers and self.disk_ok()
                 and self.free() - self.estimate(running) - self.reservation(running) >= self.floor())
 
     def too_tight(self) -> bool:

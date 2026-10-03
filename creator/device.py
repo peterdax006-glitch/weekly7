@@ -236,11 +236,23 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "lm_threads": max(1, dev.cores_physical // 2),
         "lm_min_free_gb": round(max(LM_FREE_MIN_GB, LM_FREE_FRACTION * dev.ram_gb), 1),
         "torch_device": "cuda" if cuda else "cpu",
+        "disk_floor_gb": 1.0,                            # never start new work with less free disk than this
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
         if k in out:
             out[k] = v
+    target = ov.get("ram_use_target_gib")
+    if target:
+        # owner, 2 Oct 2026: "we want to use 29 GB 24/7 you as claude get to use what you need then Nupen uses the rest" -
+        # GB as Task Manager shows it (GiB). Everything running (Nupen, Claude, the rest) may fill RAM up to the target; the
+        # free floor is what remains of THIS machine. Free RAM is measured, so whatever Claude uses is simply not Nupen's.
+        out["governor_floor_fraction"] = 0.0
+        out["governor_floor_min_gb"] = max(0.5, round(dev.ram_gb - float(target) * 1.073741824, 2))
+    if out["user_aware"] is False and "test_slots" not in ov:
+        # owner, 2 Oct 2026 (new PC): "use all of it except a single GB" - with no yielding, the per-slot RAM guess is not the
+        # limit; every slot is still admitted only while measured free RAM minus the floor holds one more test (testslots)
+        out["test_slots"] = max(1, dev.cores_logical)
     return out
 
 

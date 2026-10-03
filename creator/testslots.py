@@ -96,9 +96,19 @@ def record_mb(peak_mb: float) -> None:
         pass
 
 
+def reserve_gb(total_gb: float) -> float:
+    """The RAM kept free: the Governor's own floor from device settings (one source of truth - 2 Oct: a separate 7% here kept
+    2.4 GB free on the 33.8 GB machine when the owner asked for 1 GB). Falls back to the defaults if settings are unreadable."""
+    try:
+        s = _device().settings()
+        return max(float(s["governor_floor_min_gb"]), float(s["governor_floor_fraction"]) * total_gb)
+    except Exception:                                   # noqa: BLE001 - the budget never breaks a test launch
+        return max(RESERVE_MIN_GB, RESERVE_FRACTION * total_gb)
+
+
 def affordable(free_gb: float, total_gb: float, mb: float) -> bool:
     """May one MORE test process start? True while free RAM minus the reserve still holds one measured test process."""
-    return free_gb - max(RESERVE_MIN_GB, RESERVE_FRACTION * total_gb) >= mb / 1024.0
+    return free_gb - reserve_gb(total_gb) >= mb / 1024.0
 
 
 def eval_reserve_gb(running: int, test_parallel: int, extra: int = 1) -> float:

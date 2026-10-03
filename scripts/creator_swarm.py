@@ -146,7 +146,8 @@ def main(argv: list[str]) -> int:
     def make_worker() -> "SW.SelfFirst":                                   # students, own workers, then (recorded) the session
         return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, floor_min_gb=a.floor_min_gb, max_workers=a.max_workers,
-                     user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel)
+                     user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel,
+                     disk_floor_gb=float(DEV.settings().get("disk_floor_gb", 1.0)))
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0
