@@ -183,7 +183,7 @@ class Governor:
     ramp_s: float = 15.0                            # a new worker/filler only after the last one's memory can show (1 Oct run9:
                                                     # 40 fillers started back to back before RAM fell, then free RAM hit 9 MB)
     per_worker_gb: float = 0.4                      # only until real worker memory has been measured
-    burst_gb: float = 1.0                           # filler_ramped: what each start inside one ramp window is assumed to take
+    burst_gb: Optional[float] = None                # filler_ramped: None = plain spacing; else what each start inside one ramp window is assumed to take
     max_workers: int = 32
     free: Callable[[], float] = free_ram_gb
     total: Callable[[], float] = total_ram_gb
@@ -230,6 +230,8 @@ class Governor:
         CPU 29-65%, 19 GB free. When RAM is short the plain spacing holds (1 Oct run9: 40 heavy starts back to back, free RAM 9 MB)."""
         if since_last >= self.ramp_s:
             return True
+        if self.burst_gb is None:                       # opt-in (the live swarm, thinking focus only): heavy fillers keep the spacing
+            return False
         return self.free() - self.floor() >= (recent_starts + 1) * max(self.burst_gb, self.estimate(running))
 
     def too_tight(self) -> bool:
