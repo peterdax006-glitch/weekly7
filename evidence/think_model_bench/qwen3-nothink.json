@@ -1,0 +1,628 @@
+{
+ "name": "qwen3-1.7b-nothink",
+ "model": "C:\\Users\\peter\\creator_runtime\\models\\Qwen3-1.7B-Q4_K_M.gguf",
+ "bytes": 1107409472,
+ "speed": {
+  "4": {
+   "load_s": 5.4,
+   "rss_gb": 2.62,
+   "tok_per_s": [
+    5.04,
+    6.07
+   ]
+  },
+  "7": {
+   "load_s": 10.6,
+   "rss_gb": 2.62,
+   "tok_per_s": [
+    6.77,
+    9.16
+   ]
+  },
+  "11": {
+   "load_s": 4.2,
+   "rss_gb": 2.62,
+   "tok_per_s": [
+    6.97,
+    3.68
+   ]
+  }
+ },
+ "judgment": [
+  {
+   "topic": "verdict",
+   "subject": "CP0057",
+   "y": 0,
+   "p": 0.1,
+   "s": 27.0,
+   "reply": "The event rate for this requirement kind is 0.10, and the last 8 outcomes include 1 event. The record suggests a higher probability of the event occurring. PROBABILITY: 0.10."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0058",
+   "y": 0,
+   "p": 0.03,
+   "s": 20.0,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0059",
+   "y": 0,
+   "p": 0.03,
+   "s": 30.4,
+   "reply": "The last 8 outcomes for this requirement type are [0, 0, 0, 0, 0, 1, 0, 0], indicating 1 event out of 8. The event rate is 0.00. Since the event rate is 0.00, the probability is 0.00. PROBABILITY: 0.0"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0060",
+   "y": 0,
+   "p": 0.08,
+   "s": 21.4,
+   "reply": "The event rate for this requirement kind is 0.09, and the last 8 outcomes show 1 event. Since the event rate is lower than the overall rate, the probability of the event occurring is slightly below th"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0065",
+   "y": 0,
+   "p": 0.03,
+   "s": 16.9,
+   "reply": "The event rate for this requirement kind is 0.00, meaning the event (kernel ADOPTing the result) is never observed. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0083",
+   "y": 0,
+   "p": 0.03,
+   "s": 33.2,
+   "reply": "The event rate for this requirement type is 0.00, based on the record of 11 cases with no events. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0091",
+   "y": 0,
+   "p": 0.1,
+   "s": 47.9,
+   "reply": "The event rate based on the last 8 outcomes (0.19) suggests a probability of adoption. Since the last 8 outcomes were all 0s, the probability is estimated based on the trend. PROBABILITY: 0.10"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0094",
+   "y": 0,
+   "p": 0.125,
+   "s": 19.1,
+   "reply": "The event rate based on the last 8 outcomes (0.19) suggests a probability of adoption. Since the last 8 outcomes had 1 event, the probability is calculated as (1/8) = 0.125. PROBABILITY: 0.125."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0105",
+   "y": 0,
+   "p": 0.03,
+   "s": 18.6,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0110",
+   "y": 0,
+   "p": 0.03,
+   "s": 14.4,
+   "reply": "The event rate for 'coverage' requirement kinds is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0113",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.2,
+   "reply": "The event rate for 'coverage' requirement kinds is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0114",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.2,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0115",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.9,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0116",
+   "y": 0,
+   "p": 0.03,
+   "s": 11.4,
+   "reply": "The event rate for 'coverage' requirements is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0118",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.9,
+   "reply": "The event rate for this requirement kind is 0.00, indicating no historical occurrence. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0120",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.6,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0126",
+   "y": 0,
+   "p": 0.03,
+   "s": 7.5,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0128",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.5,
+   "reply": "The event rate for 'coverage' requirement kinds is 0.00, indicating no past events. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0138",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.7,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0144",
+   "y": 0,
+   "p": 0.03,
+   "s": 6.4,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0147",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.1,
+   "reply": "The event rate for this requirement type is 0.00, based on the record of 18 cases with no events. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0148",
+   "y": 0,
+   "p": 0.03,
+   "s": 19.1,
+   "reply": "The event rate for this requirement type is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0150",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.4,
+   "reply": "The event rate for this requirement kind is 0.00, indicating no past occurrences. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0152",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.9,
+   "reply": "The event rate for 'coverage' requirement kinds is 0.00, indicating no past events. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5ce2d0e150",
+   "y": 0,
+   "p": 0.97,
+   "s": 17.9,
+   "reply": "The commit message indicates that the file `.gitignore` is being untracked, which suggests that the file is being removed or ignored. Since the event rate for commits that untrack files is 1.00, and t"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "84bd3ec214",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.2,
+   "reply": "The event rate for 'm:engine' is 0.00, meaning the event never occurs. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "ba05a67c0d",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.0,
+   "reply": "The event rate for 'm:engine' commits is 0.00, indicating no occurrences of the event. Therefore, the probability is 0.00. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "abbc5b6ed4",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.3,
+   "reply": "The commit has a high probability of being affected by a later fix or revert, given the low event rate and the recent commit. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "da09420486",
+   "y": 0,
+   "p": 0.03,
+   "s": 12.9,
+   "reply": "The commit has a low event rate (0.00) for 'm:engine' cases. Given the consistent lack of events in the last 8 outcomes, the probability of a later fix or revert commit touching one of its files withi"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "f12cb76d30",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.7,
+   "reply": "The event rate for 'm:engine' is 0.00, indicating no occurrences of the event in the record. Therefore, the probability is 0.00. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "59d66cfa7d",
+   "y": 0,
+   "p": 0.03,
+   "s": 10.8,
+   "reply": "The event rate for 'm:engine' is 0.00, meaning the event never occurs. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "adaf78c09b",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.0,
+   "reply": "The event rate for 'm:engine' is 0.00, meaning the event never occurs. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5d6a257aa6",
+   "y": 0,
+   "p": 0.03,
+   "s": 8.2,
+   "reply": "The event rate for 'm:engine' is 0.00, meaning no such events have occurred so far. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "57d9803e33",
+   "y": 1,
+   "p": 0.03,
+   "s": 19.6,
+   "reply": "The commit message indicates a change to the owner field, which is a known event type. Given the event rate of 0.00 for 'm:owner' cases, the probability of a later fix or revert commit touching its fi"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "66d0ef93c1",
+   "y": 0,
+   "p": 0.97,
+   "s": 31.1,
+   "reply": "The commit message indicates a fix for a specific issue, and the event rate for 'm:test' is 1.00. Since the last 8 outcomes were all 0, the probability of an event in the next 20 commits is 1.00. PROB"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "832dd7facf",
+   "y": 1,
+   "p": 0.03,
+   "s": 25.0,
+   "reply": "The commit message indicates a change to the file system (n:2, l:6), suggesting a file was modified. Given the event rate of 1.00 for 'm:use' cases, the probability of a later fix or revert commit tou"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5c9efcae6e",
+   "y": 1,
+   "p": 0.05,
+   "s": 18.8,
+   "reply": "The commit message indicates a change to the machine configuration, which is likely to affect files related to the machine setup. Given the previous pattern of 0s (no events) in the last 8 outcomes, t"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "15ccb33b74",
+   "y": 0,
+   "p": 0.25,
+   "s": 20.2,
+   "reply": "The commit message indicates a \"WIP (not deployed)\" scenario, which is a common pattern for pending work. Given the event rate of 0.25 and the last 8 outcomes including a 1 (event), the probability of"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "7cf4528569",
+   "y": 1,
+   "p": 0.25,
+   "s": 12.4,
+   "reply": "The event rate based on the last 8 outcomes (0.25) suggests a probability of 0.25 for the event occurring. PROBABILITY: 0.25"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "29f8d3c37f",
+   "y": 1,
+   "p": 0.15,
+   "s": 13.0,
+   "reply": "The event rate is 0.25, and the last 8 outcomes have 1 event. The probability of the event occurring within 20 commits is estimated based on the prior pattern. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "4d64e89f2a",
+   "y": 1,
+   "p": 0.05,
+   "s": 11.5,
+   "reply": "The event rate based on the last 8 outcomes (0.25) and the current record suggests a low probability. PROBABILITY: 0.05"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "1ddc37fd70",
+   "y": 0,
+   "p": 0.25,
+   "s": 19.9,
+   "reply": "The event rate is 0.25, and the last 8 outcomes were [0, 0, 1, 0, 0, 0, 0, 0]. The probability of an event in the next 20 commits is estimated based on the rate and the history. PROBABILITY: 0.25."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "1ba1822b41",
+   "y": 0,
+   "p": 0.03,
+   "s": 12.5,
+   "reply": "The event rate for 'm:planner' is 0.00, so the probability of the event occurring is 0.00. PROBABILITY: 0.00."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "e004299bec",
+   "y": 1,
+   "p": 0.25,
+   "s": 18.7,
+   "reply": "The commit introduces new files (n:3) and changed lines (l:10). The event rate is 0.25, and the last 8 outcomes include 1 event. The probability of an event in the next 20 commits is estimated based o"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "9e97f90edf",
+   "y": 0,
+   "p": 0.25,
+   "s": 15.9,
+   "reply": "The event rate is 0.25, and the last 8 outcomes were [0, 0, 0, 0, 0, 0, 1, 0]. The current commit is the 651st resolved case. The probability of an event within 20 commits is estimated based on the ra"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "bb961eb078",
+   "y": 0,
+   "p": 0.15,
+   "s": 16.5,
+   "reply": "The commit message indicates changes to server slots and resource management, which may affect files related to the system. Given the event rate and the past record, the probability is estimated as 0."
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "b3e055d4ca",
+   "y": 0,
+   "p": 0.11,
+   "s": 18.6,
+   "reply": "The commit message indicates a change in the creator field, which is a distinct category from the previous event type. Since the event rate for 'm:other' is 0.11, and the current commit falls into thi"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "ebd5d0666d",
+   "y": 0,
+   "p": 0.25,
+   "s": 13.0,
+   "reply": "The event rate is 0.25, and the last 8 outcomes have 1 event. The probability of an event in the next 20 commits is estimated based on the rate and the observed pattern. PROBABILITY: 0.25."
+  }
+ ],
+ "mc": [
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K23 oversight: goal drift, knowledge gaps, critical path (C77 CR057, CR059, CR083).\"\n\nWhich module does the test file cover?\nA. creator/kernel.py - Creator K14 - the self-development kernel loop (C77 secs 10, 20-29, 44-46, 59-61, 64; package CR14) - IMPLEMENTED, NOT VALIDATED.\nB. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.\nC. creator/oversight.py - Creator K23 - oversight: the system watches its own direction (C77 checklist CR057 goal drift, CR059 knowledge gaps, CR083 critical path) - \nD. creator/model.py - Creator K01 data model (C77 secs 7, 13, 18, 22, 30, 31, 35, 37, 63, 71; package CR01) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": "C",
+   "s": 22.9,
+   "reply": "The test file mentions \"K23 oversight\" and references specific issues like \"goal drift, knowledge gaps, critical path\" related to CR057, CR059, and CR083. This indicates that the test file is related "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator/recon.py (C77 Phase 0, CR001-CR036): every reconnaissance section is COMPUTED from the tree, changes when the tree changes, and a ledger of another tree is stale. Runs on a small synthetic git repository.\"\n\nWhich module does the test file cover?\nA. creator/curriculum.py - Nupen is the student learning to think for itself; Claude is the teacher who thinks for it until it can.\nB. creator/focus.py - FOCUS MODE (owner, 2 Oct 2026: \"we want to prioritize thinking right now, have Nupen work solely on thinking until its opinion is trust wort\nC. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nD. creator/recon.py - C77 sec 6 - Phase 0 reconnaissance, COMPUTED from a repository tree (checklist CR001-CR031).",
+   "answer": "D",
+   "got": "D",
+   "s": 16.2,
+   "reply": "The test file mentions \"creator/recon.py\" and refers to a \"reconnaissance\" process, which is typically associated with the \"recon.py\" module in the given options. The description also includes \"C77 Ph"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR207/CR208: independent reproduction on temporary git repos + ledgers (chain, evidence, verdict recompute, ADOPT commits, rerun).\"\n\nWhich module does the test file cover?\nA. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nB. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nC. creator/testrun.py - K06 test stage (CR03; canon C77 sec 24-25 test execution, sec 29 version comparison, sec 46 regression protection).\nD. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "B",
+   "got": "B",
+   "s": 13.3,
+   "reply": "The test file describes a system that involves independent reproduction on temporary git repos and ledgers, which suggests it is related to the reproduction of critical results. This aligns with optio"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K21: the system's own workers - it works on itself with no AI (owner, 1 Oct 2026).\"\n\nWhich module does the test file cover?\nA. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nB. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nC. creator/selfworkers.py - Creator K21 - the system's OWN workers: it works on itself with no AI at all (owner, 1 Oct 2026: \"it should work toward the level where it w\nD. creator/treecache.py - Test results keyed by the whole git tree they ran on.",
+   "answer": "C",
+   "got": "C",
+   "s": 10.9,
+   "reply": "The test file describes a module called \"creator/selfworkers.py,\" which refers to the system's own workers. The description mentions that it works on itself with no AI and is owned by the system. This"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"The model-backed student: retrieval of adopted lessons, prompt, edit application, safety, SFT export (FakeLLM, no server).\"\n\nWhich module does the test file cover?\nA. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.\nB. creator/evaluate.py - Creator K10 - evaluation and improvement measurement (C77 secs 30-32, 35, 49-56; package CR06) - IMPLEMENTED, NOT VALIDATED.\nC. creator/action_student.py - Nupen's model student v2: the small local model CHOOSES among exact program transformations instead of writing edits.\nD. creator/drillsources.py - MORE THINKING DATA and PARALLEL DRILL JOBS (owner, 2 Oct 2026: \"Nupen should use all the data it has access to just to have as many agents a",
+   "answer": "A",
+   "got": "A",
+   "s": 29.8,
+   "reply": "The test file describes a model-backed student that retrieves lessons, prompts, and edits, with no server and using FakeLLM. This suggests a local model, which is consistent with option A. Option C me"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR208: the claims register. Every major claim has evidence refs and a recomputation; a claim without recomputable evidence, or a fabricated one, is UNSUPPORTED. Temporary repos and ledgers.\"\n\nWhich module does the test file cover?\nA. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nB. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nC. creator/ledger.py - Creator K01 - the development ledger (C77 secs 7, 22, 30, 35, 37, 58-61; package CR01) - IMPLEMENTED, NOT VALIDATED.\nD. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "D",
+   "got": "D",
+   "s": 34.8,
+   "reply": "The test file describes a \"claims register\" with evidence refs and recomputation rules, which directly matches the description in option D. The claims register is explicitly mentioned in the file desc"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR08: gap analysis from evidence (C77 secs 14, 41, 42). A TEMPORARY project tree; test results are real pytest runs.\"\n\nWhich module does the test file cover?\nA. creator/gaps.py - Creator K04 - gap analysis (C77 secs 14, 41, 42; package CR08) - IMPLEMENTED, NOT VALIDATED.\nB. creator/autotune.py - Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: \"get it to the point where the system knows the goal and the\nC. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nD. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.",
+   "answer": "A",
+   "got": "A",
+   "s": 21.2,
+   "reply": "The test file describes a \"gap analysis\" from evidence, with a reference to C77 secs 14, 41, 42, and mentions a \"TEMPORARY project tree\" and \"test results are real pytest runs.\" This suggests the test"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator.conversation: every intent answers from PLANTED records with the right numbers and cites evidence; unknown input is admitted; a request is a pending owner proposal; pause/resume/approve act only after confirmation; exchanges are logged and exportable.\"\n\nWhich module does the test file cover?\nA. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).\nB. creator/conversation.py - Nupen terminal conversation, LAYER 1: rule-based understanding, answers only from Nupen's own records (owner 2 Oct 2026).\nC. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nD. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.",
+   "answer": "B",
+   "got": "B",
+   "s": 14.5,
+   "reply": "The test file describes a system where intents are handled by PLANTED records, unknown input is admitted, and exchanges are logged. This suggests a conversation-based module. The description also ment"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Reasoning procedure (creator.reasoning): it reaches the work package with recalled lessons, predictions are stored against measured effects and scored, stop rules refuse repeated failures, and missing optional modules never break planning.\"\n\nWhich module does the test file cover?\nA. creator/reasoning.py - Nupen's THINKING PROCEDURE (owner, 2 Oct 2026: \"exactly how to know what to do ... find all the fundamentals of how an ai should think ... s\nB. creator/swarmops.py - Swarm housekeeping, loaded on demand (sparse activation: not part of the kernel's or the swarm's start-time load).\nC. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.\nD. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.",
+   "answer": "A",
+   "got": "A",
+   "s": 13.0,
+   "reply": "The test file describes a reasoning procedure that involves recalling lessons, storing predictions, scoring based on measured effects, and handling stop rules and missing modules. This suggests it is "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR K08: the design component.\"\n\nWhich module does the test file cover?\nA. creator/design.py - K08 design: N alternative designs per decision, assumptions, failure modes, cost/risk, adversarial critique, explicit selection criteria, re\nB. creator/replay_student.py - Replay: re-apply a teacher solution that was never measured (Nupen's curriculum; 2 Oct 2026).\nC. creator/modelpool.py - Warm model-server pool (owner, 2 Oct 2026: \"as long as my computer is on Nupen should be maxing my computer out\"; CPU is full while RAM sits\nD. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).",
+   "answer": "A",
+   "got": "A",
+   "s": 11.3,
+   "reply": "The test file description \"CR K08: the design component\" suggests that the file is related to a design component, which is likely part of a larger system or module. The options mention different modul"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR07: objectives and the requirement compiler (C77 secs 2, 12, 13).\"\n\nWhich module does the test file cover?\nA. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nB. creator/testgen.py - Creator CR093/CR096/CR098 - deterministic test generation, no AI (owner 1 Oct 2026: the Creator works on itself).\nC. creator/meta.py - K13 meta: development strategies as explicit parameterised policies, outcome tracking per problem class, strategy selection, and process-imp\nD. creator/synth.py - Creator K19 - deterministic program synthesis for function stubs (no LLM, no network).",
+   "answer": "A",
+   "got": "A",
+   "s": 14.2,
+   "reply": "The test file describes a module named \"CR07\" and mentions \"objectives and the requirement compiler (C77 secs 2, 12, 13)\", which suggests the test file is related to the module that implements these o"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K20b: the recursion's process is consumed by the worker and measured on a (here: fake) dev workload. No real devbench run.\"\n\nWhich module does the test file cover?\nA. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nB. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.\nC. creator/treecache.py - Test results keyed by the whole git tree they ran on.\nD. creator/generator.py - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independe",
+   "answer": "B",
+   "got": "B",
+   "s": 14.6,
+   "reply": "The test file describes a scenario where the recursion is consumed by the worker and measured on a fake dev workload, suggesting it is testing the worker's behavior. This aligns with the description o"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Evaluation-cost cut: passing results of a byte-identical clean git tree are served, never re-run - and every decision is the one a fresh run gives. All tests use a TEMPORARY git repository.\"\n\nWhich module does the test file cover?\nA. creator/treecache.py - Test results keyed by the whole git tree they ran on.\nB. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.\nC. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nD. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).",
+   "answer": "A",
+   "got": "D",
+   "s": 16.1,
+   "reply": "The test file describes a mechanism where tests are run based on a byte-identical git tree, and the results are used directly without re-running. This suggests that the test is focused on evaluating t"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"F7: the anticipation rate (top-level trust metric): honest matching, echo removal, backlog, drill, and its place in trust.json / BLUEPRINT.md.\"\n\nWhich module does the test file cover?\nA. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nB. creator/testrun.py - K06 test stage (CR03; canon C77 sec 24-25 test execution, sec 29 version comparison, sec 46 regression protection).\nC. creator/diskcache.py - Disk-persisted, content-keyed cache for pure per-file analyses (import graph, component scan).\nD. creator/anticipation.py - ANTICIPATION RATE - the top-level trust metric (owner, 2 Oct 2026: \"I want it to get smart enough where me talking is a waste because it alr",
+   "answer": "D",
+   "got": "D",
+   "s": 9.0,
+   "reply": "The test file describes a module named \"anticipation.py\" and mentions \"the anticipation rate\" as a top-level trust metric. This directly matches option D.\n\nANSWER: D"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator.resources: profiles, CPU/RAM-aware admission (fake machines), RAM work, and the resource_balance constraint.\"\n\nWhich module does the test file cover?\nA. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nB. creator/selfworkers.py - Creator K21 - the system's OWN workers: it works on itself with no AI at all (owner, 1 Oct 2026: \"it should work toward the level where it w\nC. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.\nD. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": "C",
+   "s": 15.2,
+   "reply": "The test file describes \"creator.resources\" and mentions CPU/RAM-aware admission and resource_balance, which suggests it is related to resource management. The correct module is C. \n\nANSWER: C"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR03: the Creator's sandbox (C77 secs 22-25, 28, 29, 44-46, 59-61). Every test uses a TEMPORARY git repository.\"\n\nWhich module does the test file cover?\nA. creator/sandbox.py - Creator K06 - the controlled environment for every autonomous code change (C77 secs 22-25, 28, 29, 44-46, 59-61; package CR03) - IMPLEMENTED\nB. creator/diskcache.py - Disk-persisted, content-keyed cache for pure per-file analyses (import graph, component scan).\nC. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nD. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.",
+   "answer": "A",
+   "got": "A",
+   "s": 20.9,
+   "reply": "The test file describes a test that uses a temporary git repository and refers to the \"Creator's sandbox\" with specific code sections. This suggests that the test is related to the Creator's sandbox m"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K22: several of the system's own workers in parallel on disjoint parts, sized by free RAM (owner, 1 Oct 2026).\"\n\nWhich module does the test file cover?\nA. creator/student.py - Creator student: an apprentice that LEARNS rewrite templates from Claude's adopted solved work packages (lessons) - no model.\nB. creator/swarm.py - Creator K22 - the swarm: several of the system's OWN workers at once, sized by free RAM (owner, 1 Oct 2026: \"my computer sometimes has avail\nC. creator/recursion.py - Creator K24 - recursive self-improvement of the DEVELOPMENT PROCESS (C77 sec 53-54; CR191-198) - IMPLEMENTED, NOT VALIDATED.\nD. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.",
+   "answer": "B",
+   "got": "B",
+   "s": 23.6,
+   "reply": "The test file describes several workers in parallel, sized by free RAM, which suggests a system with multiple independent processes. The mention of \"system's own workers\" indicates that the test file "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K20: the Creator's own worker inside the kernel - local model edits, tests decide (owner, 1 Oct 2026). Fake model.\"\n\nWhich module does the test file cover?\nA. creator/localworker.py - Creator K20 - the kernel's worker made of the Creator's OWN parts: the local model develops the Creator (owner, 1 Oct 2026: \"it can start wo\nB. creator/planner.py - Creator K09 - the planner: gaps -> work packages -> change proposals -> experiments (C77 secs 17-19, 63; package CR09) - IMPLEMENTED, NOT VA\nC. creator/synth.py - Creator K19 - deterministic program synthesis for function stubs (no LLM, no network).\nD. creator/efficiency.py - Creator K17 - self-efficiency: shrink its own code and memory (owner, 1 Oct 2026: \"constantly develop itself to shrink its own code down so ",
+   "answer": "A",
+   "got": "A",
+   "s": 16.7,
+   "reply": "The test file describes a module named \"K20\" with a description that mentions \"local model edits, tests decide\" and \"owner, 1 Oct 2026\". This suggests that the module is related to a local model and t"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Judgment drills with the local model: no future in the prompt, calibration only from earlier resolved records, successive halving, filler.\"\n\nWhich module does the test file cover?\nA. creator/evaluate.py - Creator K10 - evaluation and improvement measurement (C77 secs 30-32, 35, 49-56; package CR06) - IMPLEMENTED, NOT VALIDATED.\nB. creator/judgment.py - JUDGMENT DRILLS WITH THE LOCAL MODEL (owner, 2 Oct 2026: Nupen works solely on thinking until its opinion is trustworthy).\nC. creator/selfmodel.py - Creator K02 - the self-model, derived from evidence (C77 secs 11, 41, 42, 58; package CR02) - IMPLEMENTED, NOT VALIDATED.\nD. creator/device.py - What machine is Nupen running on, and what settings follow from it (owner, 2 Oct 2026: \"if there is anything that is device specific we need",
+   "answer": "B",
+   "got": "B",
+   "s": 12.0,
+   "reply": "The test file describes judgment drills with the local model, calibration from earlier records, and successive halving, which suggests the test covers the judgment process. This aligns with option B, "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR02: the Creator's evidence-derived self-model (C77 secs 11, 25, 41, 42).\"\n\nWhich module does the test file cover?\nA. creator/selfmodel.py - Creator K02 - the self-model, derived from evidence (C77 secs 11, 41, 42, 58; package CR02) - IMPLEMENTED, NOT VALIDATED.\nB. creator/replay_student.py - Replay: re-apply a teacher solution that was never measured (Nupen's curriculum; 2 Oct 2026).\nC. creator/drillsources.py - MORE THINKING DATA and PARALLEL DRILL JOBS (owner, 2 Oct 2026: \"Nupen should use all the data it has access to just to have as many agents a\nD. creator/devbench.py - Creator K15 - devbench: the SEALED development-task suite that measures the Creator (C77 secs 30-32, 49-56, 77; package CR05) - IMPLEMENTED,",
+   "answer": "A",
+   "got": "A",
+   "s": 11.6,
+   "reply": "The test file describes a module named \"CR02\" and mentions \"the Creator's evidence-derived self-model\" from specific sections. This indicates that the test file covers the self-model part of the Creat"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"F7: focus mode. In thinking focus efficiency work is not planned; only drills and thinking-capability development are.\"\n\nWhich module does the test file cover?\nA. creator/focus.py - FOCUS MODE (owner, 2 Oct 2026: \"we want to prioritize thinking right now, have Nupen work solely on thinking until its opinion is trust wort\nB. creator/generator.py - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independe\nC. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nD. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.",
+   "answer": "A",
+   "got": "D",
+   "s": 15.9,
+   "reply": "The test file describes a focus mode that emphasizes thinking and development without planning, which aligns with the goals.py module's description of proposing new capabilities from evidence. \n\nANSWE"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"The learned chooser: deterministic training, a planted signal is learned, no-signal outcomes are ignored, flag off = old behaviour.\"\n\nWhich module does the test file cover?\nA. creator/autotune.py - Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: \"get it to the point where the system knows the goal and the\nB. creator/student.py - Creator student: an apprentice that LEARNS rewrite templates from Claude's adopted solved work packages (lessons) - no model.\nC. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nD. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.",
+   "answer": "D",
+   "got": "D",
+   "s": 14.6,
+   "reply": "The test file describes a \"learned chooser\" that learns a planted signal, ignores no-signal outcomes, and uses old behavior. This suggests a module that is trainable and involves decision-making based"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR01: the Creator's development ledger (C77 secs 7, 30, 35, 59-61). Every refusal is tested on the case it exists for.\"\n\nWhich module does the test file cover?\nA. creator/planner.py - Creator K09 - the planner: gaps -> work packages -> change proposals -> experiments (C77 secs 17-19, 63; package CR09) - IMPLEMENTED, NOT VA\nB. creator/meta.py - K13 meta: development strategies as explicit parameterised policies, outcome tracking per problem class, strategy selection, and process-imp\nC. creator/ledger.py - Creator K01 - the development ledger (C77 secs 7, 22, 30, 35, 37, 58-61; package CR01) - IMPLEMENTED, NOT VALIDATED.\nD. creator/kernel.py - Creator K14 - the self-development kernel loop (C77 secs 10, 20-29, 44-46, 59-61, 64; package CR14) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": "C",
+   "s": 14.7,
+   "reply": "The test file refers to \"CR01: the Creator's development ledger\" and mentions \"C77 secs 7, 30, 35, 59-61,\" which suggests it is related to the development ledger. The module \"creator/ledger.py\" matche"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Sparse activation (owner, 2 Oct 2026): optional capabilities load on demand through creator.registry, and the kernel REJECTS an adopted change that grows what the kernel / swarm load at start (unless an eager dependency is the package's objective, justified on record).\"\n\nWhich module does the test file cover?\nA. creator/device.py - What machine is Nupen running on, and what settings follow from it (owner, 2 Oct 2026: \"if there is anything that is device specific we need\nB. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nC. creator/registry.py - Creator sparse activation (owner, 2 Oct 2026: \"format it in a way so you only ever run the code you are using to be RAM efficient so you can\nD. creator/thinking.py - THINKING DRILLS and the TRUST GATE (owner, 2 Oct 2026: \"train thinking until its opinion is trust worthy ... until it can reliably self mana",
+   "answer": "C",
+   "got": "C",
+   "s": 12.9,
+   "reply": "The test file mentions \"sparse activation\" and \"creator.registry,\" which are related to the creator module. The description also refers to \"kernel REJECTS an adopted change,\" which suggests the module"
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Past record: 22 resolved packages, 0.23 adopted. Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 01:17 UTC. Its written spec has 1509 characters and it lists 1 output files.\nB. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 00:34 UTC. Its written spec has 1509 characters and it lists 1 output files.\nWhich one was adopted?",
+   "answer": "A",
+   "got": "B",
+   "s": 26.9,
+   "reply": "The problem states that exactly one of the two packages was adopted by the kernel. The key detail is the timestamp of the package planning. Package B was planned at an earlier time (00:34 UTC) compare"
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'exists' (requirement K07.exists) is planned at 2026-10-01 06:37 UTC. Its written spec has 2155 characters and it lists 2 output files.\nB. A development package for requirement kind 'exists' (requirement K12.exists) is planned at 2026-10-01 09:28 UTC. Its written spec has 2153 characters and it lists 2 output files.\nWhich one was adopted?",
+   "answer": "B",
+   "got": "B",
+   "s": 29.5,
+   "reply": "The problem states that exactly one of the two packages was adopted by the kernel. The key detail is the timestamp of the packages. Package B was planned at 2026-10-01 09:28 UTC, which is later than p"
+  }
+ ],
+ "rss_quality_gb": 2.6
+}

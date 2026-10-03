@@ -27,6 +27,8 @@ SNAPSHOT = STATE_DIR / "device.json"
 OVERRIDES = STATE_DIR / "device_overrides.json"
 MODEL_FILE = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 MODEL_GB = 1.1                                       # that file's size; a bigger model passes its own size to derive()
+THINK_MODEL_FILE = "Qwen3-1.7B-Q4_K_M.gguf"          # the THINKING model's file in models/ (measured 3 Oct 2026: 22/24 vs 6/24 on test->module questions; models/MODELS.json)
+THINK_OVERHEAD_GB = 0.7                              # resident GiB of a server beyond its weights at ctx 8192 (1.1 GB file -> 1.8 measured)
 
 # Ratios that reproduce the settings the Creator ran with on the 16.8 GB / 8-core development machine.
 SERVER_GB = 1.8             # measured 2 Oct 2026 (33.8 GB PC): resident GiB of one local model server at ctx 8192 (1.69 at 4096, 2.02 at 16384)
@@ -91,6 +93,26 @@ def server_exe(rt: Optional[Path] = None) -> Path:
 
 def model_path(rt: Optional[Path] = None) -> Path:
     return (rt or runtime_dir()) / "models" / MODEL_FILE
+
+
+def think_model_path(cfg: Optional[Mapping[str, Any]] = None, rt: Optional[Path] = None) -> Optional[Path]:
+    """The THINKING model (judgment, reasoning, narrative) - separate from the fast code-edit model. Setting 'think_model' (a path, or a file
+    name inside models/) wins; else THINK_MODEL_FILE. None when none is configured or the file is not there (callers fall back to the fast model)."""
+    name = str((settings() if cfg is None else cfg).get("think_model") or "")
+    if not name:
+        return None
+    p = Path(name)
+    p = p if p.is_absolute() else (rt or runtime_dir()) / "models" / name
+    return p if p.is_file() else None
+
+
+def server_gb_for(model: Path) -> float:
+    """Resident GiB one server of this model needs (the fast model keeps its measured SERVER_GB)."""
+    try:
+        gb = model.stat().st_size / 2**30
+    except OSError:
+        return SERVER_GB
+    return max(SERVER_GB, round(gb + THINK_OVERHEAD_GB, 2))
 
 
 def venv_python(venv: Path, windowless: bool = False) -> Path:
@@ -240,6 +262,8 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "torch_device": "cuda" if cuda else "cpu",
         "disk_floor_gb": 1.0,                            # never start new work with less free disk than this
         "llama_servers": 1,                              # local model servers side by side (always-on: from RAM, below)
+        "think_model": THINK_MODEL_FILE,                 # the thinking model (file name in models/ or a path); '' = use the fast model
+        "think_servers": 0,                              # thinking-model servers allowed at once (from RAM, below)
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
@@ -256,6 +280,10 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         # SERVER_GB per server, up to 60% of RAM; every server gets >= 2 threads, so never more servers than half the logical
         # CPUs (measured: more oversubscription only slows every server and stretches start-up)
         out["llama_servers"] = max(1, min(dev.cores_logical // 2, int(dev.ram_gb * 0.6 / SERVER_GB)))
+    if out["think_model"] and "think_servers" not in ov:
+        # a thinking server is bigger than a fast one: as many as fit in 25% of RAM (at least one on a machine with >= 12 GB), at most 2;
+        # the moment-to-moment gate is the free-RAM check in generator.thinker()
+        out["think_servers"] = max(0, min(2, int(dev.ram_gb * 0.25 / max(model_gb, SERVER_GB)))) if dev.ram_gb >= 12 else 0
     if out["user_aware"] is False and "test_slots" not in ov:
         # owner, 2 Oct 2026 (new PC): "use all of it except a single GB" - with no yielding, the per-slot RAM guess is not the
         # limit; every slot is still admitted only while measured free RAM minus the floor holds one more test (testslots)
