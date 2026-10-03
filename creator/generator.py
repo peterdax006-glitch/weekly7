@@ -288,6 +288,7 @@ class LocalModel:
         self.job: Optional[_KillOnCloseJob] = None
         self.calls = 0
         self.seconds = 0.0
+        self.leased = False                                    # attached to a warm server of creator.modelpool (not ours to stop)
 
     def _command(self) -> list[str]:
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
@@ -296,7 +297,9 @@ class LocalModel:
     def __enter__(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
-        self._acquire_slot()                                   # a free server slot on this machine, or wait for one
+        self._acquire_slot()                                   # a warm pooled server, a free server slot on this machine, or wait for one
+        if self.leased:
+            return self
         try:
             try:
                 reap_stale_server(self.pidfile, self.exe)
@@ -384,6 +387,8 @@ class LocalModel:
                           self.base_pidfile.with_name(self.base_pidfile.stem + sfx + self.base_pidfile.suffix)))
         t0 = time.monotonic()
         while True:
+            if self._lease_warm():
+                return
             for i, (lock, pid) in enumerate(slots):
                 if i > 0 and not self._ram_allows_extra_server():     # an extra server is never worth a RAM pull-back
                     break
@@ -398,6 +403,21 @@ class LocalModel:
                 raise TimeoutError(f"all {self.servers} local model server slots stayed busy for {self.slot_wait_s:.0f}s")
             time.sleep(0.5)
 
+    def _lease_warm(self) -> bool:
+        """Attach to an idle server the swarm's pool keeps loaded (creator.modelpool; same model and context): no start-up paid."""
+        if not any(self.base_pidfile.parent.glob("llama_pool*.json")):       # no pool on this machine: nothing to import
+            return False
+        try:
+            from creator import registry as REG
+            got = REG.get("modelpool").lease(self.base_pidfile, self.model, self.ctx)
+        except Exception:                                      # noqa: BLE001 - a broken pool means a normal start
+            return False
+        if got is None:
+            return False
+        self.port, self.lock, _ = got
+        self.leased = True
+        return True
+
     def _ram_allows_extra_server(self) -> bool:
         """Free RAM minus one more server (DEV.SERVER_GB, measured) must stay above the Governor's floor (device settings)."""
         from creator import testslots
@@ -411,6 +431,10 @@ class LocalModel:
             return False
 
     def _stop(self) -> None:
+        if self.leased:                                        # the pool owns the server: only give the lease back
+            self.leased = False
+            self.lock.release()
+            return
         proc, self.proc = self.proc, None
         self._unmark_starting()
         try:
