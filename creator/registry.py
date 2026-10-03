@@ -40,6 +40,7 @@ CAPABILITIES: dict[str, str] = {
     "thinking": "creator.thinking",
     "drillsources": "creator.drillsources",
     "judgment": "creator.judgment",
+    "reasonmethods": "creator.reasonmethods",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
 }

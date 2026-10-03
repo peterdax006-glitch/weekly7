@@ -22,16 +22,27 @@ import json
 import math
 import re
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
 from creator import drillsources as D
+from creator import reasonmethods as RM
 from creator import thinking as T
 
 TOPICS = ("verdict", "git_fixed")
 STRATEGIES = [{"shots": s, "hint": h} for s in (0, 2, 5) for h in (0, 1)]
 HALVING = ((8, 4), (20, 2), (40, 1))              # (common subjects scored, strategies kept)
+# Reasoning methods (creator.reasonmethods): retrieval memory, structured template, self-consistency, teacher traces, and the model-free kNN control.
+EXTRA_STRATEGIES: list[dict[str, Any]] = [
+    {"shots": 0, "hint": 1, "retrieve": 4}, {"shots": 2, "hint": 1, "retrieve": 4}, {"shots": 0, "hint": 1, "retrieve": 4, "structured": 1},
+    {"shots": 0, "hint": 1, "structured": 1}, {"shots": 0, "hint": 1, "retrieve": 4, "samples": 3}, {"shots": 0, "hint": 1, "traces": 3},
+    {"shots": 0, "hint": 1, "retrieve": 4, "traces": 2, "structured": 1}, {"shots": 0, "hint": 1, "retrieve": 6, "plans": 1}, {"knn": 8},
+]
+ALL_STRATEGIES = STRATEGIES + EXTRA_STRATEGIES
+HALVING_ALL = ((8, 10), (16, 6), (24, 3), (40, 2), (60, 1))   # the wider pool is cut more gently: new methods get a fair number of subjects first
+SAMPLE_T = 0.7
 MAX_SUBJECTS = 300
 BATCH = 4                                          # model calls per job (one server lease each)
 MIN_CAL = 15                                       # earlier records needed before Platt scaling replaces the raw probability
@@ -85,7 +96,7 @@ def history(cases: Sequence[Case], c: Case) -> list[Case]:
     return sorted((x for x in cases if x.resolved < c.created), key=lambda x: x.resolved)
 
 
-def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case) -> list[dict[str, str]]:
+def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index: Optional[RM.Index] = None) -> list[dict[str, str]]:
     hist = history(cases, c)
     sys_msg = ("You are a careful forecaster for a software-development system. You estimate the probability that the event in the question "
                "happens, from the case and the past record only. Answer with ONE short line of reasoning, then a final line "
@@ -97,7 +108,13 @@ def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case) -> li
                      f"last 8 outcomes (1 = event): {[x.y for x in hist[-8:]]}.")
         if same:
             lines.append(f"Cases of this kind ('{c.group}'): {len(same)}, event rate {sum(x.y for x in same) / len(same):.2f}.")
+    if strategy.get("structured"):
+        sys_msg += " " + RM.STRUCTURED
     msgs: list[dict[str, str]] = [{"role": "system", "content": sys_msg}]
+    msgs += RM.trace_messages(index, strategy, c) if index is not None else []
+    block = RM.retrieved_block(index, strategy, c) if index is not None else ""
+    if block:
+        lines.append(block.rstrip())
     k = int(strategy.get("shots", 0))
     if k and hist:
         pool = [x for x in hist if x.group == c.group][-k:]
@@ -187,6 +204,8 @@ def score_topic(topic: str, state: Path, repo: Path) -> dict[str, Any]:
         return {}
     stat = _stat_preds(topic, state, repo)
     out: dict[str, Any] = {}
+    per: dict[str, dict[str, float]] = {}                       # strategy -> subject -> calibrated p (for the paired comparison with the default)
+    ys: dict[str, int] = {}
     for sid in sorted({json.dumps(r["strategy"], sort_keys=True) for r in recs}):
         mine: dict[str, dict[str, Any]] = {}
         for r in recs:
@@ -205,7 +224,26 @@ def score_topic(topic: str, state: Path, repo: Path) -> dict[str, Any]:
         out[sid] = {"n": len(cal), "n_calibrated": sum(1 for _r, _p, c in cal if c), "judge_raw": T.score(raw), "judge_calibrated": T.score(cl),
                     "statistical": T.score(sp), "blend": T.score(bl),
                     "gain_vs_statistical_raw": [round(sum(d_raw) / len(d_raw), 4), *_mean_ci(d_raw)],
-                    "gain_vs_statistical_calibrated": [round(sum(d_cal) / len(d_cal), 4), *_mean_ci(d_cal)]}
+                    "gain_vs_statistical_calibrated": [round(sum(d_cal) / len(d_cal), 4), *_mean_ci(d_cal)],
+                    "accuracy": round(sum(1 for r, p, _c in cal if (p >= 0.5) == bool(r["y"])) / len(cal), 4),
+                    "seconds_per_item": round(sum(float(r.get("seconds") or 0) for r, _p, _c in cal) / len(cal), 2),
+                    "tokens_per_item": round(sum(float(r.get("tokens") or 0) for r, _p, _c in cal) / len(cal), 1)}
+        per[sid] = {r["subject"]: p for r, p, _c in cal}
+        ys.update({r["subject"]: r["y"] for r, _p, _c in cal})
+        multi = [r for r, _p, _c in cal if len(r.get("ps") or []) > 1]
+        if multi:                                               # self-consistency: Brier of the mean of the first m samples, and the vote
+            nmax = min(len(r["ps"]) for r in multi)
+            out[sid]["by_samples"] = {str(m): round(sum(T.brier(sum(r["ps"][:m]) / m, r["y"]) for r in multi) / len(multi), 4) for m in range(1, nmax + 1)}
+            out[sid]["majority_brier"] = round(sum(T.brier(RM.majority(r["ps"]) or 0.5, r["y"]) for r in multi) / len(multi), 4)
+    # the DEFAULT is what the original grid's best strategy does today: every strategy is compared to it on the subjects both answered
+    grid = {json.dumps(g, sort_keys=True) for g in STRATEGIES}
+    base = [(sid, sum(T.brier(p, ys[k]) for k, p in per[sid].items()) / len(per[sid])) for sid in per if sid in grid]
+    if base:
+        dsid = min(base, key=lambda x: x[1])[0]
+        for sid, o in out.items():
+            both = sorted(set(per[sid]) & set(per[dsid]))
+            o["default_strategy"] = json.loads(dsid)
+            o["gain_vs_default"] = [*RM.paired_gain([per[dsid][k] for k in both], [per[sid][k] for k in both], [ys[k] for k in both]), len(both)]
     return out
 
 
@@ -218,7 +256,9 @@ def trust_section(state: Path, repo: Optional[Path] = None) -> dict[str, Any]:
         sc = score_topic(t, state, repo)
         if not sc:
             continue
-        sid, b = min(sc.items(), key=lambda kv: kv[1]["judge_calibrated"].get("brier", 9.0))
+        top = max(v["n"] for v in sc.values())
+        fair = {k: v for k, v in sc.items() if v["n"] >= 0.8 * top}      # a strategy answered on few subjects is not compared with one answered on many
+        sid, b = min(fair.items(), key=lambda kv: kv[1]["judge_calibrated"].get("brier", 9.0))
         ok, why = T.trust_of(b["judge_calibrated"])
         beats = b["gain_vs_statistical_calibrated"][1] > 0
         if not beats:
@@ -229,13 +269,15 @@ def trust_section(state: Path, repo: Optional[Path] = None) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------------------------ the strategy search and the job factory
-def alive(topic_recs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Successive halving over the strategies from the records so far (compared on subjects every surviving strategy has answered)."""
-    live = list(STRATEGIES)
+def alive(topic_recs: Sequence[dict[str, Any]], pool: Optional[Sequence[dict[str, Any]]] = None,
+          halving: Optional[Sequence[tuple[int, int]]] = None) -> list[dict[str, Any]]:
+    """Successive halving over the strategies from the records so far (compared on subjects every surviving strategy has answered).
+    Default: the original grid; the filler passes ALL_STRATEGIES / HALVING_ALL so the reasoning methods compete too."""
+    live = list(STRATEGIES if pool is None else pool)
     by: dict[str, dict[str, dict[str, Any]]] = {}
     for r in topic_recs:
         by.setdefault(json.dumps(r["strategy"], sort_keys=True), {})[r["subject"]] = r
-    for cutoff, keep in HALVING:
+    for cutoff, keep in (HALVING if halving is None else halving):
         if len(live) <= keep:
             continue
         common = set.intersection(*[set(by.get(json.dumps(s, sort_keys=True), {})) for s in live])
@@ -256,15 +298,28 @@ def _append(state: Path, row: dict[str, Any]) -> None:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
 
-def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any]) -> int:
+def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any],
+              index: Optional[RM.Index] = None) -> int:
     """Ask the model each (case, strategy) in the batch under one server lease and record the answers (the outcome is stored beside the answer only
     AFTER the answer exists; the prompt never contained it)."""
     n = 0
+    t_end = dt.datetime.now(dt.timezone.utc)
     with make_llm() as llm:
         for c, s in batch:
-            reply = llm.chat(build_prompt(s, cases, c), max_tokens=120, temperature=0.2, seed=0, timeout=300.0)
-            _append(state, {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y,
-                            "p": parse(reply), "reply": reply[:300], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")})
+            t0 = time.monotonic()
+            row: dict[str, Any] = {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y}
+            if "knn" in s:                                          # the model-free control: no call, no cost
+                hist = history(cases, c)
+                base = sum(x.y for x in hist) / len(hist) if hist else 0.5
+                row.update(p=RM.knn_probability(index, c, int(s["knn"]), base) if index is not None else None, reply="knn", tokens=0)
+            else:
+                msgs = build_prompt(s, cases, c, index)
+                ps, first, toks = RM.sample(llm.chat, msgs, parse, int(s.get("samples", 1)), 300 if s.get("structured") else 120)
+                row.update(p=RM.aggregate(ps), reply=first[:300], tokens=toks)
+                if len(ps) > 1:
+                    row["ps"] = [round(x, 4) for x in ps]
+            row.update(seconds=round(time.monotonic() - t0, 2), at=t_end.isoformat(timespec="seconds"))
+            _append(state, row)
             n += 1
     return n
 
@@ -278,6 +333,7 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
     flight = {"n": 0}
     taken: set[tuple[str, str, str]] = set()
     cache: dict[str, list[Case]] = {}
+    idx: dict[str, RM.Index] = {}
 
     def make_llm() -> Any:
         if llm_factory is not None:
@@ -291,7 +347,7 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         cases = cache[topic]
         recs = [r for r in T._jsonl(path(state)) if r.get("topic") == topic and "subject" in r]
         done = {(r["subject"], json.dumps(r["strategy"], sort_keys=True)) for r in recs}
-        live = alive(recs)
+        live = alive(recs, ALL_STRATEGIES, HALVING_ALL)
         out: list[tuple[Case, dict[str, Any]]] = []
         for c in list(reversed(cases))[:MAX_SUBJECTS]:
             if len(history(cases, c)) < 3:
@@ -324,7 +380,9 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
 
         def job() -> None:
             try:
-                run_batch(state, batch, cache[topic], make_llm)
+                if topic not in idx:
+                    idx[topic] = RM.Index(RM.build_corpus(state, cache[topic]))
+                run_batch(state, batch, cache[topic], make_llm, idx[topic])
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm
                 _append(state, {"topic": topic, "error": f"{type(e).__name__}: {e}"[:300]})
             finally:
