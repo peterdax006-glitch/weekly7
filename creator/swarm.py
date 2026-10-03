@@ -563,9 +563,21 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         time.sleep(poll_s)
     Ledger(cfg.ledger_path, evidence_root=cfg.repo).checkpoint(f"swarm round: {len(reports)} packages, peak {peak} parallel")
     outcome = "DRAINED" if drain_t0 is not None else "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
-    if outcome != "WORKED" and gov.admit is not None:                  # idle: give the pool's RAM back until work returns
-        REG.get("modelpool").close_if_idle()
+    if outcome != "WORKED" and gov.admit is not None and not _keep_pool(outcome, state_dir):
+        REG.get("modelpool").close_if_idle()                            # idle: give the pool's RAM back until work returns
     return RoundReport(outcome, reports, peak, pulled, "free RAM below the reserve; nothing could start" if starved else "")
+
+
+def _keep_pool(outcome: str, state_dir: Path) -> bool:
+    """THINKING focus: the next round starts within a minute and its fillers use the thinking servers at once, so an idle round keeps
+    them loaded (h38, 3 Oct: closing them reloaded every server, 5-45 s each, after every empty round). RAM_TIGHT and a drain still close them."""
+    if outcome in ("RAM_TIGHT", "DRAINED"):
+        return False
+    try:
+        fo = REG.optional("focus")
+        return fo is not None and fo.current(state_dir) == "thinking"
+    except Exception:                                                   # noqa: BLE001 - unknown focus: the old behaviour
+        return False
 
 
 
