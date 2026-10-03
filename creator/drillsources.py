@@ -28,6 +28,7 @@ import os
 import random
 import re
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -476,22 +477,31 @@ def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = No
         repos = cached_extra_repos()
         if not repos:
             raise GitCacheMissing("no other project's history is cached yet; the extra-history job builds them")
-    keys: list[tuple[str, tuple[int, int]]] = []
     for repo in repos:
         path = extra_cache_path(repo)
         if not path.exists():
             raise GitCacheMissing(f"{path} not built yet; the extra-history job builds it")
-        keys.append((str(path), _file_key(path)))
-    mk = f"xitems|{window}|{mode}|{[str(r) for r in repos]}"
-    hit = _PARSED.get(mk)
-    if hit is not None and hit[0] == tuple(keys):                  # same files, same sizes and stamps: the same items
-        return list(hit[1])
-    for repo in repos:
-        commits = _parsed_file(extra_cache_path(repo), "x")
-        for it in _git_events(commits, window, mode):
-            out.append(BItem(it.keys + (f"r:{repo.name}",), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}"))
+    for repo in repos:                                             # each project's items kept per (size, mtime_ns) of its cache: a fetch
+        out.extend(_repo_items(repo, window, mode))                # that grows one project recomputes only that project
     out.sort(key=lambda it: it.created)
     return out
+
+
+def _repo_items(repo: Path, window: int, mode: str) -> list[BItem]:
+    path = extra_cache_path(repo)
+    key = _file_key(path)
+    mk = f"xitems|{window}|{mode}|{path}"
+    hit = _PARSED.get(mk)
+    if hit is not None and hit[0] == key:
+        return list(hit[1])
+    commits = _read_cache(path)                                    # the commits are not kept, only the items (RAM)
+    commits.sort(key=lambda c: c["t"])
+    tag = sys.intern(f"r:{repo.name}")
+    items = [BItem(tuple(sys.intern(k) for k in it.keys) + (tag,), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}")
+             for it in _git_events(commits, window, mode)]
+    if _file_key(path) == key:                                     # unchanged while read: safe to keep
+        _PARSED[mk] = (key, items)
+    return list(items)
 
 
 def _git_events(commits: list[dict[str, Any]], window: int, mode: str) -> list[BItem]:

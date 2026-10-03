@@ -132,8 +132,11 @@ def test_x_items_memo_is_invalidated_by_an_append(tmp_path: Path, monkeypatch: p
     rows = [{"h": f"h{i}", "t": float(i), "s": "fix -", "files": ["a/b"], "lines": 1, "add": 1, "del": 0} for i in range(30)]
     cache.write_text("".join(json.dumps(r) + "\n" for r in rows[:25]))
     a = D.extra_git_items(5, "fixed", [repo])
-    assert D.extra_git_items(5, "fixed", [repo]) == a
+    reads: list[Path] = []
+    real = D._read_cache
+    monkeypatch.setattr(D, "_read_cache", lambda p: (reads.append(p), real(p))[1])
+    assert D.extra_git_items(5, "fixed", [repo]) == a and reads == []      # unchanged cache: not read again (old code: read per job)
     with cache.open("a") as f:
         f.write("".join(json.dumps(r) + "\n" for r in rows[25:]))
     b = D.extra_git_items(5, "fixed", [repo])
-    assert len(b) == 30 and len(a) == 25
+    assert len(b) == 30 and len(a) == 25 and reads == [cache]
