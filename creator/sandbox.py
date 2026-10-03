@@ -143,6 +143,18 @@ class AdoptResult:
 
 # ------------------------------------------------------------------------------------------------ the sandbox
 
+def widen_selection(sel: T.TestSelection, graph: T.ImportGraph, why: str) -> T.TestSelection:
+    """Every test of the tree, keeping each already selected test with its own reason (a superset of `sel`, never fewer tests). An EMPTY
+    selection stays empty (no tests = no report = a rejection today; more tests must never turn that into a run that could pass), and one
+    that already selects everything is returned as it is."""
+    if sel.empty or sel.select_all:
+        return sel
+    reasons = dict(sel.reasons)
+    for t in T.all_tests(graph):
+        reasons.setdefault(t, f"predicted risk: {why}")
+    return dataclasses.replace(sel, tests=tuple(sorted(reasons)), reasons=reasons, select_all=True, why_all=f"predicted risk: {why}")
+
+
 class Sandbox:
     """    sb = Sandbox.open(repo, base="HEAD", scratch=...)
            sb.write("creator/x.py", text)          # refused for protected paths
@@ -296,11 +308,13 @@ class Sandbox:
 
     def evaluate(self, smoke: Iterable[str] = (), build_config: Optional[B.BuildConfig] = None,
                  pytest_config: Optional[T.PytestConfig] = None, run_base: bool = True,
-                 flaky_reruns: int = 2, base_reuse: Optional[Mapping[str, str]] = None) -> Evaluation:
+                 flaky_reruns: int = 2, base_reuse: Optional[Mapping[str, str]] = None, widen_reason: str = "") -> Evaluation:
         """Build the candidate; select affected tests; run them at base and in the candidate; classify every case. Blocking or
         fixed cases are re-run `flaky_reruns` times per side (0 = off): a case whose outcome flips is FLAKY, never a
         regression by itself, and the verdict is then at best FLAKY (not CLEAN). `base_reuse` (test file -> junit xml) holds passing
-        results of the byte-identical base tree (creator/treecache.py): those files are not run at base again."""
+        results of the byte-identical base tree (creator/treecache.py): those files are not run at base again. `widen_reason` (creator.decide:
+        a trusted high-risk prediction) runs EVERY test instead of the selection: the selection only grows, and an empty selection is never
+        widened (it ends the evaluation with no report, i.e. a rejection, exactly as before)."""
         for cache in list(self.path.rglob("__pycache__")):              # a worker's bytecode is never judged in place of its
             shutil.rmtree(cache, ignore_errors=True)                     # source (1 Oct: same-size same-second rewrite ran stale)
         change = self.changes()
@@ -319,6 +333,8 @@ class Sandbox:
         build = B.run_build(self.path, [p for p, s in change.paths.items() if s != "D"], config=cfg, tree="candidate",
                             baseline_keys=base_keys)
         selection = T.select_tests(graph, change.files, smoke)
+        if widen_reason:
+            selection = widen_selection(selection, graph, widen_reason)
         if not build.ok or selection.empty:
             return Evaluation(change, build, selection, None, None, None, str(ev_dir))
         targets = list(selection.tests)

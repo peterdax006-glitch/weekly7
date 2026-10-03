@@ -420,6 +420,11 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
         rep["fast_topics"] = REG.get("fastpred").trust_section(state)     # fast-resolving prospective topics, same gate (creator.fastpred)
     except Exception as e:                                           # noqa: BLE001 - a missing drill module never breaks the trust report
         rep["drills_error"] = f"{type(e).__name__}: {e}"
+    try:                                                              # what trusted predictions DID (creator.decide): arms and outcomes
+        from creator import registry as REG2
+        rep["decisions"] = REG2.get("decide").summary(state)
+    except Exception as e:                                           # noqa: BLE001 - never breaks the trust report
+        rep["decisions_error"] = f"{type(e).__name__}: {e}"
     if write:
         state.mkdir(parents=True, exist_ok=True)
         (state / "trust.json").write_text(json.dumps(rep, indent=1, sort_keys=True), encoding="utf-8")
