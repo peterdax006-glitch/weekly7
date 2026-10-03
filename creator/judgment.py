@@ -279,7 +279,7 @@ class _Skip(Exception):
 def chat_text(llm: Any, messages: Sequence[dict[str, str]], **kw: Any) -> str:
     """The answer without a reasoning model's <think> block (fakes in tests only need .chat)."""
     from creator import generator as G
-    return G.THINK_BLOCK.sub("", str(llm.chat(messages, **kw))).strip()
+    return G.THINK_BLOCK.sub("", str(llm.chat(G.prepare_messages(messages, getattr(llm, "model", "")), **kw))).strip()
 
 
 def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any]) -> int:

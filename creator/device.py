@@ -27,7 +27,7 @@ SNAPSHOT = STATE_DIR / "device.json"
 OVERRIDES = STATE_DIR / "device_overrides.json"
 MODEL_FILE = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 MODEL_GB = 1.1                                       # that file's size; a bigger model passes its own size to derive()
-THINK_MODEL_FILE = ""                                # the THINKING model's file in models/ (set by the 2 Oct 2026 measurement, see models/MODELS.json)
+THINK_MODEL_FILE = "Qwen3-1.7B-Q4_K_M.gguf"          # the THINKING model's file in models/ (measured 3 Oct 2026: 22/24 vs 6/24 on test->module questions; models/MODELS.json)
 THINK_OVERHEAD_GB = 0.7                              # resident GiB of a server beyond its weights at ctx 8192 (1.1 GB file -> 1.8 measured)
 
 # Ratios that reproduce the settings the Creator ran with on the 16.8 GB / 8-core development machine.

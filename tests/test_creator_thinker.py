@@ -33,7 +33,8 @@ def test_server_size_follows_the_model_file_and_think_servers_follow_ram(tmp_pat
     s = DEV.derive(dev(), overrides={"think_model": "t.gguf"})
     assert s["think_model"] == "t.gguf" and s["think_servers"] == 2           # 25% of 33.8 GB fits two, capped at two
     assert DEV.derive(dev(8.0), overrides={"think_model": "t.gguf"})["think_servers"] == 0     # a small machine keeps one fast model only
-    assert DEV.derive(dev(), overrides={})["think_servers"] == 0              # nothing configured, nothing started
+    assert DEV.derive(dev(), overrides={"think_model": ""})["think_servers"] == 0    # nothing configured, nothing started
+    assert DEV.derive(dev(), overrides={})["think_model"] == "Qwen3-1.7B-Q4_K_M.gguf"      # the measured default
     assert DEV.derive(dev(), overrides={"think_model": "t.gguf", "think_servers": 1})["think_servers"] == 1   # the owner can pin it
 
 
@@ -109,3 +110,9 @@ def test_a_batch_waits_silently_when_the_thinking_model_has_no_ram(tmp_path: Pat
     assert job is not None
     job()
     assert not J.path(st).exists()                                   # no error row, no answer of the wrong model
+
+
+def test_qwen3_gets_the_no_think_switch_and_other_models_do_not() -> None:
+    m = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"}]
+    assert G.prepare_messages(m, Path("x/Qwen3-1.7B-Q4_K_M.gguf"))[-1]["content"] == "q\n/no_think"
+    assert G.prepare_messages(m, Path("qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")) == m and m[-1]["content"] == "q"      # input never mutated

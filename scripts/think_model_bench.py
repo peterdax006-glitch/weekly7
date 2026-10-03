@@ -186,6 +186,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--nothink", action="store_true", help="append /no_think to prompts (Qwen3)")
     ap.add_argument("--speed", default="4,7,11")
     ap.add_argument("--skip-speed", action="store_true")
+    ap.add_argument("--skip-judgment", action="store_true")
     ap.add_argument("--max-tokens-mc", type=int, default=200)
     a = ap.parse_args(argv)
     model, state, outp = Path(a.model), Path(a.state), Path(a.out)
@@ -204,7 +205,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         res["rss_quality_gb"] = round(srv.rss_gb(), 2)
         done = {(r["topic"], r["subject"]) for r in res["judgment"]}
         strat = {"shots": 2, "hint": 1}
-        for c, cs in judgment_cases(state, a.n):
+        for c, cs in ([] if a.skip_judgment else judgment_cases(state, a.n)):
             if (c.topic, c.subject) in done:
                 continue
             msgs = J.build_prompt(strat, cs, c)

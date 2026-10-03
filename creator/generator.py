@@ -462,7 +462,7 @@ class LocalModel:
 
     def chat_text(self, messages: Sequence[Mapping[str, str]], **kw: Any) -> str:
         """`chat` with a reasoning model's <think>...</think> block removed (the caller wants the answer, not the scratch work)."""
-        return THINK_BLOCK.sub("", self.chat(messages, **kw)).strip()
+        return THINK_BLOCK.sub("", self.chat(prepare_messages(messages, self.model), **kw)).strip()
 
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
              seed: int = 0, timeout: float = 600.0) -> str:
@@ -479,6 +479,15 @@ class LocalModel:
 
 
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
+NO_THINK_MODELS = ("qwen3",)      # measured 3 Oct 2026: Qwen3-1.7B with thinking took 60-100 s per question for no accuracy gain over '/no_think'
+
+
+def prepare_messages(messages: Sequence[Mapping[str, str]], model: Any) -> list[dict[str, str]]:
+    """Messages for a model: reasoning-by-default families get the '/no_think' soft switch on the last user turn (short, fast answers)."""
+    out = [dict(m) for m in messages]
+    if out and any(k in Path(str(model)).name.lower() for k in NO_THINK_MODELS) and out[-1].get("role") == "user":
+        out[-1]["content"] += "\n/no_think"
+    return out
 
 
 def thinker(free_gb: Optional[Callable[[], Optional[float]]] = None, cfg: Optional[Mapping[str, Any]] = None, **kw: Any) -> LocalModel:
