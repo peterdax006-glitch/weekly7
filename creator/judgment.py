@@ -262,12 +262,21 @@ def calibrated(recs: Sequence[dict[str, Any]]) -> list[tuple[dict[str, Any], flo
     return out
 
 
+_STAT_CACHE: dict[str, dict[str, T.Pred]] = {}
+
+
 def _stat_preds(topic: str, state: Path, repo: Path) -> dict[str, T.Pred]:
     if topic == "verdict":
         preds = T.replay(T.load_items(state), "verdict")
-    elif topic in PUB_TOPICS:
+    elif topic in PUB_TOPICS:                                          # ~23,000 items: walked once per change of the public caches
         from creator import registry as REG
-        preds = D.walk_forward(REG.get("publiccases").items(topic), topic)
+        PC = REG.get("publiccases")
+        key = f"{topic}|{PC.signature()}"
+        if key not in _STAT_CACHE:
+            if len(_STAT_CACHE) > 4:
+                _STAT_CACHE.clear()
+            _STAT_CACHE[key] = {p.subject: p for p in D.walk_forward(PC.items(topic), topic)}
+        return _STAT_CACHE[key]
     else:
         preds = D.walk_forward(D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state), "git_fixed")
     return {p.subject: p for p in preds}

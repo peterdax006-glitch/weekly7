@@ -35,6 +35,7 @@ def pub(monkeypatch: Any) -> dict[str, list[dict[str, Any]]]:
     data = synth()
     monkeypatch.setattr(P, "public_repos", lambda: [Path(k) for k in data])
     monkeypatch.setattr(P, "commits", lambda repo: data[Path(repo).name])
+    monkeypatch.setattr(J, "_STAT_CACHE", {})
     return data
 
 
