@@ -19,8 +19,11 @@ Nupen's own history gives ~850 git cases; the public open-source repositories cl
 from __future__ import annotations
 
 import datetime as dt
+import gc
+import hashlib
 import json
 import os
+import pickle
 import re
 import subprocess
 import sys
@@ -226,6 +229,62 @@ def _repo_key(repo: Path) -> Optional[tuple[int, int]]:
     return None if k is None else (k[0], k[1] * 2 + int(is_public(repo)))
 
 
+# Speed h48: a fresh process (every thinking.run, every drill worker) used to re-parse ~370 MB of JSON rows - 38 s - for cases that only change
+# when a text cache changes. The built cases of each repository are also kept on disk (pickle, runtime_dir()/thinking/public_cases/<repo>.pkl),
+# valid only for the exact (size, mtime_ns, public) of the text cache AND the exact source of the two modules that build them; any mismatch, a
+# damaged or foreign file is ignored and the cases are rebuilt (the result is the same objects' values either way).
+_CODE_STAMP: Optional[str] = None
+
+
+def _code_stamp() -> str:
+    global _CODE_STAMP
+    if _CODE_STAMP is None:
+        h = hashlib.sha256()
+        for m in (__file__, D.__file__):
+            try:
+                h.update(Path(m).read_bytes())
+            except OSError:
+                h.update(b"?")
+        _CODE_STAMP = h.hexdigest()
+    return _CODE_STAMP
+
+
+def _disk_path(repo: Path) -> Path:
+    from creator import device as DEV
+    return DEV.runtime_dir() / "thinking" / "public_cases" / f"{Path(repo).name}.pkl"
+
+
+def _disk_cases(repo: Path, key: tuple[int, int]) -> Optional[dict[str, list[tuple[str, D.BItem, str, str]]]]:
+    was = gc.isenabled()
+    gc.disable()                                                    # ~1M small objects built at once: the collector only re-scans them
+    try:
+        with _disk_path(repo).open("rb") as f:
+            stamp, k, built = pickle.load(f)
+    except Exception:                                               # missing, truncated, other version: rebuild
+        return None
+    finally:
+        if was:
+            gc.enable()
+    if stamp != _code_stamp() or k != key or not isinstance(built, dict) or set(built) != set(TOPICS):
+        return None
+    return built
+
+
+def _disk_cases_save(repo: Path, key: tuple[int, int], built: dict[str, list[tuple[str, D.BItem, str, str]]]) -> None:
+    path = _disk_path(repo)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tmp.open("wb") as f:
+            pickle.dump((_code_stamp(), key, built), f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
 def _repo_cases(repo: Path, topic: str) -> list[tuple[str, D.BItem, str, str]]:
     path = text_cache_path(repo)
     key = _repo_key(repo)
@@ -233,7 +292,11 @@ def _repo_cases(repo: Path, topic: str) -> list[tuple[str, D.BItem, str, str]]:
     hit = _REPO_CASES.get(mk)
     if key is not None and hit is not None and hit[0] == key:
         return hit[1][topic]
-    built = _build_repo_cases(repo)
+    built = _disk_cases(repo, key) if key is not None else None
+    if built is None:
+        built = _build_repo_cases(repo)
+        if key is not None and _repo_key(repo) == key:
+            _disk_cases_save(repo, key, built)
     if key is not None and _repo_key(repo) == key:                 # unchanged while read: safe to keep
         _REPO_CASES[mk] = (key, built)
     else:

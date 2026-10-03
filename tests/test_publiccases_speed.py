@@ -105,3 +105,36 @@ def test_memo_is_identical_and_follows_each_cache_file(tmp_path: Path, monkeypat
     assert built == ["beta"]
     priv = _write(rt, "secret", _commits(50, 7), public=False)          # never public: its cases stay empty, memo or not
     assert P.raw_cases("pub_git_fixed", [priv]) == [] and P.raw_cases("pub_git_fixed", [priv]) == []
+
+
+def test_disk_cache_identical_and_invalidated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """h48: a fresh process loads the built cases from disk (same values as a build); a changed text cache, another code stamp or a damaged
+    file means a rebuild."""
+    rt = tmp_path / "rt"
+    monkeypatch.setenv("NUPEN_RUNTIME", str(rt))
+    repo = _write(rt, "alpha", _commits(300, 5))
+    want = {t: _old_raw_cases(t) for t in P.TOPICS}
+
+    def fresh() -> None:
+        monkeypatch.setattr(P, "_REPO_CASES", {})
+        monkeypatch.setattr(P, "_ALL_CASES", {})
+
+    built: list[str] = []
+    real = P._build_repo_cases
+    monkeypatch.setattr(P, "_build_repo_cases", lambda r: (built.append(r.name), real(r))[1])
+    fresh()
+    assert all(P.raw_cases(t) == want[t] for t in P.TOPICS) and built == ["alpha"]
+    assert P._disk_path(repo).exists()
+    fresh()
+    assert all(P.raw_cases(t) == want[t] for t in P.TOPICS) and built == ["alpha"]          # from disk: no rebuild
+    monkeypatch.setattr(P, "_CODE_STAMP", "other")
+    fresh()
+    assert all(P.raw_cases(t) == want[t] for t in P.TOPICS) and built == ["alpha", "alpha"]  # other code: rebuilt
+    P._disk_path(repo).write_bytes(b"not a pickle")
+    fresh()
+    assert all(P.raw_cases(t) == want[t] for t in P.TOPICS) and built == ["alpha"] * 3       # damaged: rebuilt
+    with P.text_cache_path(repo).open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"h": "z" * 40, "t": 9e6, "s": "fix more", "files": ["src/f1.py"], "lines": 3}) + "\n")
+    os.utime(P.text_cache_path(repo), ns=(1, 2))
+    fresh()
+    assert len(P.raw_cases("pub_git_fixed")) == 301 and built == ["alpha"] * 4              # changed cache: rebuilt
