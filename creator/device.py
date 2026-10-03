@@ -103,7 +103,25 @@ def think_model_path(cfg: Optional[Mapping[str, Any]] = None, rt: Optional[Path]
         return None
     p = Path(name)
     p = p if p.is_absolute() else (rt or runtime_dir()) / "models" / name
-    return p if p.is_file() else None
+    if p.is_file():
+        return p
+    pf = pulse_file(cfg)                                 # a GPU pulse may serve a model that is not on this disk (e.g. 14B)
+    if pf is not None:
+        from creator import gpupulse as GP               # on demand: only while a pulse is switched on
+        return p if GP.serves(pf, p) else None
+    return None
+
+
+def pulse_file(cfg: Optional[Mapping[str, Any]] = None, env: Optional[Mapping[str, str]] = None) -> Optional[Path]:
+    """The GPU pulse's tunnel file when a pulse is switched ON (creator.gpupulse): env NUPEN_GPU_PULSE (set by scripts/gpu_pulse.py for its
+    job processes), else device setting 'gpu_pulse' true (default False) -> <runtime>/gpu/tunnel.json. None = off: everything stays local."""
+    e = os.environ if env is None else env
+    v = e.get("NUPEN_GPU_PULSE")
+    if v:
+        return Path(v)
+    if cfg is not None and cfg.get("gpu_pulse"):
+        return runtime_dir(e) / "gpu" / "tunnel.json"
+    return None
 
 
 def server_gb_for(model: Path) -> float:
@@ -264,6 +282,7 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "llama_servers": 1,                              # local model servers side by side (always-on: from RAM, below)
         "think_model": THINK_MODEL_FILE,                 # the thinking model (file name in models/ or a path); '' = use the fast model
         "think_servers": 0,                              # thinking-model servers allowed at once (from RAM, below)
+        "gpu_pulse": False,                              # True: attach to a rented GPU pod's tunnel (creator.gpupulse); off by default
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
@@ -300,7 +319,12 @@ def load_overrides(path: Optional[Path] = None) -> dict[str, Any]:
 
 
 def settings(refresh: bool = False) -> dict[str, Any]:
-    return derive(get(refresh))
+    out = derive(get(refresh))
+    pf = pulse_file(out)
+    if pf is not None:                                   # a GPU pulse job: its model is the thinker (creator.gpupulse.settings_overlay)
+        from creator import gpupulse as GP
+        out.update(GP.settings_overlay(pf))
+    return out
 
 
 def snapshot(dev: Optional[Device] = None, derived: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:

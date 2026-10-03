@@ -576,7 +576,7 @@ def halve(pool: Sequence[str], rows: Sequence[dict[str, Any]]) -> tuple[list[str
     def score(n: str, common: set[str]) -> tuple[float, float]:
         rs = by.get(n, {})
         return (sum(int(rs[k].get("correct") or 0) for k in common) / max(1, len(common)),
-                -sum(float(rs[k].get("seconds") or 0) for k in common) / max(1, len(common)))
+                -sum(float(rs[k].get("seconds") or 0) for k in common if not rs[k].get("gpu_pulse")) / max(1, len(common)))
     for cutoff, keep in HALVING:
         rest = [n for n in live if n != CONTROL]
         if len(rest) <= keep:
@@ -667,6 +667,8 @@ def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm:
                    "reply": first[-160:], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "ts": round(now, 1)}
             if len(picks) > 1:
                 row["picks"] = picks
+            if isinstance(getattr(llm, "pulse", None), str) and llm.pulse:     # answered on a rented GPU (creator.gpupulse): timings kept apart
+                row["gpu_pulse"] = llm.pulse
             _append(state, row)
             n += 1
     return n
@@ -791,6 +793,11 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
 
 
 # ------------------------------------------------------------------------------------------------ the report
+def _cpu_per_item(rows: Sequence[dict[str, Any]]) -> Optional[float]:
+    cpu = [r for r in rows if not r.get("gpu_pulse")]
+    return round(sum(float(r.get("seconds") or 0) for r in cpu) / len(cpu), 2) if cpu else None
+
+
 def wilson(k: int, n: int) -> list[Optional[float]]:
     if n == 0:
         return [None, None, None]
@@ -859,7 +866,7 @@ def report_section(state: Path, tag: Optional[str] = None) -> dict[str, Any]:
         strat[n] = {"n": len(m), "accuracy": a, "beats_chance": bool(a[1] is not None and a[1] > 0.25),
                     "gain_vs_plain": paired([per[CONTROL][q] for q in both], [m[q] for q in both]) if n != CONTROL and both else None,
                     "gain_vs_lexical": paired([lex[q] for q in m], [m[q] for q in m]),
-                    "seconds_per_item": round(sum(float(r.get("seconds") or 0) for r in rs) / len(rs), 2),
+                    "seconds_per_item": _cpu_per_item(rs),                     # this PC only (GPU pulse rows: creator.gpupulse)
                     "by_kind": _by_kind(m, {q: str(latest[(q, n)].get("kind")) for q in m})}
     out["strategies"] = strat
     out["lexical_control"] = wilson(sum(lex.values()), len(lex))
