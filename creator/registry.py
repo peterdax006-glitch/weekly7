@@ -36,6 +36,7 @@ CAPABILITIES: dict[str, str] = {
     "tools": "creator.tools.toolbox",
     "swarmops": "creator.swarmops",
     "thinking": "creator.thinking",
+    "drillsources": "creator.drillsources",
     "focus": "creator.focus",
 }
 
