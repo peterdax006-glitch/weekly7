@@ -129,7 +129,7 @@ _GIT_CACHE: dict[str, list[dict[str, Any]]] = {}
 GIT_FULL_TIMEOUT_S = 6 * 3600.0     # the first full read of a big repo on a loaded machine is slow: generous, and done once, in its own job
 GIT_INC_TIMEOUT_S = 300.0           # an incremental `<last>..HEAD` read
 GIT_RETRY_S = 900.0                 # a source whose data could not be read is retried after this long, never dropped for good
-IDLE_PRIORITY = 0x00000040          # Windows IDLE_PRIORITY_CLASS: the slow read must not slow Nupen's real work
+IDLE_PRIORITY = 0x00004000          # BELOW_NORMAL_PRIORITY_CLASS: true IDLE starves for hours on an always-busy machine (a full git log never finished)
 DEFAULT_STATE: Optional[Path] = None   # set by load(): lets callers without a state argument (judgment) reach the same persistent cache
 
 
