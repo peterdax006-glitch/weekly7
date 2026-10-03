@@ -136,6 +136,11 @@ def make_filler():                                        # type: ignore[no-unty
         if focus is not None and focus.current(STATE) == "thinking":
             drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
                                                           ROOT / "state" / "research")
+            try:
+                judge = REG.get("judgment").judgment_filler(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1)))
+            except Exception as e:                        # noqa: BLE001 - judgment is optional; the drills still run
+                print(f"JUDGMENT filler unavailable: {type(e).__name__}: {e}", flush=True)
+                judge = None
 
             def next_job():                               # type: ignore[no-untyped-def]
                 now = time.time()
@@ -147,7 +152,12 @@ def make_filler():                                        # type: ignore[no-unty
                     import subprocess
                     return lambda: subprocess.run([sys.executable, str(ROOT / "scripts" / "nupen_blueprint.py"), "--state", str(STATE)],
                                                   capture_output=True, timeout=1800, cwd=ROOT)
-                return drills()
+                _THINK_LAST["n"] = _THINK_LAST.get("n", 0) + 1
+                if judge is not None and _THINK_LAST["n"] % 3 == 0:        # every third call: a local-model judgment batch (RAM-heavy; admission decides)
+                    j = judge()
+                    if j is not None:
+                        return j
+                return drills() or (judge() if judge is not None else None)
             return next_job
     except Exception as e:                                # noqa: BLE001 - a broken thinking module never stops the swarm
         print(f"THINKING filler unavailable: {type(e).__name__}: {e}", flush=True)

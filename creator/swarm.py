@@ -325,10 +325,6 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     REG.get("goals").maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
     REG.get("constraints").maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
-    main, recovered, stop = K.prepare(cfg, led)
-    if stop is not None or main is None:
-        return RoundReport("AUDIT_RED", [], 0, 0, stop or "")
-    base_sha = S.head(cfg.repo)
     lock = threading.Lock()
     running: list[_Running] = []
     reports: list[K.CycleReport] = []
@@ -336,8 +332,53 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     exhausted = False
     fillers: list[threading.Thread] = []
     fill_left = filler_budget
-    starved = False
     last_start = -1e9
+
+    def try_fill() -> bool:
+        """Start one filler job when the governor and the resource admission allow it (leftover memory/CPU: useful measurement work)."""
+        nonlocal fill_left, last_start, peak
+        load = len([r for r in running if r.plan.package_id not in WAITING]) + len(fillers)
+        if not (filler is not None and fill_left > 0 and time.monotonic() - last_start >= gov.ramp_s and not gov.too_tight()
+                and gov.can_start(load) and RS.ok(gov, "filler", load)):
+            return False
+        job_fn = filler()
+        if job_fn is None:
+            return False
+        fill_left -= 1
+        job_fn = RS.idle_thread(job_fn) if gov.admit else job_fn
+        ft = threading.Thread(target=job_fn, name="swarm-filler", daemon=True)
+        fillers.append(ft)
+        ft.start()
+        last_start = time.monotonic()
+        peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
+        return True
+
+    if filler is None or fill_left <= 0:
+        main, recovered, stop = K.prepare(cfg, led)
+    else:                                                               # 2 Oct: prepare (recover + assess + audit) takes minutes; CPU must not
+        box: list[Any] = []                                             # taper meanwhile - fillers run while it does, and nothing is PLANNED
+        def prep() -> None:                                             # until it has finished (the loop below starts after the join)
+            try:
+                box.append(K.prepare(cfg, led))
+            except BaseException as e:                                  # noqa: BLE001 - re-raised in the round's own thread
+                box.append(e)
+        pt = threading.Thread(target=prep, name="swarm-prepare", daemon=True)
+        pt.start()
+        while pt.is_alive():
+            fillers[:] = [f for f in fillers if f.is_alive()]
+            if gov.admit is not None:
+                REG.get("modelpool").tick(gov, free_ram_gb)
+            if not try_fill():
+                pt.join(poll_s)
+        if isinstance(box[0], BaseException):
+            raise box[0]
+        main, recovered, stop = box[0]
+    if stop is not None or main is None:
+        while any(f.is_alive() for f in fillers):                       # a red audit: let the started drills finish, start no more
+            time.sleep(poll_s)
+        return RoundReport("AUDIT_RED", [], 0, 0, stop or "")
+    base_sha = S.head(cfg.repo)
+    starved = False
     nothing_while: Optional[tuple[str, ...]] = None                     # running set for which planning found nothing
 
     queue: list[Any] = []                                               # planned, not yet started (the ramp spaces the starts)
@@ -452,18 +493,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         if RS.ram_thread(gov, state_dir, load, ramped, fillers):
             last_start = time.monotonic()
             continue
-        if (drain_t0 is None and (exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
-                and gov.can_start(load) and RS.ok(gov, "filler", load)):
-            job_fn = filler()                                           # leftover memory: useful measurement work
-            if job_fn is not None:
-                fill_left -= 1
-                job_fn = RS.idle_thread(job_fn) if gov.admit else job_fn
-                ft = threading.Thread(target=job_fn, name="swarm-filler", daemon=True)
-                fillers.append(ft)
-                ft.start()
-                last_start = time.monotonic()
-                peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
-                continue
+        if drain_t0 is None and (exhausted or planned >= max_packages or nothing_while == key) and try_fill():
+            continue
         fillers[:] = [f for f in fillers if f.is_alive()]
         if not running and not fillers and not queue and (exhausted or planned >= max_packages):
             break

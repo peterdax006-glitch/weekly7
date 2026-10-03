@@ -38,3 +38,33 @@ def test_a_queued_plan_under_tight_ram_ends_the_round_and_is_released(tmp_path: 
     assert done.wait(60), "run_round never returned: a queued plan under tight RAM waits forever"
     assert box[0].outcome == "RAM_TIGHT"
     assert released and released[0].startswith("CPQ:interrupted")    # released, and 'interrupted' is not counted as an attempt
+
+
+def test_fillers_run_while_prepare_runs_and_nothing_is_planned_before_it_ends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """2 Oct: K.prepare (minutes) ran before everything, so CPU tapered on start-up. Fillers start while it runs; planning waits for it."""
+    import time as _t
+    cfg = K.KernelConfig(repo=tmp_path, state=tmp_path / "state", scratch=tmp_path / "scratch")
+    ev: list[str] = []
+    prep_done = threading.Event()
+
+    def prepare(cfg, led):                                     # type: ignore[no-untyped-def]
+        _t.sleep(1.0)
+        ev.append("prepare_end")
+        prep_done.set()
+        return object(), [], None
+
+    def plan_one(*a, **k):                                     # type: ignore[no-untyped-def]
+        ev.append("plan_after_prepare" if prep_done.is_set() else "PLAN_BEFORE_PREPARE")
+        return None
+    monkeypatch.setattr(K, "prepare", prepare)
+    monkeypatch.setattr(K, "plan_one", plan_one)
+    monkeypatch.setattr(W.S, "head", lambda repo: "base")
+
+    def filler():                                              # type: ignore[no-untyped-def]
+        def job() -> None:
+            ev.append("filler_during_prepare" if not prep_done.is_set() else "filler_after")
+        return job
+    gov = W.Governor(ramp_s=0.05, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=4, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    W.run_round(cfg, lambda: None, gov, max_packages=1, poll_s=0.02, filler=filler, filler_budget=6, scheduled=False)
+    assert "filler_during_prepare" in ev and "PLAN_BEFORE_PREPARE" not in ev and "plan_after_prepare" in ev

@@ -39,6 +39,7 @@ CAPABILITIES: dict[str, str] = {
     "modelpool": "creator.modelpool",
     "thinking": "creator.thinking",
     "drillsources": "creator.drillsources",
+    "judgment": "creator.judgment",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
 }
