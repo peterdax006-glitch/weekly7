@@ -91,17 +91,62 @@ def test_filler_hands_out_independent_jobs_and_is_idempotent(tmp_path: Path) -> 
     (st / "plan_explanations.jsonl").write_text(
         "\n".join(json.dumps({"at": f"2026-10-02T06:48:{i:02d}Z", "chosen": i % 3 == 0, "step": "s", "component": "K1", "value": 0.2, "node": f"n{i}"}) for i in range(40)) + "\n", encoding="utf-8")
     nj = D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"])
-    jobs = []
-    while (j := nj()) is not None:
-        jobs.append(j)
-    assert len(jobs) == len(D.VARIANTS)
+    jobs = [nj() for _ in D.VARIANTS]                      # the fixed grid comes first; the open-ended search follows (own test)
+    assert all(j is not None for j in jobs)
     for j in jobs:
         j()
     rows = T._jsonl(D.runs_path(st))
     assert len(rows) == len(D.VARIANTS) and all(r["source"] == "plan_choice" and r["resolved"] == 40 for r in rows)
-    assert D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"])() is None       # same data: nothing to redo
+    n2 = D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"], seed=3)
+    first = n2()                                               # grid done for this data: what follows is a NEW variant, never a repeat
+    assert first is not None and not any(r["variant"].get("search") is None for r in [] )
     b = D.best_variant(st, "plan_choice")
     assert b and b["variants_tried"] == len(D.VARIANTS) and "brier" in b["heldout"]
+    first()
+    assert T._jsonl(D.runs_path(st))[-1]["search"] is True
     with (st / "plan_explanations.jsonl").open("a") as f:
         f.write(json.dumps({"at": "2026-10-02T07:00:00Z", "chosen": True, "step": "s", "component": "K1", "value": 0.2, "node": "new"}) + "\n")
     assert D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"])() is not None   # new data re-queues
+
+
+def _filler_rows(tmp_path: Path, n_sources: int = 1) -> Path:
+    st = tmp_path / "st"
+    st.mkdir(exist_ok=True)
+    rows = [{"chosen": i % 3 == 0, "at": f"2026-09-01T{i // 60 % 24:02d}:{i % 60:02d}:00Z", "step": "s%d" % (i % 4), "component": "c", "value": 1.0, "node": f"n{i}"}
+            for i in range(300)]
+    (st / "plan_explanations.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    return st
+
+
+def test_open_ended_search_continues_after_the_grid_and_stops_after_k_failures(tmp_path: Path) -> None:
+    st = _filler_rows(tmp_path)
+    nj = D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"], seed=1)
+    n_fixed = 0
+    for _ in range(len(D.VARIANTS)):
+        nj()()
+        n_fixed += 1
+    searched = 0
+    while True:
+        j = nj()
+        if j is None:
+            break
+        j()
+        searched += 1
+        assert searched < 500
+    rows = [r for r in T._jsonl(D.runs_path(st)) if r.get("select")]
+    assert n_fixed == len(D.VARIANTS) and searched >= D.SEARCH_STOP_K
+    assert sum(1 for r in rows if r.get("search")) == searched and D.search_report(st)["plan_choice"]["stopped"]
+    assert D.trust_section(st)["plan_choice"]["heldout"]["n"] > 0
+    # new data reopens the search
+    with (st / "plan_explanations.jsonl").open("a", encoding="utf-8") as f:
+        f.write("\n" + json.dumps({"chosen": True, "at": "2026-09-05T00:00:00Z", "step": "s0", "component": "c", "value": 1.0, "node": "new"}))
+    assert D.drill_filler(st, tmp_path, tmp_path / "none.md", tmp_path / "res", sources=["plan_choice"], seed=2)() is not None
+
+
+def test_variant_features_use_only_the_past(tmp_path: Path) -> None:
+    j = tmp_path / "J.md"
+    j.write_text("- 2026-09-01 nupen kernel work\n- 2026-09-03 stock backtest trader\n", encoding="utf-8")
+    t0 = T._ts("2026-09-03T12:00:00")
+    out = D.apply_variant([D.BItem(("a", "b", "c"), t0, None, 0, "x")], {"mask": 1, "extra": "both"}, j)
+    assert "jt:creator" in out[0].keys and "jt:weekly7" not in out[0].keys and "a" not in out[0].keys   # same-day entry is not visible
+    assert D.walk_forward(planted(), "x", agg="logit", cap=0.1)

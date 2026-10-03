@@ -18,11 +18,13 @@ digest) triple already done is not repeated, so new data (new commits, new journ
 `best_variant` picks on the first SELECT_SPLIT of the time-ordered predictions and reports the score of the LAST part only."""
 from __future__ import annotations
 
+import bisect
 import hashlib
 import itertools
 import json
 import math
 import os
+import random
 import re
 import subprocess
 import threading
@@ -57,7 +59,7 @@ class BItem:
 
 
 # ------------------------------------------------------------------------------------------------ the generic time-ordered binary model
-def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0) -> list[T.Pred]:
+def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
     """Predict each resolved item at its creation time using only items resolved strictly before; learn from every resolution as it happens.
     Per feature key a decayed (n, positives); p = mean over the item's keys of (pos_k + k*global)/(n_k + k). Baselines: running base rate, last value."""
     ev: list[tuple[float, int, int]] = []                    # (time, 0=resolve first / 1=create, index)
@@ -98,7 +100,11 @@ def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: flo
                 if cc:
                     c = cc
                     ps.append((c[1] * scale + k * glob) / (c[0] * scale + k))
-            p = min(0.98, max(0.02, sum(ps) / len(ps) if ps else glob))
+            if ps and agg == "logit":
+                p = 1.0 / (1.0 + math.exp(-sum(math.log(max(q, 1e-6) / max(1.0 - q, 1e-6)) for q in ps) / len(ps)))
+            else:
+                p = sum(ps) / len(ps) if ps else glob
+            p = min(1.0 - cap, max(cap, p))
             out.append(T.Pred(topic, it.subject, t, p, T._laplace(hist), T._last(hist), it.y))
     return out
 
@@ -290,9 +296,9 @@ def runs_path(state: Path) -> Path:
 def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, journal: Path, research: Path,
             lock: Optional[threading.Lock] = None) -> dict[str, Any]:
     """One drill batch: load the whole dataset, walk forward with this variant, score, append the row. Independent of every other job."""
-    items = load(source, state, repo, journal, research)
-    preds = walk_forward(items, source, variant["decay"], variant["k"])
-    row = {"source": source, "variant": variant, "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
+    items = apply_variant(load(source, state, repo, journal, research), variant, journal)
+    preds = walk_forward(items, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
+    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
     row["at"] = T.dt.datetime.now(T.dt.timezone.utc).isoformat(timespec="seconds")
     p = runs_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -301,37 +307,171 @@ def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, jou
     return row
 
 
-def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None,
+def _error_row(state: Path, s: str, v: dict[str, Any], e: Exception, lock: threading.Lock) -> None:
+    with lock:
+        p = runs_path(state)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"source": s, "variant": v, "digest": "-", "error": f"{type(e).__name__}: {e}"}) + "\n")
+
+
+def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
                  ) -> Callable[[], Optional[Callable[[], None]]]:
-    """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job (or None when all current ones are
-    done for the present data digest). The swarm keeps calling it while the Governor admits work, so the number of parallel drill workers is
-    set by free CPU and RAM, not by this module."""
+    """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
+    source, then (OPEN-ENDED, owner 2 Oct: the filler must never run dry while there is thinking left to improve) NEW variants proposed by
+    `propose` - round-robin over the sources, at most SEARCH_OUTSTANDING in flight per source - until SEARCH_STOP_K consecutive variants fail to
+    beat that source's best on the select part; a changed data digest (new commits, journal lines, plan rows, research files) reopens it.
+    Returns None only when every source is stopped or done for the present data. The swarm's Governor sets how many run at once."""
     state = Path(state)
+    srcs = list(sources) if sources else list(SOURCES)
     done = {(r.get("source"), json.dumps(r.get("variant"), sort_keys=True), r.get("digest")) for r in T._jsonl(runs_path(state))}
     lock = threading.Lock()
-    queue: list[tuple[str, dict[str, float]]] = [(s, v) for s in (list(sources) if sources else list(SOURCES)) for v in VARIANTS]
+    queue: list[tuple[str, dict[str, Any]]] = [(s, v) for s in srcs for v in VARIANTS]
     digests: dict[str, str] = {}
+    flight: dict[str, int] = dict.fromkeys(srcs, 0)
+    rnd = random.Random(seed if seed is not None else int.from_bytes(os.urandom(4), "big"))
+    rr = itertools.count()
+
+    def digest_of(s: str) -> str:
+        if s not in digests:
+            digests[s] = source_digest(s, state, Path(repo), Path(journal), Path(research))
+        return digests[s]
+
+    def wrap(s: str, v: dict[str, Any], search: bool) -> Callable[[], None]:
+        def job() -> None:
+            try:
+                run_job(s, v, state, Path(repo), Path(journal), Path(research), lock)
+            except Exception as e:                                 # noqa: BLE001
+                _error_row(state, s, v, e, lock)
+            finally:
+                if search:
+                    with lock:
+                        flight[s] -= 1
+        return job
 
     def next_job() -> Optional[Callable[[], None]]:
         while queue:
             s, v = queue.pop(0)
-            if s not in digests:
-                digests[s] = source_digest(s, state, Path(repo), Path(journal), Path(research))
-            if (s, json.dumps(v, sort_keys=True), digests[s]) in done or digests[s] == "-":
+            if digest_of(s) == "-" or (s, json.dumps(v, sort_keys=True), digest_of(s)) in done:
                 continue
-
-            def job(s: str = s, v: dict[str, float] = v) -> None:
-                try:
-                    run_job(s, v, state, Path(repo), Path(journal), Path(research), lock)
-                except Exception as e:                             # noqa: BLE001
-                    with lock:
-                        p = runs_path(state)
-                        p.parent.mkdir(parents=True, exist_ok=True)
-                        with p.open("a", encoding="utf-8") as f:
-                            f.write(json.dumps({"source": s, "variant": v, "digest": "-", "error": f"{type(e).__name__}: {e}"}) + "\n")
-            return job
+            return wrap(s, v, False)
+        for _ in range(len(srcs)):                                 # fixed grid exhausted: open-ended search
+            s = srcs[next(rr) % len(srcs)]
+            d = digest_of(s)
+            with lock:
+                if d == "-" or flight[s] >= SEARCH_OUTSTANDING:
+                    continue
+                rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == s]
+                if search_state(rows, d)["stopped"]:
+                    continue
+                for _try in range(20):
+                    v = propose(s, [r for r in rows if r.get("digest") == d], rnd)
+                    if (s, json.dumps(v, sort_keys=True), d) not in done:
+                        break
+                else:
+                    continue
+                done.add((s, json.dumps(v, sort_keys=True), d))
+                flight[s] += 1
+            return wrap(s, v, True)
         return None
     return next_job
+
+
+def search_report(state: Path, sources: Optional[Iterable[str]] = None) -> dict[str, Any]:
+    """Per source: how far the open-ended search has got (variants tried, best select Brier, failures in a row, stopped?)."""
+    out: dict[str, Any] = {}
+    allrows = T._jsonl(runs_path(state))
+    for s in (list(sources) if sources else list(SOURCES)):
+        rows = [r for r in allrows if r.get("source") == s and r.get("select", {}).get("n")]
+        if rows:
+            out[s] = search_state(rows, max(r["digest"] for r in rows))
+    return out
+
+
+def trust_section(state: Path) -> dict[str, Any]:
+    """For trust.json: per drill source the variant chosen on the SELECT part with its HELD-OUT score, the gate's verdict on that score and the
+    search status. Selection used only the earlier 60% of the time order; the held-out tail never chose anything."""
+    out: dict[str, Any] = {}
+    rep = search_report(state)
+    for s in SOURCES:
+        b = best_variant(state, s)
+        if b is None:
+            continue
+        sc = b["heldout"]
+        ok, why = T.trust_of(sc) if sc.get("n") else (False, ["no held-out predictions"])
+        out[s] = {"trusted": ok, "why_not": why, "variant": b["variant"], "heldout": sc, "variants_tried": b["variants_tried"], "search": rep.get(s)}
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ open-ended variant search
+SEARCH_STOP_K = 12                 # a source stops proposing after this many consecutive variants that fail to beat its best (select part)
+SEARCH_OUTSTANDING = 3             # proposals in flight per source (results of the others are not in yet)
+MASKS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)   # bit i set = drop key position i (0 = all kept)
+EXTRAS = ("none", "jtopic", "hour", "both")
+CAPS = (0.02, 0.05, 0.1)
+AGGS = ("mean", "logit")
+
+
+def apply_variant(items: list[BItem], variant: dict[str, Any], journal: Path) -> list[BItem]:
+    """Feature set of a search variant: drop key positions (`mask`) and add CROSS-SOURCE context keys known at creation time only:
+    'jt' = topic of the last journal entry from a day BEFORE the item's day (an entry is dated midnight but written later that day), 'hr' = UTC
+    hour band and weekday. Never the outcome, never a later record."""
+    mask, extra = int(variant.get("mask", 0)), variant.get("extra", "none")
+    if not mask and extra == "none":
+        return items
+    jt: list[tuple[float, str]] = []
+    if extra in ("jtopic", "both") and journal.is_file() and not excluded(journal.name):
+        for ln in journal.read_text(encoding="utf-8", errors="replace").splitlines():
+            m = re.match(r"^- (\d{4})-(\d\d)-(\d\d)\b(.*)", ln)
+            if m:
+                jt.append((T._ts(f"{m.group(1)}-{m.group(2)}-{m.group(3)}T00:00:00"), topic_of(m.group(4))))
+        jt.sort()
+    stamps = [x[0] for x in jt]
+    out = []
+    for it in items:
+        keys = tuple(k for i, k in enumerate(it.keys) if not mask >> i & 1) or it.keys[:1]
+        add: list[str] = []
+        if extra in ("jtopic", "both"):
+            j = bisect.bisect_right(stamps, it.created - 86400.0) - 1
+            add.append(f"jt:{jt[j][1] if j >= 0 else 'none'}")
+        if extra in ("hour", "both"):
+            d = T.dt.datetime.fromtimestamp(it.created, T.dt.timezone.utc)
+            add += [f"hr:{d.hour // 6}", f"wd:{d.weekday()}"]
+        out.append(BItem(keys + tuple(add), it.created, it.resolved, it.y, it.subject))
+    return out
+
+
+def propose(source: str, rows: Sequence[dict[str, Any]], rnd: random.Random) -> dict[str, Any]:
+    """Next variant to try: half the time a fresh random point, otherwise a one-parameter mutation of the best-on-select so far (hill climb)."""
+    def fresh() -> dict[str, Any]:
+        return {"decay": rnd.choice((0.8, 0.85, 0.9, 0.95, 0.97, 0.99, 1.0)), "k": rnd.choice((0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0)),
+                "mask": rnd.choice(MASKS), "extra": rnd.choice(EXTRAS), "agg": rnd.choice(AGGS), "cap": rnd.choice(CAPS), "search": 1}
+    ok = [r for r in rows if r.get("select", {}).get("n")]
+    if not ok or rnd.random() < 0.5:
+        return fresh()
+    b = dict(min(ok, key=lambda r: r["select"]["brier"])["variant"])
+    base = fresh()
+    base.update({kk: vv for kk, vv in b.items() if kk != "search"})
+    knob = rnd.choice(("decay", "k", "mask", "extra", "agg", "cap"))
+    base[knob] = fresh()[knob]
+    base["search"] = 1
+    return base
+
+
+def search_state(rows: Sequence[dict[str, Any]], digest_now: str) -> dict[str, Any]:
+    """From a source's rows at the current data digest (file order = completion order): the best select Brier, the run of consecutive search
+    variants that failed to beat the best so far, and whether proposing is over."""
+    best, fails, n = float("inf"), 0, 0
+    for r in rows:
+        if r.get("digest") != digest_now or not r.get("select", {}).get("n"):
+            continue
+        b = r["select"]["brier"]
+        if b < best - 1e-9:
+            best, fails = b, 0
+        elif r.get("search"):
+            fails += 1
+        n += 1
+    return {"best_select_brier": None if best == float("inf") else best, "consecutive_fails": fails, "tried": n, "stopped": fails >= SEARCH_STOP_K}
 
 
 def best_variant(state: Path, source: str) -> Optional[dict[str, Any]]:

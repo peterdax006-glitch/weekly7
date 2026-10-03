@@ -413,6 +413,12 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
         rep["topics"][t] = {"trusted": ok, "why_not": why, "score": sc}
         if t in ("duration", "cost"):
             rep["topics"][t]["point_estimate"] = log_mae(items, t)
+    try:                                                              # on demand: best variant per drill source (held-out score), when drills ran
+        from creator import registry as REG
+        rep["drills"] = REG.get("drillsources").trust_section(state)
+        rep["judgment"] = REG.get("judgment").trust_section(state)
+    except Exception as e:                                           # noqa: BLE001 - a missing drill module never breaks the trust report
+        rep["drills_error"] = f"{type(e).__name__}: {e}"
     if write:
         state.mkdir(parents=True, exist_ok=True)
         (state / "trust.json").write_text(json.dumps(rep, indent=1, sort_keys=True), encoding="utf-8")
