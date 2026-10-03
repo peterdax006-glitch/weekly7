@@ -35,6 +35,8 @@ CAPABILITIES: dict[str, str] = {
     "device": "creator.device",
     "tools": "creator.tools.toolbox",
     "swarmops": "creator.swarmops",
+    "thinking": "creator.thinking",
+    "focus": "creator.focus",
 }
 
 _loaded: dict[str, Any] = {}
