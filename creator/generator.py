@@ -49,6 +49,18 @@ STRATEGIES = ("model", "search")
 
 # ------------------------------------------------------------------------------------------------ the local model
 
+MARKER_STALE_S = 30.0       # a loading server touches its .starting marker every ~2 s
+
+
+def _free_ram_gb() -> Optional[float]:
+    """Free RAM in GiB, as the Governor measures it (psutil 'available'); None when it cannot be read."""
+    try:
+        import psutil
+        return float(psutil.virtual_memory().available) / 2**30
+    except Exception:                                          # noqa: BLE001 - unknown, not 'plenty'
+        return None
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -262,11 +274,14 @@ class LocalModel:
         cfg = DEV.settings()                                   # threads and GPU layers follow the machine unless given
         self.servers = max(1, int(cfg.get("llama_servers", 1)) if servers is None else servers)
         if threads is None:                                    # several servers share the cores (2x oversubscribed, >= 2 each)
-            threads = int(cfg["llama_threads"]) if self.servers == 1 else max(2, 2 * int(cfg["llama_threads"]) // self.servers)
+            threads = int(cfg["llama_threads"]) if self.servers == 1 else \
+                max(2, min(DEV.SERVER_MAX_THREADS, 2 * int(cfg["llama_threads"]) // self.servers))
         self.base_pidfile, self.slot_wait_s = pidfile, slot_wait_s
         self.gpu_layers = int(cfg["gpu_layers"]) if gpu_layers is None else gpu_layers
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
         self.pidfile = pidfile
+        self.free_gb: Callable[[], Optional[float]] = _free_ram_gb       # injectable: tests fake the RAM reading
+        self.starting_marker: Optional[Path] = None
         self.lock = MachineLock(pidfile.with_name("llama_server.lock"))
         self.port = 0
         self.proc: Optional[subprocess.Popen[bytes]] = None
@@ -288,24 +303,64 @@ class LocalModel:
             except OSError:
                 pass
             self.port = free_port()
-            self.job = _KillOnCloseJob()
-            self.proc = subprocess.Popen(self._command(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            self.job.adopt(self.proc)
-            try:
-                self.pidfile.parent.mkdir(parents=True, exist_ok=True)
-                self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "parent": os.getpid()}), encoding="utf-8")
-            except OSError:
-                pass
-            self._wait_healthy()
+            self._mark_starting()
+            try:                                               # the marker never outlives a failed or interrupted start
+                self.job = _KillOnCloseJob()
+                self.proc = subprocess.Popen(self._command(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.job.adopt(self.proc)
+                try:
+                    self.pidfile.parent.mkdir(parents=True, exist_ok=True)
+                    self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "parent": os.getpid()}), encoding="utf-8")
+                except OSError:
+                    pass
+                self._wait_healthy()
+            finally:
+                self._unmark_starting()
         except BaseException:                                  # incl. KeyboardInterrupt: nothing is left running
             self._stop()
             raise
         return self
 
+    def _mark_starting(self) -> None:
+        self.starting_marker = self.pidfile.with_suffix(".starting")
+        try:
+            self.starting_marker.write_text(str(time.time()), encoding="utf-8")
+        except OSError:
+            self.starting_marker = None
+
+    def _unmark_starting(self) -> None:
+        m, self.starting_marker = self.starting_marker, None
+        if m is not None:
+            m.unlink(missing_ok=True)
+
+    def _touch_marker(self) -> None:
+        if self.starting_marker is not None:
+            try:
+                os.utime(self.starting_marker)
+            except OSError:
+                pass
+
+    def _starting_count(self, others_only: bool = False) -> int:
+        """Servers loading right now on this machine (fresh markers of every slot). A loading server refreshes its marker every
+        few seconds, so a marker older than MARKER_STALE_S was left by a crash. `others_only` leaves this server's own out."""
+        n = 0
+        for m in self.base_pidfile.parent.glob(self.base_pidfile.stem + "*.starting"):
+            if others_only and m == self.starting_marker:
+                continue
+            try:
+                if time.time() - m.stat().st_mtime < MARKER_STALE_S:
+                    n += 1
+            except OSError:
+                pass
+        return n if others_only else max(1, n)
+
     def _wait_healthy(self) -> None:
         assert self.proc is not None
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < self.startup_s:
+        t0 = last_touch = time.monotonic()
+        while time.monotonic() - t0 < self.startup_s * self._starting_count():
+            if time.monotonic() - last_touch > 2.0:
+                self._touch_marker()
+                last_touch = time.monotonic()   # N servers loading together share disk and cores
             try:
                 with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/health", timeout=2) as r:
                     if r.status == 200:
@@ -329,7 +384,9 @@ class LocalModel:
                           self.base_pidfile.with_name(self.base_pidfile.stem + sfx + self.base_pidfile.suffix)))
         t0 = time.monotonic()
         while True:
-            for lock, pid in slots:
+            for i, (lock, pid) in enumerate(slots):
+                if i > 0 and not self._ram_allows_extra_server():     # an extra server is never worth a RAM pull-back
+                    break
                 lock.path.parent.mkdir(parents=True, exist_ok=True)
                 lock.fh = open(lock.path, "a+b")
                 if lock._try():
@@ -341,8 +398,21 @@ class LocalModel:
                 raise TimeoutError(f"all {self.servers} local model server slots stayed busy for {self.slot_wait_s:.0f}s")
             time.sleep(0.5)
 
+    def _ram_allows_extra_server(self) -> bool:
+        """Free RAM minus one more server (DEV.SERVER_GB, measured) must stay above the Governor's floor (device settings)."""
+        from creator import testslots
+        try:
+            free = self.free_gb()
+            if free is None:                                   # unknown free RAM never opens the gate
+                return False
+            claimed = self._starting_count(others_only=True) * DEV.SERVER_GB     # loading servers have not taken their RAM yet
+            return free - claimed - DEV.SERVER_GB > testslots.reserve_gb(DEV.get().ram_gb)
+        except Exception:                                      # noqa: BLE001 - an unreadable budget means no extra server
+            return False
+
     def _stop(self) -> None:
         proc, self.proc = self.proc, None
+        self._unmark_starting()
         try:
             if proc is not None and proc.poll() is None:
                 proc.terminate()
