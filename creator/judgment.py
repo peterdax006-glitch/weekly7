@@ -718,8 +718,6 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
             arms = ((extra or {}).get("arms_by_subject") or {}).get(c.subject)
             if arms:                                                # online rounds: the strategies this subject was given (kept fixed)
                 row["arms"] = arms
-            if isinstance(getattr(llm, "pulse", None), str) and llm.pulse:     # answered on a rented GPU (creator.gpupulse): timings kept apart
-                row["gpu_pulse"] = llm.pulse
             if "knn" in s:                                          # the model-free control: no call, no cost
                 hist = history(cases, c)
                 base = sum(x.y for x in hist) / len(hist) if hist else 0.5
@@ -734,6 +732,10 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
                 row.update(p=RM.aggregate(ps), reply=first[:300], tokens=toks)
                 if len(ps) > 1:
                     row["ps"] = [round(x, 4) for x in ps]
+            # answered on a rented GPU (creator.gpupulse): timings kept apart. Read AFTER the call: the live overflow route (creator.pulseroute)
+            # may have fallen back to this PC mid-batch.
+            if isinstance(getattr(llm, "pulse", None), str) and llm.pulse:
+                row["gpu_pulse"] = llm.pulse
             row.update(seconds=round(time.monotonic() - t0, 2), at=t_end.isoformat(timespec="seconds"))
             _append(state, row)
             if pid and fp is not None:

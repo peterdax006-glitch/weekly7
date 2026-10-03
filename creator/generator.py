@@ -289,6 +289,7 @@ class LocalModel:
         self.seconds = 0.0
         self.leased = False                                    # attached to a warm server of creator.modelpool (not ours to stop)
         self.pulse = ""                                        # attached to a rented GPU pod's server (creator.gpupulse): its pulse id
+        self.routed = False                                    # ... by the live overflow route (creator.pulseroute): falls back to this PC
 
     def _command(self) -> list[str]:
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
@@ -298,7 +299,7 @@ class LocalModel:
         """Only while a GPU pulse is switched on (creator.device.pulse_on): use the pod's server of this model through the SSH tunnel."""
         cfg = DEV.settings()
         if not DEV.pulse_on(cfg):
-            return False
+            return self._route_attach(cfg)
         from creator import gpupulse as GP
         got = GP.attach(GP.pulse_file(cfg), self.model)
         if got is None:
@@ -306,9 +307,24 @@ class LocalModel:
         self.port, self.pulse = got
         return True
 
+    def _route_attach(self, cfg: Mapping[str, Any]) -> bool:
+        """Device setting 'pulse_route' 'auto' (creator.pulseroute): the pod's server of this model while the tunnel answers; else local."""
+        if str(cfg.get("pulse_route") or "off").lower() != "auto":
+            return False
+        from creator import pulseroute as PR
+        got = PR.attach(self.model, cfg)
+        if got is None:
+            return False
+        self.port, self.pulse = got
+        self.routed = True
+        return True
+
     def __enter__(self) -> "LocalModel":
         if self._pulse_attach():
             return self
+        return self._enter_local()
+
+    def _enter_local(self) -> "LocalModel":
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
         self._acquire_slot()                                   # a warm pooled server, a free server slot on this machine, or wait for one
@@ -441,6 +457,10 @@ class LocalModel:
                 from creator import gpupulse as GP
                 if GP.serves(GP.pulse_file(cfg), self.model):
                     return True
+            elif str(cfg.get("pulse_route") or "off").lower() == "auto":
+                from creator import pulseroute as PR
+                if PR.serves(self.model, cfg):                 # the overflow route answers it on the pod
+                    return True
             free = self.free_gb()
             if free is None:                                   # unknown free RAM never opens the gate
                 return False
@@ -454,6 +474,7 @@ class LocalModel:
     def _stop(self) -> None:
         if self.pulse:                                         # the pod's server is not ours to stop
             self.pulse = ""
+            self.routed = False
             return
         if self.leased:                                        # the pool owns the server: only give the lease back
             self.leased = False
@@ -492,9 +513,32 @@ class LocalModel:
              seed: int = 0, timeout: Optional[float] = None) -> str:
         if timeout is None:                                    # 600 s for the fast model; a bigger (slower) thinking model gets longer
             timeout = DEV.call_timeout_s(self.model, 600.0)
+        if self.routed:                                        # the live overflow route: the pod, or this PC when it cannot answer
+            return self._routed_chat(messages, max_tokens, temperature, seed, timeout)
         if self.pulse:                                         # nothing private ever leaves this PC
             from creator import gpupulse as GP
             GP.outbound_ok(messages)
+        return self._post(messages, max_tokens, temperature, seed, timeout)
+
+    def _routed_chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int, temperature: float, seed: int, timeout: float) -> str:
+        """creator.pulseroute: a private prompt never leaves (answered here); a tunnel or pod that fails mid-batch drops this model to a
+        local server for the rest of its life, and the next attach re-probes. Only answers that came from the pod keep the pulse marker."""
+        from creator import pulseroute as PR
+        if PR.may_leave(messages):
+            try:                                               # a GPU answers in seconds: a pod that hangs is not waited out
+                return self._post(messages, max_tokens, temperature, seed, min(timeout, PR.CALL_TIMEOUT_S))
+            except (urllib.error.URLError, OSError, ValueError, KeyError):   # refused, reset, timed out, garbage: the pod is gone
+                PR.invalidate()
+        self._fall_back_local()
+        return self._post(messages, max_tokens, temperature, seed, timeout)
+
+    def _fall_back_local(self) -> None:
+        self.pulse, self.routed = "", False
+        local = DEV.derive(DEV.get())                          # this PC's own sizing (the route's overlay counted the pod's slots)
+        self.threads = DEV.server_threads(local, int(local.get("think_servers") or 0) or self.servers)
+        self._enter_local()
+
+    def _post(self, messages: Sequence[Mapping[str, str]], max_tokens: int, temperature: float, seed: int, timeout: float) -> str:
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body,

@@ -272,6 +272,18 @@ class ModelPool:
             lk.fh.close()
         return False
 
+    def drain(self) -> bool:
+        """The overflow route answers this model on a rented GPU (creator.pulseroute): stop one idle server per call, never a leased one.
+        True once nothing is loaded or loading (the pool can close)."""
+        with self.guard:
+            for slot in [s for s, v in self.servers.items() if v["proc"].poll() is not None]:
+                self._drop(slot)
+            if self.loading is not None and not self.loading.is_alive():
+                self.loading = None
+            if self.servers:
+                self._stop_one_idle()
+            return not self.servers and self.loading is None
+
     def close(self) -> None:
         """Stop every pooled server (leased ones too: the swarm is ending)."""
         self.closed = True
@@ -310,9 +322,36 @@ def tick(gov: Any, free_ram: Callable[[], float]) -> Optional[dict[str, Any]]:
     global _POOL
     if gov.admit is None:
         return None
+    if _routed():                                                      # overflow to a GPU: the local copies drain to 0
+        if _POOL is not None and _POOL.drain():
+            _POOL.close()
+            _POOL = None
+        return {"servers": len(_POOL.servers) if _POOL is not None else 0, "loading": False, "ports": [], "routed": True}
     if _POOL is None or _POOL.closed:
         _POOL = ModelPool(free_gb=lambda: float(free_ram()), **pool_model())
     return _POOL.tick(allowed=not gov.too_tight())
+
+
+_ROUTE: dict[str, Any] = {"t": -1e9, "v": False}
+
+
+def _routed(clock: Callable[[], float] = time.monotonic) -> bool:
+    """Device setting 'pulse_route' 'auto' and the pod answers the model this pool keeps (creator.pulseroute); checked once per TICK_S.
+    Off (the default) costs one settings read per TICK_S; the route module is imported only when switched on."""
+    now = clock()
+    if now - float(_ROUTE["t"]) < TICK_S:
+        return bool(_ROUTE["v"])
+    v = False
+    try:
+        cfg = DEV.settings()
+        if str(cfg.get("pulse_route") or "off").lower() == "auto":
+            from creator import pulseroute as PR
+            model = _POOL.model if _POOL is not None and not _POOL.closed else pool_model(cfg=cfg).get("model", G.DEFAULT_MODEL)
+            v = PR.serves(model, cfg)
+    except Exception:                                                  # noqa: BLE001 - a broken route keeps the local pool
+        v = False
+    _ROUTE.update(t=now, v=v)
+    return v
 
 
 def close_if_idle() -> None:

@@ -295,6 +295,7 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         "think_model": THINK_MODEL_FILE,                 # the thinking model (file name in models/ or a path); '' = use the fast model
         "think_servers": 0,                              # thinking-model servers allowed at once (from RAM, below)
         "gpu_pulse": False,                              # True: attach to a rented GPU pod's tunnel (creator.gpupulse); off by default
+        "pulse_route": "off",                            # 'auto': the live swarm's model calls overflow to a healthy pulse tunnel (creator.pulseroute)
     }
     ov = dict(load_overrides() if overrides is None else overrides)
     for k, v in ov.items():
@@ -337,6 +338,9 @@ def settings(refresh: bool = False) -> dict[str, Any]:
     out = derive(get(refresh))
     if pulse_on(out):                                    # a GPU pulse job: its model is the thinker (creator.gpupulse.settings_overlay)
         out.update(_gp().settings_overlay(_gp().pulse_file(out)))
+    elif str(out.get("pulse_route") or "off").lower() == "auto":      # overflow to a rented GPU while its tunnel is healthy (creator.pulseroute)
+        from creator import pulseroute
+        out.update(pulseroute.settings_overlay(out))
     return out
 
 
