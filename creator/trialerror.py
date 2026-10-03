@@ -219,6 +219,8 @@ def sim_online(ps: Sequence[float], budget: int, rnd: random.Random, control: in
         yc = q.pull(ps[control]) if ctl else 0
         calls += int(ctl) * control_cost
         post = {str(a): sampler(a) for a in others if not out_(a)}
+        if not post:                                                # every arm raced out: nothing left to ask (never spin)
+            break
         for a in (int(x) for x in thompson_order(post, rnd, per_batch)):
             y = q.pull(ps[a])
             calls += 1

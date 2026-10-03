@@ -66,6 +66,11 @@ def test_simulation_racing_stops_early_when_no_strategy_beats_the_free_predictor
     assert sum(1 for c, _n in raced if c == -1) > 10
 
 
+def test_online_simulation_ends_when_every_arm_is_raced_out_with_a_free_control() -> None:
+    c, n = TE.sim_online([0.95, 0.05, 0.05], 10_000, random.Random(1), control_cost=0, mode="paired")
+    assert n < 10_000                                                       # stopped: nothing left to ask, never spins
+
+
 # ------------------------------------------------------------------------------------------------ 2 feature families
 def _commits(n: int = 120, seed: int = 3) -> list[dict[str, Any]]:
     rnd = random.Random(seed)
