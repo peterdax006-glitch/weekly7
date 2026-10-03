@@ -183,9 +183,10 @@ def mean_reward(model: Any, tok: Any, rows: list[dict[str, Any]], max_new: int) 
     import torch
     scores = []
     for r in rows:
-        ids = tok.apply_chat_template(r["prompt"], add_generation_prompt=True, return_tensors="pt", enable_thinking=False).to(model.device)
+        enc = tok.apply_chat_template(r["prompt"], add_generation_prompt=True, return_tensors="pt", return_dict=True, enable_thinking=False)
+        ids = enc["input_ids"].to(model.device)                  # transformers 5 returns a BatchEncoding here
         with torch.no_grad():
-            out = model.generate(ids, max_new_tokens=max_new, do_sample=False)
+            out = model.generate(input_ids=ids, attention_mask=enc["attention_mask"].to(model.device), max_new_tokens=max_new, do_sample=False)
         scores.append(reward_one(tok.decode(out[0][ids.shape[1]:], skip_special_tokens=True), r["name"], json.loads(r["tests"])))
     return round(sum(scores) / max(1, len(scores)), 4)
 

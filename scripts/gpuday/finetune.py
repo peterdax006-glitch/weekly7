@@ -116,8 +116,7 @@ def fit_rows(rows: list[dict[str, Any]], tok: Any, max_seq: int) -> tuple[list[d
             ids = tok.apply_chat_template(msgs, tokenize=True)
             length = len(ids["input_ids"] if isinstance(ids, dict) else ids)
         except Exception:                               # noqa: BLE001 - no template: count the plain text
-            length = len(tok("
-".join(str(m.get("content", "")) for m in msgs))["input_ids"])
+            length = len(tok(" ".join(str(m.get("content", "")) for m in msgs))["input_ids"])
         if length <= max_seq:
             keep.append(r)
         else:
