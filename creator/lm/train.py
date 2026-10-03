@@ -25,9 +25,26 @@ def _batch(data: Any, rng: Any, bs: int, ctx: int, device: str = "cpu", dlg: Any
     return torch.from_numpy(x).to(device), torch.from_numpy(y).to(device)
 
 
+def lr_at(lr: float, cycle_spent: float, cycle_budget: float, cycle_steps: int, warm: int = 30) -> float:
+    """Learning rate inside an annealing CYCLE (a cosine over cycle_budget seconds of training, spanning as many sessions as it takes).
+    Warm-up only at the very start of a cycle (cycle_steps counts steps taken in it), so a resumed session continues where the last
+    one stopped instead of re-warming and re-annealing from the top."""
+    frac = min(1.0, max(0.0, cycle_spent / max(cycle_budget, 1e-9)))
+    return lr * min(1.0, (cycle_steps + 1) / warm) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * frac)))
+
+
+def session_limits(minutes: float, cycle_minutes: float | None, cycle_spent: float) -> tuple[float, float]:
+    """(cycle_budget_s, session_budget_s): the session ends at its own budget or when the cycle completes, whichever is first."""
+    cycle_budget = (cycle_minutes if cycle_minutes else minutes) * 60.0
+    return cycle_budget, min(minutes * 60.0, max(0.0, cycle_budget - cycle_spent))
+
+
 def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: float = 2e-3,
           cfg: LMConfig | None = None, save_every_min: float = 5.0, log: Any = print,
-          device: str = "cpu", dialogue_share: float = 0.0) -> dict[str, Any]:
+          device: str = "cpu", dialogue_share: float = 0.0, cycle_minutes: float | None = None) -> dict[str, Any]:
+    """Train for up to `minutes`. The cosine schedule runs over a CYCLE of cycle_minutes (default: this session's minutes) that is
+    saved in the checkpoint: a session cut short (owner back, NUPEN_STOP, a yield to practice) resumes the same cycle next time, and
+    only a COMPLETED cycle ends annealed - the result says so ('cycle_complete'), and only then is a promotion attempt meaningful."""
     import numpy as np
     import torch
     torch.set_num_threads(threads)
@@ -40,6 +57,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
     tok = BPETokenizer.load(data_dir() / "tokenizer.json")
     resume = ck / "resume.pt"
     step, tokens_seen, elapsed_total = 0, 0, 0.0
+    cycle_spent0, cycle_steps0 = 0.0, 0                              # progress inside the current annealing cycle (old checkpoints: a new cycle)
     blob = torch.load(str(resume), map_location="cpu", weights_only=True) if resume.exists() else None
     cfg = LMConfig(**blob["cfg"]) if blob else (cfg or LMConfig(vocab_size=tok.vocab_size))
     model = build_model(cfg).to(device)                              # device: 'cuda' on a machine whose LM env has a CUDA torch
@@ -48,6 +66,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         model.load_state_dict(blob["model"])
         opt.load_state_dict(blob["opt"])
         step, tokens_seen, elapsed_total = blob["step"], blob["tokens"], blob["elapsed"]
+        cycle_spent0, cycle_steps0 = float(blob.get("cycle_spent", 0.0)), int(blob.get("cycle_steps", 0))
     data = np.memmap(data_dir() / "train.bin", dtype=np.uint16, mode="r")
     rng = np.random.default_rng(1234 + step)
     dlg: Any = None
@@ -60,15 +79,19 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         log(f"dialogue mix: share {dialogue_share:.2f}, {len(texts)} dialogues, {len(ids)} tokens in the stream")
     n_params = count_params(model)
 
+    done = False
+
     def save(final_name: str | None = None) -> None:
+        cyc = {"cycle_spent": 0.0, "cycle_steps": 0} if done else {"cycle_spent": cycle_spent0 + time.time() - t0,
+                                                                    "cycle_steps": cycle_steps0 + step - s0}
         state = {"cfg": cfg.to_dict(), "model": {k: v.cpu() for k, v in model.state_dict().items()}}   # checkpoints are device-free
-        torch.save({**state, "opt": opt.state_dict(), "step": step, "tokens": tokens_seen, "elapsed": elapsed_total + time.time() - t0},
+        torch.save({**state, "opt": opt.state_dict(), "step": step, "tokens": tokens_seen, "elapsed": elapsed_total + time.time() - t0, **cyc},
                    str(resume) + ".tmp")
         (ck / "resume.pt.tmp").replace(resume)
         if final_name:
             torch.save(state, str(ck / final_name))
 
-    budget = minutes * 60.0
+    cycle_budget, budget = session_limits(minutes, cycle_minutes, cycle_spent0)
     t0 = time.time()
     last_save = t0
     model.train()
@@ -79,8 +102,7 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
         spent = time.time() - t0
         if spent >= budget or stop.exists():
             break
-        frac = min(1.0, spent / budget)                              # time-based cosine schedule for this session
-        cur_lr = lr * min(1.0, (step - s0 + 1) / warm) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * frac)))
+        cur_lr = lr_at(lr, cycle_spent0 + spent, cycle_budget, cycle_steps0 + step - s0, warm)
         for g in opt.param_groups:
             g["lr"] = cur_lr
         for _ in range(accum):
@@ -101,9 +123,10 @@ def train(minutes: float, threads: int = 4, batch: int = 8, accum: int = 2, lr: 
             save()
             last_save = time.time()
     session = time.time() - t0
+    done = cycle_spent0 + session >= cycle_budget - 1e-6
     elapsed_total += session
     name = f"weights_step{step}.pt"
     save(name)
     return {"step": step, "tokens": tokens_seen, "params": n_params, "weights": str(ck / name),
-            "session_seconds": session, "session_tok_per_s": (step - s0) * batch * accum * cfg.ctx / max(session, 1e-9),
+            "session_seconds": session, "cycle_complete": done, "cycle_progress": min(1.0, (cycle_spent0 + session) / cycle_budget), "session_tok_per_s": (step - s0) * batch * accum * cfg.ctx / max(session, 1e-9),
             "last_loss": sum(losses[-20:]) / max(1, len(losses[-20:]))}

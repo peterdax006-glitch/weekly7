@@ -25,7 +25,8 @@ def cmd_eval() -> int:
     return 0
 
 
-def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "none", share: float = 0.2) -> int:
+def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "none", share: float = 0.2,
+              cycle_minutes: float | None = None) -> int:
     from creator.lm import data, evaluate, train
     from creator.lm.model import LMConfig, build_model
     from creator.lm.tokenizer import BPETokenizer
@@ -37,8 +38,12 @@ def cmd_train(minutes: float, threads: int, device: str = "cpu", mix: str = "non
         m = build_model(LMConfig(vocab_size=tok.vocab_size))
         base = evaluate.summarize(evaluate.per_text_nats(m, tok, texts, 256))
         print("BEFORE (untrained init) bits/byte:", json.dumps(base))
-    out = train.train(minutes, threads=threads, device=device, dialogue_share=share if mix == "dialogue" else 0.0)
+    out = train.train(minutes, threads=threads, device=device, dialogue_share=share if mix == "dialogue" else 0.0,
+                      cycle_minutes=cycle_minutes)
     print("TRAINED:", json.dumps(out))
+    if not out.get("cycle_complete", True):                      # cut short: weights are not annealed yet, a promotion attempt would be noise
+        print(f"CYCLE INCOMPLETE {out['cycle_progress']:.0%}: resumes the same annealing cycle next session, no promotion attempt")
+        return 0
     ok, why, res = evaluate.consider(Path(out["weights"]), {"step": out["step"], "tokens": out["tokens"], "params": out["params"]})
     print("PROMOTED" if ok else "NOT PROMOTED", why)
     print("AFTER:", json.dumps({k: res[k] for k in ("bpb", "lo", "hi", "n")}))
@@ -65,6 +70,8 @@ def main() -> int:
     t.add_argument("--device", default=None, help="cpu | cuda; default: derived from the machine")
     t.add_argument("--mix", choices=["none", "dialogue"], default="none", help="dialogue: mix User:/Nupen: dialogue text into the story stream")
     t.add_argument("--dialogue-share", type=float, default=0.2, help="fraction of training sequences drawn from dialogue when --mix dialogue")
+    t.add_argument("--cycle-minutes", type=float, default=None,
+                   help="annealing cycle across sessions (default: = --minutes); a cut-short session resumes it, promotion only at its end")
     sub.add_parser("eval")
     s = sub.add_parser("sample")
     s.add_argument("prompt")
@@ -76,7 +83,7 @@ def main() -> int:
     if a.cmd == "train":
         from creator import device as DEV
         cfg = DEV.settings()
-        return cmd_train(a.minutes, int(cfg["lm_threads"]) if a.threads is None else a.threads, a.device or str(cfg["torch_device"]), a.mix, a.dialogue_share)
+        return cmd_train(a.minutes, int(cfg["lm_threads"]) if a.threads is None else a.threads, a.device or str(cfg["torch_device"]), a.mix, a.dialogue_share, a.cycle_minutes)
     if a.cmd == "eval":
         return cmd_eval()
     return cmd_sample(a.prompt)

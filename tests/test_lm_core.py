@@ -63,3 +63,18 @@ def test_tiny_model_generates():
     m = build_model(cfg)
     out = m.generate([1, 2, 3], 5, temperature=0.8)
     assert len(out) == 8 and torch is not None
+
+
+def test_lr_schedule_resumes_inside_a_cycle_and_anneals_only_at_its_end():
+    from creator.lm.train import lr_at, session_limits
+    # a 60-minute cycle run as three 20-minute sessions: the 2nd session continues the cosine, no re-warm-up, no jump back to the peak
+    assert session_limits(20, 60, 0.0) == (3600.0, 1200.0)
+    assert session_limits(20, 60, 1200.0) == (3600.0, 1200.0)
+    assert session_limits(20, 60, 3000.0) == (3600.0, 600.0)          # the last session only runs what the cycle has left
+    assert session_limits(20, None, 0.0) == (1200.0, 1200.0)          # no cycle given: the old one-session behaviour
+    end_of_s1 = lr_at(2e-3, 1200.0, 3600.0, 120)
+    start_of_s2 = lr_at(2e-3, 1200.0, 3600.0, 121)
+    assert abs(end_of_s1 - start_of_s2) / end_of_s1 < 0.01            # continuous across the resume
+    assert lr_at(2e-3, 0.0, 3600.0, 0) < 2e-3 / 20                    # warm-up at the cycle start only
+    assert lr_at(2e-3, 3600.0, 3600.0, 500) == pytest.approx(2e-4)    # annealed to 10% when the cycle completes
+    assert lr_at(2e-3, 9999.0, 3600.0, 500) == pytest.approx(2e-4)    # never past the floor

@@ -49,6 +49,7 @@ LM_PYTHON = DEV.lm_python()
 LM_IDLE_S = 600.0                    # the owner must have been away this long before training starts
 LM_MIN_FREE_GB = float(DEV.settings()["lm_min_free_gb"])    # 3.0 on the 16 GB development machine; scales with RAM
 LM_MINUTES = 20
+LM_CYCLE_MINUTES = 60               # one annealing cycle spans this much training, over as many sessions as it takes (cut-short sessions resume it)
 LM_MIX = "dialogue"                 # training mix for the idle trainer: "dialogue" (stories + dialogue turns) or "none" (stories only)
 LM_DIALOGUE_SHARE = 0.2
 LM_GRACE_S = 90.0                    # how long a run gets to stop itself via its STOP file before the process tree is ended
@@ -241,7 +242,8 @@ class LMTrainer:
         self.yield_since: float | None = None
 
     def cmd(self) -> list[str]:
-        c = [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES)]
+        c = [str(self.python), "-u", str(ROOT / "scripts" / "nupen_lm.py"), "train", "--minutes", str(LM_MINUTES),
+             "--cycle-minutes", str(LM_CYCLE_MINUTES)]
         if LM_MIX != "none":
             c += ["--mix", LM_MIX, "--dialogue-share", str(LM_DIALOGUE_SHARE)]
         return c
