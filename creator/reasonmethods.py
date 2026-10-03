@@ -153,7 +153,8 @@ def build_corpus(state: Path, cases: Sequence[Any] = ()) -> list[Rec]:
     for c in cases:
         k = kl.get(c.subject) if c.topic == "verdict" else None
         why = f" ({str(k.get('reason', ''))[:110]})" if k and k.get("reason") else ""
-        word = ("ADOPTED" if c.y else "not adopted") if c.topic == "verdict" else ("later fixed" if c.y else "never fixed")
+        word = (("ADOPTED" if c.y else "not adopted") if c.topic == "verdict" else ("changed again" if c.y else "not changed again")
+                if c.topic.endswith("churn") else ("later fixed" if c.y else "never fixed"))
         recs.append(Rec(c.resolved, "cycle" if k else "case", c.topic, c.text, word + why, c.y))
     seen: set[tuple[str, str]] = set()
     for r in _jsonl(state / "plan_explanations.jsonl"):
