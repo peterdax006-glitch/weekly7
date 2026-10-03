@@ -51,6 +51,34 @@ def is_skill_signal(les: "Lesson") -> bool:
     return not str(les.verdict).lower().startswith(tuple(v + ":" for v in (*NO_SIGNAL.values(), "interrupted")))
 
 
+# A "not claimed done" note that only says the student's RUNTIME failed (model call timed out, server down, RAM pull-back) is not a
+# judgement of the student's skill: it never counts towards a skip (the 37/37 'no measurable work' deadlock of 2 Oct was mostly this).
+INFRA_FAILURE = ("model call failed", "timeout", "timed out", "server", "unavailable", "ram ", "pulled back", "connection", "out of memory")
+
+
+def is_judged(les: "Lesson") -> bool:
+    """True when the attempt counts as evidence for a skip: a kernel verdict (ADOPTED/REJECTED/ROLLED_BACK), or a genuine 'no measurable
+    work' claim (student ran, produced nothing). Unjudged (adopted None), interrupted, cancelled, errored and infrastructure failures never count."""
+    if les.adopted is None or not is_skill_signal(les):
+        return False
+    v = str(les.verdict).lower()
+    return not (v.startswith("not claimed done") and any(k in v for k in INFRA_FAILURE))
+
+
+def student_version(student: Any) -> str:
+    """Fingerprint of the student's code and model: its own `version` attribute when set, else a hash of its module source."""
+    import hashlib
+    import inspect
+    parts = [str(getattr(student, "version", "") or "")]
+    try:
+        f = inspect.getsourcefile(type(student))
+        if f:
+            parts.append(hashlib.sha1(Path(f).read_bytes()).hexdigest()[:12])
+    except (OSError, TypeError):
+        pass
+    return "|".join(p for p in parts if p)
+
+
 @dataclasses.dataclass
 class Lesson:
     lesson_id: str
@@ -67,6 +95,7 @@ class Lesson:
     verdict: str = ""                               # outcome / reason once known
     claimed_done: bool = False
     at: str = ""
+    version: str = ""                               # the solver's code/model fingerprint when it attempted (skip rule evidence is per version)
     predicted: dict[str, float] = dataclasses.field(default_factory=dict)   # the solver's predicted effect, e.g. {'size_delta': -12}
     measured: dict[str, float] = dataclasses.field(default_factory=dict)    # the same effect measured on the change (creator.reasoning)
 
@@ -210,22 +239,33 @@ class Router:
 
     skip_min_attempts: int = 10
     skip_no_output_share: float = 0.8
+    skip_cooldown_s: float = 0.0                    # > 0: a skip lifts this long after the student's last attempt, so ONE fresh probe runs
 
-    def skip_reason(self, lessons: Iterable[Lesson], solver: str, kind: str, since: str = "") -> str:
-        """'' or why `solver` should stop being tried on `kind`: >= skip_min_attempts judged attempts (cancelled/errored cycles do not
-        count), none adopted, and >= skip_no_output_share of them produced no measurable work (never claimed done). Attempts older
-        than `since` (a reenable event) are ignored; any adoption is new evidence by itself. Teachers are never skipped."""
+    def skip_reason(self, lessons: Iterable[Lesson], solver: str, kind: str, since: str = "", version: str = "",
+                    now: Optional[dt.datetime] = None) -> str:
+        """'' or why `solver` should stop being tried on `kind`: >= skip_min_attempts JUDGED attempts (see is_judged; unjudged, cancelled,
+        interrupted and runtime-failure attempts never count), none adopted, and >= skip_no_output_share of them produced no measurable
+        work. A skip is never permanent without evidence: attempts older than `since` (a reenable event) or made by another
+        `version` of the student (when given) are ignored, any adoption is new evidence, and after skip_cooldown_s without an attempt
+        one probe runs (its own attempt restarts the clock). Teachers are never skipped."""
         if solver in TEACHER:
             return ""
-        mine = [x for x in lessons if x.solver == solver and x.task_kind == kind and x.adopted is not None
-                and is_skill_signal(x) and (not since or x.at > since)]
+        alls = [x for x in lessons if x.solver == solver and x.task_kind == kind and (not version or x.version == version)]
+        mine = [x for x in alls if is_judged(x) and (not since or x.at > since)]
         if len(mine) < self.skip_min_attempts or any(x.adopted for x in mine):
             return ""
         none = sum(1 for x in mine if not x.claimed_done)
         if none / len(mine) < self.skip_no_output_share:
             return ""
-        return (f"{solver} skipped on {kind}: {none}/{len(mine)} attempts produced no measurable work, 0 adopted "
-                f"(re-enabled by a reenable event or by an adoption)")
+        if self.skip_cooldown_s > 0:
+            last = max((x.at for x in alls if x.at), default="")
+            try:
+                if last and ((now or dt.datetime.now()) - dt.datetime.fromisoformat(last)).total_seconds() >= self.skip_cooldown_s:
+                    return ""
+            except ValueError:
+                pass
+        return (f"{solver} skipped on {kind}: {none}/{len(mine)} judged attempts produced no measurable work, 0 adopted "
+                f"(lifts on a reenable event, an adoption, a new student version, or after the cool-down probe)")
 
 
 # ------------------------------------------------------------------------------------------------ reconciliation
@@ -369,6 +409,9 @@ def _restore(workdir: Path, before: dict[str, str], after: dict[str, str]) -> No
             f.unlink(missing_ok=True)
 
 
+SKIP_COOLDOWN_S = 6 * 3600.0                        # a skipped student gets one fresh probe attempt per 6 hours
+
+
 class Curriculum:
     """Wires lessons into the kernel loop. `student_steps()` and `claude_step(session)` are workers for creator.selfworkers.SelfFirst
     (students as own workers, the capturing session as fallback); `resolve(report)` is the kernel's on_report callback."""
@@ -376,9 +419,10 @@ class Curriculum:
     def __init__(self, lessons_path: Path, students: Sequence[Student] = (), router: Optional[Router] = None) -> None:
         self.log = LessonLog(lessons_path)
         self.students = list(students)
-        self.router = router or Router()
+        self.router = router or Router(skip_cooldown_s=SKIP_COOLDOWN_S)
         self._open: dict[str, list[str]] = {}             # package_id -> lessons waiting for the cycle outcome
         self._skipped: set[tuple[str, str]] = set()
+        self._by_name = {s.name: s for s in self.students}
 
     # --- recording
     def _draft(self, plan: Any, package: Any, solver: str) -> Lesson:
@@ -387,7 +431,7 @@ class Curriculum:
         except Exception:                                   # noqa: BLE001 - a lesson is never worth a crash
             ctx = ""
         return Lesson(lesson_id=uuid.uuid4().hex[:12], package_id=str(getattr(plan, "package_id", "")),
-                      component=str(getattr(plan, "component", "")), task_kind=task_kind(plan),
+                      component=str(getattr(plan, "component", "")), task_kind=task_kind(plan), version=student_version(self._by_name.get(solver)) if solver in self._by_name else "",
                       objective=str(getattr(package, "objective", "")), context=ctx, solver=solver,
                       at=dt.datetime.now().isoformat(timespec="seconds"))
 
@@ -461,7 +505,7 @@ class _StudentStep:
         if not self.student.can_attempt(les):
             return K.WorkResult(False, f"{self.name} cannot attempt this task")
         past = self.cur.log.lessons()
-        why = self.cur.router.skip_reason(past, self.name, les.task_kind, self.cur.log.reenabled().get((self.name, les.task_kind), ""))
+        why = self.cur.router.skip_reason(past, self.name, les.task_kind, self.cur.log.reenabled().get((self.name, les.task_kind), ""), les.version)
         if why:
             self.cur.note_skip(self.name, les.task_kind, why)
             return K.WorkResult(False, why)
