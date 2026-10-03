@@ -37,7 +37,7 @@ def test_prompt_with_retrieval_traces_and_template_has_no_future() -> None:
     c = cs[30]
     msgs = J.build_prompt({"shots": 0, "hint": 1, "retrieve": 4, "traces": 2, "structured": 1}, cs, c, idx)
     blob = json.dumps(msgs)
-    assert "Similar past cases" in blob and "QUESTION" in blob and "Teacher (claude) reasoned" in blob
+    assert "Similar past cases" in blob and "QUESTION" in blob and "The widget needs tests" in blob
     assert "FUTURE" not in blob and "future reasoning" not in blob and not any(f"package p{i} " in blob for i in range(31, 60))
     early = RM.Index(corpus(cs)).search(cs[2].text, cs[2].created, 4)
     assert all(r.known < cs[2].created for r in early)
