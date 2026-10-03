@@ -23,6 +23,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
@@ -173,24 +174,89 @@ def question(topic: str) -> str:
 
 def setup_text(repo: str, c: dict[str, Any], topic: str) -> str:
     """What was known when the commit landed: never the outcome, never anything later."""
-    top = sorted(c["files"])[0].split("/")[0] if c["files"] else "-"
+    return _setup_head(repo, c) + question(topic)
+
+
+def _setup_head(repo: str, c: dict[str, Any], top: Optional[str] = None) -> str:
+    """setup_text without the question (the same for every topic); `top` when the caller already has it (drillsources' 'd:' key)."""
+    if top is None:
+        top = min(c["files"]).split("/")[0] if c["files"] else "-"
     return (f"A commit to the public open-source project '{repo}' at {_iso(c['t'])} UTC with message '{c['s'][:SUBJECT_MAX]}'. "
-            f"It changed {len(c['files'])} files and {c['lines']} lines; first top folder '{top}'. {question(topic)}")
+            f"It changed {len(c['files'])} files and {c['lines']} lines; first top folder '{top}'. ")
+
+
+# Speed h43: the cases of each repository kept per exact (size, mtime_ns) of its text cache, every topic built from ONE parse (3 Oct: the
+# first thinking.run spent 98 of 120 s re-reading ~240,000 JSON rows and rebuilding 120,000 cases per topic; a fetch that grows one repository
+# now recomputes only that repository). Identical cases; callers get fresh lists (the tuples and items are shared and never modified).
+_REPO_CASES: dict[str, tuple[tuple[int, int], dict[str, list[tuple[str, D.BItem, str, str]]]]] = {}
+_ALL_CASES: dict[str, tuple[tuple[Any, ...], list[tuple[str, D.BItem, str, str]]]] = {}
+
+
+def _file_key(path: Path) -> Optional[tuple[int, int]]:
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns)
+
+
+def _build_repo_cases(repo: Path) -> dict[str, list[tuple[str, D.BItem, str, str]]]:
+    cs = commits(repo)
+    name = repo.name
+    events = {t: D._git_events(cs, MODE[t][1], MODE[t][0]) for t in TOPICS}
+    first = events[TOPICS[0]]
+    heads = [_setup_head(name, c, it.keys[3][2:]) for c, it in zip(cs, first)]         # top folder = the 'd:' key (no second min())
+    mcls = [it.keys[0][2:] for it in first]                                            # message class = the 'm:' key
+    tag = f"r:{name}"
+    out: dict[str, list[tuple[str, D.BItem, str, str]]] = {}
+    for topic in TOPICS:
+        q = question(topic)
+        rows = []
+        for i, it in enumerate(events[topic]):
+            keys = tuple(sys.intern(k) for k in it.keys[:3]) + (sys.intern(f"d:{name}/{it.keys[3][2:]}"), tag)   # kept: shared strings
+            rows.append((name, D.BItem(keys, it.created, it.resolved, it.y, f"{name}:{it.subject}"), mcls[i], heads[i] + q))
+        out[topic] = rows
+    return out
+
+
+def _repo_key(repo: Path) -> Optional[tuple[int, int]]:
+    """The memo key of a repository's cases: its text cache's (size, mtime_ns), None (never memoised) while it has none. Public status is
+    part of it: commits() of a repository that is not public is empty, cached or not."""
+    k = _file_key(text_cache_path(repo))
+    return None if k is None else (k[0], k[1] * 2 + int(is_public(repo)))
+
+
+def _repo_cases(repo: Path, topic: str) -> list[tuple[str, D.BItem, str, str]]:
+    path = text_cache_path(repo)
+    key = _repo_key(repo)
+    mk = str(path)
+    hit = _REPO_CASES.get(mk)
+    if key is not None and hit is not None and hit[0] == key:
+        return hit[1][topic]
+    built = _build_repo_cases(repo)
+    if key is not None and _repo_key(repo) == key:                 # unchanged while read: safe to keep
+        _REPO_CASES[mk] = (key, built)
+    else:
+        _REPO_CASES.pop(mk, None)
+    return built[topic]
 
 
 def raw_cases(topic: str, repos: Optional[Sequence[Path]] = None) -> list[tuple[str, D.BItem, str, str]]:
     """(repo name, item, message class, setup text) for every commit of every public repository; windows never cross repositories.
     Unresolved items (the last `window` commits) are included with resolved None."""
-    mode, w = MODE[topic]
+    MODE[topic]                                                    # an unknown topic raises KeyError, as before
+    rs = list(public_repos() if repos is None else repos)
+    sig = tuple((str(text_cache_path(r)), _repo_key(r)) for r in rs)
+    hit = _ALL_CASES.get(topic)
+    if hit is not None and hit[0] == sig and None not in (k for _p, k in sig):
+        return list(hit[1])
     out: list[tuple[str, D.BItem, str, str]] = []
-    for repo in (public_repos() if repos is None else repos):
-        cs = commits(repo)
-        for c, it in zip(cs, D._git_events(cs, w, mode)):
-            keys = it.keys[:3] + (f"d:{repo.name}/{it.keys[3][2:]}", f"r:{repo.name}")
-            out.append((repo.name, D.BItem(keys, it.created, it.resolved, it.y, f"{repo.name}:{it.subject}"), D._msg_class(c["s"]),
-                        setup_text(repo.name, c, topic)))
+    for repo in rs:
+        out.extend(_repo_cases(repo, topic))
     out.sort(key=lambda x: x[1].created)
-    return out
+    if None not in (k for _p, k in sig) and sig == tuple((str(text_cache_path(r)), _repo_key(r)) for r in rs):
+        _ALL_CASES[topic] = (sig, out)
+    return list(out)
 
 
 def items(topic: str, repos: Optional[Sequence[Path]] = None) -> list[D.BItem]:

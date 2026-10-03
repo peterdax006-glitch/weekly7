@@ -135,8 +135,11 @@ def _log2b(n: int) -> str:
     return str(int(math.log2(n + 1)))
 
 
+_MSG_CLASS = re.compile(r"\s*([A-Za-z][A-Za-z0-9_-]{0,15})[:(\s]")
+
+
 def _msg_class(subj: str) -> str:
-    m = re.match(r"\s*([A-Za-z][A-Za-z0-9_-]{0,15})[:(\s]", subj + " ")
+    m = _MSG_CLASS.match(subj + " ")
     return m.group(1).lower() if m else "other"
 
 
@@ -507,21 +510,27 @@ def _repo_items(repo: Path, window: int, mode: str) -> list[BItem]:
 
 
 def _git_events(commits: list[dict[str, Any]], window: int, mode: str) -> list[BItem]:
+    # Speed h43 (identical output): each commit's fix flag and message class computed ONCE (the window re-ran the fix regex on every commit
+    # `window` times: 2.3 M searches for 120,000 public commits), the first file by min() instead of sorting every file set, and overlap
+    # tested with isdisjoint (no intersection set built). raw_cases of the public topics: 79 s -> see tests/test_publiccases_speed.py.
     out: list[BItem] = []
+    fix = [FIX_WORDS.search(c["s"]) is not None for c in commits]
     for i, c in enumerate(commits):
-        top = sorted(c["files"])[0].split("/")[0] if c["files"] else "-"
-        keys = (f"m:{_msg_class(c['s'])}", f"n:{_log2b(len(c['files']))}", f"l:{_log2b(c['lines'])}", f"d:{top}")
-        meta = {"t": c["t"], "files": c["files"], "s": f"{_msg_class(c['s'])} {'fix' if FIX_WORDS.search(c['s']) else '-'}",
+        files = c["files"]
+        top = min(files).split("/")[0] if files else "-"
+        mc = _msg_class(c["s"])
+        keys = (f"m:{mc}", f"n:{_log2b(len(files))}", f"l:{_log2b(c['lines'])}", f"d:{top}")
+        meta = {"t": c["t"], "files": files, "s": f"{mc} {'fix' if fix[i] else '-'}",
                 "add": c.get("add", 0), "del": c.get("del", 0)}
         if i + window >= len(commits):
             out.append(BItem(keys, c["t"], None, 0, c["h"][:10], meta))
             continue
-        nxt = commits[i + 1:i + 1 + window]
+        hi = i + 1 + window
         if mode == "fixed":
-            y = int(any(FIX_WORDS.search(n["s"]) and n["files"] & c["files"] for n in nxt))
+            y = int(any(fix[j] and not files.isdisjoint(commits[j]["files"]) for j in range(i + 1, hi)))
         else:
-            y = int(any(n["files"] & c["files"] for n in nxt))
-        out.append(BItem(keys, c["t"], max(c["t"], nxt[-1]["t"]), y, c["h"][:10], meta))
+            y = int(any(not files.isdisjoint(commits[j]["files"]) for j in range(i + 1, hi)))
+        out.append(BItem(keys, c["t"], max(c["t"], commits[hi - 1]["t"]), y, c["h"][:10], meta))
     return out
 
 
@@ -858,10 +867,20 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
     rnd = random.Random(seed if seed is not None else int.from_bytes(os.urandom(4), "big"))
     rr = itertools.count()
 
+    digest_at: dict[str, float] = {}
+
     def digest_of(s: str) -> str:
-        if s not in digests:
+        now = time.monotonic()
+        if s not in digests or now - digest_at.get(s, now) >= DIGEST_TTL_S.get(SOURCES[s], DIGEST_TTL_DEFAULT_S):
             digests[s] = source_digest(s, state, Path(repo), Path(journal), Path(research))
+            digest_at[s] = now
         return digests[s]
+
+    def forget(*kinds: str) -> None:
+        """A job changed one kind of data: only those sources' digests are recomputed (the research walk is not redone after a fetch)."""
+        for s in srcs:
+            if SOURCES[s] in kinds:
+                digests.pop(s, None)
 
     def wrap(s: str, v: dict[str, Any], search: bool, why: str = "") -> Callable[[], None]:
         def job() -> None:
@@ -903,7 +922,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             r = missing[0]                                         # ONE project per job, the smallest first: cpython's first read never
             try:                                                   # delays the small ones
                 build_extra_cache(r)
-                digests.clear()
+                forget("gitx")
                 state_t["xretry_at"] = 0.0                         # the next missing one may start at once
             except Exception as e:                                 # noqa: BLE001 - retried after GIT_RETRY_S
                 xfail[r.name] = time.time()
@@ -918,7 +937,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
         def job() -> None:
             try:
                 refresh_git_cache(Path(repo), state, GIT_FULL_TIMEOUT_S if not cache_path(state).exists() else GIT_INC_TIMEOUT_S)
-                digests.clear()
+                forget("git")
             except Exception as e:                                 # noqa: BLE001 - a timeout leaves the cache as it was; the next retry continues
                 _error_row(state, "git_cache", {}, e, lock)
             finally:
@@ -961,7 +980,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                     def fjob() -> None:
                         try:
                             PD.refresh_public(due[0], time.time())
-                            digests.clear()
+                            forget("gitx")
                         except Exception as e:                     # noqa: BLE001 - recorded in public_fetch.json too; retried after FETCH_EVERY_S
                             _error_row(state, "public_fetch", {"repo": due[0].name}, e, lock)
                         finally:
@@ -976,7 +995,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                     def ajob() -> None:
                         try:
                             PD.acquire_one(state)
-                            digests.clear()
+                            forget("gitx")
                         except Exception as e:                     # noqa: BLE001
                             _error_row(state, "public_acquire", {}, e, lock)
                         finally:
@@ -1229,6 +1248,11 @@ def live_pass_x(state: Path, journal: Optional[Path] = None, now: Optional[float
 
 
 # ------------------------------------------------------------------------------------------------ open-ended variant search
+# Speed h43: how long a source's data digest is reused before it is read again. Jobs that change data drop exactly the digests they change
+# (a public fetch: the x sources; a git cache read: the git sources). The research digest walks ~44,000 files (11-17 s on the loaded machine)
+# and was redone after EVERY public fetch (one every 1-2 minutes); new research files are now noticed within DIGEST_TTL_S["research"].
+DIGEST_TTL_S = {"research": 600.0}
+DIGEST_TTL_DEFAULT_S = 60.0
 SEARCH_STOP_K = 12                 # a source stops proposing after this many consecutive variants that fail to beat its best (select part)
 SEARCH_OUTSTANDING = 3             # proposals in flight per source (results of the others are not in yet)
 MASKS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)   # bit i set = drop key position i (0 = all kept)
