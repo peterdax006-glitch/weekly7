@@ -196,7 +196,8 @@ def match(directive: Doc, art: Doc, said_before: set[str], idf: dict[str, float]
 def anticipate(dirs: Sequence[Doc], arts: Sequence[Doc]) -> dict[str, Any]:
     idf = _idf(list(dirs) + list(arts))
     first_art = arts[0].t if arts else float("inf")
-    anticipated, backlog = [], []
+    anticipated: list[dict[str, Any]] = []
+    backlog: list[dict[str, Any]] = []
     for i, d in enumerate(dirs):
         best: Optional[tuple[float, list[str], Doc]] = None
         weak: list[tuple[float, list[str], Doc]] = []
@@ -217,7 +218,7 @@ def anticipate(dirs: Sequence[Doc], arts: Sequence[Doc]) -> dict[str, Any]:
             backlog.append({**row, "eligible": d.t > first_art, "closest_earlier_signals": [
                 {"artefact": a.source + ":" + a.ref, "score": round(s, 3), "shared_words": sh[:6]} for s, sh, a in weak[:3] if s > 0]})
     elig = [d for d in dirs if d.t > first_art]
-    ant_e = [a for a in anticipated if a["at"] > first_art]
+    ant_e = [a for a in anticipated if float(a["at"]) > first_art]
     return {"directives": len(dirs), "anticipated": len(anticipated), "rate": round(len(anticipated) / len(dirs), 4) if dirs else None,
             "eligible_directives": len(elig), "rate_eligible": round(len(ant_e) / len(elig), 4) if elig else None,
             "first_nupen_artefact": first_art if arts else None, "thresholds": {"min_shared": MIN_SHARED, "match_score": MATCH_SCORE},
