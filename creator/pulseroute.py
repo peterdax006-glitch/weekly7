@@ -130,11 +130,16 @@ def may_leave(messages: Any) -> bool:
         return True
     except GP.PulseError:
         return False
+    except Exception:                                                  # noqa: BLE001 - an odd message shape is answered here, never raised
+        return False
 
 
 def settings_overlay(cfg: Mapping[str, Any]) -> dict[str, Any]:
     """Device settings while the route is up for the thinking model: as many thinkers at once as the pod takes (never fewer than locally)."""
-    from creator import device as DEV
-    think = DEV.think_model_path(cfg)
-    n = pod_slots(think, cfg) if think is not None else 0
-    return {"think_servers": max(int(cfg.get("think_servers") or 0), n)} if n else {}
+    try:
+        from creator import device as DEV
+        think = DEV.think_model_path(cfg)
+        n = pod_slots(think, cfg) if think is not None else 0
+        return {"think_servers": max(int(cfg.get("think_servers") or 0), n)} if n else {}
+    except Exception:                                                  # noqa: BLE001 - settings() is the hot path: a broken route adds nothing
+        return {}
