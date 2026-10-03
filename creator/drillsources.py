@@ -63,9 +63,14 @@ class BItem:
 
 
 # ------------------------------------------------------------------------------------------------ the generic time-ordered binary model
+SMALL_WALK = 20000                  # items: up to this many a fresh process walks in pure Python rather than pay the numba start-up
+
+
 def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
     """The compiled loop (creator.fastwalk, numba; same predictions as walk_forward_reference, tests/test_fastwalk.py) when available,
     else the reference."""
+    if len(items) <= SMALL_WALK and "creator.fastwalk" not in sys.modules:   # speed h50: importing numba + loading the compiled kernel costs ~2.5 s
+        return walk_forward_reference(items, topic, decay, k, agg, cap)     # per process, the reference loop ~10 us/item: same floats (tests)
     try:
         from creator import fastwalk as FW
         if FW.enabled():

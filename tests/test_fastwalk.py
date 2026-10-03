@@ -53,3 +53,19 @@ def test_drillsources_uses_it_and_can_be_switched_off(monkeypatch: pytest.Monkey
     monkeypatch.setenv("NUPEN_FASTWALK", "0")
     assert not FW.enabled()
     _same(D.walk_forward(items, "t"), D.walk_forward_reference(items, "t"))
+
+
+def test_small_walks_use_the_reference_until_the_compiled_loop_is_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Speed h50: below SMALL_WALK items a process that has not imported fastwalk walks in Python (numba start-up ~2.5 s); same predictions."""
+    import sys
+    items = _items(200, 5)
+    called: list[int] = []
+    monkeypatch.setattr(FW, "walk_forward", lambda *a, **k: called.append(1) or [])
+    monkeypatch.setitem(sys.modules, "creator.fastwalk", None)
+    monkeypatch.delitem(sys.modules, "creator.fastwalk")
+    _same(D.walk_forward(items, "t"), D.walk_forward_reference(items, "t"))
+    assert not called
+    monkeypatch.setattr(D, "SMALL_WALK", 0)
+    monkeypatch.setitem(sys.modules, "creator.fastwalk", FW)
+    D.walk_forward(items, "t")
+    assert called
