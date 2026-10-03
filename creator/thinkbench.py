@@ -53,6 +53,7 @@ STRIDE = 2
 REF_STRATEGY = {"shots": 2, "hint": 1}
 ANSWER = re.compile(r"ANSWER\s*[:=]\s*\(?([A-D])\b", re.I)
 RANKLINE = re.compile(r"RANK\s*[:=]\s*([0-9 ,>\-]+)", re.I)
+WORKER_CAP = 2                      # servers at once on this PC; a GPU pulse job (creator.gpupulse) raises it to the pod's slots
 
 
 def bench_dir(state: Path) -> Path:
@@ -426,7 +427,7 @@ def ask_all(jobs: Sequence[tuple[str, list[dict[str, str]], int, float]], llm_fa
         except Exception:                                           # noqa: BLE001 - a server that cannot start leaves its jobs to the others
             return
 
-    ts = [threading.Thread(target=work, args=(i,), daemon=True) for i in range(max(1, min(workers, 2)))]
+    ts = [threading.Thread(target=work, args=(i,), daemon=True) for i in range(max(1, min(workers, WORKER_CAP)))]
     for t in ts:
         t.start()
     for t in ts:

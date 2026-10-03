@@ -288,12 +288,27 @@ class LocalModel:
         self.calls = 0
         self.seconds = 0.0
         self.leased = False                                    # attached to a warm server of creator.modelpool (not ours to stop)
+        self.pulse = ""                                        # attached to a rented GPU pod's server (creator.gpupulse): its pulse id
 
     def _command(self) -> list[str]:
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(self.port),
                 "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"] + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
 
+    def _pulse_attach(self) -> bool:
+        """Only while a GPU pulse is switched on (creator.device.pulse_on): use the pod's server of this model through the SSH tunnel."""
+        cfg = DEV.settings()
+        if not DEV.pulse_on(cfg):
+            return False
+        from creator import gpupulse as GP
+        got = GP.attach(GP.pulse_file(cfg), self.model)
+        if got is None:
+            return False
+        self.port, self.pulse = got
+        return True
+
     def __enter__(self) -> "LocalModel":
+        if self._pulse_attach():
+            return self
         if not self.exe.is_file() or not self.model.is_file():
             raise FileNotFoundError(f"local model runtime missing: {self.exe} / {self.model}")
         self._acquire_slot()                                   # a warm pooled server, a free server slot on this machine, or wait for one
@@ -421,6 +436,11 @@ class LocalModel:
         """Free RAM minus one more server (DEV.SERVER_GB, measured) must stay above the Governor's floor (device settings)."""
         from creator import testslots
         try:
+            cfg = DEV.settings()
+            if DEV.pulse_on(cfg):                              # served by a GPU pulse: no RAM of this PC is taken
+                from creator import gpupulse as GP
+                if GP.serves(GP.pulse_file(cfg), self.model):
+                    return True
             free = self.free_gb()
             if free is None:                                   # unknown free RAM never opens the gate
                 return False
@@ -432,6 +452,9 @@ class LocalModel:
             return False
 
     def _stop(self) -> None:
+        if self.pulse:                                         # the pod's server is not ours to stop
+            self.pulse = ""
+            return
         if self.leased:                                        # the pool owns the server: only give the lease back
             self.leased = False
             self.lock.release()
@@ -469,6 +492,9 @@ class LocalModel:
              seed: int = 0, timeout: Optional[float] = None) -> str:
         if timeout is None:                                    # 600 s for the fast model; a bigger (slower) thinking model gets longer
             timeout = DEV.call_timeout_s(self.model, 600.0)
+        if self.pulse:                                         # nothing private ever leaves this PC
+            from creator import gpupulse as GP
+            GP.outbound_ok(messages)
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body,

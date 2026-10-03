@@ -308,6 +308,10 @@ def _mean_ci(d: Sequence[float]) -> list[float]:
     return [round(m - 1.96 * se, 4), round(m + 1.96 * se, 4)]
 
 
+def _per_item(rows: Sequence[dict[str, Any]]) -> Optional[float]:
+    return round(sum(float(r.get("seconds") or 0) for r in rows) / len(rows), 2) if rows else None
+
+
 def score_topic(topic: str, state: Path, repo: Path, tag: Optional[str] = None) -> dict[str, Any]:
     """Per strategy: the judge's Brier (raw and Platt-calibrated) against the statistical predictor and the baselines on the SAME subjects."""
     recs = [r for r in _mine(_records(state), tag or active_tag()) if r.get("topic") == topic and r.get("p") is not None]
@@ -337,7 +341,8 @@ def score_topic(topic: str, state: Path, repo: Path, tag: Optional[str] = None) 
                     "gain_vs_statistical_raw": [round(sum(d_raw) / len(d_raw), 4), *_mean_ci(d_raw)],
                     "gain_vs_statistical_calibrated": [round(sum(d_cal) / len(d_cal), 4), *_mean_ci(d_cal)],
                     "accuracy": round(sum(1 for r, p, _c in cal if (p >= 0.5) == bool(r["y"])) / len(cal), 4),
-                    "seconds_per_item": round(sum(float(r.get("seconds") or 0) for r, _p, _c in cal) / len(cal), 2),
+                    "seconds_per_item": _per_item([r for r, _p, _c in cal if not r.get("gpu_pulse")]),         # this PC only:
+                    "gpu_seconds_per_item": _per_item([r for r, _p, _c in cal if r.get("gpu_pulse")]),     # GPU pulse rows apart
                     "tokens_per_item": round(sum(float(r.get("tokens") or 0) for r, _p, _c in cal) / len(cal), 1)}
         out[sid]["brier_ci"] = _mean_ci([T.brier(p, r["y"]) for r, p, _c in cal])
         per[sid] = {r["subject"]: p for r, p, _c in cal}
@@ -713,6 +718,8 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
             arms = ((extra or {}).get("arms_by_subject") or {}).get(c.subject)
             if arms:                                                # online rounds: the strategies this subject was given (kept fixed)
                 row["arms"] = arms
+            if isinstance(getattr(llm, "pulse", None), str) and llm.pulse:     # answered on a rented GPU (creator.gpupulse): timings kept apart
+                row["gpu_pulse"] = llm.pulse
             if "knn" in s:                                          # the model-free control: no call, no cost
                 hist = history(cases, c)
                 base = sum(x.y for x in hist) / len(hist) if hist else 0.5
