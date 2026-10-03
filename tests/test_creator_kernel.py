@@ -22,7 +22,8 @@ def cached_provenance() -> Iterator[None]:
     """Ledger.append recomputes provenance (tree hashes of creator/ and engine/, git state of the real checkout) for every record,
     ~0.17 s x hundreds of appends. No test here edits that checkout, so the real value is computed once per module and reused
     with a fresh seed, config hash and timestamp; the ledger's own computation is covered by tests/test_creator_ledger.py."""
-    base = LG.current_provenance()
+    base = M.Provenance(engine_tree_hash="pinned-in-tests", creator_tree_hash="pinned-in-tests", git_commit="pinned-in-tests",   # h38: never
+                        config_hash=None, seed=None, timestamp="2026-10-03T00:00:00+00:00")   # the real tree (tests/conftest.py)
 
     def cached(seed: Optional[int] = None, config: Optional[Mapping[str, Any]] = None, *a: Any, **k: Any) -> M.Provenance:
         cfg_hash = LG.sha256_text(LG.canonical(dict(config)))[:16] if config is not None else None
