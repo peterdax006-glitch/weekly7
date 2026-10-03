@@ -27,7 +27,6 @@ from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
 from creator import testslots as TS
-from creator import schedule as SCHED
 from creator.ledger import Ledger
 
 
@@ -266,9 +265,9 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
     plans: list[Any] = []
     gap_slots = slots - 1 if (cfg.mode == "auto" and slots >= 2) else slots    # keep one slot for shrink work alongside gaps
     try:
-        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
+        plans = list(REG.get("schedule").plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
     except Exception as e:                                              # noqa: BLE001 - never lose a round to the scheduler
-        SCHED.note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
+        REG.get("schedule").note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
         return None
     seen = {p.component for p in plans}
     if cfg.mode == "auto" and len(plans) < slots:
@@ -360,6 +359,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         fillers[:] = [f for f in fillers if f.is_alive()]
         load = len(active) + len(fillers)                               # fillers use memory too (1 Oct run9: uncounted, peak 42 > 32)
         ramped = time.monotonic() - last_start >= gov.ramp_s
+        if gov.admit is not None:                                      # RAM has room while CPU is full: keep model servers loaded for students
+            REG.get("modelpool").tick(gov, free_ram_gb)
         if time.monotonic() - status_at[0] >= 60.0:                     # once a minute: what runs, and what stops more starting
             status_at[0] = time.monotonic()
             RS.lower_sandbox_priority(scratch_dir) if gov.admit else 0
@@ -431,6 +432,8 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         time.sleep(poll_s)
     Ledger(cfg.ledger_path, evidence_root=cfg.repo).checkpoint(f"swarm round: {len(reports)} packages, peak {peak} parallel")
     outcome = "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
+    if outcome != "WORKED" and gov.admit is not None:                  # idle: give the pool's RAM back until work returns
+        REG.get("modelpool").close_if_idle()
     return RoundReport(outcome, reports, peak, pulled, "free RAM below the reserve; nothing could start" if starved else "")
 
 
