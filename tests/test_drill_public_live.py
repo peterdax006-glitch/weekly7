@@ -133,12 +133,13 @@ def test_public_commits_are_predicted_before_their_outcome_and_resolved_after_ne
         assert leak not in text, leak
 
 
-def test_archived_projects_are_never_fetched_nor_predicted_live(tmp_path: Path, runtime: Path) -> None:
+def test_archived_projects_are_never_fetched_nor_predicted_live(tmp_path: Path, runtime: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     up = Upstream(tmp_path)
     up.commit(40)
     arch = tmp_path / "oldpc" / "proj"
     git("clone", "-q", up.url, str(arch))
     D.build_extra_cache(arch)
+    monkeypatch.setattr(D, "extra_repos", lambda: [arch])
     state = tmp_path / "state"
     D.run_job("x_git_fixed", {"decay": 1.0, "k": 2.0}, state, tmp_path, tmp_path / "J.md", tmp_path)
     assert not D.is_public(arch)
@@ -247,9 +248,10 @@ def test_acquire_clones_one_repo_records_it_and_the_machinery_picks_it_up(tmp_pa
     assert not (repos[0] / "widgets_secret").exists()                            # no checkout: history only
     assert len(lines(PD.acquisitions_path(state))) == 3
     nxt = D.drill_filler(state, tmp_path, tmp_path / "J.md", tmp_path, sources=["x_git_fixed"], seed=1)
-    job = nxt()
-    assert job is not None
-    job()                                                                        # the existing cache job builds the new projects' caches
+    for _ in range(2):                                                           # the existing cache job: one new project per job
+        job = nxt()
+        assert job is not None
+        job()
     assert all(D.extra_cache_path(r).exists() for r in repos)
     for leak in LEAKS:                                                           # the log names public repositories, never authors
         assert leak not in all_text(runtime / "thinking"), leak

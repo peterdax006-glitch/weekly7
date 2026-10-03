@@ -259,8 +259,14 @@ def extra_repos() -> list[Path]:
     own = [base / "Highlighting-Utah", base / "spanish-app", base / "Desktop" / "tico_project"]
     from creator import device as DEV
     pub = DEV.runtime_dir() / "public_repos"                          # owner 3 Oct: "you can also use public information it can learn off of"
-    public = sorted(d for d in pub.iterdir() if d.is_dir() and not d.name.startswith(".") and not d.name.endswith(".tmp")) if pub.is_dir() else []
-    return [r for r in own + public if (r / ".git").exists()]                # a half-finished clone (staging, '.tmp') is never read
+    public = sorted(d for d in pub.iterdir() if d.is_dir()) if pub.is_dir() else []
+    return [r for r in own + public if (r / ".git").exists() and not r.name.endswith(".tmp") and not r.name.startswith(".")]   # .tmp = clone in progress
+
+
+def cached_extra_repos() -> list[Path]:
+    """The projects whose history is already cached: drills use these now; a missing one is built in the background without blocking the rest
+    (3 Oct: one huge first read - cpython - and clones still in progress held back every other project's drills)."""
+    return [r for r in extra_repos() if extra_cache_path(r).exists()]
 
 
 def public_dir() -> Path:
@@ -384,7 +390,11 @@ def _refresh_extra_cache(repo: Path, timeout: float) -> int:
 def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = None) -> list[BItem]:
     """Every archived project's commits as git items (windows never cross projects), tagged 'r:<project>', in creation order."""
     out: list[BItem] = []
-    for repo in (extra_repos() if repos is None else repos):
+    if repos is None:
+        repos = cached_extra_repos()
+        if not repos:
+            raise GitCacheMissing("no other project's history is cached yet; the extra-history job builds them")
+    for repo in repos:
         path = extra_cache_path(repo)
         if not path.exists():
             raise GitCacheMissing(f"{path} not built yet; the extra-history job builds it")
@@ -515,9 +525,9 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
     try:
         if SOURCES[source] == "git":
             return _git_head(repo)[:12]
-        if SOURCES[source] == "gitx":                       # archived: the caches' sizes; "-" (retry later) until every one is built
-            xs = extra_repos()
-            if not xs or not all(extra_cache_path(r).exists() for r in xs):
+        if SOURCES[source] == "gitx":                       # the cached projects' sizes (a newly cached project = new data); "-" while none is
+            xs = cached_extra_repos()
+            if not xs:
                 return "-"
             # public clones grow with every fetch: a digest per byte would re-queue the whole x grid every few minutes and leave the live
             # predictions' best variant chosen from one row. Steps of XDIGEST_BYTES (~5,000 stripped commits) or a new project re-queue it.
@@ -618,6 +628,14 @@ def _fast_mod() -> Any:
         return None
 
 
+def _pack_bytes(repo: Path) -> int:
+    """Rough size of a clone's history (its pack files): which missing cache is cheapest to build."""
+    try:
+        return sum(f.stat().st_size for f in (Path(repo) / ".git" / "objects" / "pack").glob("*.pack"))
+    except OSError:
+        return 0
+
+
 def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
                  processes: bool = False, public: bool = False) -> Callable[[], Optional[Callable[[], None]]]:
     """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
@@ -668,15 +686,25 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
     state_t = {"retry_at": 0.0, "cache_flight": 0.0, "xretry_at": 0.0, "xcache_flight": 0.0}
     xgits = [s for s in srcs if SOURCES[s] == "gitx"]
 
+    xfail: dict[str, float] = {}
+
     def xcache_job() -> Callable[[], None]:
         def job() -> None:
-            try:
-                for r in extra_repos():
-                    if not extra_cache_path(r).exists():
-                        build_extra_cache(r)
+            now = time.time()
+            missing = sorted((r for r in extra_repos() if not extra_cache_path(r).exists() and now - xfail.get(r.name, 0.0) >= GIT_RETRY_S),
+                             key=_pack_bytes)                # a project that just failed waits; the others go on
+            if not missing:
+                state_t["xcache_flight"] = 0.0
+                return
+            r = missing[0]                                         # ONE project per job, the smallest first: cpython's first read never
+            try:                                                   # delays the small ones
+                build_extra_cache(r)
                 digests.clear()
+                state_t["xretry_at"] = 0.0                         # the next missing one may start at once
             except Exception as e:                                 # noqa: BLE001 - retried after GIT_RETRY_S
-                _error_row(state, "git_cache_x", {}, e, lock)
+                xfail[r.name] = time.time()
+                state_t["xretry_at"] = 0.0                         # the others need not wait for it
+                _error_row(state, "git_cache_x", {"repo": r.name}, e, lock)
             finally:
                 state_t["xcache_flight"] = 0.0
         return job
@@ -921,7 +949,7 @@ def live_pass_x(state: Path, journal: Optional[Path] = None, now: Optional[float
     now = time.time() if now is None else now
     state = Path(state)
     journal = journal if journal is not None else Path.home() / "Masterstock" / "JOURNAL.md"
-    xs = list(extra_repos() if repos is None else repos)
+    xs = list(cached_extra_repos() if repos is None else repos)          # the projects cached now (the replay's items)
     pub = {r.name for r in xs if is_public(r)}
     idle = {"new": 0, "resolved": 0, "skipped": 1}
     if not pub:
