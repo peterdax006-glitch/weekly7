@@ -142,3 +142,36 @@ def test_worse_is_flagged_for_lower_is_better_parts() -> None:
     r = TB.compare_part(base, now)
     assert r["verdict"] == "SIGNIFICANTLY WORSE" and r["change"] is not None and r["change"] < 0
     assert not math.isnan(r["change"])
+
+
+def test_a_thinker_run_is_labelled_with_the_model_it_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from creator import device as DEV
+    m = tmp_path / "Thinky-Q4.gguf"
+    m.write_bytes(b"x" * 10)
+    monkeypatch.setattr(DEV, "think_model_path", lambda *a, **k: m)
+    v = TB.versions(tmp_path / "state", tmp_path / "norepo", "thinker")
+    assert v["local_model"]["file"] == "Thinky-Q4.gguf" and v["local_model"]["bytes"] == 10 and v["local_model"]["role"] == "thinker"
+    assert TB.versions(tmp_path / "state", tmp_path / "norepo")["local_model"]["role"] == "fast"
+
+
+def test_a_thinker_run_never_falls_back_to_the_fast_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    from creator import device as DEV
+    monkeypatch.setattr(DEV, "think_model_path", lambda *a, **k: None)
+    with pytest.raises(KeyError):
+        TB.thinker_llm_factory(0)
+
+
+def test_thinker_answers_lose_their_think_block() -> None:
+    class Inner:
+        model = "Qwen3-1.7B-Q4_K_M.gguf"
+
+        def __enter__(self) -> "Inner":
+            return self
+
+        def __exit__(self, *a: Any) -> None:
+            return None
+
+        def chat(self, msgs: Any, **kw: Any) -> str:
+            return "<think>the outcome was ...</think>PROBABILITY: 0.30"
+    with TB._Thinking(Inner()) as llm:
+        assert llm.chat([{"role": "user", "content": "q"}], max_tokens=10) == "PROBABILITY: 0.30"
