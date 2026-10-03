@@ -138,3 +138,43 @@ def test_disk_cache_identical_and_invalidated(tmp_path: Path, monkeypatch: pytes
     os.utime(P.text_cache_path(repo), ns=(1, 2))
     fresh()
     assert len(P.raw_cases("pub_git_fixed")) == 301 and built == ["alpha"] * 4              # changed cache: rebuilt
+
+
+def test_stat_preds_disk_cache_identical_and_invalidated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """h48: judgment._stat_preds of a public topic comes from a disk copy of the walk-forward output (no walk, no cases) while the caches and
+    the code are unchanged; the values equal the plain walk; a changed cache or damaged file walks again."""
+    from creator import judgment as J
+
+    rt = tmp_path / "rt"
+    monkeypatch.setenv("NUPEN_RUNTIME", str(rt))
+    repo = _write(rt, "alpha", _commits(300, 5))
+    walks: list[int] = []
+    real = D.walk_forward
+    monkeypatch.setattr(D, "walk_forward", lambda items, topic, *a, **k: (walks.append(len(items)), real(items, topic, *a, **k))[1])
+
+    def fresh() -> None:
+        monkeypatch.setattr(J, "_STAT_CACHE", {})
+        monkeypatch.setattr(P, "_REPO_CASES", {})
+        monkeypatch.setattr(P, "_ALL_CASES", {})
+
+    for topic in P.TOPICS:
+        want = {p.subject: p for p in real(P.items(topic), topic)}
+        fresh()
+        walks.clear()
+        got = J._stat_preds(topic, tmp_path, tmp_path)
+        assert walks == [300] and list(got) == list(want) and all(got[k] == want[k] for k in want) and len(got) == len(want)
+        fresh()
+        got = J._stat_preds(topic, tmp_path, tmp_path)
+        assert walks == [300] and all(got[k] == want[k] for k in want)                    # from disk: no second walk
+        assert "nope" not in got and got.get("nope") is None
+    with P.text_cache_path(repo).open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"h": "z" * 40, "t": 9e6, "s": "fix more", "files": ["src/f1.py"], "lines": 3}) + "\n")
+    os.utime(P.text_cache_path(repo), ns=(1, 2))
+    fresh()
+    walks.clear()
+    J._stat_preds("pub_git_fixed", tmp_path, tmp_path)
+    assert walks == [301]
+    (rt / "thinking" / "stat_preds" / "pub_git_fixed.pkl").write_bytes(b"junk")
+    fresh()
+    J._stat_preds("pub_git_fixed", tmp_path, tmp_path)
+    assert walks == [301, 301]

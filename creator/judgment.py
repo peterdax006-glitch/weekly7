@@ -21,14 +21,18 @@ from __future__ import annotations
 
 import bisect
 import datetime as dt
+import gc
+import hashlib
 import json
 import math
+import os
+import pickle
 import re
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Iterator, Mapping, Optional, Sequence
 
 from creator import drillsources as D
 from creator import reasonmethods as RM
@@ -279,10 +283,92 @@ def calibrated(recs: Sequence[dict[str, Any]]) -> list[tuple[dict[str, Any], flo
     return out
 
 
-_STAT_CACHE: dict[str, dict[str, T.Pred]] = {}
+class _LazyPreds(Mapping[str, T.Pred]):
+    """subject -> Pred over parallel columns: only the few hundred subjects a report looks up become Pred objects (the last walk row of a
+    repeated subject stands, as in the dict it replaces)."""
+
+    def __init__(self, topic: str, cols: tuple[list[str], list[float], list[float], list[float], list[float], list[int]]) -> None:
+        self.topic, self.cols = topic, cols
+        self.at = {sub: i for i, sub in enumerate(cols[0])}
+
+    def __getitem__(self, subject: str) -> T.Pred:
+        i = self.at[subject]
+        _s, made, p, base, last, y = self.cols
+        return T.Pred(self.topic, subject, made[i], p[i], base[i], last[i], y[i])
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.at)
+
+    def __len__(self) -> int:
+        return len(self.at)
+
+    def __contains__(self, subject: object) -> bool:
+        return subject in self.at
 
 
-def _stat_preds(topic: str, state: Path, repo: Path) -> dict[str, T.Pred]:
+_PUB_CODE: Optional[str] = None
+
+
+def _pub_code() -> str:
+    global _PUB_CODE
+    if _PUB_CODE is None:
+        h = hashlib.sha256()
+        for mod in ("fastwalk", "drillsources", "thinking", "publiccases"):
+            try:
+                h.update((Path(__file__).with_name(f"{mod}.py")).read_bytes())
+            except OSError:
+                h.update(b"?")
+        _PUB_CODE = h.hexdigest()
+    return _PUB_CODE
+
+
+def _pub_stat(topic: str, PC: Any) -> Mapping[str, T.Pred]:
+    """The walk-forward predictions of one public topic. Speed h48: walking ~120,000 items cost 3-10 s per process (and loading the cases
+    7 s more); the walk's output is a pure function of the public caches and the code above, so it is kept on disk (runtime_dir()/thinking/
+    stat_preds/<topic>.pkl) under the exact (size, mtime_ns) of every cache + a hash of that code. Any mismatch or damage = walk again."""
+    from creator import device as DEV
+    try:
+        rs = list(PC.public_repos())
+        sig = tuple((str(PC.text_cache_path(r)), PC._repo_key(r)) for r in rs)
+    except Exception:                                              # noqa: BLE001 - no usable key: no disk copy
+        sig = ()
+    path = DEV.runtime_dir() / "thinking" / "stat_preds" / f"{topic}.pkl"
+    usable = bool(sig) and None not in [k for _p, k in sig]
+    if usable:
+        was = gc.isenabled()
+        gc.disable()
+        try:
+            with path.open("rb") as f:
+                code, k, cols = pickle.load(f)
+            if code == _pub_code() and k == sig:
+                return _LazyPreds(topic, cols)
+        except Exception:                                          # noqa: BLE001 - missing / damaged / other version: walk again
+            pass
+        finally:
+            if was:
+                gc.enable()
+    preds = D.walk_forward(PC.items(topic), topic)
+    cols = ([p.subject for p in preds], [p.made_at for p in preds], [p.p for p in preds], [p.base for p in preds],
+            [p.last for p in preds], [int(p.outcome or 0) for p in preds])
+    if usable and sig == tuple((str(PC.text_cache_path(r)), PC._repo_key(r)) for r in rs):
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with tmp.open("wb") as f:
+                pickle.dump((_pub_code(), sig, cols), f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, path)
+        except Exception:                                          # noqa: BLE001
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+    return _LazyPreds(topic, cols)
+
+
+_STAT_CACHE: dict[str, Mapping[str, T.Pred]] = {}
+
+
+def _stat_preds(topic: str, state: Path, repo: Path) -> Mapping[str, T.Pred]:
     if topic == "verdict":
         preds = T.replay(T.load_items(state), "verdict")
     elif topic in PUB_TOPICS:                                          # ~23,000 items: walked once per change of the public caches
@@ -292,7 +378,7 @@ def _stat_preds(topic: str, state: Path, repo: Path) -> dict[str, T.Pred]:
         if key not in _STAT_CACHE:
             if len(_STAT_CACHE) > 4:
                 _STAT_CACHE.clear()
-            _STAT_CACHE[key] = {p.subject: p for p in D.walk_forward(PC.items(topic), topic)}
+            _STAT_CACHE[key] = _pub_stat(topic, PC)
         return _STAT_CACHE[key]
     else:
         preds = D.walk_forward(D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state), "git_fixed")
