@@ -122,6 +122,38 @@ def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool 
     return REG.get("curriculum").Curriculum(lessons, make_students(model_student) if students is None else students)
 
 
+THINK_EVERY_S = 600.0                                     # live predictions + resolutions (thinking.run)
+BLUEPRINT_EVERY_S = 3600.0                                # a dated blueprint snapshot (anticipation needs a time series of them)
+_THINK_LAST = {"run": 0.0, "blueprint": 0.0}
+
+
+def make_filler():                                        # type: ignore[no-untyped-def]
+    """Leftover-capacity work. In THINKING focus (state/creator/focus.json; owner, 2 Oct 2026: 'have Nupen work souly on thinking
+    until its opinion is trust worthy') it is the thinking drills over all local data, the live predictions every THINK_EVERY_S and
+    a blueprint every BLUEPRINT_EVERY_S - as independent jobs the Governor admits until CPU or RAM is full. Otherwise the self-bench."""
+    try:
+        focus = REG.optional("focus")
+        if focus is not None and focus.current(STATE) == "thinking":
+            drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
+                                                          ROOT / "state" / "research")
+
+            def next_job():                               # type: ignore[no-untyped-def]
+                now = time.time()
+                if now - _THINK_LAST["run"] >= THINK_EVERY_S:
+                    _THINK_LAST["run"] = now
+                    return lambda: REG.get("thinking").run(STATE)
+                if now - _THINK_LAST["blueprint"] >= BLUEPRINT_EVERY_S:
+                    _THINK_LAST["blueprint"] = now
+                    import subprocess
+                    return lambda: subprocess.run([sys.executable, str(ROOT / "scripts" / "nupen_blueprint.py"), "--state", str(STATE)],
+                                                  capture_output=True, timeout=1800, cwd=ROOT)
+                return drills()
+            return next_job
+    except Exception as e:                                # noqa: BLE001 - a broken thinking module never stops the swarm
+        print(f"THINKING filler unavailable: {type(e).__name__}: {e}", flush=True)
+    return W.self_bench_filler(STATE / "self_bench.jsonl")
+
+
 def main(argv: list[str]) -> int:
     DEV = REG.get("device")
     ap = argparse.ArgumentParser()
@@ -178,7 +210,7 @@ def main(argv: list[str]) -> int:
                 print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],
                                   "by": r.details.get("worker", {}).get("by")}), flush=True)
             rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
-                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"), on_report=on_report,
+                              filler=make_filler(), on_report=on_report,
                               drain=DRAIN.exists, drain_max_s=DRAIN_MAX_S)
             line = {"round": n, "outcome": rnd.outcome, "packages": len(rnd.reports), "peak_parallel": rnd.peak_parallel,
                     "pulled_back": rnd.pulled_back, "by_outcome": K.summary(rnd.reports)["by_outcome"],

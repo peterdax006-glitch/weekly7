@@ -19,7 +19,7 @@ EFFICIENCY_REQ_PREFIXES = ("EFF.",)
 DRILL_KINDS = frozenset({"drill", "thinking", "thinking_drill"})
 # capabilities (creator/capabilities.json ids) and modules whose development IS thinking: self-model, planner, meta-learning, autotune,
 # oversight, goal generation; plus the modules named by the owner's list (reasoning, constraints, recon, chooser, shadow) and the drills.
-THINKING_COMPONENTS = frozenset({"K02", "K09", "K13", "K19", "K23", "K27"})
+THINKING_COMPONENTS = frozenset({"K02", "K09", "K13", "K19", "K23", "K27", "K29"})   # K29: every attempt reaches a verdict - the drills' ground truth
 THINKING_MODULES = frozenset({"creator/reasoning.py", "creator/goals.py", "creator/constraints.py", "creator/selfmodel.py", "creator/recon.py",
                               "creator/oversight.py", "creator/autotune.py", "creator/chooser.py", "creator/shadow.py", "creator/thinking.py",
                               "creator/focus.py", "creator/planner.py", "creator/meta.py", "scripts/nupen_blueprint.py"})
@@ -49,7 +49,7 @@ def _get(item: Any, *names: str) -> Any:
 
 def is_efficiency(item: Any) -> bool:
     kind = str(_get(item, "kind", "task_kind", "step") or "").lower()
-    req = str(_get(item, "requirement", "req", "key") or "")
+    req = str(_get(item, "requirement_key", "requirement", "req", "key") or "")   # kernel plans carry requirement_key
     return kind in EFFICIENCY_KINDS or req.startswith(EFFICIENCY_REQ_PREFIXES) or req.lower().endswith((".size", ".shrink"))
 
 
@@ -59,14 +59,17 @@ def is_thinking_work(item: Any) -> bool:
     comp = str(_get(item, "component") or "").split(".")[0]
     mods = _get(item, "modules", "outputs", "files") or []
     mods = [mods] if isinstance(mods, str) else list(mods)
-    req = str(_get(item, "requirement", "req", "key") or "").split(".")[0]
+    req = str(_get(item, "requirement_key", "requirement", "req", "key") or "").split(".")[0]
     return comp in THINKING_COMPONENTS or req in THINKING_COMPONENTS or any(str(m).replace("\\", "/") in THINKING_MODULES for m in mods)
 
 
-def allowed(item: Any, state: Union[str, Path]) -> bool:
+DEFAULT_STATE = Path(__file__).resolve().parents[1] / "state" / "creator"
+
+
+def allowed(item: Any, state: Union[str, Path, None] = None) -> bool:
     """May this plan / gap be planned now? Always True outside thinking focus. In thinking focus: never efficiency work; development work only
     when it targets a thinking capability; drill work always."""
-    if current(state) != THINKING:
+    if current(DEFAULT_STATE if state is None else state) != THINKING:   # swarm hook calls allowed(plan)
         return True
     if is_efficiency(item):
         return False
