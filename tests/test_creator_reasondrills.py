@@ -217,7 +217,8 @@ def test_filler_hands_out_epochs_halves_and_retests_winners_on_fresh_questions(t
     assert not [r for r in rows if r.get("error")]
     eps = R.epochs([r for r in rows if r.get("qid")])
     assert len(eps) >= 2 and eps[0]["complete"]
-    assert eps[0]["pool"] == [s.name for s in R.STRATEGIES]
+    assert eps[0]["pool"] == [s.name for s in R.STRATEGIES if not s.late]
+    assert "think" in eps[1]["pool"]                                                           # the expensive one enters as a challenger
     assert eps[0]["alive"] == ["plain", "eliminate"] or set(eps[0]["alive"]) == {"plain", "eliminate", "retrieve4_elim"}
     assert "eliminate" in eps[1]["pool"] and "plain" in eps[1]["pool"] and len(eps[1]["pool"]) > len(eps[0]["alive"])   # challengers back in
     assert not set(eps[0]["questions"]) & set(eps[1]["questions"])                            # the winners are re-tested on FRESH questions

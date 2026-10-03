@@ -64,11 +64,12 @@ class Strategy:
     samples: int = 1
     retrieve: int = 0
     max_tokens: int = 220
+    late: bool = False          # expensive: not in the first epoch; enters as a challenger once the cheap strategies set the bar
 
 
-STRATEGIES = [Strategy("plain", "plain", max_tokens=16), Strategy("cot", "cot"), Strategy("eliminate", "eliminate", max_tokens=360),
-              Strategy("retrieve4", "cot", retrieve=4), Strategy("retrieve4_elim", "eliminate", retrieve=4, max_tokens=360),
-              Strategy("vote3", "cot", samples=3), Strategy("think", "think", max_tokens=1400)]
+STRATEGIES = [Strategy("plain", "plain", max_tokens=16), Strategy("cot", "cot"), Strategy("eliminate", "eliminate", max_tokens=480),
+              Strategy("retrieve4", "cot", retrieve=4), Strategy("retrieve4_elim", "eliminate", retrieve=4, max_tokens=480),
+              Strategy("vote3", "cot", samples=3), Strategy("think", "think", max_tokens=1400, late=True)]
 BY_NAME = {s.name: s for s in STRATEGIES}
 CONTROL = "plain"
 
@@ -550,10 +551,10 @@ def epoch_pool(e: int, prev_alive: Sequence[str], prev_acc: dict[str, float]) ->
     """Epoch 0: every strategy. Later: the control, the previous epoch's winners, and CHALLENGERS rotated back in from the losers."""
     names = [s.name for s in STRATEGIES if s.name != CONTROL]
     if e == 0:
-        return [CONTROL] + names
+        return [CONTROL] + [n for n in names if not BY_NAME[n].late]
     win = [n for n in sorted(prev_alive, key=lambda n: -prev_acc.get(n, 0.0)) if n != CONTROL][:CARRY]
-    losers = [n for n in names if n not in win]
-    ch = [losers[(e * CHALLENGERS + i) % len(losers)] for i in range(min(CHALLENGERS, len(losers)))] if losers else []
+    losers = sorted((n for n in names if n not in win), key=lambda n: not BY_NAME[n].late)      # the never-tried expensive ones first
+    ch = [losers[((e - 1) * CHALLENGERS + i) % len(losers)] for i in range(min(CHALLENGERS, len(losers)))] if losers else []
     return [CONTROL] + win + [n for n in dict.fromkeys(ch) if n not in win]
 
 
