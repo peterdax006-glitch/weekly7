@@ -182,3 +182,75 @@ def test_a_gap_left_in_progress_by_a_dead_process_is_released_and_planned_again(
     again = S.next_batch(led, 4, SPECS, explain_path=tmp_path / "e2.jsonl")
     assert plan.gap_id in {n.id for n in again.picks}                                  # planned again
     assert K.release_orphans(led, "again") == []                                       # nothing left: idempotent
+
+
+def test_a_gap_whose_package_never_started_is_released_and_an_implemented_one_is_left(world) -> None:
+    """CP0172: an IN_PROGRESS gap with a NOT_STARTED package was stuck. Its package is released (NOT_STARTED -> IN_PROGRESS ->
+    FAILED, reason 'interrupted:'); a gap whose package is IMPLEMENTED is left for gaps.sync to close."""
+    from creator import swarmops as K
+    led, model = world
+    plan = P.plan_next(led, model, "b", SPECS)
+    assert plan is not None
+    assert led.view.status[plan.gap_id] is M.Status.IN_PROGRESS               # plan_next marks the gap
+    assert led.view.status[plan.work_package_id] is M.Status.NOT_STARTED
+    freed = K.release_orphans(led, "restart")
+    assert set(freed) == {plan.work_package_id, plan.gap_id}
+    assert led.view.status[plan.work_package_id] is M.Status.FAILED and P.was_interrupted(led, plan.work_package_id)
+    assert K.release_orphans(led, "again") == []
+    nxt = P.plan_next(led, model, "b", SPECS)
+    assert nxt is not None
+    led.transition(nxt.work_package_id, M.Status.IN_PROGRESS, "x", M.Role.KERNEL)
+    led.transition(nxt.work_package_id, M.Status.IMPLEMENTED, "done", M.Role.KERNEL)
+    assert K.release_orphans(led, "again") == []
+    assert led.view.status[nxt.gap_id] is M.Status.IN_PROGRESS
+
+
+def test_interrupted_packages_are_not_samples_and_not_failure_memory(world) -> None:
+    from creator import swarmops as K
+    led, model = world
+    plan = P.plan_next(led, model, "b", SPECS)
+    assert plan is not None
+    led.transition(plan.work_package_id, M.Status.IN_PROGRESS, "cycle started", M.Role.KERNEL)
+    K.release_orphans(led, "restart")
+    assert S.samples_from_ledger(led) == []
+    assert len(P._history(led).seen_before(plan.objective if hasattr(plan, "objective") else "x", limit=6, min_score=0.0)) == 0 \
+        or all(en.kind != "failure" for _, en in P._history(led).seen_before("x", limit=6, min_score=0.0))
+
+
+def test_a_failing_swarmops_status_line_does_not_break_the_round() -> None:
+    import inspect
+    from creator import swarm
+    src = inspect.getsource(swarm)
+    i = src.index('REG.get("swarmops").status_line')
+    assert "try:" in src[max(0, i - 120):i] and "except Exception" in src[i:i + 500]
+
+
+def test_revalidate_runs_the_existing_reconciliation_and_never_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+    from creator import swarmops as K
+    seen: list[list[str]] = []
+
+    def fake(cmd, **kw):
+        seen.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="a\nledger verifies: True\n", stderr="")
+    monkeypatch.setattr(subprocess, "run", fake)
+    assert K.revalidate(tmp_path).endswith("ledger verifies: True")
+    assert seen[0][1:] == ["scripts/record_validation.py", "--due-only"]
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(subprocess.TimeoutExpired("x", 1)))
+    assert K.revalidate(tmp_path).startswith("not run")
+
+
+def test_due_only_never_advances_a_component_without_a_current_independent_verdict(capsys: pytest.CaptureFixture[str],
+                                                                                 monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("rv", Path(__file__).resolve().parents[1] / "scripts" / "record_validation.py")
+    assert spec and spec.loader
+    rv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rv)
+    monkeypatch.setattr(rv, "unchanged_since", lambda *a, **k: False)                  # every verdict is stale
+    assert rv.main(["--due-only", "--dry-run"]) == 0
+    assert capsys.readouterr().out.count('"component"') == 0
+    monkeypatch.setattr(rv, "unchanged_since", lambda *a, **k: True)                   # current: only VALIDATED verdicts are due
+    assert rv.main(["--due-only", "--dry-run"]) == 0
+    rows = [json.loads(x) for x in capsys.readouterr().out.splitlines() if x.startswith("{")]
+    assert all(r["verdict"] == "VALIDATED" and r["current"] != "VALIDATED" for r in rows)

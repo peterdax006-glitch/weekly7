@@ -129,6 +129,8 @@ def _history(ledger: Ledger) -> MEM.Memory:
     mem = MEM.Memory()
     for e in ledger.of_type("WorkPackage"):
         wp = e.record
+        if was_interrupted(ledger, e.id):                               # never judged: no failure memory
+            continue
         for t in ledger.about(e.id):
             if t.rtype == "Transition" and getattr(t.record, "to_state") in (M.Status.FAILED, M.Status.ROLLED_BACK, M.Status.REJECTED):
                 mem.remember("failure", getattr(wp, "objective"), getattr(t.record, "reason"), (getattr(wp, "package_id"),))

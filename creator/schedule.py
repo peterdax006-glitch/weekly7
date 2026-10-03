@@ -87,6 +87,9 @@ def samples_from_ledger(ledger: Ledger) -> list[tuple[str, float, bool]]:
         if to is M.Status.IN_PROGRESS:
             started[sid] = _ts(e)
         elif sid in started:
+            if P.was_interrupted(ledger, sid):                      # stopped before it was ever judged: not a sample
+                started.pop(sid)
+                continue
             gap = next((p for p in ledger.get(sid).parents if ledger.view.by_id[p].rtype == "Gap"), None)
             req = next((p for p in (ledger.get(gap).parents if gap else ()) if ledger.view.by_id[p].rtype == "Requirement"), None)
             t0 = started.pop(sid)

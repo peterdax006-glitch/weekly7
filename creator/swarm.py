@@ -27,7 +27,6 @@ from creator import kernel as K
 from creator import model as M
 from creator import sandbox as S
 from creator import testslots as TS
-from creator import schedule as SCHED
 from creator.ledger import Ledger
 
 
@@ -268,9 +267,12 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
     plans: list[Any] = []
     gap_slots = slots - 1 if (cfg.mode == "auto" and slots >= 2) else slots    # keep one slot for shrink work alongside gaps
     try:
-        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
+        plans = list(REG.get("schedule").plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
     except Exception as e:                                              # noqa: BLE001 - never lose a round to the scheduler
-        SCHED.note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
+        try:
+            REG.get("schedule").note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
+        except Exception:                                               # noqa: BLE001 - a broken scheduler module is only noted
+            print(f"SCHEDULER error: {type(e).__name__}: {e}", flush=True)
         return None
     seen = {p.component for p in plans}
     if cfg.mode == "auto" and len(plans) < slots:
@@ -361,8 +363,11 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         ramped = time.monotonic() - last_start >= gov.ramp_s
         if time.monotonic() - status_at[0] >= 60.0:                     # once a minute: what runs, and what stops more starting
             status_at[0] = time.monotonic()
-            REG.get("swarmops").status_line(gov, load, running, active, queue, fillers, planned, max_packages, exhausted, nothing_while == key,
-                         fill_left, ramped)
+            try:
+                REG.get("swarmops").status_line(gov, load, running, active, queue, fillers, planned, max_packages, exhausted,
+                                                nothing_while == key, fill_left, ramped)
+            except Exception as e:                                      # noqa: BLE001 - a status line never breaks a round
+                print(f"STATUS error: {type(e).__name__}: {e}", flush=True)
         if gov.too_tight() and active:
             pool = [r for r in active if not r.cancel.is_set()]
             cheap = [r for r in pool if r.plan.package_id not in HANDED_BACK]
