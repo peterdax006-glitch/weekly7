@@ -142,44 +142,13 @@ def _drill_live() -> None:
 
 
 def make_filler():                                        # type: ignore[no-untyped-def]
-    """Leftover-capacity work. In THINKING focus (state/creator/focus.json; owner, 2 Oct 2026: 'have Nupen work souly on thinking
-    until its opinion is trust worthy') it is the thinking drills over all local data, the live predictions every THINK_EVERY_S and
-    a blueprint every BLUEPRINT_EVERY_S - as independent jobs the Governor admits until CPU or RAM is full. Otherwise the self-bench."""
+    """Leftover-capacity work. In THINKING focus: creator.thinkfill (drills, live predictions, blueprint, learning loop, model batches),
+    imported here so it is not part of the swarm's start load. Otherwise the self-bench."""
     try:
         focus = REG.optional("focus")
         if focus is not None and focus.current(STATE) == "thinking":
-            drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
-                                                          ROOT / "state" / "research", processes=True,   # every core, not one (GIL)
-                                                          public=True)   # fetch public upstreams, acquire more when dry
-            models = []                                   # local-model batches: judgment, and (3 Oct 2026) the reasoning drills
-            for name, make in (("judgment", "judgment_filler"), ("reasondrills", "reasoning_filler")):
-                try:
-                    models.append(getattr(REG.get(name), make)(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1))))
-                except Exception as e:                    # noqa: BLE001 - optional; the drills still run
-                    print(f"{name.upper()} filler unavailable: {type(e).__name__}: {e}", flush=True)
-
-            def next_job():                               # type: ignore[no-untyped-def]
-                now = time.time()
-                if now - _THINK_LAST["run"] >= THINK_EVERY_S:
-                    _THINK_LAST["run"] = now
-                    return lambda: (_drill_live(), REG.get("thinking").run(STATE))   # live drill predictions first: trust.json counts them
-                if now - _THINK_LAST["blueprint"] >= BLUEPRINT_EVERY_S:
-                    _THINK_LAST["blueprint"] = now
-                    import subprocess
-                    return lambda: subprocess.run([sys.executable, str(ROOT / "scripts" / "nupen_blueprint.py"), "--state", str(STATE)],
-                                                  capture_output=True, timeout=1800, cwd=ROOT)
-                learn = REG.optional("learnloop")
-                if learn is not None and now - _THINK_LAST.get("learn", 0.0) >= LEARN_EVERY_S:
-                    _THINK_LAST["learn"] = now                   # test on the data, diagnose, improve, re-measure (creator.learnloop)
-                    return lambda: learn.run(STATE, ROOT)
-                n = _THINK_LAST["n"] = _THINK_LAST.get("n", 0) + 1
-                k = n // 3 % max(1, len(models))          # every third call a model batch first (RAM-heavy; admission decides), in turns
-                for f in ((models[k:] + models[:k]) if n % 3 == 0 else []) + [drills] + models:
-                    j = f()
-                    if j is not None:
-                        return j
-                return None
-            return next_job
+            from creator import thinkfill as TF           # lazy: on demand, not start load
+            return TF.make(REG, STATE, ROOT, _THINK_LAST, THINK_EVERY_S, BLUEPRINT_EVERY_S, LEARN_EVERY_S, _drill_live)
     except Exception as e:                                # noqa: BLE001 - a broken thinking module never stops the swarm
         print(f"THINKING filler unavailable: {type(e).__name__}: {e}", flush=True)
     return W.self_bench_filler(STATE / "self_bench.jsonl")

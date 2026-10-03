@@ -603,6 +603,8 @@ def _pool() -> Any:
         if _POOL is None:
             from concurrent.futures import ProcessPoolExecutor
             _POOL = ProcessPoolExecutor(max_workers=max(1, os.cpu_count() or 2), initializer=_low_priority)
+            import atexit
+            atexit.register(_POOL.shutdown, wait=False, cancel_futures=True)   # no weakref traceback at interpreter exit
         return _POOL
 
 
