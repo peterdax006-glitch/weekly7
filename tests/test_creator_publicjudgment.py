@@ -172,6 +172,7 @@ def test_filler_hands_out_public_rounds_and_retests_the_winner(tmp_path: Path, p
     monkeypatch.setattr(J, "active_tag", lambda: "fake-thinker.gguf")
     monkeypatch.setattr(J, "ROUND_SIZE", 24)
     monkeypatch.setattr(J, "PUB_HALVING", ((6, 6), (12, 3), (24, 1)))
+    monkeypatch.setattr(J, "PUB_ALLOCATION", "halving")                  # the plain halving mechanics (racing / online: the tests below)
     monkeypatch.setattr(J, "PUB_SPAN", 60)
     monkeypatch.setattr(J, "PUB_REFRESH_S", 1e12)
     monkeypatch.setattr(StratLLM, "oracle", {c.text: c.y for c in J.load_cases("pub_git_fixed", st, tmp_path)})
@@ -248,3 +249,89 @@ def test_trust_section_reports_public_topics_replay_only_with_n_and_cis(tmp_path
     row = next(iter(s["strategies"].values()))
     assert row["n"] > 0 and len(row["brier_ci"]) == 2 and row["brier_ci"][0] <= row["brier_calibrated"] <= row["brier_ci"][1] + 1e-9
     assert len(row["gain_vs_statistical"]) == 3 and "verdict" not in sec
+
+
+class WrongPlainLLM(StratLLM):
+    """Like StratLLM, but every prompt without retrieval answers CONFIDENTLY WRONG: clearly worse than the statistical predictor."""
+    def chat(self, messages: Any, **kw: Any) -> str:
+        blob = json.dumps(messages)
+        q = messages[-1]["content"].replace("\n/no_think", "")
+        y = next((v for k, v in self.oracle.items() if q.endswith(k)), None)
+        if y is not None and "Similar past cases" not in blob:
+            return f"PROBABILITY: {0.05 if y else 0.95}"
+        return super().chat(messages, **kw)
+
+
+def _run_rounds(tmp_path: Path, monkeypatch: Any, allocation: str, rounds_needed: int = 2, llm: Any = StratLLM) -> tuple[Path, list[dict[str, Any]]]:
+    st = tmp_path / "st"
+    monkeypatch.setattr(J, "active_tag", lambda: "fake-thinker.gguf")
+    monkeypatch.setattr(J, "ROUND_SIZE", 24)
+    monkeypatch.setattr(J, "PUB_HALVING", ((6, 6), (12, 3), (24, 1)))
+    monkeypatch.setattr(J, "PUB_ALLOCATION", allocation)
+    monkeypatch.setattr(J, "ONLINE_MIN_N", 4)
+    monkeypatch.setattr(J, "PUB_SPAN", 60)
+    monkeypatch.setattr(J, "PUB_REFRESH_S", 1e12)
+    monkeypatch.setattr(StratLLM, "oracle", {c.text: c.y for c in J.load_cases("pub_git_fixed", st, tmp_path)})
+    nj = J.judgment_filler(st, tmp_path, max_servers=2, llm_factory=llm, topics=("pub_git_fixed",))
+    for _ in range(600):
+        j = nj()
+        if j is None:
+            break
+        j()
+        rounds = J.load_rounds(st, "pub_git_fixed", "fake-thinker.gguf")
+        if len(rounds) >= rounds_needed and J.round_state(rounds[rounds_needed - 1], T._jsonl(J.path(st)))["winner"] is not None:
+            break
+    return st, J.load_rounds(st, "pub_git_fixed", "fake-thinker.gguf")
+
+
+def test_racing_rounds_pair_with_the_stored_statistical_predictor_and_drop_clear_losers(tmp_path: Path, pub: dict[str, list[dict[str, Any]]],
+                                                                                       monkeypatch: Any) -> None:
+    from creator import trialerror as TE
+    monkeypatch.setattr(TE, "RACE_MIN", 5)
+    st, rounds = _run_rounds(tmp_path, monkeypatch, "racing", llm=WrongPlainLLM)
+    assert len(rounds) >= 2 and rounds[0]["allocation"] == "racing"
+    stat = {p.subject: p.p for p in D.walk_forward(P.items("pub_git_fixed"), "pub_git_fixed")}
+    assert set(rounds[0]["stat"]) == set(rounds[0]["subjects"]) and all(abs(rounds[0]["stat"][k] - stat[k]) < 1e-3 for k in rounds[0]["subjects"])
+    recs = [r for r in T._jsonl(J.path(st)) if r.get("topic") == "pub_git_fixed"]
+    s0 = J.round_state(rounds[0], recs)
+    assert s0["dropped"] and all(d not in rounds[0]["pinned"] for d in s0["dropped"])        # the 0.5-answering prompts lose to the predictor
+    dkeys = {json.dumps(d, sort_keys=True) for d in s0["dropped"]}
+    g = J.online_gains(rounds[0], s0["recs"], s0["dropped"])
+    assert all(TE.raced_out(g[k]) for k in dkeys)
+    w0 = s0["winner"]
+    assert w0 is not None and w0 in rounds[1]["pinned"]                                       # promoted only through the next round's re-test
+    rep = J.rounds_report(st, "pub_git_fixed", "fake-thinker.gguf")
+    rt = rep[1]["retest"][0]
+    assert rt["strategy"] == w0 and rt["out_of_sample_gain_vs_statistical"][-1] == len(rounds[1]["subjects"])
+    assert not set(rounds[0]["subjects"]) & set(rounds[1]["subjects"])
+
+
+def test_online_rounds_ask_pinned_plus_thompson_picks_and_retest_the_winner(tmp_path: Path, pub: dict[str, list[dict[str, Any]]],
+                                                                           monkeypatch: Any) -> None:
+    st, rounds = _run_rounds(tmp_path, monkeypatch, "online")
+    assert len(rounds) >= 2 and rounds[0]["allocation"] == "online"
+    recs = [r for r in T._jsonl(J.path(st)) if r.get("topic") == "pub_git_fixed"]
+    for rnd in rounds[:2]:
+        per: dict[str, set[str]] = {}
+        for r in recs:
+            if r.get("round") == rnd["round"]:
+                per.setdefault(r["subject"], set()).add(json.dumps(r["strategy"], sort_keys=True))
+        pins = {json.dumps(s, sort_keys=True) for s in rnd["pinned"]}
+        assert per and all(pins <= ss and len(ss - pins) <= J.ONLINE_PICKS for ss in per.values())
+    w0 = J.round_state(rounds[0], recs)["winner"]
+    assert w0 is not None and w0 in rounds[1]["pinned"]
+    asked = {r["subject"] for r in recs if r.get("round") == 1 and r["strategy"] == w0}
+    assert asked == set(rounds[1]["subjects"])                                               # the out-of-sample re-test on every fresh subject
+    rep = J.online_report(st, "pub_git_fixed", "fake-thinker.gguf")
+    assert rep["allocation"] == "online" and rep["gains_vs_control"]
+
+
+def test_anchor_prompt_carries_the_walk_forward_probability(tmp_path: Path, pub: dict[str, list[dict[str, Any]]]) -> None:
+    cases = J.load_cases("pub_git_fixed", tmp_path, tmp_path)
+    c = cases[120]
+    ap = J._anchor_p(tmp_path, c)
+    stat = {p.subject: p.p for p in D.walk_forward(P.items("pub_git_fixed"), "pub_git_fixed")}
+    assert ap is not None and abs(ap - stat[c.subject]) < 1e-9
+    msgs = J.build_prompt(J.ANCHOR_STRATEGY, cases, c, None, None, ap)
+    assert f"P = {ap:.2f}" in msgs[-1]["content"]
+    assert "P = " not in J.build_prompt(J.REF_STRATEGY, cases, c, None, None, ap)[-1]["content"]

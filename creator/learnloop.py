@@ -55,7 +55,7 @@ MAX_OPEN_GOALS = 3                     # learn-loop goal proposals pending at on
 DIAG_SOURCES = ("git_fixed", "git_churn", "journal_persist", "plan_choice", "x_git_fixed", "x_git_churn")   # research_bool: a 60k-file walk, left out
 FILES = {"progress": "progress.jsonl", "curve": "progress_curve.json", "retention": "retention.jsonl", "diagnosis": "diagnosis.json",
          "improvements": "improvements.jsonl", "queue": "learn_queue.jsonl", "need_data": "need_data.jsonl", "need_data_now": "need_data.json",
-         "run": "learnloop_run.json"}
+         "run": "learnloop_run.json", "experiments": "experiments.json"}
 
 
 # ------------------------------------------------------------------------------------------------ io (the only writer)
@@ -143,7 +143,7 @@ def _score_row(skill: str, sc: Any, kind: str, at: Any, extra: Optional[dict[str
             "ece": sc.get("ece"), "n_live": sc.get("n_live"), "measured_at": at, **(extra or {})}
 
 
-KNOWN_SECTIONS = ("anticipation", "at", "topics", "drills", "judgment", "fast_topics", "drills_error", "live")
+KNOWN_SECTIONS = ("anticipation", "at", "topics", "drills", "judgment", "fast_topics", "drills_error", "live", "experiments")
 
 
 def skill_rows(tj: dict[str, Any]) -> list[dict[str, Any]]:
@@ -938,6 +938,17 @@ def need_data(state: Path, diag: dict[str, Any], now: float) -> Optional[dict[st
 
 
 # ------------------------------------------------------------------------------------------------ the frozen benchmark on a cadence
+def experiments(state: Path) -> dict[str, Any]:
+    """The trial and error made visible (creator.trialerror.experiments_section, written to thinking/experiments.json); returns the compact
+    per-source summary: variants tried, kept, the select-vs-held-out rank agreement, and per feature family its best held-out Brier."""
+    from creator import registry as REG
+    sec = REG.get("trialerror").experiments_section(state)
+    _write(state, "experiments", sec)
+    return {s: {"tried": d.get("tried"), "kept": sum(1 for x in d.get("latest") or [] if x.get("kept")), "rho": d.get("select_predicts_heldout_rho"),
+                "families": {f: g.get("heldout_of_best_select") for f, g in (d.get("families") or {}).items()}}
+            for s, d in (sec.get("drills") or {}).items()}
+
+
 def bench_due(state: Path, now: float, last_launch: float) -> bool:
     runs = bench_runs(state)
     last = max([_ts(r.get("at")) for _n, r in runs] + [last_launch, 0.0])
@@ -996,6 +1007,7 @@ def run(state: Path, repo: Optional[Path] = None, journal: Optional[Path] = None
     out["improvements"] = [{k: a.get(k) for k in ("id", "action", "skill", "proposal", "before")} for a in imp.get("applied") or []]
     out["verified"] = imp.get("verified")
     out["need_data"] = step("need_data", lambda: need_data(state, diag, now)) if diag else None
+    out["experiments"] = step("experiments", lambda: experiments(state))
     out["bench_launched_at"] = prev_run.get("bench_launched_at", 0.0)
     if bench and bench_due(state, now, float(prev_run.get("bench_launched_at") or 0.0)) and free_gb() >= BENCH_MIN_FREE_GB:
         pid = step("bench", lambda: (launcher or launch_bench)(state, repo))

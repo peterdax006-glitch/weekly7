@@ -426,6 +426,11 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
     except Exception as e:                                           # noqa: BLE001 - never breaks the trust report
         rep["decisions_error"] = f"{type(e).__name__}: {e}"
     rep["reasoning"] = reasoning_section(state)
+    try:                                                              # the trial and error made visible (creator.trialerror): what was tried,
+        from creator import registry as REG3                          # why, select / held-out, kept or dropped; a reader only, never the gate
+        rep["experiments"] = REG3.get("trialerror").experiments_section(state)
+    except Exception as e:                                           # noqa: BLE001 - never breaks the trust report
+        rep["experiments"] = {"error": f"{type(e).__name__}: {e}"}
     if write:
         state.mkdir(parents=True, exist_ok=True)
         (state / "trust.json").write_text(json.dumps(rep, indent=1, sort_keys=True), encoding="utf-8")

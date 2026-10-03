@@ -58,6 +58,7 @@ class BItem:
     resolved: Optional[float]       # when the outcome became known (None = not yet)
     y: int = 0
     subject: str = ""
+    meta: Any = None                # setup-only facts a feature FAMILY needs (git: the commit's files, sizes, message type; never the outcome)
 
 
 # ------------------------------------------------------------------------------------------------ the generic time-ordered binary model
@@ -413,7 +414,8 @@ def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = No
         commits = _read_cache(path)
         commits.sort(key=lambda c: c["t"])
         for it in _git_events(commits, window, mode):
-            out.append(BItem(it.keys + (f"r:{repo.name}",), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}"))
+            out.append(BItem(it.keys + (f"r:{repo.name}",), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}",
+                             {**it.meta, "repo": repo.name} if it.meta else None))
     out.sort(key=lambda it: it.created)
     return out
 
@@ -423,15 +425,17 @@ def _git_events(commits: list[dict[str, Any]], window: int, mode: str) -> list[B
     for i, c in enumerate(commits):
         top = sorted(c["files"])[0].split("/")[0] if c["files"] else "-"
         keys = (f"m:{_msg_class(c['s'])}", f"n:{_log2b(len(c['files']))}", f"l:{_log2b(c['lines'])}", f"d:{top}")
+        meta = {"t": c["t"], "files": c["files"], "s": f"{_msg_class(c['s'])} {'fix' if FIX_WORDS.search(c['s']) else '-'}",
+                "add": c.get("add", 0), "del": c.get("del", 0)}
         if i + window >= len(commits):
-            out.append(BItem(keys, c["t"], None, 0, c["h"][:10]))
+            out.append(BItem(keys, c["t"], None, 0, c["h"][:10], meta))
             continue
         nxt = commits[i + 1:i + 1 + window]
         if mode == "fixed":
             y = int(any(FIX_WORDS.search(n["s"]) and n["files"] & c["files"] for n in nxt))
         else:
             y = int(any(n["files"] & c["files"] for n in nxt))
-        out.append(BItem(keys, c["t"], max(c["t"], nxt[-1]["t"]), y, c["h"][:10]))
+        out.append(BItem(keys, c["t"], max(c["t"], nxt[-1]["t"]), y, c["h"][:10], meta))
     return out
 
 
@@ -544,9 +548,8 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
             # public clones grow with every fetch: a digest per byte would re-queue the whole x grid every few minutes and leave the live
             # predictions' best variant chosen from one row. Steps of XDIGEST_BYTES (~5,000 stripped commits) or a new project re-queue it.
             return f"x{len(xs)}.{sum(extra_cache_path(r).stat().st_size for r in xs) // XDIGEST_BYTES}"
-        if SOURCES[source] == "journal":
-            st = journal.stat()
-            return f"{st.st_size}"
+        if SOURCES[source] == "journal":                    # the ITEMS (owner's audit, 3 Oct: the byte size restarted the search with
+            return digest(journal_items(journal))           # unchanged items whenever the journal was edited)
         if SOURCES[source] == "plan":
             return str(sum(1 for _ in (state / "plan_explanations.jsonl").open("rb")))
         return str(sum(len(fs) for _d, _ds, fs in os.walk(research)))
@@ -604,7 +607,7 @@ def _pool() -> Any:
 
 
 def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, journal: Path, research: Path,
-            lock: Optional[threading.Lock] = None, processes: bool = False) -> dict[str, Any]:
+            lock: Optional[threading.Lock] = None, processes: bool = False, why: str = "") -> dict[str, Any]:
     """One drill batch: compute (in a worker process when `processes`), then append the row. Independent of every other job."""
     global _POOL
     if processes:
@@ -617,6 +620,8 @@ def run_job(source: str, variant: dict[str, float], state: Path, repo: Path, jou
             row = compute_row(source, dict(variant), state, repo, journal, research)
     else:
         row = compute_row(source, dict(variant), state, repo, journal, research)
+    if why:
+        row["why"] = why
     p = runs_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
     with (lock or threading.Lock()), p.open("a", encoding="utf-8") as f:
@@ -649,7 +654,7 @@ def _pack_bytes(repo: Path) -> int:
 
 
 def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
-                 processes: bool = False, public: bool = False) -> Callable[[], Optional[Callable[[], None]]]:
+                 processes: bool = False, public: bool = False, react: bool = True) -> Callable[[], Optional[Callable[[], None]]]:
     """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
     source, then (OPEN-ENDED, owner 2 Oct: the filler must never run dry while there is thinking left to improve) NEW variants proposed by
     `propose` - round-robin over the sources, at most SEARCH_OUTSTANDING in flight per source - until SEARCH_STOP_K consecutive variants fail to
@@ -672,7 +677,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             digests[s] = source_digest(s, state, Path(repo), Path(journal), Path(research))
         return digests[s]
 
-    def wrap(s: str, v: dict[str, Any], search: bool) -> Callable[[], None]:
+    def wrap(s: str, v: dict[str, Any], search: bool, why: str = "") -> Callable[[], None]:
         def job() -> None:
             fp, pid, prior = _fast_mod(), None, None
             try:
@@ -683,9 +688,10 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             except Exception:                                       # noqa: BLE001
                 pid = None
             try:
-                row = run_job(s, v, state, Path(repo), Path(journal), Path(research), lock, processes)
+                row = run_job(s, v, state, Path(repo), Path(journal), Path(research), lock, processes, why)
                 if pid and fp is not None and row.get("select", {}).get("n"):
                     fp.end_safe(pid, int(row["select"]["brier"] < prior), state)
+                _react(row)
             except Exception as e:                                 # noqa: BLE001
                 _error_row(state, s, v, e, lock)
             finally:
@@ -732,6 +738,18 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             finally:
                 state_t["cache_flight"] = 0.0
         return job
+
+    def _react(row: dict[str, Any]) -> None:
+        """FAST REACTION (creator.trialerror.react): a finished result can re-diagnose its source at once and queue targeted variants."""
+        if not react:
+            return
+        try:
+            from creator import registry as REG
+            te = REG.optional("trialerror")
+            if te is not None:
+                te.react(state, row, Path(repo), Path(journal), Path(research))
+        except Exception as e:                                     # noqa: BLE001 - a reaction never loses the drill result
+            _error_row(state, "react", {"source": row.get("source")}, e, lock)
 
     def learn_queue() -> list[tuple[str, dict[str, Any]]]:
         try:
@@ -817,7 +835,7 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             if s not in srcs or d == "-" or (s, json.dumps(v, sort_keys=True), d) in done:   # selection is unchanged (select part only)
                 continue
             done.add((s, json.dumps(v, sort_keys=True), d))
-            return wrap(s, v, False)
+            return wrap(s, v, False, "diagnosis")
         for _ in range(len(srcs)):                                 # fixed grid exhausted: open-ended search
             s = srcs[next(rr) % len(srcs)]
             d = digest_of(s)
@@ -829,13 +847,14 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                     continue
                 for _try in range(20):
                     v = propose(s, [r for r in rows if r.get("digest") == d], rnd)
+                    why = _proposal_why(v)
                     if (s, json.dumps(v, sort_keys=True), d) not in done:
                         break
                 else:
                     continue
                 done.add((s, json.dumps(v, sort_keys=True), d))
                 flight[s] += 1
-            return wrap(s, v, True)
+            return wrap(s, v, True, why)
         return None
     return next_job
 
@@ -1030,14 +1049,19 @@ MASKS = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)   # bit i set = d
 EXTRAS = ("none", "jtopic", "hour", "both")
 CAPS = (0.02, 0.05, 0.1)
 AGGS = ("mean", "logit")
+P_FAMILY = 0.3                     # share of proposals that try a feature FAMILY (creator.trialerror) instead of a knob
+
+
+def _proposal_why(v: dict[str, Any]) -> str:
+    return f"idea: feature family {v['fam']}" if v.get("fam") else "search"
 
 
 def apply_variant(items: list[BItem], variant: dict[str, Any], journal: Path) -> list[BItem]:
     """Feature set of a search variant: drop key positions (`mask`) and add CROSS-SOURCE context keys known at creation time only:
     'jt' = topic of the last journal entry from a day BEFORE the item's day (an entry is dated midnight but written later that day), 'hr' = UTC
     hour band and weekday. Never the outcome, never a later record."""
-    mask, extra = int(variant.get("mask", 0)), variant.get("extra", "none")
-    if not mask and extra == "none":
+    mask, extra, fam = int(variant.get("mask", 0)), variant.get("extra", "none"), str(variant.get("fam") or "")
+    if not mask and extra == "none" and not fam:
         return items
     jt: list[tuple[float, str]] = []
     if extra in ("jtopic", "both") and journal.is_file() and not excluded(journal.name):
@@ -1057,7 +1081,10 @@ def apply_variant(items: list[BItem], variant: dict[str, Any], journal: Path) ->
         if extra in ("hour", "both"):
             d = T.dt.datetime.fromtimestamp(it.created, T.dt.timezone.utc)
             add += [f"hr:{d.hour // 6}", f"wd:{d.weekday()}"]
-        out.append(BItem(keys + tuple(add), it.created, it.resolved, it.y, it.subject))
+        out.append(BItem(keys + tuple(add), it.created, it.resolved, it.y, it.subject, it.meta))
+    if fam:                                             # a feature FAMILY (creator.trialerror): walk-forward history keys, setup facts only
+        from creator import registry as REG
+        out = REG.get("trialerror").with_family(out, fam)
     return out
 
 
@@ -1067,6 +1094,11 @@ def propose(source: str, rows: Sequence[dict[str, Any]], rnd: random.Random) -> 
         return {"decay": rnd.choice((0.8, 0.85, 0.9, 0.95, 0.97, 0.99, 1.0)), "k": rnd.choice((0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0)),
                 "mask": rnd.choice(MASKS), "extra": rnd.choice(EXTRAS), "agg": rnd.choice(AGGS), "cap": rnd.choice(CAPS), "search": 1}
     ok = [r for r in rows if r.get("select", {}).get("n")]
+    if rnd.random() < P_FAMILY:                                     # IDEAS, not only knobs: a feature family on top of the best so far
+        from creator import registry as REG
+        fv = REG.get("trialerror").propose_family(source, dict(min(ok, key=lambda r: r["select"]["brier"])["variant"]) if ok else None, rnd)
+        if fv is not None:
+            return dict(fv)
     if not ok or rnd.random() < 0.5:
         return fresh()
     b = dict(min(ok, key=lambda r: r["select"]["brier"])["variant"])
@@ -1080,18 +1112,29 @@ def propose(source: str, rows: Sequence[dict[str, Any]], rnd: random.Random) -> 
 
 def search_state(rows: Sequence[dict[str, Any]], digest_now: str) -> dict[str, Any]:
     """From a source's rows at the current data digest (file order = completion order): the best select Brier, the run of consecutive search
-    variants that failed to beat the best so far, and whether proposing is over."""
+    variants that failed to beat the best so far, and whether proposing is over. A new best counts as an improvement only when it beats the
+    old by more than the paired-SE threshold (owner's audit, 3 Oct: any 1e-9 gain reset the stop rule, so the search chased noise), and a
+    source whose select part does not predict its held-out part (rank correlation across variants below NOISE_RHO) stops: searching it only
+    follows noise until new data arrives."""
+    from creator import registry as REG
+    te = REG.get("trialerror")
     best, fails, n = float("inf"), 0, 0
+    inc: Optional[dict[str, Any]] = None
+    cur = []
     for r in rows:
         if r.get("digest") != digest_now or not r.get("select", {}).get("n"):
             continue
+        cur.append(r)
         b = r["select"]["brier"]
-        if b < best - 1e-9:
-            best, fails = b, 0
+        if inc is None or b < best - te.improve_threshold(inc):
+            best, fails, inc = b, 0, r
         elif r.get("search"):
             fails += 1
         n += 1
-    return {"best_select_brier": None if best == float("inf") else best, "consecutive_fails": fails, "tried": n, "stopped": fails >= SEARCH_STOP_K}
+    rho = te.select_predicts_heldout(cur)
+    noise = rho is not None and rho < te.NOISE_RHO
+    return {"best_select_brier": None if best == float("inf") else best, "consecutive_fails": fails, "tried": n,
+            "select_heldout_rho": None if rho is None else round(rho, 3), "noise_stopped": noise, "stopped": fails >= SEARCH_STOP_K or noise}
 
 
 def best_variant(state: Path, source: str) -> Optional[dict[str, Any]]:
