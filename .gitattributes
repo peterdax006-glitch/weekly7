@@ -1,0 +1,2 @@
+# GPU-day pod scripts run under bash on Linux: never CRLF
+*.sh text eol=lf
