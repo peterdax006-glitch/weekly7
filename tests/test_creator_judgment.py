@@ -85,3 +85,9 @@ def test_prompt_never_carries_the_items_outcome_or_post_creation_fields() -> Non
         assert not any("esolved" in m["content"] for m in J.build_prompt(s, cs, c) if m["role"] == "assistant") and "ADOPTED" not in blob.replace("will the kernel ADOPT", "")
         assert c.subject not in blob.replace(c.text, "") and str(c.resolved) not in blob
         assert not any(f"PKG{i:03d}" in blob for i in range(40, 60) if i != 40)         # nothing created or resolved after / at the item
+
+
+def test_git_topic_without_the_history_cache_has_no_cases_yet(tmp_path: Path) -> None:
+    # 3 Oct: the git history is read only by the git_cache job; before it has run, git_fixed has no cases (the benchmark and the
+    # judgment filler raised GitCacheMissing instead)
+    assert J.load_cases("git_fixed", tmp_path / "state", tmp_path / "norepo") == []

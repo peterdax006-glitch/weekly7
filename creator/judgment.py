@@ -95,7 +95,10 @@ def load_cases(topic: str, state: Path, repo: Path) -> list[Case]:
                             f"A development package for requirement kind '{it.kind}' (requirement {it.req or '?'}) is planned at {_iso(it.created)} UTC. "
                             f"Its written spec has {it.spec_len} characters and it lists {it.n_files} output files. Will the kernel ADOPT its result?"))
     elif topic == "git_fixed":
-        items = D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state)
+        try:
+            items = D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state)
+        except D.GitCacheMissing:                                      # no parsed history yet (the git_cache job builds it): no cases yet
+            return out
         subj = {c["h"][:10]: c["s"] for cs in D._GIT_CACHE.values() for c in cs}
         for bi in items:
             if bi.resolved is None:

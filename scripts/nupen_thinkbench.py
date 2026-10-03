@@ -70,7 +70,8 @@ def extras(state: Path, owner_dir: Path, hours: float) -> list[str]:
         cnt[i.outcome] = cnt.get(i.outcome, 0) + 1
     out.append(f"Kernel verdicts in the last {hours:g} h: {sum(cnt.values())} " + str(dict(sorted(cnt.items()))))
     try:
-        cur = json.loads(Path("C:/Users/peter/creator_runtime/lmckpt/current.json").read_text(encoding="utf-8"))
+        from creator import device as DEV
+        cur = json.loads((DEV.runtime_dir() / "lmckpt" / "current.json").read_text(encoding="utf-8"))
         out.append(f"Language model: {cur.get('bpb'):.3f} bits/byte (95% {cur.get('lo'):.3f}-{cur.get('hi'):.3f}) at step {cur.get('step')}, {cur.get('tokens')} tokens, "
                    f"{cur.get('params')} parameters (lower is better)")
         log = (state / "lm_train.log").read_text(encoding="utf-8", errors="replace").splitlines()
