@@ -43,6 +43,8 @@ PROTECTED: tuple[str, ...] = (
     # work, or lower an approved capability's floor, without any approval (validator 6)
     "creator/capabilities.json", "creator/capabilities_approved.json", "creator/devbench.py", "creator/model.py", "creator/ledger.py", "creator/sandbox.py",
     "state/creator/ledger.jsonl",
+    # thinking focus + trust (3 Oct, F7): owner/teacher-owned focus switch and the drill records/report a worker could otherwise forge
+    "state/creator/focus.json", "state/creator/trust.json", "state/creator/thinking/*", "state/creator/thinking/**",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"

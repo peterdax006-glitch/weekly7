@@ -37,6 +37,10 @@ CAPABILITIES: dict[str, str] = {
     "swarmops": "creator.swarmops",
     "resources": "creator.resources",
     "modelpool": "creator.modelpool",
+    "thinking": "creator.thinking",
+    "drillsources": "creator.drillsources",
+    "anticipation": "creator.anticipation",
+    "focus": "creator.focus",
 }
 
 _loaded: dict[str, Any] = {}
