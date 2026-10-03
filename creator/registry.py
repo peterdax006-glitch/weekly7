@@ -41,8 +41,11 @@ CAPABILITIES: dict[str, str] = {
     "drillsources": "creator.drillsources",
     "predictors": "creator.predictors",
     "judgment": "creator.judgment",
+    "fastpred": "creator.fastpred",
+    "reasonmethods": "creator.reasonmethods",
     "anticipation": "creator.anticipation",
     "focus": "creator.focus",
+    "thinkbench": "creator.thinkbench",
 }
 
 _loaded: dict[str, Any] = {}

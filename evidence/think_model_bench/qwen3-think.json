@@ -1,0 +1,122 @@
+{
+ "name": "qwen3-1.7b-think",
+ "model": "C:\\Users\\peter\\creator_runtime\\models\\Qwen3-1.7B-Q4_K_M.gguf",
+ "bytes": 1107409472,
+ "speed": {},
+ "judgment": [],
+ "mc": [
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K23 oversight: goal drift, knowledge gaps, critical path (C77 CR057, CR059, CR083).\"\n\nWhich module does the test file cover?\nA. creator/kernel.py - Creator K14 - the self-development kernel loop (C77 secs 10, 20-29, 44-46, 59-61, 64; package CR14) - IMPLEMENTED, NOT VALIDATED.\nB. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.\nC. creator/oversight.py - Creator K23 - oversight: the system watches its own direction (C77 checklist CR057 goal drift, CR059 knowledge gaps, CR083 critical path) - \nD. creator/model.py - Creator K01 data model (C77 secs 7, 13, 18, 22, 30, 31, 35, 37, 63, 71; package CR01) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": "C",
+   "s": 98.2,
+   "reply": "The test file references \"K23 oversight,\" which directly matches the module description in option C. The CR numbers (C77 CR057, CR059, CR083) and the oversight topics (goal drift, knowledge gaps, crit"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator/recon.py (C77 Phase 0, CR001-CR036): every reconnaissance section is COMPUTED from the tree, changes when the tree changes, and a ledger of another tree is stale. Runs on a small synthetic git repository.\"\n\nWhich module does the test file cover?\nA. creator/curriculum.py - Nupen is the student learning to think for itself; Claude is the teacher who thinks for it until it can.\nB. creator/focus.py - FOCUS MODE (owner, 2 Oct 2026: \"we want to prioritize thinking right now, have Nupen work solely on thinking until its opinion is trust wort\nC. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nD. creator/recon.py - C77 sec 6 - Phase 0 reconnaissance, COMPUTED from a repository tree (checklist CR001-CR031).",
+   "answer": "D",
+   "got": "D",
+   "s": 83.2,
+   "reply": "The test file's filename is \"recon.py,\" and the description explicitly mentions \"reconnaissance\" and \"computed from the tree,\" which aligns with the \"creator/recon.py\" module. Option D directly matche"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR207/CR208: independent reproduction on temporary git repos + ledgers (chain, evidence, verdict recompute, ADOPT commits, rerun).\"\n\nWhich module does the test file cover?\nA. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nB. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nC. creator/testrun.py - K06 test stage (CR03; canon C77 sec 24-25 test execution, sec 29 version comparison, sec 46 regression protection).\nD. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "B",
+   "got": "B",
+   "s": 61.5,
+   "reply": "The test file's description refers to \"independent reproduction\" and \"ledgers,\" which are associated with the CR207/CR208 module, indicating a focus on replication and tracking changes. Option B direc"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K21: the system's own workers - it works on itself with no AI (owner, 1 Oct 2026).\"\n\nWhich module does the test file cover?\nA. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nB. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nC. creator/selfworkers.py - Creator K21 - the system's OWN workers: it works on itself with no AI at all (owner, 1 Oct 2026: \"it should work toward the level where it w\nD. creator/treecache.py - Test results keyed by the whole git tree they ran on.",
+   "answer": "C",
+   "got": "C",
+   "s": 63.5,
+   "reply": "The test file describes \"the system's own workers\" with no AI, which directly matches the module \"creator/selfworkers.py\" in option C. The mention of the owner's date and the description of the module"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"The model-backed student: retrieval of adopted lessons, prompt, edit application, safety, SFT export (FakeLLM, no server).\"\n\nWhich module does the test file cover?\nA. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.\nB. creator/evaluate.py - Creator K10 - evaluation and improvement measurement (C77 secs 30-32, 35, 49-56; package CR06) - IMPLEMENTED, NOT VALIDATED.\nC. creator/action_student.py - Nupen's model student v2: the small local model CHOOSES among exact program transformations instead of writing edits.\nD. creator/drillsources.py - MORE THINKING DATA and PARALLEL DRILL JOBS (owner, 2 Oct 2026: \"Nupen should use all the data it has access to just to have as many agents a",
+   "answer": "A",
+   "got": "A",
+   "s": 64.6,
+   "reply": "The test file describes a \"model-backed student\" with features like retrieving lessons, prompts, and SFT export, which aligns with the description in option A. Other options mention different function"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR208: the claims register. Every major claim has evidence refs and a recomputation; a claim without recomputable evidence, or a fabricated one, is UNSUPPORTED. Temporary repos and ledgers.\"\n\nWhich module does the test file cover?\nA. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nB. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nC. creator/ledger.py - Creator K01 - the development ledger (C77 secs 7, 22, 30, 35, 37, 58-61; package CR01) - IMPLEMENTED, NOT VALIDATED.\nD. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "D",
+   "got": "D",
+   "s": 59.6,
+   "reply": "The test file's description explicitly refers to \"the claims register\" (CR208), which is directly linked to module D (\"creator/claims.py\"). The other modules mention different aspects (e.g., power, pr"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR08: gap analysis from evidence (C77 secs 14, 41, 42). A TEMPORARY project tree; test results are real pytest runs.\"\n\nWhich module does the test file cover?\nA. creator/gaps.py - Creator K04 - gap analysis (C77 secs 14, 41, 42; package CR08) - IMPLEMENTED, NOT VALIDATED.\nB. creator/autotune.py - Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: \"get it to the point where the system knows the goal and the\nC. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nD. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.",
+   "answer": "A",
+   "got": "A",
+   "s": 114.5,
+   "reply": "The test file references \"CR08\" and \"gap analysis from evidence\" with specific seconds (C77 secs 14, 41, 42), which aligns with module A's description. The mention of \"TEMPORARY project tree\" and \"rea"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator.conversation: every intent answers from PLANTED records with the right numbers and cites evidence; unknown input is admitted; a request is a pending owner proposal; pause/resume/approve act only after confirmation; exchanges are logged and exportable.\"\n\nWhich module does the test file cover?\nA. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).\nB. creator/conversation.py - Nupen terminal conversation, LAYER 1: rule-based understanding, answers only from Nupen's own records (owner 2 Oct 2026).\nC. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nD. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.",
+   "answer": "B",
+   "got": "B",
+   "s": 147.3,
+   "reply": "The test file's description emphasizes \"conversation\" and mentions \"PLANTED records\" with rules like \"unknown input is admitted\" and \"a request is a pending owner proposal.\" This aligns with the \"crea"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Reasoning procedure (creator.reasoning): it reaches the work package with recalled lessons, predictions are stored against measured effects and scored, stop rules refuse repeated failures, and missing optional modules never break planning.\"\n\nWhich module does the test file cover?\nA. creator/reasoning.py - Nupen's THINKING PROCEDURE (owner, 2 Oct 2026: \"exactly how to know what to do ... find all the fundamentals of how an ai should think ... s\nB. creator/swarmops.py - Swarm housekeeping, loaded on demand (sparse activation: not part of the kernel's or the swarm's start-time load).\nC. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.\nD. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.",
+   "answer": "A",
+   "got": "C",
+   "s": 64.7,
+   "reply": "The test file's description focuses on a reasoning procedure with constraints, stop rules, and stored predictions, which aligns with the creator/constraints.py module's focus on constraint loops and N"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR K08: the design component.\"\n\nWhich module does the test file cover?\nA. creator/design.py - K08 design: N alternative designs per decision, assumptions, failure modes, cost/risk, adversarial critique, explicit selection criteria, re\nB. creator/replay_student.py - Replay: re-apply a teacher solution that was never measured (Nupen's curriculum; 2 Oct 2026).\nC. creator/modelpool.py - Warm model-server pool (owner, 2 Oct 2026: \"as long as my computer is on Nupen should be maxing my computer out\"; CPU is full while RAM sits\nD. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).",
+   "answer": "A",
+   "got": "A",
+   "s": 73.2,
+   "reply": "The test file's description refers to a \"design component,\" which aligns with Option A's focus on design aspects like alternative designs, assumptions, and failure modes. Other options pertain to diff"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR07: objectives and the requirement compiler (C77 secs 2, 12, 13).\"\n\nWhich module does the test file cover?\nA. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nB. creator/testgen.py - Creator CR093/CR096/CR098 - deterministic test generation, no AI (owner 1 Oct 2026: the Creator works on itself).\nC. creator/meta.py - K13 meta: development strategies as explicit parameterised policies, outcome tracking per problem class, strategy selection, and process-imp\nD. creator/synth.py - Creator K19 - deterministic program synthesis for function stubs (no LLM, no network).",
+   "answer": "A",
+   "got": "A",
+   "s": 52.7,
+   "reply": "The test file describes \"CR07: objectives and the requirement compiler (C77 secs 2, 12, 13),\" which directly links to module A, which covers the objectives and requirement compiler. Other options refe"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K20b: the recursion's process is consumed by the worker and measured on a (here: fake) dev workload. No real devbench run.\"\n\nWhich module does the test file cover?\nA. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nB. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.\nC. creator/treecache.py - Test results keyed by the whole git tree they ran on.\nD. creator/generator.py - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independe",
+   "answer": "B",
+   "got": "D",
+   "s": 83.0,
+   "reply": "The test file refers to \"K20b\" and describes a worker measuring recursion on a fake dev workload, which aligns with the Creator's own worker in option D. The mention of \"no real devbench run\" suggests"
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Past record: 22 resolved packages, 0.23 adopted. Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 01:17 UTC. Its written spec has 1509 characters and it lists 1 output files.\nB. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 00:34 UTC. Its written spec has 1509 characters and it lists 1 output files.\nWhich one was adopted?",
+   "answer": "A",
+   "got": null,
+   "s": 167.2,
+   "reply": ""
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'exists' (requirement K07.exists) is planned at 2026-10-01 06:37 UTC. Its written spec has 2155 characters and it lists 2 output files.\nB. A development package for requirement kind 'exists' (requirement K12.exists) is planned at 2026-10-01 09:28 UTC. Its written spec has 2153 characters and it lists 2 output files.\nWhich one was adopted?",
+   "answer": "B",
+   "got": null,
+   "s": 188.3,
+   "reply": ""
+  }
+ ],
+ "rss_quality_gb": 2.6
+}

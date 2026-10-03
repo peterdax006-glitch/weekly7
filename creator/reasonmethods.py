@@ -196,7 +196,7 @@ def trace_messages(index: Index, strat: dict[str, Any], c: Any) -> list[dict[str
     out: list[dict[str, str]] = []
     for r in reversed(index.search(c.text, c.created, k, kinds=("lesson",), topic="verdict", teacher=True)):
         out.append({"role": "user", "content": f"{r.text[:260]} Will the kernel ADOPT its result?"})
-        out.append({"role": "assistant", "content": f"Teacher ({r.teacher}) reasoned: {' '.join(r.reasoning.split())[:300]} Resolved: {r.outcome[:60]}. "
+        out.append({"role": "assistant", "content": f"{' '.join(r.reasoning.split())[:300]}\n"
                                                     f"PROBABILITY: {'0.85' if r.y else '0.15'}"})
     return out
 

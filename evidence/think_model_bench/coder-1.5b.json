@@ -1,0 +1,636 @@
+{
+ "name": "coder-1.5b",
+ "model": "C:\\Users\\peter\\creator_runtime\\models\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+ "bytes": 1117320768,
+ "speed": {
+  "4": {
+   "load_s": 6.0,
+   "rss_gb": 1.8,
+   "tok_per_s": [
+    1.81,
+    4.61
+   ]
+  },
+  "7": {
+   "load_s": 4.4,
+   "rss_gb": 1.8,
+   "tok_per_s": [
+    4.31,
+    4.14
+   ]
+  },
+  "11": {
+   "load_s": 4.1,
+   "rss_gb": 1.8,
+   "tok_per_s": [
+    2.67,
+    1.45
+   ]
+  }
+ },
+ "judgment": [
+  {
+   "topic": "verdict",
+   "subject": "CP0057",
+   "y": 0,
+   "p": 0.5,
+   "s": 12.3,
+   "reply": "Resolved case. PROBABILITY: 0.5"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0058",
+   "y": 0,
+   "p": 0.03,
+   "s": 12.0,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0059",
+   "y": 0,
+   "p": 0.05,
+   "s": 9.3,
+   "reply": "Resolved case. PROBABILITY: 0.05"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0060",
+   "y": 0,
+   "p": 0.85,
+   "s": 9.9,
+   "reply": "Resolved case. PROBABILITY: 0.85"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0065",
+   "y": 0,
+   "p": 0.15,
+   "s": 12.5,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0083",
+   "y": 0,
+   "p": 0.15,
+   "s": 12.5,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0091",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.9,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0094",
+   "y": 0,
+   "p": 0.15,
+   "s": 13.9,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0105",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.3,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0110",
+   "y": 0,
+   "p": 0.03,
+   "s": 12.6,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0113",
+   "y": 0,
+   "p": 0.03,
+   "s": 12.5,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0114",
+   "y": 0,
+   "p": 0.15,
+   "s": 9.9,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0115",
+   "y": 0,
+   "p": 0.15,
+   "s": 19.9,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0116",
+   "y": 0,
+   "p": 0.03,
+   "s": 16.8,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0118",
+   "y": 0,
+   "p": 0.15,
+   "s": 18.2,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0120",
+   "y": 0,
+   "p": 0.15,
+   "s": 19.1,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0126",
+   "y": 0,
+   "p": 0.15,
+   "s": 17.0,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0128",
+   "y": 0,
+   "p": 0.03,
+   "s": 20.4,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0138",
+   "y": 0,
+   "p": 0.03,
+   "s": 23.2,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0144",
+   "y": 0,
+   "p": 0.03,
+   "s": 19.0,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0147",
+   "y": 0,
+   "p": 0.03,
+   "s": 11.7,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0148",
+   "y": 0,
+   "p": 0.15,
+   "s": 13.2,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0150",
+   "y": 0,
+   "p": 0.15,
+   "s": 14.7,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "verdict",
+   "subject": "CP0152",
+   "y": 0,
+   "p": 0.03,
+   "s": 14.6,
+   "reply": "Resolved case. PROBABILITY: 0.00"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "706a261bde",
+   "y": 0,
+   "p": 0.85,
+   "s": 14.8,
+   "reply": "Resolved case. PROBABILITY: 0.85"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5ce2d0e150",
+   "y": 0,
+   "p": 0.95,
+   "s": 12.4,
+   "reply": "Resolved case. PROBABILITY: 0.95"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "84bd3ec214",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.7,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "ba05a67c0d",
+   "y": 0,
+   "p": 0.15,
+   "s": 9.8,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "abbc5b6ed4",
+   "y": 0,
+   "p": 0.15,
+   "s": 9.4,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "da09420486",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.4,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "f12cb76d30",
+   "y": 0,
+   "p": 0.15,
+   "s": 8.5,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "59d66cfa7d",
+   "y": 0,
+   "p": 0.05,
+   "s": 13.6,
+   "reply": "Resolved case. PROBABILITY: 0.05"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "adaf78c09b",
+   "y": 0,
+   "p": 0.05,
+   "s": 9.2,
+   "reply": "Resolved case. PROBABILITY: 0.05"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5d6a257aa6",
+   "y": 0,
+   "p": 0.05,
+   "s": 10.5,
+   "reply": "Resolved case. PROBABILITY: 0.05"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "57d9803e33",
+   "y": 1,
+   "p": 0.15,
+   "s": 13.6,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "66d0ef93c1",
+   "y": 0,
+   "p": 0.85,
+   "s": 13.7,
+   "reply": "Resolved case. PROBABILITY: 0.85"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "832dd7facf",
+   "y": 1,
+   "p": 0.5,
+   "s": 8.6,
+   "reply": "Resolved case. PROBABILITY: 0.5"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "5c9efcae6e",
+   "y": 1,
+   "p": 0.25,
+   "s": 18.9,
+   "reply": "Resolved case. PROBABILITY: 0.25"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "15ccb33b74",
+   "y": 0,
+   "p": 0.45,
+   "s": 8.1,
+   "reply": "Resolved case. PROBABILITY: 0.45"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "7cf4528569",
+   "y": 1,
+   "p": 0.15,
+   "s": 7.7,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "29f8d3c37f",
+   "y": 1,
+   "p": 0.15,
+   "s": 11.2,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "4d64e89f2a",
+   "y": 1,
+   "p": 0.15,
+   "s": 10.4,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "1ddc37fd70",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.0,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "1ba1822b41",
+   "y": 0,
+   "p": 0.15,
+   "s": 15.0,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "e004299bec",
+   "y": 1,
+   "p": 0.5,
+   "s": 10.5,
+   "reply": "Resolved case. PROBABILITY: 0.5"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "9e97f90edf",
+   "y": 0,
+   "p": 0.85,
+   "s": 15.8,
+   "reply": "Resolved case. PROBABILITY: 0.85"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "bb961eb078",
+   "y": 0,
+   "p": 0.15,
+   "s": 11.3,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "b3e055d4ca",
+   "y": 0,
+   "p": 0.15,
+   "s": 10.8,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  },
+  {
+   "topic": "git_fixed",
+   "subject": "ebd5d0666d",
+   "y": 0,
+   "p": 0.15,
+   "s": 19.3,
+   "reply": "Resolved case. PROBABILITY: 0.15"
+  }
+ ],
+ "mc": [
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K23 oversight: goal drift, knowledge gaps, critical path (C77 CR057, CR059, CR083).\"\n\nWhich module does the test file cover?\nA. creator/kernel.py - Creator K14 - the self-development kernel loop (C77 secs 10, 20-29, 44-46, 59-61, 64; package CR14) - IMPLEMENTED, NOT VALIDATED.\nB. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.\nC. creator/oversight.py - Creator K23 - oversight: the system watches its own direction (C77 checklist CR057 goal drift, CR059 knowledge gaps, CR083 critical path) - \nD. creator/model.py - Creator K01 data model (C77 secs 7, 13, 18, 22, 30, 31, 35, 37, 63, 71; package CR01) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": null,
+   "s": 76.1,
+   "reply": "The test file begins with the description \"K23 oversight: goal drift, knowledge gaps, critical path (C77 CR057, CR059, CR083)\". This indicates that the test file is focused on the oversight module of "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator/recon.py (C77 Phase 0, CR001-CR036): every reconnaissance section is COMPUTED from the tree, changes when the tree changes, and a ledger of another tree is stale. Runs on a small synthetic git repository.\"\n\nWhich module does the test file cover?\nA. creator/curriculum.py - Nupen is the student learning to think for itself; Claude is the teacher who thinks for it until it can.\nB. creator/focus.py - FOCUS MODE (owner, 2 Oct 2026: \"we want to prioritize thinking right now, have Nupen work solely on thinking until its opinion is trust wort\nC. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nD. creator/recon.py - C77 sec 6 - Phase 0 reconnaissance, COMPUTED from a repository tree (checklist CR001-CR031).",
+   "answer": "D",
+   "got": null,
+   "s": 122.7,
+   "reply": "The test file covers the module creator/recon.py, which is described as \"every reconnaissance section is COMPUTED from the tree, changes when the tree changes, and a ledger of another tree is stale. R"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR207/CR208: independent reproduction on temporary git repos + ledgers (chain, evidence, verdict recompute, ADOPT commits, rerun).\"\n\nWhich module does the test file cover?\nA. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nB. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nC. creator/testrun.py - K06 test stage (CR03; canon C77 sec 24-25 test execution, sec 29 version comparison, sec 46 regression protection).\nD. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "B",
+   "got": null,
+   "s": 97.2,
+   "reply": "The test file begins with a description of independent reproduction of the Creator's critical results, which aligns with the description in option B. The test file covers the \"creator/reproduce.py\" mo"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K21: the system's own workers - it works on itself with no AI (owner, 1 Oct 2026).\"\n\nWhich module does the test file cover?\nA. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.\nB. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.\nC. creator/selfworkers.py - Creator K21 - the system's OWN workers: it works on itself with no AI at all (owner, 1 Oct 2026: \"it should work toward the level where it w\nD. creator/treecache.py - Test results keyed by the whole git tree they ran on.",
+   "answer": "C",
+   "got": "C",
+   "s": 36.2,
+   "reply": "The test file begins with the description \"K21: the system's own workers - it works on itself with no AI (owner, 1 Oct 2026).\", which indicates that this module is responsible for creating and managin"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"The model-backed student: retrieval of adopted lessons, prompt, edit application, safety, SFT export (FakeLLM, no server).\"\n\nWhich module does the test file cover?\nA. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.\nB. creator/evaluate.py - Creator K10 - evaluation and improvement measurement (C77 secs 30-32, 35, 49-56; package CR06) - IMPLEMENTED, NOT VALIDATED.\nC. creator/action_student.py - Nupen's model student v2: the small local model CHOOSES among exact program transformations instead of writing edits.\nD. creator/drillsources.py - MORE THINKING DATA and PARALLEL DRILL JOBS (owner, 2 Oct 2026: \"Nupen should use all the data it has access to just to have as many agents a",
+   "answer": "A",
+   "got": "A",
+   "s": 31.1,
+   "reply": "The test file begins with the description \"The model-backed student: retrieval of adopted lessons, prompt, edit application, safety, SFT export (FakeLLM, no server).\" This description clearly indicate"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR208: the claims register. Every major claim has evidence refs and a recomputation; a claim without recomputable evidence, or a fabricated one, is UNSUPPORTED. Temporary repos and ledgers.\"\n\nWhich module does the test file cover?\nA. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nB. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nC. creator/ledger.py - Creator K01 - the development ledger (C77 secs 7, 22, 30, 35, 37, 58-61; package CR01) - IMPLEMENTED, NOT VALIDATED.\nD. creator/claims.py - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "D",
+   "got": null,
+   "s": 67.2,
+   "reply": "The test file covers the module \"creator/claims.py\" - Creator K26b - the claims register (C77 CR208: the evidence supports ALL major claims) - IMPLEMENTED, NOT VALIDATED.\n\nReasoning:\nThe description p"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR08: gap analysis from evidence (C77 secs 14, 41, 42). A TEMPORARY project tree; test results are real pytest runs.\"\n\nWhich module does the test file cover?\nA. creator/gaps.py - Creator K04 - gap analysis (C77 secs 14, 41, 42; package CR08) - IMPLEMENTED, NOT VALIDATED.\nB. creator/autotune.py - Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: \"get it to the point where the system knows the goal and the\nC. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nD. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.",
+   "answer": "A",
+   "got": "A",
+   "s": 46.2,
+   "reply": "The test file begins with a description of a gap analysis from evidence, which suggests it covers the \"creator/gaps.py\" module. The gap analysis is described as a temporary project tree and real pytes"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator.conversation: every intent answers from PLANTED records with the right numbers and cites evidence; unknown input is admitted; a request is a pending owner proposal; pause/resume/approve act only after confirmation; exchanges are logged and exportable.\"\n\nWhich module does the test file cover?\nA. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).\nB. creator/conversation.py - Nupen terminal conversation, LAYER 1: rule-based understanding, answers only from Nupen's own records (owner 2 Oct 2026).\nC. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nD. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.",
+   "answer": "B",
+   "got": null,
+   "s": 78.8,
+   "reply": "The test file covers the module `creator/conversation.py` which deals with Nupen terminal conversation, LAYER 1: rule-based understanding, answers only from Nupen's own records (owner 2 Oct 2026).\n\nRe"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Reasoning procedure (creator.reasoning): it reaches the work package with recalled lessons, predictions are stored against measured effects and scored, stop rules refuse repeated failures, and missing optional modules never break planning.\"\n\nWhich module does the test file cover?\nA. creator/reasoning.py - Nupen's THINKING PROCEDURE (owner, 2 Oct 2026: \"exactly how to know what to do ... find all the fundamentals of how an ai should think ... s\nB. creator/swarmops.py - Swarm housekeeping, loaded on demand (sparse activation: not part of the kernel's or the swarm's start-time load).\nC. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.\nD. creator/model_student.py - Nupen's model-backed student: the small local model (qwen2.5-coder 1.5B) behind the Student protocol.",
+   "answer": "A",
+   "got": null,
+   "s": 26.0,
+   "reply": "The test file covers the \"creator/reasoning.py\" module, which is responsible for the reasoning procedure described in the given text. This module includes the creation of the THINKING PROCEDURE (creat"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR K08: the design component.\"\n\nWhich module does the test file cover?\nA. creator/design.py - K08 design: N alternative designs per decision, assumptions, failure modes, cost/risk, adversarial critique, explicit selection criteria, re\nB. creator/replay_student.py - Replay: re-apply a teacher solution that was never measured (Nupen's curriculum; 2 Oct 2026).\nC. creator/modelpool.py - Warm model-server pool (owner, 2 Oct 2026: \"as long as my computer is on Nupen should be maxing my computer out\"; CPU is full while RAM sits\nD. creator/pending.py - Resume: finished work that was never measured gets measured (Nupen's #1 constraint is learning signal; 2 Oct 2026).",
+   "answer": "A",
+   "got": null,
+   "s": 68.1,
+   "reply": "The test file begins with the description \"CR K08: the design component.\" This suggests that the test file is related to the design component of the project. Let's analyze each option:\n\nA. creator/des"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR07: objectives and the requirement compiler (C77 secs 2, 12, 13).\"\n\nWhich module does the test file cover?\nA. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nB. creator/testgen.py - Creator CR093/CR096/CR098 - deterministic test generation, no AI (owner 1 Oct 2026: the Creator works on itself).\nC. creator/meta.py - K13 meta: development strategies as explicit parameterised policies, outcome tracking per problem class, strategy selection, and process-imp\nD. creator/synth.py - Creator K19 - deterministic program synthesis for function stubs (no LLM, no network).",
+   "answer": "A",
+   "got": null,
+   "s": 34.5,
+   "reply": "The test file begins with the description \"CR07: objectives and the requirement compiler (C77 secs 2, 12, 13)\". This indicates that the test file is related to the objectives and the requirement compi"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K20b: the recursion's process is consumed by the worker and measured on a (here: fake) dev workload. No real devbench run.\"\n\nWhich module does the test file cover?\nA. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).\nB. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.\nC. creator/treecache.py - Test results keyed by the whole git tree they ran on.\nD. creator/generator.py - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independe",
+   "answer": "B",
+   "got": "D",
+   "s": 31.4,
+   "reply": "The test file covers the module `creator/generator.py` - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independent\""
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Evaluation-cost cut: passing results of a byte-identical clean git tree are served, never re-run - and every decision is the one a fresh run gives. All tests use a TEMPORARY git repository.\"\n\nWhich module does the test file cover?\nA. creator/treecache.py - Test results keyed by the whole git tree they ran on.\nB. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.\nC. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nD. creator/prescreen.py - Pre-screen for student candidates: cheap, deterministic checks BEFORE a change reaches the kernel's full cycle (2 Oct 2026).",
+   "answer": "A",
+   "got": null,
+   "s": 39.2,
+   "reply": "The test file describes a strategy for evaluating the effectiveness of a byte-identical clean git tree. This strategy involves serving the results of a clean git tree, never re-running the tests, and "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"F7: the anticipation rate (top-level trust metric): honest matching, echo removal, backlog, drill, and its place in trust.json / BLUEPRINT.md.\"\n\nWhich module does the test file cover?\nA. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nB. creator/testrun.py - K06 test stage (CR03; canon C77 sec 24-25 test execution, sec 29 version comparison, sec 46 regression protection).\nC. creator/diskcache.py - Disk-persisted, content-keyed cache for pure per-file analyses (import graph, component scan).\nD. creator/anticipation.py - ANTICIPATION RATE - the top-level trust metric (owner, 2 Oct 2026: \"I want it to get smart enough where me talking is a waste because it alr",
+   "answer": "D",
+   "got": "C",
+   "s": 26.5,
+   "reply": "The test file covers the module `creator/anticipation.py` as it mentions the top-level trust metric, which is a key aspect of the anticipation rate module.\n\nReasoning:\n- The description explicitly sta"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"creator.resources: profiles, CPU/RAM-aware admission (fake machines), RAM work, and the resource_balance constraint.\"\n\nWhich module does the test file cover?\nA. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nB. creator/selfworkers.py - Creator K21 - the system's OWN workers: it works on itself with no AI at all (owner, 1 Oct 2026: \"it should work toward the level where it w\nC. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.\nD. creator/process_levers.py - Creator K20b - the development PROCESS as real levers (C77 sec 53-54; CR196-198) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": null,
+   "s": 18.3,
+   "reply": "The test file covers the module \"creator/resources.py\" which is responsible for managing CPU and RAM resources in the Creator system. This module is specifically mentioned in the description as \"creat"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR03: the Creator's sandbox (C77 secs 22-25, 28, 29, 44-46, 59-61). Every test uses a TEMPORARY git repository.\"\n\nWhich module does the test file cover?\nA. creator/sandbox.py - Creator K06 - the controlled environment for every autonomous code change (C77 secs 22-25, 28, 29, 44-46, 59-61; package CR03) - IMPLEMENTED\nB. creator/diskcache.py - Disk-persisted, content-keyed cache for pure per-file analyses (import graph, component scan).\nC. creator/shadow.py - Shadow evaluation of Nupen's own trained chooser against the default policy, and the PRE-REGISTERED SWITCH RULE.\nD. creator/resources.py - Creator resources - CPU and RAM as two budgets that Nupen manages together.",
+   "answer": "A",
+   "got": "A",
+   "s": 32.1,
+   "reply": "The test file begins with the description \"CR03: the Creator's sandbox (C77 secs 22-25, 28, 29, 44-46, 59-61). Every test uses a TEMPORARY git repository. \" This clearly indicates that the test file i"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K22: several of the system's own workers in parallel on disjoint parts, sized by free RAM (owner, 1 Oct 2026).\"\n\nWhich module does the test file cover?\nA. creator/student.py - Creator student: an apprentice that LEARNS rewrite templates from Claude's adopted solved work packages (lessons) - no model.\nB. creator/swarm.py - Creator K22 - the swarm: several of the system's OWN workers at once, sized by free RAM (owner, 1 Oct 2026: \"my computer sometimes has avail\nC. creator/recursion.py - Creator K24 - recursive self-improvement of the DEVELOPMENT PROCESS (C77 sec 53-54; CR191-198) - IMPLEMENTED, NOT VALIDATED.\nD. creator/constraints.py - Creator constraint loop (theory of constraints) - Nupen finds what limits its own improvement rate, works on it, re-measures.",
+   "answer": "B",
+   "got": null,
+   "s": 34.7,
+   "reply": "The test file describes a system with several workers, each using free RAM to perform tasks. This aligns with the description of the \"swarm\" module in option B. The \"swarm\" module is responsible for s"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"K20: the Creator's own worker inside the kernel - local model edits, tests decide (owner, 1 Oct 2026). Fake model.\"\n\nWhich module does the test file cover?\nA. creator/localworker.py - Creator K20 - the kernel's worker made of the Creator's OWN parts: the local model develops the Creator (owner, 1 Oct 2026: \"it can start wo\nB. creator/planner.py - Creator K09 - the planner: gaps -> work packages -> change proposals -> experiments (C77 secs 17-19, 63; package CR09) - IMPLEMENTED, NOT VA\nC. creator/synth.py - Creator K19 - deterministic program synthesis for function stubs (no LLM, no network).\nD. creator/efficiency.py - Creator K17 - self-efficiency: shrink its own code and memory (owner, 1 Oct 2026: \"constantly develop itself to shrink its own code down so ",
+   "answer": "A",
+   "got": "A",
+   "s": 26.8,
+   "reply": "The test file describes a Creator K20, which is a local model worker inside the kernel. This worker is responsible for local model edits and tests, and it is owned by the Creator (owner, 1 Oct 2026). "
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Judgment drills with the local model: no future in the prompt, calibration only from earlier resolved records, successive halving, filler.\"\n\nWhich module does the test file cover?\nA. creator/evaluate.py - Creator K10 - evaluation and improvement measurement (C77 secs 30-32, 35, 49-56; package CR06) - IMPLEMENTED, NOT VALIDATED.\nB. creator/judgment.py - JUDGMENT DRILLS WITH THE LOCAL MODEL (owner, 2 Oct 2026: Nupen works solely on thinking until its opinion is trustworthy).\nC. creator/selfmodel.py - Creator K02 - the self-model, derived from evidence (C77 secs 11, 41, 42, 58; package CR02) - IMPLEMENTED, NOT VALIDATED.\nD. creator/device.py - What machine is Nupen running on, and what settings follow from it (owner, 2 Oct 2026: \"if there is anything that is device specific we need",
+   "answer": "B",
+   "got": null,
+   "s": 16.2,
+   "reply": "The test file covers the module \"creator/judgment.py\" as it describes judgment drills with the local model, which is a specific type of judgment task in the creator module. The description mentions \"n"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR02: the Creator's evidence-derived self-model (C77 secs 11, 25, 41, 42).\"\n\nWhich module does the test file cover?\nA. creator/selfmodel.py - Creator K02 - the self-model, derived from evidence (C77 secs 11, 41, 42, 58; package CR02) - IMPLEMENTED, NOT VALIDATED.\nB. creator/replay_student.py - Replay: re-apply a teacher solution that was never measured (Nupen's curriculum; 2 Oct 2026).\nC. creator/drillsources.py - MORE THINKING DATA and PARALLEL DRILL JOBS (owner, 2 Oct 2026: \"Nupen should use all the data it has access to just to have as many agents a\nD. creator/devbench.py - Creator K15 - devbench: the SEALED development-task suite that measures the Creator (C77 secs 30-32, 49-56, 77; package CR05) - IMPLEMENTED,",
+   "answer": "A",
+   "got": null,
+   "s": 29.2,
+   "reply": "The test file covers the module `creator/selfmodel.py` which is responsible for the Creator K02 - the self-model, derived from evidence (C77 secs 11, 41, 42, 58; package CR02) - IMPLEMENTED, NOT VALID"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"F7: focus mode. In thinking focus efficiency work is not planned; only drills and thinking-capability development are.\"\n\nWhich module does the test file cover?\nA. creator/focus.py - FOCUS MODE (owner, 2 Oct 2026: \"we want to prioritize thinking right now, have Nupen work solely on thinking until its opinion is trust wort\nB. creator/generator.py - Creator K18 - the Creator's OWN worker: generates code with no other AI (owner, 1 Oct 2026: \"the goal is to make it so it is fully independe\nC. creator/reproduce.py - CR207/CR208 (C77 sec 78): independent reproduction of the Creator's critical results - IMPLEMENTED, NOT VALIDATED.\nD. creator/goals.py - Creator goal generation - the system PROPOSES new capabilities from evidence; only an approval makes them work.",
+   "answer": "A",
+   "got": "D",
+   "s": 25.1,
+   "reply": "The test file covers the module \"creator/goals.py\" as it discusses the creation of new capabilities from evidence, which aligns with the description of the \"Creator goal generation\" goal in the module"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"The learned chooser: deterministic training, a planted signal is learned, no-signal outcomes are ignored, flag off = old behaviour.\"\n\nWhich module does the test file cover?\nA. creator/autotune.py - Creator K19 - the Creator improves its OWN worker by itself (owner, 1 Oct 2026: \"get it to the point where the system knows the goal and the\nB. creator/student.py - Creator student: an apprentice that LEARNS rewrite templates from Claude's adopted solved work packages (lessons) - no model.\nC. creator/power.py - Creator K24b - sample-size arithmetic for the recursion's A/B tests (C77 CR191-198: a process decision needs power).\nD. creator/chooser.py - A TRAINABLE chooser for ActionStudent: a small listwise linear policy (pure numpy) over the candidate actions.",
+   "answer": "D",
+   "got": "D",
+   "s": 24.8,
+   "reply": "The test file begins with a description of a \"learned chooser\" that uses deterministic training, a planted signal, and no-signal outcomes. This description matches the description of the \"creator/choo"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"CR01: the Creator's development ledger (C77 secs 7, 30, 35, 59-61). Every refusal is tested on the case it exists for.\"\n\nWhich module does the test file cover?\nA. creator/planner.py - Creator K09 - the planner: gaps -> work packages -> change proposals -> experiments (C77 secs 17-19, 63; package CR09) - IMPLEMENTED, NOT VA\nB. creator/meta.py - K13 meta: development strategies as explicit parameterised policies, outcome tracking per problem class, strategy selection, and process-imp\nC. creator/ledger.py - Creator K01 - the development ledger (C77 secs 7, 22, 30, 35, 37, 58-61; package CR01) - IMPLEMENTED, NOT VALIDATED.\nD. creator/kernel.py - Creator K14 - the self-development kernel loop (C77 secs 10, 20-29, 44-46, 59-61, 64; package CR14) - IMPLEMENTED, NOT VALIDATED.",
+   "answer": "C",
+   "got": null,
+   "s": 49.5,
+   "reply": "The test file begins with a description of the Creator's development ledger (C77 secs 7, 30, 35, 59-61). This description clearly indicates that the test file is related to the Creator's development l"
+  },
+  {
+   "kind": "test_module",
+   "q": "A test file begins with this description:\n\"Sparse activation (owner, 2 Oct 2026): optional capabilities load on demand through creator.registry, and the kernel REJECTS an adopted change that grows what the kernel / swarm load at start (unless an eager dependency is the package's objective, justified on record).\"\n\nWhich module does the test file cover?\nA. creator/device.py - What machine is Nupen running on, and what settings follow from it (owner, 2 Oct 2026: \"if there is anything that is device specific we need\nB. creator/objective.py - Creator K03 - objectives and the requirement compiler (C77 secs 2, 12, 13; package CR07) - IMPLEMENTED, NOT VALIDATED.\nC. creator/registry.py - Creator sparse activation (owner, 2 Oct 2026: \"format it in a way so you only ever run the code you are using to be RAM efficient so you can\nD. creator/thinking.py - THINKING DRILLS and the TRUST GATE (owner, 2 Oct 2026: \"train thinking until its opinion is trust worthy ... until it can reliably self mana",
+   "answer": "C",
+   "got": null,
+   "s": 18.5,
+   "reply": "The test file covers the module `creator/registry.py` as it mentions \"sparse activation\" and \"creator.registry\". The description states that the kernel REJECTS an adopted change that grows what the ke"
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Past record: 22 resolved packages, 0.23 adopted. Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 01:17 UTC. Its written spec has 1509 characters and it lists 1 output files.\nB. A development package for requirement kind 'activation' (requirement EFF.activation) is planned at 2026-10-02 00:34 UTC. Its written spec has 1509 characters and it lists 1 output files.\nWhich one was adopted?",
+   "answer": "A",
+   "got": "A",
+   "s": 14.5,
+   "reply": "The development package for requirement kind 'activation' (requirement EFF.activation) was adopted by the kernel. This can be determined from the past record, which shows that exactly one of the two p"
+  },
+  {
+   "kind": "adopted_pair",
+   "q": "Exactly one of these two packages was ADOPTED by the kernel.\nA. A development package for requirement kind 'exists' (requirement K07.exists) is planned at 2026-10-01 06:37 UTC. Its written spec has 2155 characters and it lists 2 output files.\nB. A development package for requirement kind 'exists' (requirement K12.exists) is planned at 2026-10-01 09:28 UTC. Its written spec has 2153 characters and it lists 2 output files.\nWhich one was adopted?",
+   "answer": "B",
+   "got": null,
+   "s": 18.6,
+   "reply": "The package that was adopted is A. A development package for requirement kind 'exists' (requirement K07.exists) is planned at 2026-10-01 06:37 UTC. Its written spec has 2155 characters and it lists 2 "
+  }
+ ],
+ "rss_quality_gb": 1.79
+}

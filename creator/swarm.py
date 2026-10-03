@@ -183,6 +183,7 @@ class Governor:
     ramp_s: float = 15.0                            # a new worker/filler only after the last one's memory can show (1 Oct run9:
                                                     # 40 fillers started back to back before RAM fell, then free RAM hit 9 MB)
     per_worker_gb: float = 0.4                      # only until real worker memory has been measured
+    burst_gb: Optional[float] = None                # filler_ramped: None = plain spacing; else what each start inside one ramp window is assumed to take
     max_workers: int = 32
     free: Callable[[], float] = free_ram_gb
     total: Callable[[], float] = total_ram_gb
@@ -221,6 +222,17 @@ class Governor:
     def can_start(self, running: int) -> bool:
         return (running < self.max_workers and self.disk_ok()
                 and self.free() - self.estimate(running) - self.reservation(running) >= self.floor())
+
+    def filler_ramped(self, since_last: float, recent_starts: int, running: int) -> bool:
+        """A filler may start before ramp_s has passed when free RAM above the floor covers every start of the last ramp window plus
+        this one at a pessimistic burst_gb (or the measured per-worker estimate, if larger) each: then waiting for their memory to show
+        buys nothing. 3 Oct 2026: with the 15 s spacing a drill job finished before the next could start - one thinking job at a time,
+        CPU 29-65%, 19 GB free. When RAM is short the plain spacing holds (1 Oct run9: 40 heavy starts back to back, free RAM 9 MB)."""
+        if since_last >= self.ramp_s:
+            return True
+        if self.burst_gb is None:                       # opt-in (the live swarm, thinking focus only): heavy fillers keep the spacing
+            return False
+        return self.free() - self.floor() >= (recent_starts + 1) * max(self.burst_gb, self.estimate(running))
 
     def too_tight(self) -> bool:
         return self.free() < self.pull_fraction * self.floor()
@@ -305,7 +317,14 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
             break
         plans.append(eff)
         seen.add(eff.component)
-    return plans[:slots]
+    final = plans[:slots]
+    try:                                                                # FAST-PREDICTION HOOK (creator.fastpred, on demand): which of these reaches a verdict first
+        fp = REG.optional("fastpred")
+        if fp is not None and fp.enabled() and len(final) > 1:
+            fp.plan_begin([(p.package_id, str(p.requirement_key)) for p in final])
+    except Exception:                                                   # noqa: BLE001
+        pass
+    return final
 
 
 
@@ -341,12 +360,18 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     fillers: list[threading.Thread] = []
     fill_left = filler_budget
     last_start = -1e9
+    fill_starts: list[float] = []                                       # filler start times inside the current ramp window
+
+    def fill_ramped(load: int) -> bool:
+        now = time.monotonic()
+        fill_starts[:] = [t for t in fill_starts if now - t < gov.ramp_s]
+        return gov.filler_ramped(now - last_start, len(fill_starts), load)
 
     def try_fill() -> bool:
         """Start one filler job when the governor and the resource admission allow it (leftover memory/CPU: useful measurement work)."""
         nonlocal fill_left, last_start, peak
         load = len([r for r in running if r.plan.package_id not in WAITING]) + len(fillers)
-        if not (filler is not None and fill_left > 0 and time.monotonic() - last_start >= gov.ramp_s and not gov.too_tight()
+        if not (filler is not None and fill_left > 0 and not gov.too_tight() and fill_ramped(load)
                 and gov.can_start(load) and RS.ok(gov, "filler", load)):
             return False
         job_fn = filler()
@@ -358,6 +383,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         fillers.append(ft)
         ft.start()
         last_start = time.monotonic()
+        fill_starts.append(last_start)
         peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
         return True
 
@@ -415,6 +441,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         running.append(_Running(plan, t, ev, time.monotonic(), box))
         t.start()
         last_start = time.monotonic()
+        fill_starts.append(last_start)
         peak = max(peak, len(running) + sum(1 for f in fillers if f.is_alive()))
 
     def finish(r: _Running) -> None:
@@ -453,7 +480,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             RS.lower_sandbox_priority(scratch_dir) if gov.admit else 0
             try:
                 REG.get("swarmops").status_line(gov, load, running, active, queue, fillers, planned, max_packages, exhausted,
-                                                nothing_while == key, fill_left, ramped)
+                                                nothing_while == key, fill_left, ramped or fill_ramped(load))
             except Exception as e:                                      # noqa: BLE001 - a status line never breaks a round
                 print(f"STATUS error: {type(e).__name__}: {e}", flush=True)
         if gov.too_tight() and active:
@@ -500,6 +527,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 continue
         if RS.ram_thread(gov, state_dir, load, ramped, fillers):
             last_start = time.monotonic()
+            fill_starts.append(last_start)
             continue
         if drain_t0 is None and (exhausted or planned >= max_packages or nothing_while == key) and try_fill():
             continue

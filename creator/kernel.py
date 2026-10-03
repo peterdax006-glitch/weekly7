@@ -601,6 +601,28 @@ def diagnose_rejection(led: Ledger, plan: P.Plan, ev: Optional[S.Evaluation]) ->
             "failure_id": fid}
 
 
+def _fast_stage_begin(name: str) -> Optional[str]:
+    """Fast-prediction hook (creator.fastpred, on demand): predict whether this stage is slow. Never raises or blocks."""
+    try:
+        from creator import registry as REG
+        m = REG.optional("fastpred")
+        if m is None or not m.enabled():
+            return None
+        return m.begin_safe("stage_slow", f"{time.time():.4f}-{threading.get_ident()}:{name}", name)
+    except Exception:                                                  # noqa: BLE001
+        return None
+
+
+def _fast_stage_end(pid: str, seconds: float) -> None:
+    try:
+        from creator import registry as REG
+        m = REG.optional("fastpred")
+        if m is not None:
+            m.end_safe(pid, int(seconds > m.STAGE_SLOW_S))
+    except Exception:                                                  # noqa: BLE001
+        pass
+
+
 class _Stages:
     """Per-stage wall seconds of one cycle (time.monotonic stamps only; never changes what runs). Recorded as
     CycleReport.details["stages"]; constraints.cycle_time_metric names the dominant stage from it."""
@@ -611,10 +633,14 @@ class _Stages:
     @contextlib.contextmanager
     def __call__(self, name: str) -> Iterator[None]:
         t = time.monotonic()
+        pid = _fast_stage_begin(name)
         try:
             yield
         finally:
-            self.sec[name] = round(self.sec.get(name, 0.0) + time.monotonic() - t, 3)
+            dt_s = time.monotonic() - t
+            self.sec[name] = round(self.sec.get(name, 0.0) + dt_s, 3)
+            if pid:
+                _fast_stage_end(pid, dt_s)
 
 
 class Cancelled(Exception):

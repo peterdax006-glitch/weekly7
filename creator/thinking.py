@@ -417,6 +417,7 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
         from creator import registry as REG
         rep["drills"] = REG.get("drillsources").trust_section(state)
         rep["judgment"] = REG.get("judgment").trust_section(state)
+        rep["fast_topics"] = REG.get("fastpred").trust_section(state)     # fast-resolving prospective topics, same gate (creator.fastpred)
     except Exception as e:                                           # noqa: BLE001 - a missing drill module never breaks the trust report
         rep["drills_error"] = f"{type(e).__name__}: {e}"
     if write:
@@ -428,7 +429,10 @@ def trust(state: Path, write: bool = True, owner_dir: Optional[Path] = None) -> 
 def independent(state: Path, topic: str) -> bool:
     """May Nupen decide on its own in this topic? Only when its predictions there are trusted NOW (recomputed, never read from a file it could
     write). E.g. goals.approve by Nupen itself requires independent(state, 'goal_value'). Nothing calls this yet: no autonomy is auto-enabled."""
-    return topic in TOPICS and bool(trust(state, write=False)["topics"][topic]["trusted"])
+    rep = trust(state, write=False)
+    if topic in TOPICS:
+        return bool(rep["topics"][topic]["trusted"])
+    return bool((rep.get("fast_topics") or {}).get(topic, {}).get("trusted"))        # the fast prospective topics (creator.fastpred), same gate
 
 
 def run(state: Path, now: Optional[float] = None, write: bool = True) -> dict[str, Any]:

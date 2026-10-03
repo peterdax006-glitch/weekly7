@@ -406,6 +406,14 @@ def _error_row(state: Path, s: str, v: dict[str, Any], e: Exception, lock: threa
             f.write(json.dumps({"source": s, "variant": v, "digest": "-", "error": f"{type(e).__name__}: {e}"}) + "\n")
 
 
+def _fast_mod() -> Any:
+    try:
+        from creator import registry as REG
+        return REG.optional("fastpred")
+    except Exception:                                                  # noqa: BLE001
+        return None
+
+
 def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
                  ) -> Callable[[], Optional[Callable[[], None]]]:
     """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
@@ -430,8 +438,18 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
 
     def wrap(s: str, v: dict[str, Any], search: bool) -> Callable[[], None]:
         def job() -> None:
+            fp, pid, prior = _fast_mod(), None, None
             try:
-                run_job(s, v, state, Path(repo), Path(journal), Path(research), lock)
+                if fp is not None and fp.enabled():                  # FAST-PREDICTION HOOK: P(this variant beats its source's best), before it runs
+                    prior = fp.drill_prior_best(state, s, digest_of(s))
+                    pid = fp.begin_safe("drill_beats_best", f"{s}:{json.dumps(v, sort_keys=True)}:{digest_of(s)}",
+                                        f"{s}|{'search' if search else 'grid'}", state=state) if prior is not None else None
+            except Exception:                                       # noqa: BLE001
+                pid = None
+            try:
+                row = run_job(s, v, state, Path(repo), Path(journal), Path(research), lock)
+                if pid and fp is not None and row.get("select", {}).get("n"):
+                    fp.end_safe(pid, int(row["select"]["brier"] < prior), state)
             except Exception as e:                                 # noqa: BLE001
                 _error_row(state, s, v, e, lock)
             finally:

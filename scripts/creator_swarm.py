@@ -164,6 +164,17 @@ def make_filler():                                        # type: ignore[no-unty
     return W.self_bench_filler(STATE / "self_bench.jsonl")
 
 
+def thinking_burst_gb() -> Optional[float]:
+    """3 Oct 2026: in thinking focus the fillers are short drills and judgment batches, and the 15 s start spacing kept ONE running
+    (CPU 29-65%, 19 GB free). They may burst inside the spacing window while free RAM covers each start at 3 GB (above a thinking
+    model server, ~2.6 GB). Any other filler (the heavy self-bench of 1 Oct run9) keeps the plain spacing."""
+    try:
+        focus = REG.optional("focus")
+        return 3.0 if focus is not None and focus.current(STATE) == "thinking" else None
+    except Exception:                                     # noqa: BLE001 - unknown focus: the safe plain spacing
+        return None
+
+
 def main(argv: list[str]) -> int:
     DEV = REG.get("device")
     ap = argparse.ArgumentParser()
@@ -192,7 +203,7 @@ def main(argv: list[str]) -> int:
         return cur.install(make_process_worker(session, a.process_file))
     gov = W.Governor(floor_fraction=a.floor_fraction, floor_min_gb=a.floor_min_gb, max_workers=a.max_workers,
                      user_active_floor_fraction=0.25 if a.user_aware else None, test_parallel=a.test_parallel,
-                     disk_floor_gb=float(DEV.settings().get("disk_floor_gb", 1.0)))
+                     disk_floor_gb=float(DEV.settings().get("disk_floor_gb", 1.0)), burst_gb=thinking_burst_gb())
     cfg = K.KernelConfig(repo=ROOT, state=STATE, steps=tuple(s for s in a.steps.split(",") if s), mode=a.mode,
                          test_parallel=a.test_parallel)
     n = 0
