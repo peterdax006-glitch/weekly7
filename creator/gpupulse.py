@@ -423,6 +423,7 @@ def stop_servers_script(rdir: str, keep: Sequence[int] = ()) -> str:
 for f in *.pid; do
   [ -f "$f" ] || continue
   p="${{f%.pid}}"
+  case "$p" in ''|*[!0-9]*) continue;; esac                     # servers are <port>.pid; deadman.pid (the budget guard) is never stopped here
   case " {k} " in *" $p "*) continue;; esac
   kill "$(cat $f)" 2>/dev/null; sleep 0.5; kill -9 "$(cat $f)" 2>/dev/null; rm -f "$f" "$p.sig"; echo "@@stopped=$p"
 done

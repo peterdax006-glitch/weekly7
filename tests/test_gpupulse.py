@@ -565,3 +565,21 @@ def test_server_flags_pass_through_and_change_the_signature() -> None:
     tuned = GP.server_script("/w", "/opt/llama-server", "M.gguf", 18100, 16, 8192, flags=("-ub", "2048"))
     assert "--no-webui > 18100.log" in plain and 'echo "M.gguf|16|8192" > 18100.sig' in plain
     assert "--no-webui -ub 2048 > 18100.log" in tuned and 'echo "M.gguf|16|8192|-ub 2048" > 18100.sig' in tuned
+
+
+def test_stop_servers_never_stops_the_deadman_switch(tmp_path):
+    """Server pid files are <port>.pid; deadman.pid (the pod's budget guard) must survive every server stop / free_gpu job."""
+    import shutil
+    import subprocess
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("no bash")
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "18120.pid").write_text("999999")
+    (run / "18120.sig").write_text("x")
+    (run / "deadman.pid").write_text("999998")
+    out = subprocess.run([bash, "-c", GP.stop_servers_script(tmp_path.as_posix())], capture_output=True, text=True, timeout=60).stdout
+    assert "@@stopped=18120" in out
+    assert not (run / "18120.pid").exists()
+    assert (run / "deadman.pid").exists() and "deadman" not in out
