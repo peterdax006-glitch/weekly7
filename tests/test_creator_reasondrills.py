@@ -218,7 +218,8 @@ def run_filler(tmp_path: Path, qs: list[R.Question], jobs: int) -> tuple[Path, l
     return state, log
 
 
-def test_filler_hands_out_epochs_halves_and_retests_winners_on_fresh_questions(tmp_path: Path) -> None:
+def test_filler_hands_out_epochs_halves_and_retests_winners_on_fresh_questions(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setattr(R, "REASON_ALLOCATION", "halving")                 # the halving mechanics (online: the test below)
     qs = R.gen_files_changed("demo", commits(400))
     assert len(qs) > 2 * R.EPOCH_Q + 10
     state, _log = run_filler(tmp_path, qs, 400)
@@ -247,6 +248,44 @@ def test_report_has_accuracy_cis_vs_chance_and_plain_and_the_supply(tmp_path: Pa
     assert pl["accuracy"][0] < 0.5 and pl["gain_vs_plain"] is None
     assert rep["supply"]["available"] == len(qs) and rep["supply"]["fresh"] == len(qs) - len({r for r in _qids(state)})
     assert rep["epochs"][1]["out_of_sample"] and rep["curve"][0]["best"][0] in ("eliminate", "retrieve4_elim")
+
+
+def test_online_epochs_give_each_question_control_floor_and_thompson_picks_and_retest_winners(tmp_path: Path) -> None:
+    """ONLINE allocation: every question gets the control, the carried winners (floor) and ONLINE_PICKS Thompson picks; a strategy that is
+    clearly worse than the control is raced out; the winners carried to the next epoch are re-tested on FRESH questions."""
+    qs = R.gen_files_changed("demo", commits(400))
+    state, _log = run_filler(tmp_path, qs, 400)
+    rows = [r for r in (json.loads(x) for x in R.path(state).read_text(encoding="utf-8").splitlines()) if r.get("qid")]
+    assert rows and all(r.get("alloc") == "online" for r in rows)
+    eps = R.epochs(rows)
+    assert len(eps) >= 2 and eps[0]["complete"] and eps[0]["allocation"] == "online"
+    for e in [x for x in eps if x["complete"]]:                               # the job budget may stop the test inside the last epoch
+        er = [r for r in rows if r["epoch"] == e["epoch"]]
+        per_q: dict[str, set[str]] = {}
+        for r in er:
+            per_q.setdefault(r["qid"], set()).add(r["strategy"])
+        for qid, ss in per_q.items():
+            assert R.CONTROL in ss and set(e["floor"]) <= ss and len(ss) <= 1 + len(e["floor"]) + R.ONLINE_PICKS, (qid, ss)
+    asked0 = {r["strategy"] for r in rows if r["epoch"] == 0}
+    assert len(asked0) > 1 + R.ONLINE_PICKS                                   # Thompson spreads over the pool, not a fixed pair
+    assert eps[1]["floor"] and set(eps[1]["floor"]) <= set(eps[0]["alive"])
+    assert not set(eps[0]["questions"]) & set(eps[1]["questions"])          # carried winners answer FRESH questions
+    rep = R.report_section(state, tag="fake-model.gguf")
+    assert rep["epochs"][1]["out_of_sample"] and rep["epochs"][0]["allocation"] == "online"
+    assert R.online_report(state, tag="fake-model.gguf")["allocation"] == "online"
+
+
+def test_online_epoch_races_out_a_clearly_worse_strategy() -> None:
+    rows = []
+    for i in range(30):
+        rows.append({"qid": f"q{i}", "strategy": R.CONTROL, "correct": 1})
+        rows.append({"qid": f"q{i}", "strategy": "cot", "correct": 0})
+        rows.append({"qid": f"q{i}", "strategy": "eliminate", "correct": int(i % 2 == 0)})
+    live, acc, raced, gains = R.online_epoch([R.CONTROL, "cot", "eliminate"], rows)
+    assert raced == ["cot", "eliminate"] or raced == ["cot"]
+    assert "cot" not in live and gains["cot"][0] == -1.0
+    picks = R.online_picks([R.CONTROL, "cot", "eliminate", "vote3"], [], rows, raced, 0)
+    assert "cot" not in picks and picks[0] == R.CONTROL
 
 
 def _qids(state: Path) -> set[str]:

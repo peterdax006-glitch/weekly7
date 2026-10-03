@@ -49,6 +49,13 @@ KINDS = ("files_changed", "which_first", "revert_of", "co_change")
 EPOCH_Q = 40                                    # fresh questions per epoch
 HALVING = ((10, 4), (20, 2))                    # (common questions answered, non-control strategies kept)
 CARRY, CHALLENGERS = 2, 2                       # next epoch: the winners plus rotated-back losers
+# ONLINE ALLOCATION (3 Oct 2026, creator.trialerror): epochs started from now on give every question the control and the carried winners (the
+# floor: paired comparisons and the out-of-sample re-test) plus ONLINE_PICKS strategies picked by top-two Thompson sampling on Beta posteriors of
+# the epoch's answers so far; a strategy whose paired gain over the control is clearly negative (95% CI) is raced out of the epoch. Epochs
+# whose rows carry no 'alloc' keep their halving replay.
+REASON_ALLOCATION = "online"
+ONLINE_PICKS = 3                                # simulation (creator.trialerror): 3 picks per question beat halving at equal calls; 2 did not
+ONLINE_MIN_N = 8                                # answers before a strategy can be carried as a winner
 BATCH = 4                                       # model calls per job (one server lease)
 REVISIT = "#revisit"                            # qid suffix of a second pass over a question the control got wrong
 LOW_FRESH = 300                                 # fewer unanswered questions than this: the report asks for acquisition
@@ -564,6 +571,45 @@ def epoch_pool(e: int, prev_alive: Sequence[str], prev_acc: dict[str, float]) ->
     return [CONTROL] + win + [n for n in dict.fromkeys(ch) if n not in win]
 
 
+def carried(prev_alive: Sequence[str], prev_acc: dict[str, float]) -> list[str]:
+    """The previous epoch's winners that the next epoch re-tests (epoch_pool's 'win')."""
+    return [n for n in sorted(prev_alive, key=lambda n: -prev_acc.get(n, 0.0)) if n != CONTROL][:CARRY]
+
+
+def online_epoch(pool: Sequence[str], rows: Sequence[dict[str, Any]]) -> tuple[list[str], dict[str, float], list[str], dict[str, list[float]]]:
+    """An online epoch's standing: (alive = control + not raced out, best posterior first; posterior-mean accuracy of the strategies with
+    ONLINE_MIN_N answers; raced out; per strategy [mean paired gain over the control, se, n])."""
+    from creator import registry as REG
+    te = REG.get("trialerror")
+    by: dict[str, dict[str, int]] = {}
+    for r in rows:
+        by.setdefault(r["strategy"], {})[r["qid"]] = int(r.get("correct") or 0)
+    ctl = by.get(CONTROL, {})
+    gains = {n: [float(v - ctl[q]) for q, v in by.get(n, {}).items() if q in ctl] for n in pool if n != CONTROL}
+    raced = [n for n, d in gains.items() if te.raced_out(d)]
+    acc = {n: (sum(m.values()) + 1.0) / (len(m) + 2.0) for n, m in by.items() if n in pool and len(m) >= ONLINE_MIN_N}
+    rest = sorted((n for n in pool if n != CONTROL and n not in raced), key=lambda n: -acc.get(n, -1.0))
+    return [CONTROL] + rest, acc, raced, {n: [round(x, 4) for x in te.mean_se(d)] + [len(d)] for n, d in gains.items() if d}
+
+
+def online_picks(pool: Sequence[str], floor: Sequence[str], rows: Sequence[dict[str, Any]], raced: Sequence[str], e: int) -> list[str]:
+    """The strategies one new question of an online epoch gets: control + floor + ONLINE_PICKS top-two Thompson picks (Beta posteriors),
+    seeded by the epoch and its number of answers (the same records give the same picks)."""
+    from creator import registry as REG
+    te = REG.get("trialerror")
+    k: dict[str, int] = {}
+    n: dict[str, int] = {}
+    for r in rows:
+        n[r["strategy"]] = n.get(r["strategy"], 0) + 1
+        k[r["strategy"]] = k.get(r["strategy"], 0) + int(r.get("correct") or 0)
+    fixed = list(dict.fromkeys([CONTROL, *floor]))
+    cand = [x for x in pool if x not in fixed and x not in raced]
+
+    def beta(name: str) -> Any:
+        return lambda rnd: te.beta_sample(k.get(name, 0), n.get(name, 0), rnd)
+    return fixed + te.thompson_order({x: beta(x) for x in cand}, te.seeded("reason", e, len(rows)), ONLINE_PICKS)
+
+
 def halve(pool: Sequence[str], rows: Sequence[dict[str, Any]]) -> tuple[list[str], dict[str, float]]:
     """Successive halving inside one epoch: compared on the questions every surviving strategy answered; accuracy, ties to the cheaper.
     The control is never cut. Returns (alive, accuracy on the last common set)."""
@@ -604,12 +650,25 @@ def epochs(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         grouped.setdefault(int(r.get("epoch", 0)), []).append(r)
     for e in range(top + 1):
         pool = epoch_pool(e, prev_alive, prev_acc)
+        floor = carried(prev_alive, prev_acc) if e else []
         er = [r for r in grouped.get(e, []) if r["strategy"] in pool]
-        live, acc = halve(pool, er)
         qids = list(dict.fromkeys(r["qid"] for r in er))
-        have = {(r["qid"], r["strategy"]) for r in er}
-        out.append({"epoch": e, "pool": pool, "alive": live, "questions": qids, "accuracy": acc,
-                    "complete": len(qids) >= EPOCH_Q and all((q, n) in have for q in qids for n in live)})
+        if any(r.get("alloc") == "online" for r in er):
+            live, acc, raced, gains = online_epoch(pool, er)
+            ctl = {r["qid"] for r in er if r["strategy"] == CONTROL}
+            given: dict[str, set[str]] = {}
+            got: dict[str, set[str]] = {}
+            for r in er:
+                given.setdefault(r["qid"], set()).update(r.get("arms") or [])
+                got.setdefault(r["qid"], set()).add(r["strategy"])
+            out.append({"epoch": e, "pool": pool, "alive": live, "questions": qids, "accuracy": acc, "allocation": "online", "floor": floor,
+                        "raced": raced, "gains_vs_control": gains,
+                        "complete": len(ctl) >= EPOCH_Q and all(given[q] <= got[q] for q in given)})
+        else:
+            live, acc = halve(pool, er)
+            have = {(r["qid"], r["strategy"]) for r in er}
+            out.append({"epoch": e, "pool": pool, "alive": live, "questions": qids, "accuracy": acc, "floor": floor,
+                        "complete": len(qids) >= EPOCH_Q and all((q, n) in have for q in qids for n in live)})
         prev_alive, prev_acc = live, acc
     return out
 
@@ -650,7 +709,7 @@ def write_status(state: Path, qs: Sequence[Question], rows: Sequence[dict[str, A
 
 
 def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm: Callable[[], Any], solved: Sequence[tuple[Question, Optional[int], float]],
-              ) -> int:
+              extra: Optional[dict[str, Any]] = None) -> int:
     """Ask each (question, strategy, epoch) under one server lease; the correct answer is attached to the record only after the answer exists."""
     n = 0
     with make_llm() as llm:
@@ -667,6 +726,10 @@ def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm:
                    "reply": first[-160:], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "ts": round(now, 1)}
             if len(picks) > 1:
                 row["picks"] = picks
+            row.update({k: v for k, v in (extra or {}).items() if k != "arms_by_qid"})
+            arms = ((extra or {}).get("arms_by_qid") or {}).get(q.qid)
+            if arms:                                            # online epochs: the strategies this question was given
+                row["arms"] = arms
             _append(state, row)
             n += 1
     return n
@@ -717,10 +780,68 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
                 threading.Thread(target=refresh, daemon=True, name="reasondrills-refresh").start()
         return list(cache["qs"])
 
+    arms_of: dict[str, list[str]] = {}                          # online epochs: qid -> the strategies it was given (fixed once handed out)
+    mode = {"online": False}
+
+    def pending_online(rows: Sequence[dict[str, Any]], eps: list[dict[str, Any]]) -> list[tuple[Question, str, int]]:
+        cur = eps[-1]
+        if cur["complete"] or not any(r.get("alloc") == "online" for r in rows if int(r.get("epoch", 0)) == int(cur["epoch"])):
+            if cur["complete"]:
+                e, pl, floor = int(cur["epoch"]) + 1, epoch_pool(int(cur["epoch"]) + 1, cur["alive"], cur["accuracy"]), carried(cur["alive"], cur["accuracy"])
+            else:                                               # a fresh (empty) epoch starts online
+                e, pl, floor = int(cur["epoch"]), list(cur["pool"]), list(cur.get("floor") or [])
+            raced: list[str] = []
+        else:
+            e, pl, floor, raced = int(cur["epoch"]), list(cur["pool"]), list(cur.get("floor") or []), list(cur.get("raced") or [])
+        er = [r for r in rows if int(r.get("epoch", 0)) == e and r["strategy"] in pl]
+        done = {(r["qid"], r["strategy"]) for r in rows}
+        out: list[tuple[Question, str, int]] = []
+        qids = list(dict.fromkeys([r["qid"] for r in er] + [q for q, ep in assigned.items() if ep == e]))
+        stored: dict[str, list[str]] = {}
+        for r in er:
+            stored.setdefault(r["qid"], []).extend(a for a in r.get("arms") or [] if a not in stored.get(r["qid"], []))
+        for qid in qids:                                        # handed-out questions: only the strategies they were given
+            q = cache["by"].get(qid)
+            if q is not None:
+                out += [(q, n, e) for n in (arms_of.get(qid) or stored.get(qid, [])) if (qid, n) not in done and (qid, n) not in taken]
+            if len(out) >= BATCH:
+                return out
+        used = {r["qid"] for r in rows} | set(assigned)
+        nctl = len({r["qid"] for r in er if r["strategy"] == CONTROL} | {q for q, ep in assigned.items() if ep == e})
+        for q in pool():
+            if nctl >= EPOCH_Q or len(out) >= BATCH:
+                break
+            if q.qid not in used:
+                assigned[q.qid] = e
+                arms_of[q.qid] = online_picks(pl, floor, er, raced, e)
+                nctl += 1
+                out += [(q, n, e) for n in arms_of[q.qid]]
+        if not out and nctl < EPOCH_Q:                          # every question used: REVISIT the ones the control got wrong (as in halving)
+            for r in rows:
+                q = cache["by"].get(r["qid"])
+                rq = f"{r['qid']}{REVISIT}"
+                if q is None or r["strategy"] != CONTROL or r.get("correct") or REVISIT in r["qid"] or rq in used:
+                    continue
+                q2 = dataclasses.replace(q, qid=rq)
+                cache["by"][rq] = q2
+                assigned[rq] = e
+                arms_of[rq] = online_picks(pl, floor, er, raced, e)
+                used.add(rq)
+                nctl += 1
+                out += [(q2, n, e) for n in arms_of[rq]]
+                if nctl >= EPOCH_Q or len(out) >= BATCH:
+                    break
+        return out
+
     def pending(rows: Sequence[dict[str, Any]]) -> list[tuple[Question, str, int]]:
         qs = pool()
         eps = epochs(rows)
         cur = eps[-1]
+        cur_rows = [r for r in rows if int(r.get("epoch", 0)) == int(cur["epoch"])]
+        legacy_open = not cur["complete"] and cur_rows and not any(r.get("alloc") == "online" for r in cur_rows)
+        mode["online"] = REASON_ALLOCATION == "online" and not legacy_open      # an unfinished halving epoch finishes as it began
+        if mode["online"]:
+            return pending_online(rows, eps)
         e, live, qids = int(cur["epoch"]), list(cur["alive"]), list(cur["questions"])
         if cur["complete"]:                                     # the next epoch: winners re-tested on fresh questions, challengers back in
             e, live, qids = e + 1, epoch_pool(e + 1, cur["alive"], cur["accuracy"]), []
@@ -774,9 +895,13 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
             by = cache["by"]
             solved = [(by[r["qid"]], r.get("pick"), float(r.get("ts") or 0)) for r in rows if r["qid"] in by and r["strategy"] == CONTROL]
 
+        extra: Optional[dict[str, Any]] = None
+        if mode["online"]:
+            extra = {"alloc": "online", "arms_by_qid": {q.qid: arms_of[q.qid] for q, _n, _e in batch if q.qid in arms_of}}
+
         def job() -> None:
             try:
-                run_batch(state, batch, make_llm, solved)
+                run_batch(state, batch, make_llm, solved, extra)
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm; _Skip = no RAM now
                 with lock:
                     for q, n, _e in batch:
@@ -788,6 +913,16 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
                     flight["n"] -= 1
         return job
     return next_job
+
+
+def online_report(state: Path, tag: Optional[str] = None) -> dict[str, Any]:
+    """For the experiments section: the current epoch's allocation (pool, floor, raced out, paired gains over the control [mean, se, n])."""
+    rows = [r for r in _model_rows(_jsonl(path(state)), tag or active_tag()) if REVISIT not in r["qid"]]
+    if not rows:
+        return {}
+    e = epochs(rows)[-1]
+    return {k: e.get(k) for k in ("epoch", "allocation", "pool", "floor", "alive", "raced", "gains_vs_control", "complete")} | {
+        "questions": len(e["questions"])}
 
 
 # ------------------------------------------------------------------------------------------------ the report
@@ -870,7 +1005,9 @@ def report_section(state: Path, tag: Optional[str] = None) -> dict[str, Any]:
         accs = {n: wilson(sum(int(r.get("correct") or 0) for r in er if r["strategy"] == n), sum(1 for r in er if r["strategy"] == n))[0]
                 for n in e["pool"]}
         item = {"epoch": e["epoch"], "pool": e["pool"], "alive": e["alive"], "questions": len(e["questions"]), "complete": e["complete"],
-                "accuracy": accs}
+                "accuracy": accs, "allocation": e.get("allocation", "halving")}
+        if e.get("allocation") == "online":
+            item.update(raced=e.get("raced"), gains_vs_control=e.get("gains_vs_control"), floor=e.get("floor"))
         if i:                                                              # carried winners re-tested on questions they never saw
             carried = [n for n in eps[i - 1]["alive"] if n != CONTROL and n in e["pool"]]
             item["out_of_sample"] = {n: {"before": eps[i - 1]["accuracy"].get(n), "now": accs.get(n)} for n in carried}

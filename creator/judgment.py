@@ -55,6 +55,20 @@ OWN_STRATEGIES: list[dict[str, Any]] = [{"shots": 0, "hint": 1, "own": 6}, {"sho
 # teacher traces and plan notes are about Nupen's own packages: on public commits they would only repeat the plain prompt, so they are left out
 PUB_STRATEGIES: list[dict[str, Any]] = ([s for s in ALL_STRATEGIES if not s.get("traces") and not s.get("plans")] + OWN_STRATEGIES)
 PUB_HALVING = ((40, 8), (100, 4), (200, 2), (400, 1))
+# TRIAL AND ERROR AS IT DRILLS (3 Oct 2026, creator.trialerror). Every strategy is scored after every answer as a PAIRED Brier gain over the
+# free statistical predictor on the same subject (owner's audit: half the SE of an unpaired Brier; stored with the round as 'stat') and RACED
+# out of the round once its 95% CI excludes any gain. Two allocations: 'racing' = the halving cutoffs on common subjects plus that racing
+# (default: on judgment-like arms - strongly correlated through the shared subjects - the simulation found halving's common-subject comparison
+# identifies the best arm with fewer calls than Thompson, and racing cuts the calls by ~43% when no strategy beats the predictor, the audited
+# case); 'online' = top-two Thompson picks per subject. The pinned strategies (reference prompt, kNN control, previous winners) answer every
+# subject. Rounds opened before keep their plain halving replay ('allocation' absent).
+PUB_ALLOCATION = "racing"
+ONLINE_AHEAD = 4                                   # subjects handed out ahead (with the same allocation) while their answers are pending
+ONLINE_PICKS = 2                                   # Thompson-picked strategies per subject on top of the pinned ones
+ONLINE_MIN_N = 20                                  # answers a strategy needs before it can be a round's winner
+# ANCHOR (owner's audit): the model is GIVEN the statistical predictor's probability and asked only for a correction; its paired gain over that
+# predictor is exactly the value of the correction.
+ANCHOR_STRATEGY: dict[str, Any] = {"shots": 0, "hint": 1, "anchor": 1}
 ROUND_SIZE = 400                                   # fresh subjects per search round (the last cutoff: the winner answers all of them)
 PUB_SPAN = 2000                                    # per repository: the recent cases a round walks forward through first
 PUB_MIN_HISTORY = 50                               # a public case is asked only with at least this many cases resolved before it
@@ -165,7 +179,7 @@ def own_block(own: Optional[RM.Index], strategy: dict[str, Any], c: Case) -> str
 
 
 def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index: Optional[RM.Index] = None,
-                 own: Optional[RM.Index] = None) -> list[dict[str, str]]:
+                 own: Optional[RM.Index] = None, anchor_p: Optional[float] = None) -> list[dict[str, str]]:
     hist = history(cases, c)
     sys_msg = ("You are a careful forecaster for a software-development system. You estimate the probability that the event in the question "
                "happens, from the case and the past record only. Answer with ONE short line of reasoning, then a final line "
@@ -187,6 +201,9 @@ def build_prompt(strategy: dict[str, Any], cases: Sequence[Case], c: Case, index
     mine = own_block(own, strategy, c)
     if mine:
         lines.append(mine.rstrip())
+    if strategy.get("anchor") and anchor_p is not None:
+        lines.append(f"A statistical predictor (frequencies of similar cases resolved before this one) gives P = {anchor_p:.2f}. Start from that "
+                     "number and move it only as far as this case gives a concrete reason; answer with your corrected probability.")
     k = int(strategy.get("shots", 0))
     if k and hist:
         pool = [x for x in hist if x.group == c.group][-k:]
@@ -441,17 +458,85 @@ def _uniq(ss: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def online_gains(rnd: dict[str, Any], mine: Sequence[dict[str, Any]], pool: Sequence[dict[str, Any]]) -> dict[str, list[float]]:
+    """Per strategy (json key): paired Brier gains over the round's CONTROL on the same subjects - the statistical predictor's stored
+    probability (rnd['stat'], free) when the round has it, else the reference prompt's answer. Positive = better than the control."""
+    stat = rnd.get("stat") or {}
+    ref = {r["subject"]: r for r in mine if r["strategy"] == REF_STRATEGY and r.get("p") is not None}
+    out: dict[str, list[float]] = {json.dumps(s, sort_keys=True): [] for s in pool}
+    for r in mine:
+        k = json.dumps(r["strategy"], sort_keys=True)
+        if k not in out or r.get("p") is None or r.get("y") is None:
+            continue
+        cp = stat.get(r["subject"]) if stat else (ref[r["subject"]]["p"] if r["subject"] in ref else None)
+        if cp is None:
+            continue
+        out[k].append(T.brier(float(cp), int(r["y"])) - T.brier(float(r["p"]), int(r["y"])))
+    return out
+
+
+def online_state(rnd: dict[str, Any], mine: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """round_state for an ONLINE round: the next ONLINE_AHEAD unstarted subjects get the pinned strategies plus ONLINE_PICKS top-two Thompson
+    picks (seeded by the round and the number of answers, so the same records always give the same picks); raced-out strategies are never
+    asked again in the round; the winner (once every subject is started) is the highest posterior-mean paired gain among strategies with
+    ONLINE_MIN_N answers. A winner is promoted only by its out-of-sample re-test in the next round (rounds_report)."""
+    from creator import registry as REG
+    te = REG.get("trialerror")
+    pinned = _uniq(list(rnd.get("pinned", [])))
+    pool = _uniq(PUB_STRATEGIES + [ANCHOR_STRATEGY] + pinned)
+    by = {json.dumps(s, sort_keys=True): s for s in pool}
+    gains = online_gains(rnd, mine, pool)
+    pin_keys = [json.dumps(s, sort_keys=True) for s in pinned]
+    dropped = [k for k, d in gains.items() if k not in pin_keys and te.raced_out(d)]
+    live = [by[k] for k in by if k not in dropped]
+    given: dict[str, set[str]] = {}
+    answered: dict[str, set[str]] = {}
+    for r in mine:
+        given.setdefault(r["subject"], set()).update(r.get("arms") or [])
+        answered.setdefault(r["subject"], set()).add(json.dumps(r["strategy"], sort_keys=True))
+    todo: list[tuple[str, dict[str, Any]]] = []
+    for k in rnd["subjects"]:                                      # started subjects: only the strategies they were given, still missing
+        if k in given:
+            todo += [(k, by[a]) for a in sorted(given[k] - answered[k]) if a in by]
+    nxt = [k for k in rnd["subjects"] if k not in answered][:ONLINE_AHEAD]
+    ref_key = json.dumps(REF_STRATEGY, sort_keys=True)
+    arms = te.allocate({k: d for k, d in gains.items() if k not in pin_keys}, ref_key, pin_keys, te.seeded(rnd["round"], rnd.get("topic"), len(mine)),
+                       ONLINE_PICKS, dropped)
+    ask = [by[k] for k in arms if k in by]
+    todo += [(k, s) for k in nxt for s in ask]
+    winner = None
+    if not nxt and not todo:
+        cand = {k: d for k, d in gains.items() if k not in dropped}
+        w = te.best_arm(cand, ONLINE_MIN_N) or te.best_arm(cand)
+        winner = by.get(w) if w else None
+    return {"recs": list(mine), "live": live, "ask": ask, "todo": todo, "winner": winner, "dropped": [by[k] for k in dropped],
+            "arms_by_subject": {k: [a for a in arms if a in by] for k in nxt},
+            "gains": {k: [round(x, 4) for x in te.mean_se(d)] + [len(d)] for k, d in gains.items() if d}}
+
+
 def round_state(rnd: dict[str, Any], recs: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Where one round stands: its records, the strategies still alive (halving over the round's own subjects), the strategies asked (alive +
-    pinned), what is left to ask, and the winner once nothing is."""
+    pinned), what is left to ask, and the winner once nothing is. Online rounds: online_state."""
     subs = set(rnd["subjects"])
     mine = [r for r in recs if r.get("round") == rnd["round"] and r.get("subject") in subs]
-    live = alive(mine, PUB_STRATEGIES, PUB_HALVING)
+    if rnd.get("allocation") == "online":
+        return online_state(rnd, mine)
+    dropped: list[dict[str, Any]] = []
+    pool = PUB_STRATEGIES
+    if rnd.get("allocation") == "racing":
+        from creator import registry as REG
+        te = REG.get("trialerror")
+        pinned = _uniq(list(rnd.get("pinned", [])))
+        full = _uniq(PUB_STRATEGIES + [ANCHOR_STRATEGY])
+        gains = online_gains(rnd, mine, full)
+        dropped = [s for s in full if s not in pinned and te.raced_out(gains[json.dumps(s, sort_keys=True)])]
+        pool = [s for s in full if s not in dropped]
+    live = alive(mine, pool, PUB_HALVING)
     ask = _uniq(live + list(rnd.get("pinned", [])))
     done = {(r["subject"], json.dumps(r["strategy"], sort_keys=True)) for r in mine}
     todo = [(k, s) for k in rnd["subjects"] for s in ask if (k, json.dumps(s, sort_keys=True)) not in done]
     winner = ranked(mine, live)[0] if not todo and live else None
-    return {"recs": mine, "live": live, "ask": ask, "todo": todo, "winner": winner}
+    return {"recs": mine, "live": live, "ask": ask, "todo": todo, "winner": winner, "dropped": dropped}
 
 
 def open_round(state: Path, topic: str, tag: str, cases: Sequence[Case], recs: Sequence[dict[str, Any]], rounds: Sequence[dict[str, Any]],
@@ -488,6 +573,13 @@ def open_round(state: Path, topic: str, tag: str, cases: Sequence[Case], recs: S
             winners = _uniq(winners + [w])[-2:]
     row = {"topic": topic, "model": tag, "round": len(rounds), "subjects": pick, "pinned": _uniq(winners + [REF_STRATEGY, {"knn": 8}]),
            "previous_winners": winners, "opened": time.time()}
+    if PUB_ALLOCATION in ("online", "racing"):
+        row["allocation"] = PUB_ALLOCATION
+        try:                                                       # the free statistical control, stored with the round: every replay of
+            sp = _stat_preds(topic, state, Path(state))            # the allocation pairs against the same numbers
+            row["stat"] = {k: round(float(sp[k].p), 4) for k in pick if k in sp}
+        except Exception:                                          # noqa: BLE001 - no statistical control: paired with the reference prompt
+            pass
     p = rounds_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as f:
@@ -508,16 +600,40 @@ def rounds_report(state: Path, topic: str, tag: Optional[str] = None) -> list[di
         b = {r["subject"]: r for r in mine if r["strategy"] == s}
         both = sorted(set(a) & set(b))
         return [*RM.paired_gain([a[k]["p"] for k in both], [b[k]["p"] for k in both], [a[k]["y"] for k in both]), len(both)]
+    def gain_stat(rnd: dict[str, Any], mine: Sequence[dict[str, Any]], s: dict[str, Any]) -> Optional[list[float]]:
+        stat = rnd.get("stat") or {}
+        b = {r["subject"]: r for r in mine if r["strategy"] == s and r["subject"] in stat}
+        if not b:
+            return None
+        ks = sorted(b)
+        return [*RM.paired_gain([stat[k] for k in ks], [b[k]["p"] for k in ks], [b[k]["y"] for k in ks]), len(ks)]
     states = [round_state(r, recs) for r in rounds]
     out: list[dict[str, Any]] = []
     for i, (rnd, st) in enumerate(zip(rounds, states)):
         out.append({"round": rnd["round"], "subjects": len(rnd["subjects"]), "answers": len(st["recs"]), "alive": len(st["live"]),
                     "winner": st["winner"], "winner_gain_vs_reference_in_sample": gain(st["recs"], st["winner"]) if st["winner"] else None,
+                    "allocation": rnd.get("allocation", "halving"), "dropped": st.get("dropped"),
                     "retest": [{"strategy": w, "out_of_sample_gain_vs_reference": gain(st["recs"], w),
+                                "out_of_sample_gain_vs_statistical": gain_stat(rnd, st["recs"], w),
                                 "in_sample_gain_when_chosen": next((gain(states[j]["recs"], w) for j in range(i - 1, -1, -1)
                                                                     if states[j]["winner"] == w), None)}
                                for w in rnd.get("previous_winners", [])]})
     return out
+
+
+def online_report(state: Path, topic: str, tag: Optional[str] = None) -> dict[str, Any]:
+    """For the experiments section: the latest round's allocation - strategies asked now, raced out, paired gains over the control so far
+    [mean, se, n], and the out-of-sample verdicts of the previous winners."""
+    tag = tag or active_tag()
+    rounds = load_rounds(state, topic, tag)
+    if not rounds:
+        return {}
+    recs = [r for r in _mine(_records(state), tag) if r.get("topic") == topic and "subject" in r and r.get("p") is not None]
+    st = round_state(rounds[-1], recs)
+    rep = rounds_report(state, topic, tag)
+    return {"round": rounds[-1]["round"], "allocation": rounds[-1].get("allocation", "halving"), "answers": len(st["recs"]),
+            "asking": st["ask"], "dropped": st.get("dropped"), "gains_vs_control": st.get("gains"),
+            "retests": [r.get("retest") for r in rep[-3:]]}
 
 
 _REC_CACHE: dict[str, Any] = {"key": None, "rows": []}
@@ -562,6 +678,15 @@ def chat_text(llm: Any, messages: Sequence[dict[str, str]], **kw: Any) -> str:
     return G.THINK_BLOCK.sub("", str(llm.chat(G.prepare_messages(messages, getattr(llm, "model", "")), **kw))).strip()
 
 
+def _anchor_p(state: Path, c: Case) -> Optional[float]:
+    """The statistical predictor's walk-forward probability for this case (from cases resolved before it was created only)."""
+    try:
+        p = _stat_preds(c.topic, state, Path(state)).get(c.subject)
+        return float(p.p) if p is not None else None
+    except Exception:                                                  # noqa: BLE001 - no anchor: the prompt is the plain one
+        return None
+
+
 def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: Sequence[Case], make_llm: Callable[[], Any],
               index: Optional[RM.Index] = None, own: Optional[RM.Index] = None, extra: Optional[dict[str, Any]] = None) -> int:
     """Ask the model each (case, strategy) in the batch under one server lease and record the answers (the outcome is stored beside the answer only
@@ -581,13 +706,19 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
                 pid = None
             t0 = time.monotonic()
             row: dict[str, Any] = {"topic": c.topic, "subject": c.subject, "strategy": s, "created": c.created, "resolved": c.resolved, "y": c.y,
-                                   "model": tag, **(extra or {})}
+                                   "model": tag, **{k: v for k, v in (extra or {}).items() if k != "arms_by_subject"}}
+            arms = ((extra or {}).get("arms_by_subject") or {}).get(c.subject)
+            if arms:                                                # online rounds: the strategies this subject was given (kept fixed)
+                row["arms"] = arms
             if "knn" in s:                                          # the model-free control: no call, no cost
                 hist = history(cases, c)
                 base = sum(x.y for x in hist) / len(hist) if hist else 0.5
                 row.update(p=RM.knn_probability(index, c, int(s["knn"]), base) if index is not None else None, reply="knn", tokens=0)
             else:
-                msgs = build_prompt(s, cases, c, index, own)
+                ap = _anchor_p(state, c) if s.get("anchor") else None
+                msgs = build_prompt(s, cases, c, index, own, ap)
+                if ap is not None:
+                    row["anchor_p"] = round(ap, 4)
                 ps, first, toks = RM.sample(lambda m, **kw: chat_text(llm, m, **kw), msgs, parse, int(s.get("samples", 1)),
                                             300 if s.get("structured") else 120)
                 row.update(p=RM.aggregate(ps), reply=first[:300], tokens=toks)
@@ -621,6 +752,7 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
     idx: dict[str, RM.Index] = {}
     sig: dict[str, Any] = {"checked": 0.0, "value": None, "refreshed": 0.0, "refreshing": False}
     turn = {"i": 0}
+    amap: dict[str, list[str]] = {}                            # online rounds: subject -> the strategies (json keys) it was given
 
     def make_llm() -> Any:
         if llm_factory is not None:
@@ -664,6 +796,12 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
                 cache.pop(t, None)
                 idx.pop(t, None)
 
+    def fixed_arms(rs: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+        """An online round's subject keeps the strategies it was first handed out with (answers may still be in flight)."""
+        for k, v in (rs.get("arms_by_subject") or {}).items():
+            amap.setdefault(k, v)
+        return [(k, s) for k, s in rs.get("todo", []) if k not in amap or json.dumps(s, sort_keys=True) in amap[k]]
+
     def pending_pub(topic: str) -> tuple[list[tuple[Case, dict[str, Any]]], Optional[int]]:
         public_changed()
         if topic not in cache:
@@ -675,13 +813,15 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         tag = active_tag()
         recs = [r for r in _mine(_records(state), tag) if r.get("topic") == topic and "subject" in r]
         rounds = load_rounds(state, topic, tag)
-        todo = [(k, s) for k, s in round_state(rounds[-1], recs)["todo"] if k in cmap] if rounds else []
+        rs = round_state(rounds[-1], recs) if rounds else {}
+        todo = [(k, s) for k, s in fixed_arms(rs) if k in cmap]
         if not todo:                                               # converged (or first time): a fresh round, winners pinned
             rnd = open_round(state, topic, tag, cases, recs, rounds)
             if rnd is None:
                 return [], None
             rounds = list(rounds) + [rnd]
-            todo = [(k, s) for k, s in round_state(rnd, recs)["todo"] if k in cmap]
+            rs = round_state(rnd, recs)
+            todo = [(k, s) for k, s in fixed_arms(rs) if k in cmap]
         out = [(cmap[k], s) for k, s in todo if (topic, k, json.dumps(s, sort_keys=True)) not in taken][:PUB_BATCH]
         return out, int(rounds[-1]["round"])
 
@@ -710,6 +850,9 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
                     if topic in PUB_TOPICS:
                         batch, rnd = pending_pub(topic)
                         extra = {"round": rnd}
+                        ab = {c.subject: amap[c.subject] for c, _s in batch if c.subject in amap}
+                        if ab:
+                            extra["arms_by_subject"] = ab
                     else:
                         batch, extra = pending(topic)[:BATCH], None
                 except Exception:                                  # noqa: BLE001 - a topic without data is skipped

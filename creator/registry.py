@@ -51,6 +51,8 @@ CAPABILITIES: dict[str, str] = {
     "thinkbench": "creator.thinkbench",
     "learnloop": "creator.learnloop",
     "decide": "creator.decide",
+    "trialerror": "creator.trialerror",
+    "benchfill": "creator.benchfill",
 }
 
 _loaded: dict[str, Any] = {}
