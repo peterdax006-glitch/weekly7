@@ -97,6 +97,11 @@ def summary_sentences(cmp: dict[str, Any]) -> list[str]:
     return s
 
 
+def _same_model(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Same model file and size (the 'role' label and mtime are not the model)."""
+    return (a.get("file"), a.get("bytes")) == (b.get("file"), b.get("bytes"))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--baseline", action="store_true")
@@ -107,6 +112,8 @@ def main() -> int:
     ap.add_argument("--owner-dir", default=str(Path.home() / "Masterstock"))
     ap.add_argument("--hours", type=float, default=12.0)
     ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--model", choices=("fast", "thinker"), default="fast",
+                    help="fast = the fixed benchmark model (comparable runs); thinker = device think_model (labelled in versions)")
     a = ap.parse_args()
     state, owner = Path(a.state), Path(a.owner_dir)
     repo = state.parents[1]
@@ -120,7 +127,7 @@ def main() -> int:
     if a.freeze and not (a.baseline or a.compare):
         return 0
     if a.baseline:
-        res = TB.run(state, repo, owner, frozen, use_model=not a.no_model, workers=a.workers, progress=prog)
+        res = TB.run(state, repo, owner, frozen, use_model=not a.no_model, workers=a.workers, progress=prog, model=a.model)
         p = TB.save(state, res, "baseline")
         print(f"baseline written: {p}  (runtime {res['runtime_s']} s)")
         for k, v in res["parts"].items():
@@ -132,7 +139,7 @@ def main() -> int:
             print("no baseline_*.json: run --baseline first")
             return 2
         base = json.loads(bases[0].read_text(encoding="utf-8"))
-        res = TB.run(state, repo, owner, frozen, use_model=not a.no_model, workers=a.workers, progress=prog)
+        res = TB.run(state, repo, owner, frozen, use_model=not a.no_model, workers=a.workers, progress=prog, model=a.model)
         p = TB.save(state, res, "now")
         cmp = TB.compare(base, res)
         print("\n=== NUPEN THINKING REPORT ===")
@@ -147,7 +154,7 @@ def main() -> int:
             print(part_line(k, v))
         mv, bv = res["versions"], base.get("versions", {})
         changed = [f for f, h in mv["code_sha"].items() if bv.get("code_sha", {}).get(f) != h]
-        print(f"\nWhat changed under the benchmark: code {changed or 'nothing'}; model same={mv['local_model'] == bv.get('local_model')}; "
+        print(f"\nWhat changed under the benchmark: code {changed or 'nothing'}; model same={_same_model(mv.get('local_model', {}), bv.get('local_model', {}))} (now {mv.get('local_model', {}).get('file')}); "
               f"procedure same={mv['procedure_sha'] == bv.get('procedure_sha')}; judgment strategies now {mv['judgment_strategies']}")
         print("\nOther signals:")
         for line in extras(state, owner, a.hours):

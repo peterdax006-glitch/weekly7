@@ -351,6 +351,45 @@ def default_llm_factory(i: int) -> Any:
     return G.LocalModel(pidfile=d / "llama_server.pid", servers=1, threads=6, startup_s=300.0)
 
 
+class _Thinking:
+    """A thinking-model server whose answers go through judgment.chat_text (the model's /no_think switch; <think> blocks stripped)."""
+
+    def __init__(self, lm: Any) -> None:
+        self.lm, self.model = lm, getattr(lm, "model", "")
+
+    def __enter__(self) -> "_Thinking":
+        self.lm.__enter__()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.lm.__exit__(*exc)
+
+    def chat(self, messages: list[dict[str, str]], **kw: Any) -> str:
+        return J.chat_text(self.lm, messages, **kw)
+
+
+def thinker_llm_factory(i: int) -> Any:
+    """The THINKING model (device 'think_model') on its own private server, same threads and startup as the default; KeyError when none is
+    configured or on disk (a benchmark of 'the thinker' must never silently fall back to the fast model)."""
+    from creator import device as DEV
+    from creator import generator as G
+    path = DEV.think_model_path()
+    if path is None:
+        raise KeyError("no thinking model configured or on disk (device setting 'think_model')")
+    d = Path(tempfile.gettempdir()) / f"thinkbench_think{i}"
+    d.mkdir(parents=True, exist_ok=True)
+    return _Thinking(G.LocalModel(model=path, pidfile=d / "llama_server.pid", servers=1, threads=6, startup_s=300.0))
+
+
+def model_path(model: str) -> Optional[Path]:
+    """'fast' -> the default code model; 'thinker' -> device 'think_model' (None when absent)."""
+    from creator import generator as G
+    if model == "thinker":
+        from creator import device as DEV
+        return DEV.think_model_path()
+    return Path(G.DEFAULT_MODEL)
+
+
 def ask_all(jobs: Sequence[tuple[str, list[dict[str, str]], int, float]], llm_factory: Callable[[int], Any], workers: int = 2,
             progress: Optional[Callable[[int, int], None]] = None) -> dict[str, Optional[str]]:
     """Run (key, messages, max_tokens, temperature) jobs on up to `workers` servers; a failed call maps to None. The servers stop when this returns."""
@@ -564,36 +603,35 @@ def current_strategy(state: Path, repo: Path, topic: str) -> dict[str, Any]:
     return dict(REF_STRATEGY)
 
 
-def versions(state: Path, repo: Path) -> dict[str, Any]:
+def versions(state: Path, repo: Path, model: str = "fast") -> dict[str, Any]:
     root = Path(__file__).resolve().parent
     files = ("thinking", "drillsources", "judgment", "reasoning", "anticipation", "thinkbench")
     code = {f: hashlib.sha256((root / f"{f}.py").read_bytes()).hexdigest()[:12] for f in files if (root / f"{f}.py").is_file()}
     mp = None
     try:
-        from creator import generator as G
-        mp = G.DEFAULT_MODEL
-        st = mp.stat()
-        model = {"file": mp.name, "bytes": st.st_size, "mtime": _iso(st.st_mtime)}
+        mp = model_path(model)
+        st = mp.stat()                                                  # type: ignore[union-attr]
+        local = {"file": mp.name, "bytes": st.st_size, "mtime": _iso(st.st_mtime), "role": model}   # type: ignore[union-attr]
     except Exception:                                               # noqa: BLE001
-        model = {"file": str(mp), "error": "not found"}
+        local = {"file": str(mp), "error": "not found", "role": model}
     try:
         import subprocess
         head = subprocess.run(["git", "-C", str(repo), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=30).stdout.strip()
     except Exception:                                               # noqa: BLE001
         head = "?"
     return {"thinkbench": VERSION, "reasoning_procedure": getattr(R, "VERSION", None), "procedure_sha": hashlib.sha256(R.procedure_text(True).encode()).hexdigest()[:12],
-            "local_model": model, "code_sha": code, "repo_head": head,
+            "local_model": local, "code_sha": code, "repo_head": head,
             "judgment_strategies": {t: current_strategy(state, repo, t) for t in J.TOPICS}, "judgment_reference_strategy": REF_STRATEGY}
 
 
 def run(state: Path, repo: Path, owner_dir: Path, frozen: Optional[dict[str, Any]] = None, llm_factory: Optional[Callable[[int], Any]] = None,
-        use_model: bool = True, workers: int = 2, progress: Optional[Callable[[int, int], None]] = None) -> dict[str, Any]:
+        use_model: bool = True, workers: int = 2, progress: Optional[Callable[[int, int], None]] = None, model: str = "fast") -> dict[str, Any]:
     """One full run of the frozen benchmark with whatever Nupen has now. Parts a needs no model; b, c, d use the local model (skipped with use_model=False)."""
     state = Path(state)
     t0 = time.monotonic()
     frozen = frozen or load_frozen(state)
     preds = _all_preds(state, repo, owner_dir)
-    res: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "items_hash": frozen["hash"], "versions": versions(state, repo),
+    res: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "items_hash": frozen["hash"], "versions": versions(state, repo, model),
                            "parts": {"a_prediction": score_prediction(frozen, preds)}}
     if use_model:
         wsub = {t: current_strategy(state, repo, t) for t in J.TOPICS}
@@ -612,7 +650,7 @@ def run(state: Path, repo: Path, owner_dir: Path, frozen: Optional[dict[str, Any
                 jobs.append((f"b|{sname}|{it['id']}", J.build_prompt(s, allc[it["topic"]], c), 120, 0.2))
         jobs += [(q["id"], _c_messages(q), 220, 0.0) for q in frozen["c"]]
         jobs += [(w["id"], _d_messages(w), 160, 0.0) for w in frozen["d"]]
-        rep = ask_all(jobs, llm_factory or default_llm_factory, workers, progress)
+        rep = ask_all(jobs, llm_factory or (thinker_llm_factory if model == "thinker" else default_llm_factory), workers, progress)
         ans: dict[str, dict[str, Optional[float]]] = {"current": {}, "reference": {}}
         for k, r in rep.items():
             if k.startswith("b|"):
