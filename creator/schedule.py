@@ -355,7 +355,8 @@ def plan_batch(cfg: Any, led: Ledger, main: Any, base_sha: str, slots: int, held
     steps = tuple(s for s in cfg.steps if s in P.WORKER_STEPS)
     taken = list(held)
     if cfg.mode in ("auto", "gaps"):
-        b = next_batch(led, slots, specs, held, held_files, explain_path=explain_path_for(cfg.ledger_path), steps=steps, state=cfg.state)
+        b = next_batch(led, slots, specs, held, held_files, explain_path=explain_path_for(cfg.ledger_path), steps=steps,
+                       state=getattr(cfg, "state", None))
         for n in b.picks:
             p = P.plan_next(led, main.model, base_sha, specs, steps=steps, exclude_components=taken, prefer=(n.id,))
             if p is not None:                       # even when plan_next moved past a pick it gave up on: the package it wrote is

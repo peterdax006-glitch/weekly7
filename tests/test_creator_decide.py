@@ -13,7 +13,7 @@ import pytest
 
 from creator import decide as D
 from creator import registry as REG
-from creator import sandbox as SB
+from creator import sandbox as SB  # noqa: F401
 from creator import schedule as S
 from creator import testrun as TR
 from creator import thinking as T
@@ -193,18 +193,18 @@ def test_widening_only_ever_adds_tests_and_never_widens_an_empty_selection(tmp_p
     g = graph_of(tmp_path)
     sel = TR.select_tests(g, ["pkg/a.py"])
     assert sel.tests == ("tests/test_a.py",)
-    w = SB.widen_selection(sel, g, "git_fixed P=0.6")
+    w = D.widen_selection(sel, g, "git_fixed P=0.6")
     assert set(sel.tests) < set(w.tests) and w.select_all and w.reasons["tests/test_a.py"] == sel.reasons["tests/test_a.py"]
     assert w.reasons["tests/test_b.py"].startswith("predicted risk")
     empty = TR.select_tests(g, ["README.md"])
-    assert empty.empty and SB.widen_selection(empty, g, "x") is empty                       # empty = rejected today: stays so
+    assert empty.empty and D.widen_selection(empty, g, "x") is empty                       # empty = rejected today: stays so
     allsel = TR.select_tests(g, ["pkg/data.csv"])
-    assert allsel.select_all and SB.widen_selection(allsel, g, "x") is allsel
+    assert allsel.select_all and D.widen_selection(allsel, g, "x") is allsel
     rnd = random.Random(3)
     for _ in range(50):                                                                     # property: never fewer tests
         ch = rnd.sample(["pkg/a.py", "pkg/b.py", "tests/test_a.py", "README.md", "pkg/__init__.py"], rnd.randint(1, 3))
         s0 = TR.select_tests(g, ch)
-        assert set(s0.tests) <= set(SB.widen_selection(s0, g, "r").tests)
+        assert set(s0.tests) <= set(D.widen_selection(s0, g, "r").tests)
 
 
 def test_risk_band_flags_twenty_to_thirty_percent() -> None:

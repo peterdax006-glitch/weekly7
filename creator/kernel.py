@@ -700,13 +700,14 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         pcfg = sandbox_pytest(cfg)
         served = TC.TreeCache(cfg.state / "evidence" / "tree_cache").lookup(TC.tree_key(cfg.repo, pcfg.python, rev=base_sha,
                                                                                          require_clean=False))
-        widen = _risk_widen(cfg, plan, list(change.files), sb)        # trusted predictions may only make testing STRICTER
+        from creator import registry as REG                             # trusted predictions may only make testing STRICTER
+        D = REG.optional("decide")
+        widen = D.kernel_gate(cfg.state, plan, list(change.files), sb) if D else ""
         if widen:
             rep.details["decide"] = {"full_suite": widen}
         with stage("evaluation"):
-            reuse_b = {t: x for t, (_, x) in served.items()}
-            ev = (sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse=reuse_b, widen_reason=widen) if widen else
-                  sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse=reuse_b))
+            ev = sb.evaluate(build_config=cfg.build, pytest_config=pcfg, base_reuse={t: x for t, (_, x) in served.items()},
+                             widen_reason=widen)
         _eval_stages(stage.sec, ev)
         with stage("audit_checks"):
             before, after = _test_sources(sb.path, base_sha, change.files)
@@ -863,19 +864,6 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         _evidence_file(cfg, plan.package_id, "cycle.json", dataclasses.asdict(rep))
         _append_log_line(cfg.state / "kernel_log.jsonl", json.dumps(dataclasses.asdict(rep), default=str))
     return rep
-
-
-def _risk_widen(cfg: KernelConfig, plan: P.Plan, files: Sequence[str], sb: Any) -> str:
-    """creator.decide.risk_gate: a reason to run the FULL suite for a candidate whose files carry a TRUSTED high predicted fix risk (treated
-    arm), else ''. '' is today's testing; any failure is ''. Loaded on demand (registry), so the kernel's start load does not grow."""
-    try:
-        from creator import registry as REG
-        D = REG.optional("decide")
-        if D is None or not D.trusted_now(cfg.state, D.RISK_TOPIC):
-            return ""
-        return str(D.risk_gate(cfg.state, plan.package_id, files, sb.diff(), f"{plan.package_id} {plan.requirement_key}") or "")
-    except Exception:                                                   # noqa: BLE001 - never less testing than today, never a crash
-        return ""
 
 
 def _same_tree(repo: Path, a: str, b: str) -> bool:

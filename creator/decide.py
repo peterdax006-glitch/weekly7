@@ -22,6 +22,7 @@ cycle seconds, wasted seconds) and compares the arms with 95% CIs; thinking.trus
 Kill switch: NUPEN_DECIDE_OFF=1. Loaded on demand (registry 'decide'); imports only the standard library at module level."""
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import hashlib
 import json
@@ -36,6 +37,8 @@ HOLDOUT_SHARE = 0.30                 # share of decisions kept on the old rule (
 TRUST_MAX_AGE_S = 12 * 3600.0        # an older trust report is not "trusted right now"
 RISK_BAND = (0.20, 0.30)             # the stricter-testing band flags about this share of commits (chosen from the predictions' own spread)
 RISK_TOPIC = "git_fixed"
+REF_N = 300                          # the band is chosen among the model's last REF_N walk-forward predictions ...
+REF_MIN = 50                         # ... of commits of the candidate's size class when there are at least this many
 RANK_TOPICS = ("verdict", "duration")
 DECISIONS = "decisions.jsonl"
 
@@ -159,7 +162,8 @@ def risk_band(ps: Sequence[float], band: tuple[float, float] = RISK_BAND) -> flo
 def git_fixed_risk(state: Path, files: Sequence[str], diff: str, message: str, now: Optional[float] = None,
                    journal: Optional[Path] = None) -> Optional[dict[str, Any]]:
     """P(a fix touches these files within FIX_WINDOW later commits) for the candidate, by the chosen git_fixed variant fit on the cached history
-    (no git call), and the risk threshold from the same model's walk-forward predictions of the last 300 resolved commits."""
+    (no git call), and the risk threshold from the same model's walk-forward predictions of the last REF_N resolved commits of the same size
+    class (file-count bucket), or of all commits when that class has fewer than REF_MIN."""
     from creator import drillsources as DS
     t = time.time() if now is None else now
     b = DS.best_variant(Path(state), RISK_TOPIC)
@@ -173,9 +177,13 @@ def git_fixed_risk(state: Path, files: Sequence[str], diff: str, message: str, n
     cand = [p for p in DS.predict_open(items, RISK_TOPIC, v) if p.subject == "candidate0"]
     if not cand:
         return None
-    hist = DS.walk_forward(items, RISK_TOPIC, float(v["decay"]), float(v["k"]), str(v.get("agg", "mean")), float(v.get("cap", 0.02)))[-300:]
+    allp = DS.walk_forward(items, RISK_TOPIC, float(v["decay"]), float(v["k"]), str(v.get("agg", "mean")), float(v.get("cap", 0.02)))
+    size = {c["h"][:10]: DS._log2b(len(c["files"])) for c in commits}           # the band is taken among commits of the candidate's SIZE
+    peers = [p for p in allp if size.get(p.subject) == size["candidate0"]]       # class (kernel packages touch 1-3 files; whole-repo
+    hist = (peers if len(peers) >= REF_MIN else allp)[-REF_N:]                   # commits would set a band no small change ever reaches)
     thr = risk_band([p.p for p in hist])
     return {"p": round(cand[0].p, 4), "threshold": round(thr, 4) if thr < math.inf else None, "variant": v, "n_ref": len(hist),
+            "ref": "same size class" if len(peers) >= REF_MIN else "all commits",
             "ref_flag_share": round(sum(1 for p in hist if p.p >= thr) / len(hist), 3) if hist else None,
             "high": bool(cand[0].p >= thr)}
 
@@ -197,6 +205,30 @@ def risk_gate(state: Path, package_id: str, files: Sequence[str], diff: str, mes
     record(state, {"kind": "risk", "unit": package_id, "arm": arm, "topic": RISK_TOPIC, "prediction": risk, "files": sorted(files)[:50],
                    "did": "full_suite" if deeper else "selection", "old_rule": "selection", "changed": deeper, "flagged": bool(risk["high"])})
     return why if deeper else ""
+
+
+def widen_selection(sel: Any, graph: Any, why: str) -> Any:
+    """Every test of the tree, keeping each already selected test with its own reason (a superset of `sel`, never fewer tests). An EMPTY
+    selection stays empty (no tests = no report = a rejection today; more tests must never turn that into a run that could pass), and one
+    that already selects everything is returned as it is."""
+    if sel.empty or sel.select_all:
+        return sel
+    from creator import testrun as TR
+    reasons = dict(sel.reasons)
+    for t in TR.all_tests(graph):
+        reasons.setdefault(t, f"predicted risk: {why}")
+    return dataclasses.replace(sel, tests=tuple(sorted(reasons)), reasons=reasons, select_all=True, why_all=f"predicted risk: {why}")
+
+
+def kernel_gate(state: Path, plan: Any, files: Sequence[str], sb: Any) -> str:
+    """kernel.execute's one call before the sandbox evaluation: risk_gate for this candidate when git_fixed is trusted, else ''. Any failure
+    is '' (today's testing, never less, never a crash)."""
+    try:
+        if not trusted_now(state, RISK_TOPIC):
+            return ""
+        return str(risk_gate(state, plan.package_id, files, sb.diff(), f"{plan.package_id} {plan.requirement_key}") or "")
+    except Exception:                                                   # noqa: BLE001
+        return ""
 
 
 # ------------------------------------------------------------------------------------------------ outcomes and the arm comparison
