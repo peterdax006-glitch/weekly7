@@ -28,7 +28,6 @@ from creator import model as M
 from creator import planner as P
 from creator import sandbox as S
 from creator import testslots as TS
-from creator import schedule as SCHED
 from creator.ledger import Ledger
 
 
@@ -275,6 +274,7 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
         slots += 1
     if slots == 0:
         return []
+    from creator import schedule as SCHED                              # lazy: only a scheduled round needs it (start-load guard)
     held_files = list(held_paths)
     plans: list[Any] = []
     try:                                                                # development gaps (capacity-raising ones first) take EVERY slot
