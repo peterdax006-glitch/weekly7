@@ -82,6 +82,7 @@ def test_warm_model_cache_end_to_end(tmp_path: Path) -> None:
     r = RS.warm_model_cache(tmp_path, model, free_gb=20.0)
     assert r["bytes"] == 3 << 20 and r["saved_s_estimate"] >= 0 and r["warm_mb_s"] > 0
     assert RS.warm_model_cache(tmp_path, model, free_gb=20.0)["skipped"] == "warmed within 6 h"
+    RS._append(tmp_path / RS.RAM_WORK_FILE, {"task": "warm_git_objects", "ts": time.time()})            # the other RAM job is done too
     assert RS.ram_job(tmp_path) is None                                         # nothing left to do for six hours
     assert "ram:warm_model_cache" in RS.profiles(tmp_path)
     assert "RAM" in RS.warm_model_cache(tmp_path / "x", model, free_gb=1.0)["skipped"]
@@ -163,3 +164,19 @@ def test_simulation_fills_both_resources_and_beats_the_old_rule() -> None:
     assert new["by_kind"].get("ram", 0) > 0                                     # RAM-specific work took the idle RAM
     assert new["demand_cores"] <= 2.0 * 14                                      # CPU oversubscription stays within the factor
     assert old["demand_cores"] > new["demand_cores"]                            # the old rule oversubscribed without bound until 64
+
+
+def test_warm_git_objects_reads_packs_respects_the_floor_and_is_not_repeated(tmp_path: Path) -> None:
+    from creator import resources as R
+    pack = tmp_path / "repo" / ".git" / "objects" / "pack"
+    pack.mkdir(parents=True)
+    (pack / "pack-a.idx").write_bytes(b"i" * 1000)
+    (pack / "pack-a.pack").write_bytes(b"p" * 5_000_000)
+    state = tmp_path / "state"
+    state.mkdir()
+    tight = R.warm_git_objects(state, tmp_path / "repo", free_gb=4.0, floor_gb=4.0)
+    assert tight["files"] == 0                                              # nothing fits above the floor
+    res = R.warm_git_objects(state, tmp_path / "repo", free_gb=50.0)
+    assert res["files"] == 2 and res["gb"] > 0
+    assert "skipped" in R.warm_git_objects(state, tmp_path / "repo", free_gb=50.0)
+    assert "skipped" in R.warm_git_objects(state, tmp_path / "nope", free_gb=50.0)

@@ -351,7 +351,7 @@ class Admitter:
 
 RAM_CANDIDATES: dict[str, str] = {
     "warm_model_cache": "IMPLEMENTED: read the local model file into the OS file cache so the next llama-server start skips the disk read",
-    "warm_tree_cache": "keep the repository tree / git object cache hot (kernel assess and planning re-read it every cycle)",
+    "warm_tree_cache": "IMPLEMENTED as warm_git_objects: read the git pack indexes/packs into the OS file cache so sandbox creation and assess do not hit a cold disk",
     "hot_test_evidence": "keep recent test evidence and cycle records parsed in memory for constraints and curriculum scans",
     "lm_data_in_memory": "load the language-model training corpus into RAM once so a training run starts without tokenising from disk",
     "price_data_preload": "load research/price panels for later analysis so a probe starts with the data resident",
@@ -411,6 +411,41 @@ def warm_model_cache(state: Path, model: Optional[Path] = None, free_gb: Optiona
     return res
 
 
+def warm_git_objects(state: Path, repo: Path, free_gb: Optional[float] = None, floor_gb: float = 4.0, ttl_s: float = 3 * 3600,
+                     clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+    """RAM-specific, low-CPU task: keep the repository's git object store (pack indexes, multi-pack-index, packs) in the OS file cache.
+    Every sandbox (`git worktree add`, checkout, diff, rev-parse) and every assess/plan cycle reads these files; on a repo whose packs are
+    GBs the first reader of a cold cache pays the disk. Packs are read smallest first while free RAM minus what is read stays above
+    `floor_gb`; re-done after `ttl_s`. Returns the files read, bytes and the cold-vs-warm throughput (estimated seconds saved)."""
+    state, repo = Path(state), Path(repo)
+    pack = repo / ".git" / "objects" / "pack"
+    if not pack.is_dir():
+        return {"task": "warm_git_objects", "skipped": "no pack directory"}
+    for r in reversed(_rows(state / RAM_WORK_FILE)):
+        if r.get("task") == "warm_git_objects" and r.get("repo") == str(repo) and time.time() - float(r.get("ts", 0)) < ttl_s:
+            return {"task": "warm_git_objects", "skipped": "warmed recently"}
+    free = read_machine().free_gb if free_gb is None else free_gb
+    files = sorted((f for f in pack.iterdir() if f.is_file()), key=lambda f: (f.suffix == ".pack", f.stat().st_size))   # indexes first
+    read = cold = 0.0
+    saved = 0.0
+    names: list[str] = []
+    for f in files:
+        size = f.stat().st_size / 1e9
+        if free - read - size < floor_gb:
+            continue
+        w = warm_file(f, max_gb=size + 0.01, clock=clock)
+        read += w["bytes"] / 1e9
+        cold += w["cold_s"]
+        saved += w["saved_s_estimate"]
+        names.append(f.name[:12])
+    res = {"task": "warm_git_objects", "repo": str(repo), "ts": time.time(), "files": len(names), "gb": round(read, 3),
+           "cold_s": round(cold, 3), "saved_s_estimate": round(saved, 3)}
+    if names:
+        _append(state / RAM_WORK_FILE, res)
+    record_task(state, "ram:warm_git_objects", cold, cold * 0.1, read)
+    return res
+
+
 _STARTED: dict[str, float] = {}
 
 
@@ -450,10 +485,16 @@ def learn(gov: Any, state: Path, step: str, started: float, others: int) -> None
 def ram_job(state: Path) -> Optional[Callable[[], None]]:
     """The next RAM-specific job for run_round's saturated-CPU branch (None when nothing is worth doing)."""
     done = {r.get("task") for r in _rows(Path(state) / RAM_WORK_FILE) if time.time() - float(r.get("ts", 0)) < 6 * 3600}
-    if "warm_model_cache" in done or time.time() - _STARTED.get(str(state), 0.0) < 3600:
+    if time.time() - _STARTED.get(str(state), 0.0) < 3600:
         return None
-    _STARTED[str(state)] = time.time()
-    return idle_thread(lambda: None if warm_model_cache(Path(state)) is None else None)
+    if "warm_model_cache" not in done:
+        _STARTED[str(state)] = time.time()
+        return idle_thread(lambda: None if warm_model_cache(Path(state)) is None else None)
+    if "warm_git_objects" not in done:
+        _STARTED[str(state)] = time.time()
+        repo = Path(state).resolve().parents[1]                                  # state/creator -> the repository
+        return idle_thread(lambda: None if warm_git_objects(Path(state), repo) is None else None)
+    return None
 
 
 # ------------------------------------------------------------------------------------------------ the constraint metric
