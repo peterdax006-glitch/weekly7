@@ -12,6 +12,7 @@ import argparse
 import dataclasses
 import datetime as dt
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -34,6 +35,8 @@ STATE = ROOT / "state" / "creator"
 HANDOFFS = STATE / "handoffs"                            # one file per package waiting for Claude (all at once, 2 Oct)
 LOG = STATE / "swarm_log.jsonl"
 HEARTBEAT = STATE / "teacher_heartbeat"                  # touched by the teacher's (Claude's) monitor while it is present
+DRAIN = STATE / "NUPEN_DRAIN"                           # deploy pause: plan nothing new, let in-flight cycles finish, exit cleanly
+DRAIN_MAX_S = float(os.environ.get("NUPEN_DRAIN_MAX_S", "3600"))     # in-flight cycles take 35-45 min
 LESSONS = STATE / "lessons.jsonl"                        # the curriculum: every handoff and student attempt as a lesson
 
 
@@ -158,7 +161,7 @@ def main(argv: list[str]) -> int:
                 print("ORPHANS RELEASED " + json.dumps(freed), flush=True)
         except Exception as e:                                           # noqa: BLE001 - never block the start on bookkeeping
             print(f"ORPHANS error: {type(e).__name__}: {e}", flush=True)
-        while a.rounds == 0 or n < a.rounds:
+        while (a.rounds == 0 or n < a.rounds) and not DRAIN.exists():
             n += 1
             try:
                 rec = cur.reconcile()                                    # settle lessons left pending by a stopped swarm (never raises)
@@ -171,18 +174,24 @@ def main(argv: list[str]) -> int:
                 print(json.dumps({"package": r.package, "req": r.requirement, "outcome": r.outcome, "reason": r.reason[:200],
                                   "by": r.details.get("worker", {}).get("by")}), flush=True)
             rnd = W.run_round(cfg, make_worker, gov, max_packages=a.packages, filler_budget=a.filler,
-                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"), on_report=on_report)
+                              filler=W.self_bench_filler(STATE / "self_bench.jsonl"), on_report=on_report,
+                              drain=DRAIN.exists, drain_max_s=DRAIN_MAX_S)
             line = {"round": n, "outcome": rnd.outcome, "packages": len(rnd.reports), "peak_parallel": rnd.peak_parallel,
                     "pulled_back": rnd.pulled_back, "by_outcome": K.summary(rnd.reports)["by_outcome"],
                     "free_gb": round(W.free_ram_gb(), 2), "at": dt.datetime.now().isoformat(timespec="seconds")}
             with LOG.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(line) + "\n")
             print("ROUND", json.dumps(line), flush=True)
+            if rnd.outcome == "DRAINED":
+                break
             if rnd.outcome == "RAM_TIGHT":
                 time.sleep(60)                                           # memory may free up soon: look again in a minute
             elif rnd.outcome != "WORKED":
-                time.sleep(600)                                          # nothing to do / red audit: look again later
-    print("SWARM DONE", flush=True)
+                for _ in range(600):                                     # nothing to do / red audit: look again later (a drain ends the wait)
+                    if DRAIN.exists():
+                        break
+                    time.sleep(1)
+    print("SWARM DONE" + (" (drained)" if DRAIN.exists() else ""), flush=True)
     return 0
 
 

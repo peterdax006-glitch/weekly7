@@ -35,28 +35,63 @@ GENESIS = "0" * 64
 LOCK_TIMEOUT_S = 30.0
 
 
-def _take_over_dead_lock(path: Path) -> bool:
-    """Remove the lock file only when the process it names is DEAD (an unknown or unreadable holder counts as alive: never
-    steal). The name is re-read just before removing, so a lock another writer has just re-taken is left alone."""
+EMPTY_LOCK_GRACE_S = 5.0          # a writer puts its pid in the lock within microseconds; an empty file this old was left by a kill
+
+
+def _holder_dead(path: Path) -> Optional[int]:
+    """The pid in the lock when that process is DEAD (or -1 for an empty lock older than the grace: a writer killed between
+    creating the lock and writing its pid); None when the holder is alive or cannot be told (never steal)."""
     try:
-        holder = int(path.read_text(encoding="utf-8").strip() or 0)
+        text = path.read_text(encoding="utf-8").strip()
+        holder = int(text or 0)
     except (OSError, ValueError):
-        return False
+        return None
+    if holder == 0 and not text:
+        try:
+            return -1 if time.time() - path.stat().st_mtime > EMPTY_LOCK_GRACE_S else None
+        except OSError:
+            return None
     if holder <= 0 or holder == os.getpid():
-        return False
+        return None
     try:
         import psutil
         if psutil.pid_exists(holder) and psutil.Process(holder).status() != psutil.STATUS_ZOMBIE:
-            return False
+            return None
     except Exception:                                   # noqa: BLE001 - cannot tell: treat as alive
+        return None
+    return holder
+
+
+def _take_over_dead_lock(path: Path) -> bool:
+    """Remove the lock file only when the process it names is DEAD (an unknown or unreadable holder counts as alive: never
+    steal). The check and the removal run under a short-lived guard file (`<lock>.takeover`, O_EXCL; a guard older than 10 s is
+    itself a leftover and is removed), and the holder is re-read INSIDE the guard - so two starters that both saw the same dead
+    holder cannot have the second delete the first one's fresh lock (the reviewer's unlink+create race)."""
+    if _holder_dead(path) is None:
         return False
+    guard = path.with_name(path.name + ".takeover")
     try:
-        if path.read_text(encoding="utf-8").strip() != str(holder):
-            return False
-        path.unlink()
+        fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except FileExistsError:
+        try:
+            if time.time() - guard.stat().st_mtime > 10.0:
+                guard.unlink()
+        except OSError:
+            pass
+        return False
     except OSError:
         return False
-    return True
+    try:
+        if _holder_dead(path) is None:                  # re-checked under the guard: a lock re-taken meanwhile is left alone
+            return False
+        path.unlink()
+        return True
+    except OSError:
+        return False
+    finally:
+        with contextlib.suppress(OSError):
+            guard.unlink()
 
 
 class LedgerError(RuntimeError):

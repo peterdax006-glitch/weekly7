@@ -35,6 +35,8 @@ if str(ROOT) not in sys.path:                     # launched as a script its pat
 from creator import device as DEV  # noqa: E402
 STATE = ROOT / "state" / "creator"
 STOP = STATE / "NUPEN_STOP"
+DRAIN = STATE / "NUPEN_DRAIN"          # graceful pause for deploys: the swarm finishes in-flight cycles and exits; no restart while it exists
+DRAIN_GRACE_S = float(os.environ.get("NUPEN_DRAIN_MAX_S", "3600")) + 300.0      # after this a still-running swarm is ended
 PIDFILE = STATE / "nupen_service.pid"
 LOG = STATE / "nupen_service.log"
 HEARTBEAT = STATE / "nupen_service.heartbeat"          # touched every poll; the watchdog restarts a supervisor whose beat goes stale
@@ -526,6 +528,15 @@ def _supervise(python: str, poll_s: float) -> None:
     _safe("watchdog check", ensure_watchdog)
     try:
         while not STOP.exists():
+            while DRAIN.exists() and not STOP.exists():                 # deploy pause: no swarm starts; the helpers keep running
+                if lm:
+                    _safe("LM trainer tick", lm.tick, False)
+                if pr:
+                    _safe("practice tick", pr.tick, False)
+                beat()
+                time.sleep(min(poll_s, 10.0))
+            if STOP.exists():
+                break
             started = time.monotonic()
             with (STATE / "swarm_service.log").open("a", encoding="utf-8") as out:
                 flags = (BELOW_NORMAL | NO_WINDOW) if sys.platform == "win32" else 0
@@ -533,8 +544,17 @@ def _supervise(python: str, poll_s: float) -> None:
                                         start_new_session=sys.platform != "win32")    # its own group: stop_tree ends it all
                 log(f"swarm started pid={proc.pid}")
                 write_swarm_pid(proc.pid)
+                drain_since: float | None = None
                 try:
                     while proc.poll() is None:
+                        if DRAIN.exists():                              # the swarm sees the file itself and winds down; only a hang is cut
+                            drain_since = drain_since or time.monotonic()
+                            if time.monotonic() - drain_since > DRAIN_GRACE_S:
+                                log("NUPEN_DRAIN: the swarm did not finish in time: ending its process tree")
+                                stop_tree(proc)
+                                break
+                        else:
+                            drain_since = None
                         if STOP.exists():
                             log("NUPEN_STOP found: stopping the swarm")
                             stop_tree(proc)
@@ -555,6 +575,9 @@ def _supervise(python: str, poll_s: float) -> None:
             log(f"swarm exited code={proc.returncode}")
             if STOP.exists():
                 break
+            if DRAIN.exists():
+                backoff = 30.0
+                continue                                                # drained: wait at the top for the file to go
             backoff = 30.0 if time.monotonic() - started > 1800 else min(backoff * 2, 1800.0)
             waited = 0.0
             while waited < backoff and not STOP.exists():               # the trainer keeps being supervised between swarm runs
