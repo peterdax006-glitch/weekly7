@@ -94,8 +94,9 @@ def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: flo
             glob = (gp * scale + 1.0) / (gn * scale + 2.0)
             ps = []
             for key in it.keys:
-                c = cnt.get(key)
-                if c:
+                cc = cnt.get(key)
+                if cc:
+                    c = cc
                     ps.append((c[1] * scale + k * glob) / (c[0] * scale + k))
             p = min(0.98, max(0.02, sum(ps) / len(ps) if ps else glob))
             out.append(T.Pred(topic, it.subject, t, p, T._laplace(hist), T._last(hist), it.y))
