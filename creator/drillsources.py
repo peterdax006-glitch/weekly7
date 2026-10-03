@@ -9,7 +9,8 @@ RESOLVED before it; the resolution time of a windowed event is the end of its wi
   plan_choice    plan_explanations.jsonl: will the scheduler choose this node (predicted from step / component / value)?
   research_bool  state/research/**.json top-level yes/no fields: predicted from the experiment family and the file's name pattern (setup)
 HARD EXCLUSIONS: state/livesim never read; any path that looks secret (.env, credential, secret, token, key, password, .pem) or like an answer
-key (key, answers, sealed) is skipped by name before it is opened; nothing leaves the machine (no network, local subprocess `git log` only).
+key (key, answers, sealed) is skipped by name before it is opened; nothing leaves the machine (local subprocess `git log` only; the one
+network use is creator.publicdata fetching/cloning PUBLIC upstreams, unauthenticated, and live_pass_x predicts their open commits).
 
 PARALLELISM: one drill batch = one JOB (source x model variant). `drill_filler(...)` returns a next_job() callable exactly like
 creator.swarm.self_bench_filler: the swarm / Governor admits as many jobs as CPU and RAM allow, and each job loads its WHOLE dataset in memory once
@@ -258,8 +259,40 @@ def extra_repos() -> list[Path]:
     own = [base / "Highlighting-Utah", base / "spanish-app", base / "Desktop" / "tico_project"]
     from creator import device as DEV
     pub = DEV.runtime_dir() / "public_repos"                          # owner 3 Oct: "you can also use public information it can learn off of"
-    public = sorted(d for d in pub.iterdir() if d.is_dir()) if pub.is_dir() else []
-    return [r for r in own + public if (r / ".git").exists()]
+    public = sorted(d for d in pub.iterdir() if d.is_dir() and not d.name.startswith(".") and not d.name.endswith(".tmp")) if pub.is_dir() else []
+    return [r for r in own + public if (r / ".git").exists()]                # a half-finished clone (staging, '.tmp') is never read
+
+
+def public_dir() -> Path:
+    from creator import device as DEV
+    return DEV.runtime_dir() / "public_repos"
+
+
+def is_public(repo: Path) -> bool:
+    """A clone of an ACTIVE public upstream (fetched, predicted live). Archived projects (~/oldpc) are never fetched."""
+    try:
+        return Path(repo).resolve().parent == public_dir().resolve()
+    except OSError:
+        return False
+
+
+def upstream_ref(repo: Path) -> str:
+    """What a public clone's history is read up to: the fetched upstream branch (origin/HEAD), never the stale checkout."""
+    if is_public(repo):
+        try:
+            return _git(repo, ["rev-parse", "--verify", "-q", "refs/remotes/origin/HEAD"], 60.0).strip() or "HEAD"
+        except (RuntimeError, OSError, subprocess.SubprocessError):
+            pass
+    return "HEAD"
+
+
+def _shallow_roots(repo: Path) -> set[str]:
+    """A shallow clone's boundary commits look parentless: their numstat is the WHOLE tree as 'added' - never a real commit, dropped."""
+    p = Path(repo) / ".git" / "shallow"
+    try:
+        return {ln.strip() for ln in p.read_text(encoding="utf-8").splitlines() if ln.strip()}
+    except OSError:
+        return set()
 
 
 def extra_cache_path(repo: Path) -> Path:
@@ -282,9 +315,29 @@ def stripped(c: dict[str, Any]) -> dict[str, Any]:
             "files": sorted(f"{_h8(f.split('/')[0])}/{_h8(f)}" for f in c["files"]), "lines": c["lines"], "add": c["add"], "del": c["del"]}
 
 
+_LOG_ARGS = ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
+
+
+def _tip_path(repo: Path) -> Path:
+    return extra_cache_path(repo).with_suffix(".tip")
+
+
+_XCACHE_LOCK = threading.RLock()            # a fetch job and the cache-building job never write one cache at once
+
+
 def build_extra_cache(repo: Path) -> int:
-    """The one full read of an archived history (BELOW_NORMAL priority, like every git read here), stored privacy-stripped; written whole or not at all."""
-    commits = _git_commits(repo)
+    """The one full read of an archived history (BELOW_NORMAL priority, like every git read here), stored privacy-stripped; written whole or not at all.
+    A public clone is read up to its fetched upstream tip (recorded beside the cache, so the next read is incremental)."""
+    with _XCACHE_LOCK:
+        return _build_extra_cache(repo)
+
+
+def _build_extra_cache(repo: Path) -> int:
+    ref = upstream_ref(repo)
+    tip = _git(repo, ["rev-parse", ref], 60.0).strip()
+    roots = _shallow_roots(repo)
+    commits = [c for c in _parse_log(_git(repo, _LOG_ARGS + [tip], GIT_FULL_TIMEOUT_S)) if c["h"] not in roots]
+    commits.sort(key=lambda c: c["t"])
     path = extra_cache_path(repo)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
@@ -292,7 +345,40 @@ def build_extra_cache(repo: Path) -> int:
         for c in commits:
             f.write(json.dumps(stripped(c)) + "\n")
     tmp.replace(path)
+    _tip_path(repo).write_text(tip, encoding="utf-8")
     return len(commits)
+
+
+def refresh_extra_cache(repo: Path, timeout: float = GIT_INC_TIMEOUT_S) -> int:
+    """Append a public clone's commits since the last read (`<tip>..origin/HEAD`, privacy-stripped) to its cache - incremental, like
+    refresh_git_cache for Nupen's own repo. No cache yet, or the old tip vanished (upstream rewrote history): one full rebuild."""
+    with _XCACHE_LOCK:
+        return _refresh_extra_cache(repo, timeout)
+
+
+def _refresh_extra_cache(repo: Path, timeout: float) -> int:
+    path = extra_cache_path(repo)
+    try:
+        old = _tip_path(repo).read_text(encoding="utf-8").strip()
+    except OSError:
+        old = ""
+    if not path.exists() or not old:
+        return build_extra_cache(repo)
+    tip = _git(repo, ["rev-parse", upstream_ref(repo)], 60.0).strip()
+    if tip == old:
+        return 0
+    try:
+        _git(repo, ["cat-file", "-e", f"{old}^{{commit}}"], 60.0)
+    except RuntimeError:
+        return build_extra_cache(repo)
+    seen = {c["h"] for c in _read_cache(path)} | _shallow_roots(repo)
+    new = [c for c in _parse_log(_git(repo, _LOG_ARGS + [f"{old}..{tip}"], timeout)) if c["h"] not in seen]
+    if new:
+        with path.open("a", encoding="utf-8") as f:
+            for c in new:
+                f.write(json.dumps(stripped(c)) + "\n")
+    _tip_path(repo).write_text(tip, encoding="utf-8")
+    return len(new)
 
 
 def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = None) -> list[BItem]:
@@ -400,7 +486,8 @@ def research_items(root: Path, max_files: int = 60000) -> list[BItem]:
 
 
 SOURCES: dict[str, str] = {"git_fixed": "git", "git_churn": "git", "journal_persist": "journal", "plan_choice": "plan", "research_bool": "research",
-                           "x_git_fixed": "gitx", "x_git_churn": "gitx"}   # gitx: other projects' archived histories (replay only)
+                           "x_git_fixed": "gitx", "x_git_churn": "gitx"}   # gitx: other projects' histories (archived + active public clones)
+XDIGEST_BYTES = 1_000_000
 
 
 def load(source: str, state: Path, repo: Path, journal: Path, research: Path) -> list[BItem]:
@@ -432,7 +519,9 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
             xs = extra_repos()
             if not xs or not all(extra_cache_path(r).exists() for r in xs):
                 return "-"
-            return "x" + str(sum(extra_cache_path(r).stat().st_size for r in xs))
+            # public clones grow with every fetch: a digest per byte would re-queue the whole x grid every few minutes and leave the live
+            # predictions' best variant chosen from one row. Steps of XDIGEST_BYTES (~5,000 stripped commits) or a new project re-queue it.
+            return f"x{len(xs)}.{sum(extra_cache_path(r).stat().st_size for r in xs) // XDIGEST_BYTES}"
         if SOURCES[source] == "journal":
             st = journal.stat()
             return f"{st.st_size}"
@@ -530,12 +619,14 @@ def _fast_mod() -> Any:
 
 
 def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources: Optional[Iterable[str]] = None, seed: Optional[int] = None,
-                 processes: bool = False) -> Callable[[], Optional[Callable[[], None]]]:
+                 processes: bool = False, public: bool = False) -> Callable[[], Optional[Callable[[], None]]]:
     """Like creator.swarm.self_bench_filler: returns next_job(); each call hands out one independent drill job. First the fixed VARIANTS grid per
     source, then (OPEN-ENDED, owner 2 Oct: the filler must never run dry while there is thinking left to improve) NEW variants proposed by
     `propose` - round-robin over the sources, at most SEARCH_OUTSTANDING in flight per source - until SEARCH_STOP_K consecutive variants fail to
     beat that source's best on the select part; a changed data digest (new commits, journal lines, plan rows, research files) reopens it.
-    Returns None only when every source is stopped or done for the present data. The swarm's Governor sets how many run at once."""
+    Returns None only when every source is stopped or done for the present data. The swarm's Governor sets how many run at once.
+    With `public` (the swarm; never tests) and an x source: also the network jobs of creator.publicdata - a `git fetch` of one active public
+    clone at a time (each at most every FETCH_EVERY_S) and, when the drills run dry or once an hour, the acquisition of one more public repo."""
     state = Path(state)
     srcs = list(sources) if sources else list(SOURCES)
     done = {(r.get("source"), json.dumps(r.get("variant"), sort_keys=True), r.get("digest")) for r in T._jsonl(runs_path(state))}
@@ -602,8 +693,54 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                 state_t["cache_flight"] = 0.0
         return job
 
+    pub_t = {"fetch_flight": 0.0, "acq_flight": 0.0, "check_at": 0.0, "acq_check_at": 0.0}
+
+    def public_job() -> Optional[Callable[[], None]]:
+        """One public-data network job, or None. Every check is throttled; a failure is logged and retried later, never raised."""
+        now = time.time()
+        try:
+            from creator import publicdata as PD
+            if not pub_t["fetch_flight"] and now >= pub_t["check_at"]:
+                pub_t["check_at"] = now + PD.CHECK_EVERY_S
+                due = PD.due_fetches(now)
+                if due:
+                    pub_t["fetch_flight"] = now
+
+                    def fjob() -> None:
+                        try:
+                            PD.refresh_public(due[0], time.time())
+                            digests.clear()
+                        except Exception as e:                     # noqa: BLE001 - recorded in public_fetch.json too; retried after FETCH_EVERY_S
+                            _error_row(state, "public_fetch", {"repo": due[0].name}, e, lock)
+                        finally:
+                            pub_t["fetch_flight"] = 0.0
+                            pub_t["check_at"] = 0.0
+                    return fjob
+            if not pub_t["acq_flight"] and now >= pub_t["acq_check_at"]:
+                pub_t["acq_check_at"] = now + PD.ACQ_CHECK_EVERY_S
+                if PD.acquisition_due(state, now):
+                    pub_t["acq_flight"] = now
+
+                    def ajob() -> None:
+                        try:
+                            PD.acquire_one(state)
+                            digests.clear()
+                        except Exception as e:                     # noqa: BLE001
+                            _error_row(state, "public_acquire", {}, e, lock)
+                        finally:
+                            pub_t["acq_flight"] = 0.0
+                    return ajob
+        except Exception as e:                                     # noqa: BLE001 - a broken public-data module never stops the drills
+            _error_row(state, "public_data", {}, e, lock)
+            pub_t["check_at"] = pub_t["acq_check_at"] = now + GIT_RETRY_S
+        return None
+
     def next_job() -> Optional[Callable[[], None]]:
         now = time.time()
+        if public and xgits:
+            pj = public_job()
+            if pj is not None:
+                return pj
         if deferred and now >= state_t["retry_at"]:
             queue[:0] = deferred
             deferred.clear()
@@ -692,9 +829,9 @@ def live_path(state: Path) -> Path:
     return state / "thinking" / "drill_live.jsonl"
 
 
-def _live_records(state: Path) -> dict[str, dict[str, Any]]:
+def _live_records(state: Path, path: Optional[Path] = None) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
-    for r in T._jsonl(live_path(state)):
+    for r in T._jsonl(live_path(state) if path is None else path):
         if "resolved" in r and r.get("id") in out:
             out[r["id"]].update(outcome=r["resolved"], resolved_at=r.get("at"))
         elif "p" in r:
@@ -754,13 +891,82 @@ def live_pass(state: Path, repo: Path, journal: Optional[Path] = None, now: Opti
 def live_preds(state: Path) -> dict[str, list[T.Pred]]:
     """Per source: the stored live predictions whose outcome has arrived (mode 'live')."""
     out: dict[str, list[T.Pred]] = {}
-    for rec in _live_records(state).values():
+    recs = list(_live_records(state).values()) + list(_live_records(state, live_x_path(state)).values())   # Nupen's repo + public upstreams
+    for rec in recs:
         if rec.get("outcome") is not None:
             out.setdefault(rec["source"], []).append(T.Pred(rec["source"], rec["subject"], rec["made_at"], rec["p"], rec["base"], rec["last"],
                                                            int(rec["outcome"]), "live"))
     for v in out.values():
         v.sort(key=lambda p: p.made_at)
     return out
+
+
+# ------------------------------------------------------------------------------------------------ prospective predictions on PUBLIC upstreams
+XLIVE_SOURCES = ("x_git_fixed", "x_git_churn")   # 3 Oct 2026: Nupen's own repo gets a few commits a day; active public upstreams get hundreds
+XLIVE_MAX_NEW = 5000
+_XLIVE_MEMO: dict[str, str] = {}
+
+
+def live_x_path(state: Path) -> Path:
+    return state / "thinking" / "drill_live_x.jsonl"
+
+
+def live_pass_x(state: Path, journal: Optional[Path] = None, now: Optional[float] = None, max_new: int = XLIVE_MAX_NEW,
+                repos: Optional[Sequence[Path]] = None) -> dict[str, int]:
+    """live_pass for the x sources: the best x variant's P for every commit of an ACTIVE public clone whose outcome window is still open in
+    its fetched history (never an archived project: those windows never close), resolved when later fetched upstream commits close it.
+    The model sees exactly the replay's items (all projects); only the public open commits are recorded. Stored apart from Nupen's own
+    (drill_live_x.jsonl, ids 'x_git_*:<project>:<hash>'); live_preds - and so trust_section's n_live and its 'live does worse' veto -
+    reads both. Cheap: nothing is loaded while no cache grew and no best variant changed since the last pass of this process."""
+    now = time.time() if now is None else now
+    state = Path(state)
+    journal = journal if journal is not None else Path.home() / "Masterstock" / "JOURNAL.md"
+    xs = list(extra_repos() if repos is None else repos)
+    pub = {r.name for r in xs if is_public(r)}
+    idle = {"new": 0, "resolved": 0, "skipped": 1}
+    if not pub:
+        return idle
+    bests = {s: best_variant(state, s) for s in XLIVE_SOURCES}
+    try:
+        sig = json.dumps([[r.name, extra_cache_path(r).stat().st_size] for r in xs] + [[s, (b or {}).get("variant")] for s, b in bests.items()],
+                         sort_keys=True)
+    except OSError:
+        return idle                                                  # a cache is still being built: the next pass
+    memo = str(state.resolve())
+    if _XLIVE_MEMO.get(memo) == sig:
+        return idle
+    known = _live_records(state, live_x_path(state))
+    new = resolved = 0
+    rows: list[dict[str, Any]] = []
+    for s in XLIVE_SOURCES:
+        b = bests[s]
+        if b is None:
+            continue
+        window, mode = (FIX_WINDOW, "fixed") if s == "x_git_fixed" else (CHURN_WINDOW, "churn")
+        raw = extra_git_items(window, mode, xs)
+        public_subjects = {it.subject for it in raw if it.keys[-1][2:] in pub}
+        items = apply_variant(raw, b["variant"], journal)
+        truth = {it.subject: it for it in items if it.resolved is not None}
+        for pid, rec in known.items():
+            if rec.get("source") == s and rec.get("outcome") is None and rec["subject"] in truth:
+                rows.append({"id": pid, "resolved": truth[rec["subject"]].y, "at": truth[rec["subject"]].resolved})
+                resolved += 1
+        for p in predict_open(items, s, b["variant"]):
+            pid = f"{s}:{p.subject}"
+            if p.subject not in public_subjects or pid in known or new >= max_new:
+                continue
+            rows.append({"id": pid, "source": s, "subject": p.subject, "made_at": now, "created": p.made_at, "p": p.p, "base": p.base,
+                         "last": p.last, "mode": "live", "variant": b["variant"]})
+            new += 1
+    if rows:
+        path = live_x_path(state)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r, sort_keys=True) + "\n")
+    if new < max_new:
+        _XLIVE_MEMO[memo] = sig
+    return {"new": new, "resolved": resolved}
 
 
 # ------------------------------------------------------------------------------------------------ open-ended variant search
