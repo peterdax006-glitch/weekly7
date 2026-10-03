@@ -501,20 +501,25 @@ class _KernelLock:
     def __enter__(self) -> "_KernelLock":
         import os
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        if self.path.exists():                                         # a lock whose holder is DEAD is taken over (1 Oct:
-            try:                                                        # I deleted one by hand while its holder still ran)
-                holder = int(self.path.read_text(encoding="utf-8").strip() or 0)
-            except (ValueError, OSError):
-                holder = -1
-            if holder > 0 and not _pid_alive(holder):
-                self.path.unlink(missing_ok=True)
-        try:
-            fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            age = time.time() - self.path.stat().st_mtime
-            raise KernelError(f"another kernel holds {self.path} ({age:.0f}s old"
-                              + ("; looks stale - remove it only after checking no kernel runs" if age > self.stale_s else "")
-                              + ")") from None
+        from creator.ledger import _take_over_dead_lock
+        fd = -1
+        for attempt in range(5):
+            try:
+                fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                break
+            except FileExistsError:
+                if _take_over_dead_lock(self.path):                    # a lock whose holder is DEAD is taken over (1 Oct: I deleted
+                    continue                                           # one by hand while its holder still ran); guarded, so two
+                try:                                                   # starters cannot steal each other's fresh lock
+                    age = time.time() - self.path.stat().st_mtime
+                except OSError:                                        # it vanished between the two calls: look again
+                    time.sleep(0.05)
+                    continue
+                raise KernelError(f"another kernel holds {self.path} ({age:.0f}s old"
+                                  + ("; looks stale - remove it only after checking no kernel runs" if age > self.stale_s else "")
+                                  + ")") from None
+        if fd < 0:
+            raise KernelError(f"another kernel is starting on {self.path}")
         os.write(fd, str(os.getpid()).encode())
         os.close(fd)
         return self

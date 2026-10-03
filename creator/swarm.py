@@ -286,9 +286,11 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
 def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Optional[Governor] = None,
               max_packages: int = 8, poll_s: float = 2.0, on_report: Optional[Callable[[K.CycleReport], None]] = None,
               filler: Optional[Callable[[], Optional[Callable[[], None]]]] = None, filler_budget: int = 0,
-              scheduled: bool = True) -> RoundReport:
+              scheduled: bool = True, drain: Optional[Callable[[], bool]] = None, drain_max_s: float = 3600.0) -> RoundReport:
     """`scheduled` (default): gap work is chosen as a batch by creator.schedule (dependency graph, critical path, no two plans on
-    one component/file); False keeps the old one-package-at-a-time K.plan_one path."""
+    one component/file); False keeps the old one-package-at-a-time K.plan_one path.
+    `drain` (a deploy pause, 2 Oct: a force-kill lost every in-flight 35-45 min cycle): once it returns True nothing new is planned,
+    started or filled; running packages finish; after `drain_max_s` they are cancelled; the round ends 'DRAINED'."""
     gov = governor or Governor()
     scratch_dir = cfg.scratch or REG.get("device").sandbox_root(cfg.repo)
     if gov.observe is None:                                             # measure what workers really use
@@ -319,6 +321,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
 
     queue: list[Any] = []                                               # planned, not yet started (the ramp spaces the starts)
     status_at = [0.0]
+    drain_t0: Optional[float] = None
 
     def start(plan: Any) -> None:
         nonlocal last_start, peak
@@ -354,6 +357,19 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
         for r in [r for r in running if not r.thread.is_alive()]:
             running.remove(r)
             finish(r)
+        if drain is not None and drain():
+            if drain_t0 is None:
+                drain_t0 = time.monotonic()
+                dropped, queue[:] = len(queue), []                      # planned but not started: never started
+                print(f"DRAIN started: nothing new; {len(running)} running may finish for {drain_max_s:.0f}s; {dropped} queued dropped", flush=True)
+            exhausted = True
+            if time.monotonic() - drain_t0 > drain_max_s:
+                for r in running:
+                    if not r.cancel.is_set():
+                        r.cancel.set()
+                        stop_worker_processes(cfg.scratch or REG.get("device").sandbox_root(cfg.repo), r.plan.package_id)
+                if time.monotonic() - drain_t0 > drain_max_s + 120.0:
+                    break                                               # cancelled workers and fillers had two minutes to end
         key = tuple(sorted(r.plan.package_id for r in running))
         active = [r for r in running if r.plan.package_id not in WAITING]
         fillers[:] = [f for f in fillers if f.is_alive()]
@@ -405,7 +421,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
                 planned += len(plans)
                 queue.extend(plans)
                 continue
-        if ((exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
+        if (drain_t0 is None and (exhausted or planned >= max_packages or nothing_while == key) and filler is not None and fill_left > 0 and ramped and not gov.too_tight()
                 and gov.can_start(load)):
             job_fn = filler()                                           # leftover memory: useful measurement work
             if job_fn is not None:
@@ -424,7 +440,7 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
             break                                                       # wait forever - found by the tight-RAM test, 2 Oct)
         time.sleep(poll_s)
     Ledger(cfg.ledger_path, evidence_root=cfg.repo).checkpoint(f"swarm round: {len(reports)} packages, peak {peak} parallel")
-    outcome = "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
+    outcome = "DRAINED" if drain_t0 is not None else "WORKED" if reports else ("RAM_TIGHT" if starved else "NOTHING_TO_DO")
     return RoundReport(outcome, reports, peak, pulled, "free RAM below the reserve; nothing could start" if starved else "")
 
 

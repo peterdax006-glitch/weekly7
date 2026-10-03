@@ -386,3 +386,43 @@ def test_a_coverage_package_that_edits_production_code_is_rejected(cfg: K.Kernel
                      total=lambda: 16.0, observe=lambda n: None)
     rnd = W.run_round(cfg, lambda: SW2.SelfFirst([Sneaky()], None), gov, max_packages=1, poll_s=0.2)
     assert [r.outcome for r in rnd.reports] == ["REJECTED"] and "may only add tests" in rnd.reports[0].reason
+
+
+def test_drain_lets_in_flight_work_finish_and_plans_nothing_new(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A deploy pause must not kill a 35-45 min cycle: once draining, the running package finishes, nothing else is planned."""
+    real_execute = K.execute
+    draining = {"on": False}
+
+    def execute(*a: Any, **k: Any) -> Any:
+        draining["on"] = True                                               # the pause arrives while this package runs
+        return real_execute(*a, **k)
+    monkeypatch.setattr(K, "execute", execute)
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.1, drain=lambda: draining["on"], drain_max_s=600.0)
+    assert rnd.outcome == "DRAINED"
+    assert [r.outcome for r in rnd.reports] == ["ADOPTED"]                   # it finished; the other two were never planned
+
+
+def test_drain_before_anything_starts_runs_nothing(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*a: Any, **k: Any) -> Any:
+        raise AssertionError("nothing may start while draining")
+    monkeypatch.setattr(K, "execute", boom)
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.1, drain=lambda: True, drain_max_s=0.0)
+    assert rnd.outcome == "DRAINED" and rnd.reports == []
+
+
+def test_drain_cancels_work_that_outlasts_the_wait(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    draining = {"on": False}
+
+    def hang(*a: Any, **k: Any) -> Any:
+        draining["on"] = True
+        k["cancel"].wait(60)                                                # only the cancel from the drain timeout ends it
+        return K.CycleReport(1, "CANCELLED", a[2].package_id, a[2].requirement_key, reason="drain timeout")
+    monkeypatch.setattr(K, "execute", hang)
+    gov = W.Governor(ramp_s=0.0, floor_min_gb=0.0, floor_fraction=0.0, per_worker_gb=0.0, max_workers=1, free=lambda: 10.0,
+                     total=lambda: 16.0, observe=lambda n: None)
+    rnd = W.run_round(cfg, own, gov, max_packages=3, poll_s=0.1, drain=lambda: draining["on"], drain_max_s=0.5)
+    assert rnd.outcome == "DRAINED" and [r.outcome for r in rnd.reports] == ["CANCELLED"]
