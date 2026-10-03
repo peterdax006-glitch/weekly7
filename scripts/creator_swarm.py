@@ -124,6 +124,7 @@ def make_curriculum(lessons: Path = LESSONS, students=None, model_student: bool 
 
 THINK_EVERY_S = 600.0                                     # live predictions + resolutions (thinking.run)
 BLUEPRINT_EVERY_S = 3600.0                                # a dated blueprint snapshot (anticipation needs a time series of them)
+LEARN_EVERY_S = 1800.0                                    # the learning loop: progress, retention, diagnosis, improvement (creator.learnloop)
 _THINK_LAST = {"run": 0.0, "blueprint": 0.0}
 
 
@@ -161,6 +162,10 @@ def make_filler():                                        # type: ignore[no-unty
                     import subprocess
                     return lambda: subprocess.run([sys.executable, str(ROOT / "scripts" / "nupen_blueprint.py"), "--state", str(STATE)],
                                                   capture_output=True, timeout=1800, cwd=ROOT)
+                learn = REG.optional("learnloop")
+                if learn is not None and now - _THINK_LAST.get("learn", 0.0) >= LEARN_EVERY_S:
+                    _THINK_LAST["learn"] = now                   # test on the data, diagnose, improve, re-measure (creator.learnloop)
+                    return lambda: learn.run(STATE, ROOT)
                 _THINK_LAST["n"] = _THINK_LAST.get("n", 0) + 1
                 if judge is not None and _THINK_LAST["n"] % 3 == 0:        # every third call: a local-model judgment batch (RAM-heavy; admission decides)
                     j = judge()

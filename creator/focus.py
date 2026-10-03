@@ -25,6 +25,20 @@ THINKING_MODULES = frozenset({"creator/reasoning.py", "creator/goals.py", "creat
                               "creator/focus.py", "creator/planner.py", "creator/meta.py", "scripts/nupen_blueprint.py"})
 
 
+THINKING_MODULE_PREFIX = "creator/goal_think_"     # goals proposed by the learning loop (creator.learnloop) for a diagnosed thinking weakness
+APPROVED_FILE = Path(__file__).resolve().parent / "capabilities_approved.json"
+
+
+def approved_thinking_components(path: Path = APPROVED_FILE) -> frozenset[str]:
+    """Approved capabilities (K-ids) whose module is a learn-loop thinking goal: their gaps are thinking work like THINKING_COMPONENTS."""
+    try:
+        caps = json.loads(path.read_text(encoding="utf-8")).get("capabilities", [])
+    except (OSError, ValueError, AttributeError):
+        return frozenset()
+    return frozenset(str(c.get("id")) for c in caps if isinstance(c, dict)
+                     and any(str(m).replace("\\", "/").startswith(THINKING_MODULE_PREFIX) for m in c.get("modules", [])))
+
+
 def focus_path(state: Path) -> Path:
     return Path(state) / "focus.json"
 
@@ -60,7 +74,12 @@ def is_thinking_work(item: Any) -> bool:
     mods = _get(item, "modules", "outputs", "files") or []
     mods = [mods] if isinstance(mods, str) else list(mods)
     req = str(_get(item, "requirement_key", "requirement", "req", "key") or "").split(".")[0]
-    return comp in THINKING_COMPONENTS or req in THINKING_COMPONENTS or any(str(m).replace("\\", "/") in THINKING_MODULES for m in mods)
+    if comp in THINKING_COMPONENTS or req in THINKING_COMPONENTS or comp.startswith(THINKING_MODULE_PREFIX):
+        return True
+    if any(str(m).replace("\\", "/") in THINKING_MODULES or str(m).replace("\\", "/").startswith(THINKING_MODULE_PREFIX) for m in mods):
+        return True
+    learned = approved_thinking_components()
+    return bool(learned) and (comp in learned or req in learned)
 
 
 DEFAULT_STATE = Path(__file__).resolve().parents[1] / "state" / "creator"
