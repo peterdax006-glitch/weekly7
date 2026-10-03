@@ -29,6 +29,8 @@ MODEL_FILE = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 MODEL_GB = 1.1                                       # that file's size; a bigger model passes its own size to derive()
 
 # Ratios that reproduce the settings the Creator ran with on the 16.8 GB / 8-core development machine.
+SERVER_GB = 1.8             # measured 2 Oct 2026 (33.8 GB PC): resident GiB of one local model server at ctx 8192 (1.69 at 4096, 2.02 at 16384)
+SERVER_MAX_THREADS = 4      # measured under load: 11 threads 1-4 tok/s, 4 threads ~3-8, 2 threads ~4-6; 3 servers x2 threads beat x4 in total
 SLOT_GB = 3.8                # RAM per parallel test slot (16.8 GB -> 4: the machine-wide budget of creator.testslots; one source of truth)
 TEST_MB = 120.0              # per-test-process MB assumed until a real launch has been measured (creator.testslots reads this)
 WORKER_PER_GB = 1.9          # governor ceiling on concurrent workers per GB of RAM (16.8 GB -> 32); the RAM floor is what really limits
@@ -251,8 +253,9 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
         out["governor_floor_fraction"] = 0.0
         out["governor_floor_min_gb"] = max(0.5, round(dev.ram_gb - float(target) * 1.073741824, 2))
     if out["user_aware"] is False and "llama_servers" not in ov:
-        # ~2 GB per server (1.1 GB model + context); up to 60% of RAM, never more servers than physical cores
-        out["llama_servers"] = max(1, min(dev.cores_physical, int(dev.ram_gb * 0.6 / 2.0)))
+        # SERVER_GB per server, up to 60% of RAM; every server gets >= 2 threads, so never more servers than half the logical
+        # CPUs (measured: more oversubscription only slows every server and stretches start-up)
+        out["llama_servers"] = max(1, min(dev.cores_logical // 2, int(dev.ram_gb * 0.6 / SERVER_GB)))
     if out["user_aware"] is False and "test_slots" not in ov:
         # owner, 2 Oct 2026 (new PC): "use all of it except a single GB" - with no yielding, the per-slot RAM guess is not the
         # limit; every slot is still admitted only while measured free RAM minus the floor holds one more test (testslots)
