@@ -356,6 +356,8 @@ class _Thinking:
 
     def __init__(self, lm: Any) -> None:
         self.lm, self.model = lm, getattr(lm, "model", "")
+        from creator import device as DEV
+        self.call_timeout = DEV.call_timeout_s(Path(str(self.model)), CALL_TIMEOUT_S) if self.model else CALL_TIMEOUT_S     # a 4B/8B thinker is slower
 
     def __enter__(self) -> "_Thinking":
         self.lm.__enter__()
@@ -368,12 +370,16 @@ class _Thinking:
         return J.chat_text(self.lm, messages, **kw)
 
 
+CALL_TIMEOUT_S = 300.0                 # per model call, for a model the size of the fast one (bigger thinkers: device.call_timeout_s)
+THINK_MODEL_OVERRIDE: Optional[Path] = None    # a MEASUREMENT of a candidate thinker (scripts/nupen_thinkbench.py --think-model); never the live setting
+
+
 def thinker_llm_factory(i: int) -> Any:
     """The THINKING model (device 'think_model') on its own private server, same threads and startup as the default; KeyError when none is
     configured or on disk (a benchmark of 'the thinker' must never silently fall back to the fast model)."""
     from creator import device as DEV
     from creator import generator as G
-    path = DEV.think_model_path()
+    path = THINK_MODEL_OVERRIDE or DEV.think_model_path()
     if path is None:
         raise KeyError("no thinking model configured or on disk (device setting 'think_model')")
     d = Path(tempfile.gettempdir()) / f"thinkbench_think{i}"
@@ -386,7 +392,7 @@ def model_path(model: str) -> Optional[Path]:
     from creator import generator as G
     if model == "thinker":
         from creator import device as DEV
-        return DEV.think_model_path()
+        return THINK_MODEL_OVERRIDE or DEV.think_model_path()
     return Path(G.DEFAULT_MODEL)
 
 
@@ -409,7 +415,8 @@ def ask_all(jobs: Sequence[tuple[str, list[dict[str, str]], int, float]], llm_fa
                     except queue.Empty:
                         return
                     try:
-                        r: Optional[str] = llm.chat(msgs, max_tokens=mt, temperature=temp, seed=0, timeout=300.0)
+                        r: Optional[str] = llm.chat(msgs, max_tokens=mt, temperature=temp, seed=0,
+                                                    timeout=float(getattr(llm, "call_timeout", CALL_TIMEOUT_S)))
                     except Exception:                               # noqa: BLE001 - one bad call is one missing answer
                         r = None
                     with lock:

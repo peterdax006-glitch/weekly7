@@ -274,8 +274,7 @@ class LocalModel:
         cfg = DEV.settings()                                   # threads and GPU layers follow the machine unless given
         self.servers = max(1, int(cfg.get("llama_servers", 1)) if servers is None else servers)
         if threads is None:                                    # several servers share the cores (2x oversubscribed, >= 2 each)
-            threads = int(cfg["llama_threads"]) if self.servers == 1 else \
-                max(2, min(DEV.SERVER_MAX_THREADS, 2 * int(cfg["llama_threads"]) // self.servers))
+            threads = DEV.server_threads(cfg, self.servers)
         self.base_pidfile, self.slot_wait_s = pidfile, slot_wait_s
         self.gpu_layers = int(cfg["gpu_layers"]) if gpu_layers is None else gpu_layers
         self.model, self.exe, self.ctx, self.threads, self.startup_s = model, exe, ctx, threads, startup_s
@@ -425,8 +424,10 @@ class LocalModel:
             free = self.free_gb()
             if free is None:                                   # unknown free RAM never opens the gate
                 return False
-            claimed = self._starting_count(others_only=True) * DEV.SERVER_GB     # loading servers have not taken their RAM yet
-            return free - claimed - DEV.server_gb_for(self.model) > testslots.reserve_gb(DEV.get().ram_gb)
+            mine = DEV.server_gb_for(self.model)
+            # loading servers have not taken their RAM yet; one of a big thinking model may be as big as this one (never below SERVER_GB)
+            claimed = self._starting_count(others_only=True) * mine
+            return free - claimed - mine > testslots.reserve_gb(DEV.get().ram_gb)
         except Exception:                                      # noqa: BLE001 - an unreadable budget means no extra server
             return False
 
@@ -465,7 +466,9 @@ class LocalModel:
         return THINK_BLOCK.sub("", self.chat(prepare_messages(messages, self.model), **kw)).strip()
 
     def chat(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 1500, temperature: float = 0.2,
-             seed: int = 0, timeout: float = 600.0) -> str:
+             seed: int = 0, timeout: Optional[float] = None) -> str:
+        if timeout is None:                                    # 600 s for the fast model; a bigger (slower) thinking model gets longer
+            timeout = DEV.call_timeout_s(self.model, 600.0)
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body,
@@ -478,7 +481,7 @@ class LocalModel:
         return str(data["choices"][0]["message"]["content"])
 
 
-THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
+THINK_BLOCK = re.compile(r"<think>.*?(?:</think>|\Z)", re.S)    # an unclosed block (max_tokens hit mid-thought) is scratch work too
 NO_THINK_MODELS = ("qwen3",)      # measured 3 Oct 2026: Qwen3-1.7B with thinking took 60-100 s per question for no accuracy gain over '/no_think'
 
 
@@ -501,6 +504,9 @@ def thinker(free_gb: Optional[Callable[[], Optional[float]]] = None, cfg: Option
     model = DEV.think_model_path(c)
     if model is None or int(c.get("think_servers", 0)) < 1:
         return LocalModel(**kw)
+    if "threads" not in kw:                               # a cold thinker gets the threads of the 'think_servers' that may run at once
+        kw["threads"] = DEV.server_threads(c, int(c["think_servers"]))
+    kw.setdefault("startup_s", DEV.call_timeout_s(model, 120.0))   # a 5 GB thinker loads longer than the 1 GB fast model
     lm = LocalModel(model=model, **kw)                    # all machine slots (slot 0 = the original lock): a free slot is a free slot
     if free_gb is not None:
         lm.free_gb = free_gb

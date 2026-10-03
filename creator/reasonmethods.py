@@ -221,12 +221,12 @@ def majority(ps: Sequence[float]) -> Optional[float]:
 
 
 def sample(chat: Callable[..., str], msgs: list[dict[str, str]], parse: Callable[[str], Optional[float]], n: int, max_tokens: int,
-           ) -> tuple[list[float], str, int]:
+           timeout: float = 300.0) -> tuple[list[float], str, int]:
     """n samples (temperature 0.2 for one, 0.7 for several; distinct seeds) -> (parsed probabilities, first reply, approximate tokens used)."""
     ps: list[float] = []
     first, toks = "", sum(len(m["content"]) for m in msgs) // 4
     for i in range(max(1, n)):
-        reply = chat(msgs, max_tokens=max_tokens, temperature=0.2 if n <= 1 else 0.7, seed=i, timeout=300.0)
+        reply = chat(msgs, max_tokens=max_tokens, temperature=0.2 if n <= 1 else 0.7, seed=i, timeout=timeout)
         first = first or reply
         toks += (sum(len(m["content"]) for m in msgs) + len(reply)) // 4 if i else len(reply) // 4
         p = parse(reply)

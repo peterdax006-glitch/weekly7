@@ -695,6 +695,9 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
     t_end = dt.datetime.now(dt.timezone.utc)
     with make_llm() as llm:
         tag = Path(str(getattr(llm, "model", ""))).name or active_tag()
+        from creator import device as DEV
+        # 300 s per call for a fast-model-sized server; a 4B/8B thinker (2-4x slower on CPU) gets proportionally longer
+        call_s = DEV.call_timeout_s(Path(str(llm.model)), 300.0) if getattr(llm, "model", None) else 300.0
         for c, s in batch:
             fp = _fast_mod()
             pid = None
@@ -720,7 +723,7 @@ def run_batch(state: Path, batch: Sequence[tuple[Case, dict[str, Any]]], cases: 
                 if ap is not None:
                     row["anchor_p"] = round(ap, 4)
                 ps, first, toks = RM.sample(lambda m, **kw: chat_text(llm, m, **kw), msgs, parse, int(s.get("samples", 1)),
-                                            300 if s.get("structured") else 120)
+                                            300 if s.get("structured") else 120, call_s)
                 row.update(p=RM.aggregate(ps), reply=first[:300], tokens=toks)
                 if len(ps) > 1:
                     row["ps"] = [round(x, 4) for x in ps]

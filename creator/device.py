@@ -28,7 +28,9 @@ OVERRIDES = STATE_DIR / "device_overrides.json"
 MODEL_FILE = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
 MODEL_GB = 1.1                                       # that file's size; a bigger model passes its own size to derive()
 THINK_MODEL_FILE = "Qwen3-1.7B-Q4_K_M.gguf"          # the THINKING model's file in models/ (measured 3 Oct 2026: 22/24 vs 6/24 on test->module questions; models/MODELS.json)
-THINK_OVERHEAD_GB = 0.7                              # resident GiB of a server beyond its weights at ctx 8192 (1.1 GB file -> 1.8 measured)
+THINK_WEIGHT_FACTOR = 1.9                            # measured 3 Oct 2026 (working set after a first answer, ctx 8192, default mmap load): Qwen3 1.7B
+THINK_OVERHEAD_GB = 0.7                              # 1.03 GiB file -> 2.61 GB, 4B 2.33 -> 5.17, 8B 4.68 -> 8.78; mapped file pages AND the repacked weight
+                                                     # copy are both resident (~2x the file; '-lm none' measured 1.98 / 3.53 for 1.7B / 4B)
 
 # Ratios that reproduce the settings the Creator ran with on the 16.8 GB / 8-core development machine.
 SERVER_GB = 1.8             # measured 2 Oct 2026 (33.8 GB PC): resident GiB of one local model server at ctx 8192 (1.69 at 4096, 2.02 at 16384)
@@ -112,7 +114,22 @@ def server_gb_for(model: Path) -> float:
         gb = model.stat().st_size / 2**30
     except OSError:
         return SERVER_GB
-    return max(SERVER_GB, round(gb + THINK_OVERHEAD_GB, 2))
+    return max(SERVER_GB, round(THINK_WEIGHT_FACTOR * gb + THINK_OVERHEAD_GB, 2))
+
+
+def server_threads(cfg: Mapping[str, Any], servers: int) -> int:
+    """Threads for each of `servers` llama servers running side by side: one server gets all of 'llama_threads'; several share the cores
+    (2x oversubscribed, >= 2 and <= SERVER_MAX_THREADS each). `servers` is how many may REALLY run at once (a 2-server thinking pool gets
+    the threads of 2 servers, not of every machine slot)."""
+    servers = max(1, int(servers))
+    llama = int(cfg["llama_threads"])
+    return llama if servers == 1 else max(2, min(SERVER_MAX_THREADS, 2 * llama // servers))
+
+
+def call_timeout_s(model: Path, base_s: float) -> float:
+    """A per-call timeout that grows with the model: a server sized like the fast model keeps `base_s`; a 4B/8B thinker (2-3x the resident size,
+    measured ~2-4x slower per token on CPU) gets proportionally longer before a call is given up."""
+    return round(base_s * max(1.0, server_gb_for(model) / SERVER_GB), 1)
 
 
 def venv_python(venv: Path, windowless: bool = False) -> Path:
@@ -283,7 +300,10 @@ def derive(dev: Device, *, model_gb: float = MODEL_GB, lm_cuda: Optional[bool] =
     if out["think_model"] and "think_servers" not in ov:
         # a thinking server is bigger than a fast one: as many as fit in 25% of RAM (at least one on a machine with >= 12 GB), at most 2;
         # the moment-to-moment gate is the free-RAM check in generator.thinker()
-        out["think_servers"] = max(0, min(2, int(dev.ram_gb * 0.25 / max(model_gb, SERVER_GB)))) if dev.ram_gb >= 12 else 0
+        # 3 Oct 2026: sized by the THINKING model's own server (a 4B/8B thinker is 3-6 GB, not the fast model's 1.8)
+        think_path = think_model_path(out, Path(dev.runtime_dir))
+        think_gb = server_gb_for(think_path) if think_path is not None else max(model_gb, SERVER_GB)
+        out["think_servers"] = max(1, min(2, int(dev.ram_gb * 0.25 / think_gb))) if dev.ram_gb >= 12 else 0
     if out["user_aware"] is False and "test_slots" not in ov:
         # owner, 2 Oct 2026 (new PC): "use all of it except a single GB" - with no yielding, the per-slot RAM guess is not the
         # limit; every slot is still admitted only while measured free RAM minus the floor holds one more test (testslots)
