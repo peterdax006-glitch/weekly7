@@ -129,7 +129,7 @@ _GIT_CACHE: dict[str, list[dict[str, Any]]] = {}
 GIT_FULL_TIMEOUT_S = 6 * 3600.0     # the first full read of a big repo on a loaded machine is slow: generous, and done once, in its own job
 GIT_INC_TIMEOUT_S = 300.0           # an incremental `<last>..HEAD` read
 GIT_RETRY_S = 900.0                 # a source whose data could not be read is retried after this long, never dropped for good
-IDLE_PRIORITY = 0x00004000          # BELOW_NORMAL_PRIORITY_CLASS: IDLE starved on the always-busy machine (2 Oct: 0.2 s CPU in 5 min)
+IDLE_PRIORITY = 0x00004000          # BELOW_NORMAL_PRIORITY_CLASS: true IDLE starves for hours on an always-busy machine (a full git log never finished)
 DEFAULT_STATE: Optional[Path] = None   # set by load(): lets callers without a state argument (judgment) reach the same persistent cache
 
 
@@ -184,7 +184,7 @@ def refresh_git_cache(repo: Path, state: Path, full_timeout: float = GIT_FULL_TI
         except RuntimeError:                                       # history was rewritten: rebuild from scratch
             have = []
             path.unlink(missing_ok=True)
-    args = ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
+    args = ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
     new = _parse_log(_git(repo, args + ([rng] if rng else []), timeout))
     seen = {c["h"] for c in have}
     new = [c for c in new if c["h"] not in seen]
@@ -213,7 +213,7 @@ def _parse_log(text: str) -> list[dict[str, Any]]:
 
 
 def _git_commits(repo: Path) -> list[dict[str, Any]]:
-    commits = _parse_log(_git(repo, ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"], GIT_FULL_TIMEOUT_S))
+    commits = _parse_log(_git(repo, ["log", "--reverse", "--no-merges", "--no-renames", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"], GIT_FULL_TIMEOUT_S))
     commits.sort(key=lambda c: c["t"])
     return commits
 
