@@ -249,6 +249,67 @@ def git_items(repo: Path, window: int, mode: str, state: Optional[Path] = None) 
     return _git_events(git_commits(repo, state), window, mode)
 
 
+# ------------------------------------------------------------------------------------------------ other projects' histories (replay only)
+def extra_repos() -> list[Path]:
+    """Other projects on this machine (owner 2 Oct 2026: 'use all the data it has access to'; 3 Oct: 'souly only focus on Nupens thinking
+    capacity'): archived git histories that train the same git judgments on ~2,850 more commits than Nupen's own. They never change, so they are
+    replayed only - never live predictions, never trust on their own."""
+    base = Path.home() / "oldpc"
+    own = [base / "Highlighting-Utah", base / "spanish-app", base / "Desktop" / "tico_project"]
+    from creator import device as DEV
+    pub = DEV.runtime_dir() / "public_repos"                          # owner 3 Oct: "you can also use public information it can learn off of"
+    public = sorted(d for d in pub.iterdir() if d.is_dir()) if pub.is_dir() else []
+    return [r for r in own + public if (r / ".git").exists()]
+
+
+def extra_cache_path(repo: Path) -> Path:
+    """OUTSIDE the (public) repository: other projects' commit messages never sit where a commit could publish them."""
+    from creator import device as DEV
+    return DEV.runtime_dir() / "thinking" / f"git_history_x_{repo.name}.jsonl"
+
+
+def _h8(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def stripped(c: dict[str, Any]) -> dict[str, Any]:
+    """PRIVACY-STRIPPED commit (owner, 3 Oct 2026: other projects' histories only without personal data): no author, no message text, no
+    body, no readable path. Kept: time, line counts, the message's first word (its type) plus 'fix' when a fix word occurred, and each path as
+    '<hash of top folder>/<hash of path>' - the features the git drills use (type, fix, top folder, file overlap) come out identical."""
+    s = str(c.get("s", ""))
+    kind = _msg_class(s)
+    return {"h": c["h"], "t": c["t"], "s": f"{kind} fix" if FIX_WORDS.search(s) else f"{kind} -",
+            "files": sorted(f"{_h8(f.split('/')[0])}/{_h8(f)}" for f in c["files"]), "lines": c["lines"], "add": c["add"], "del": c["del"]}
+
+
+def build_extra_cache(repo: Path) -> int:
+    """The one full read of an archived history (BELOW_NORMAL priority, like every git read here), stored privacy-stripped; written whole or not at all."""
+    commits = _git_commits(repo)
+    path = extra_cache_path(repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for c in commits:
+            f.write(json.dumps(stripped(c)) + "\n")
+    tmp.replace(path)
+    return len(commits)
+
+
+def extra_git_items(window: int, mode: str, repos: Optional[Sequence[Path]] = None) -> list[BItem]:
+    """Every archived project's commits as git items (windows never cross projects), tagged 'r:<project>', in creation order."""
+    out: list[BItem] = []
+    for repo in (extra_repos() if repos is None else repos):
+        path = extra_cache_path(repo)
+        if not path.exists():
+            raise GitCacheMissing(f"{path} not built yet; the extra-history job builds it")
+        commits = _read_cache(path)
+        commits.sort(key=lambda c: c["t"])
+        for it in _git_events(commits, window, mode):
+            out.append(BItem(it.keys + (f"r:{repo.name}",), it.created, it.resolved, it.y, f"{repo.name[:8]}:{it.subject}"))
+    out.sort(key=lambda it: it.created)
+    return out
+
+
 def _git_events(commits: list[dict[str, Any]], window: int, mode: str) -> list[BItem]:
     out: list[BItem] = []
     for i, c in enumerate(commits):
@@ -338,7 +399,8 @@ def research_items(root: Path, max_files: int = 60000) -> list[BItem]:
     return out
 
 
-SOURCES: dict[str, str] = {"git_fixed": "git", "git_churn": "git", "journal_persist": "journal", "plan_choice": "plan", "research_bool": "research"}
+SOURCES: dict[str, str] = {"git_fixed": "git", "git_churn": "git", "journal_persist": "journal", "plan_choice": "plan", "research_bool": "research",
+                           "x_git_fixed": "gitx", "x_git_churn": "gitx"}   # gitx: other projects' archived histories (replay only)
 
 
 def load(source: str, state: Path, repo: Path, journal: Path, research: Path) -> list[BItem]:
@@ -348,6 +410,10 @@ def load(source: str, state: Path, repo: Path, journal: Path, research: Path) ->
         return git_items(repo, FIX_WINDOW, "fixed", state)
     if source == "git_churn":
         return git_items(repo, CHURN_WINDOW, "churn", state)
+    if source == "x_git_fixed":
+        return extra_git_items(FIX_WINDOW, "fixed")
+    if source == "x_git_churn":
+        return extra_git_items(CHURN_WINDOW, "churn")
     if source == "journal_persist":
         return journal_items(journal)
     if source == "plan_choice":
@@ -362,6 +428,11 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
     try:
         if SOURCES[source] == "git":
             return _git_head(repo)[:12]
+        if SOURCES[source] == "gitx":                       # archived: the caches' sizes; "-" (retry later) until every one is built
+            xs = extra_repos()
+            if not xs or not all(extra_cache_path(r).exists() for r in xs):
+                return "-"
+            return "x" + str(sum(extra_cache_path(r).stat().st_size for r in xs))
         if SOURCES[source] == "journal":
             st = journal.stat()
             return f"{st.st_size}"
@@ -503,7 +574,21 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
         return job
 
     deferred: list[tuple[str, dict[str, Any]]] = []             # jobs whose data could not be read now: retried later, never dropped
-    state_t = {"retry_at": 0.0, "cache_flight": 0.0}
+    state_t = {"retry_at": 0.0, "cache_flight": 0.0, "xretry_at": 0.0, "xcache_flight": 0.0}
+    xgits = [s for s in srcs if SOURCES[s] == "gitx"]
+
+    def xcache_job() -> Callable[[], None]:
+        def job() -> None:
+            try:
+                for r in extra_repos():
+                    if not extra_cache_path(r).exists():
+                        build_extra_cache(r)
+                digests.clear()
+            except Exception as e:                                 # noqa: BLE001 - retried after GIT_RETRY_S
+                _error_row(state, "git_cache_x", {}, e, lock)
+            finally:
+                state_t["xcache_flight"] = 0.0
+        return job
     gits = [s for s in srcs if SOURCES[s] == "git"]
 
     def cache_job() -> Callable[[], None]:
@@ -523,6 +608,11 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
             queue[:0] = deferred
             deferred.clear()
             digests.clear()
+        if (xgits and not state_t["xcache_flight"] and now >= state_t["xretry_at"]
+                and any(not extra_cache_path(r).exists() for r in extra_repos())):
+            state_t["xcache_flight"] = now                           # the archived projects' one full read, in its own job
+            state_t["xretry_at"] = now + GIT_RETRY_S
+            return xcache_job()
         if gits and not state_t["cache_flight"] and now >= state_t["retry_at"] and not cache_path(state).exists():
             state_t["cache_flight"] = now                            # the one slow full read, in its own job
             state_t["retry_at"] = now + GIT_RETRY_S
