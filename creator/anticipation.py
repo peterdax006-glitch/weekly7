@@ -51,8 +51,23 @@ class Doc:
     ref: str = ""
 
 
+_TOKENS: dict[str, tuple[str, ...]] = {}
+
+
 def tokens(text: str) -> set[str]:
-    out = set()
+    """Content words of `text` (memoised per text: h38, 3 Oct - anticipate() re-tokenised the same directives ~64,000 times per trust
+    report, 12.7 of its 18 s). Always a fresh set, built by adding the words in their first-seen order exactly like the uncached loop, so
+    even its iteration order (tie-breaks downstream) is unchanged."""
+    hit = _TOKENS.get(text)
+    if hit is None:
+        if len(_TOKENS) >= 20000:
+            _TOKENS.clear()
+        hit = _TOKENS[text] = tuple(dict.fromkeys(_words(text)))
+    return set(hit)
+
+
+def _words(text: str) -> list[str]:
+    out = []
     for w in re.findall(r"[a-z][a-z0-9_]{3,}", text.lower()):
         if w in STOP:
             continue
@@ -60,7 +75,7 @@ def tokens(text: str) -> set[str]:
             if w.endswith(suf) and len(w) - len(suf) >= 4:
                 w = w[: -len(suf)]
                 break
-        out.add(w)
+        out.append(w)
     return out
 
 
