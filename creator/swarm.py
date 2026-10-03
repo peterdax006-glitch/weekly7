@@ -278,6 +278,22 @@ def _focus_allows(item: Any, state: Optional[Path] = None) -> bool:
         return True
 
 
+def focus_off_components(SCHED: Any, led: Ledger, cfg: K.KernelConfig) -> list[str]:
+    """FOCUS HOOK, BEFORE planning (3 Oct 2026: in thinking focus every empty round planned packages the focus then released - 6 plans
+    an hour, goal_student_shrink 15x in 24 h, each a ledger chain). Components none of whose gaps the focus allows are passed to the
+    scheduler as held, so it neither picks them nor falls through to them; a component with any allowed gap stays plannable (the release
+    after planning still catches the rest)."""
+    state = Path(cfg.ledger_path).parent
+    try:
+        nodes = SCHED.build_nodes(led, cfg.specs())
+    except Exception:                                                   # noqa: BLE001 - no filter here; the release after planning still runs
+        return []
+    ok: dict[str, bool] = {}
+    for n in nodes:
+        ok[n.component] = ok.get(n.component, False) or _focus_allows(n, state)
+    return sorted(c for c, v in ok.items() if not v)
+
+
 def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, gov: Governor, load: int, cap: int,
                    held: list[str], held_paths: list[str], planned: int) -> Optional[list[Any]]:
     """One scheduling decision for run_round: as many plans as there are free slots AND the governor allows, chosen together by
@@ -295,8 +311,9 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
     from creator import schedule as SCHED                              # lazy: only a scheduled round needs it (start-load guard)
     held_files = list(held_paths)
     plans: list[Any] = []
+    off = focus_off_components(SCHED, led, cfg)
     try:                                                                # development gaps (capacity-raising ones first) take EVERY slot
-        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, slots, held, held_files))
+        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, slots, list(held) + off, held_files))
     except Exception as e:                                              # noqa: BLE001 - never lose a round to the scheduler
         try:
             REG.get("schedule").note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})

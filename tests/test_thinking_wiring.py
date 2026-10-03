@@ -60,3 +60,17 @@ def test_thinking_focus_makes_the_filler_think(tmp_path: Path, monkeypatch: pyte
     (tmp_path / "focus.json").unlink()
     monkeypatch.setattr(cs.W, "self_bench_filler", lambda store: "SELF_BENCH")
     assert cs.make_filler() == "SELF_BENCH"                          # no focus: the old filler
+
+
+def test_thinking_focus_holds_back_whole_components_before_planning(tmp_path: Path) -> None:
+    # 3 Oct: every empty round planned packages the focus then released (6 plans/h, goal_student_shrink 15x in 24 h)
+    from creator import schedule as SCHED
+    nodes = [SCHED.Node("g1", "K28", "exists", 1.0, 1.0), SCHED.Node("g2", "K29", "exists", 1.0, 1.0),
+             SCHED.Node("g3", "K29", "size", 1.0, 1.0), SCHED.Node("g4", "creator/goal_student_shrink.py", "size", 1.0, 1.0)]
+    fake = SimpleNamespace(build_nodes=lambda led, specs=None, history=None: nodes)
+    cfg = SimpleNamespace(ledger_path=tmp_path / "ledger.jsonl", specs=lambda: [])
+    assert W.focus_off_components(fake, None, cfg) == []                       # no focus: nothing held back
+    (tmp_path / "focus.json").write_text(json.dumps({"focus": "thinking"}), encoding="utf-8")
+    assert W.focus_off_components(fake, None, cfg) == ["K28", "creator/goal_student_shrink.py"]   # K29 keeps its allowed gap
+    broken = SimpleNamespace(build_nodes=lambda *a, **k: 1 / 0)
+    assert W.focus_off_components(broken, None, cfg) == []                     # a failure filters nothing here (the release still runs)
