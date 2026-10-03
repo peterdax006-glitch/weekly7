@@ -28,6 +28,7 @@ import random
 import re
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Sequence
@@ -125,42 +126,127 @@ def _msg_class(subj: str) -> str:
 
 
 _GIT_CACHE: dict[str, list[dict[str, Any]]] = {}
+GIT_FULL_TIMEOUT_S = 6 * 3600.0     # the first full read of a big repo on a loaded machine is slow: generous, and done once, in its own job
+GIT_INC_TIMEOUT_S = 300.0           # an incremental `<last>..HEAD` read
+GIT_RETRY_S = 900.0                 # a source whose data could not be read is retried after this long, never dropped for good
+IDLE_PRIORITY = 0x00000040          # Windows IDLE_PRIORITY_CLASS: the slow read must not slow Nupen's real work
+DEFAULT_STATE: Optional[Path] = None   # set by load(): lets callers without a state argument (judgment) reach the same persistent cache
 
 
-def _git_head(repo: Path) -> str:
-    p = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True, timeout=60)
-    return p.stdout.strip() or "-"
+class GitCacheMissing(RuntimeError):
+    """No parsed history yet and this caller may not do the slow full read (the dedicated git_cache job does it)."""
 
 
-def git_items(repo: Path, window: int, mode: str) -> list[BItem]:
-    """mode 'fixed' | 'churn'. Read-only `git log`; the whole history is parsed once per process and kept in memory (per HEAD)."""
-    head = _git_head(repo)
-    ck = f"{repo}|{head}"
-    if ck not in _GIT_CACHE:
-        _GIT_CACHE.clear()
-        _GIT_CACHE[ck] = _git_commits(repo)
-    commits = _GIT_CACHE[ck]
-    return _git_events(commits, window, mode)
+def _git(repo: Path, args: list[str], timeout: float) -> str:
+    p = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
+                       creationflags=IDLE_PRIORITY if os.name == "nt" else 0)
+    if p.returncode != 0:
+        raise RuntimeError(f"git {args[0]} failed: {p.stderr.strip()[:200]}")
+    return p.stdout
 
 
-def _git_commits(repo: Path) -> list[dict[str, Any]]:
-    p = subprocess.run(["git", "-C", str(repo), "log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300)
+def _git_head(repo: Path, timeout: float = 60.0) -> str:
+    return _git(repo, ["rev-parse", "HEAD"], timeout).strip() or "-"
+
+
+def cache_path(state: Path) -> Path:
+    return Path(state) / "thinking" / "git_history.jsonl"
+
+
+def _read_cache(path: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for r in T._jsonl(path):
+        if r.get("h") and "t" in r:
+            out.append({"h": r["h"], "t": float(r["t"]), "s": r.get("s", ""), "files": set(r.get("files") or []), "lines": int(r.get("lines") or 0),
+                        "add": int(r.get("add") or 0), "del": int(r.get("del") or 0), "au": r.get("au", ""), "body": r.get("body", "")})
+    return out
+
+
+def _append_cache(path: Path, commits: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        for c in commits:
+            f.write(json.dumps({**c, "files": sorted(c["files"])}, sort_keys=True) + "\n")
+
+
+def refresh_git_cache(repo: Path, state: Path, full_timeout: float = GIT_FULL_TIMEOUT_S, inc_timeout: float = GIT_INC_TIMEOUT_S) -> int:
+    """Bring state/creator/thinking/git_history.jsonl up to HEAD: the first call parses the whole history once, later calls read only
+    `<last cached>..HEAD`. Appends in log order (a half-finished read writes nothing). A timeout raises and leaves the cache as it was."""
+    path = cache_path(state)
+    have = _read_cache(path)
+    rng = ""
+    timeout = full_timeout
+    if have:
+        last = have[-1]["h"]
+        try:
+            _git(repo, ["cat-file", "-e", f"{last}^{{commit}}"], 60.0)
+            rng, timeout = f"{last}..HEAD", inc_timeout
+        except RuntimeError:                                       # history was rewritten: rebuild from scratch
+            have = []
+            path.unlink(missing_ok=True)
+    args = ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"]
+    new = _parse_log(_git(repo, args + ([rng] if rng else []), timeout))
+    seen = {c["h"] for c in have}
+    new = [c for c in new if c["h"] not in seen]
+    if new:
+        _append_cache(path, new)
+    return len(new)
+
+
+def _parse_log(text: str) -> list[dict[str, Any]]:
     commits: list[dict[str, Any]] = []
-    for block in p.stdout.split("\x01")[1:]:
-        head, _, rest = block.partition("\n")
+    for block in text.split("\x01")[1:]:
+        head, _, rest = block.partition("\x03")
         parts = head.split("\x02")
         if len(parts) < 3:
             continue
-        files, lines = [], 0
+        files, add, dele = [], 0, 0
         for ln in rest.splitlines():
-            f = ln.split("\t")
+            f = ln.split("	")
             if len(f) == 3 and not excluded(f[2]):
                 files.append(f[2])
-                lines += (int(f[0]) if f[0].isdigit() else 0) + (int(f[1]) if f[1].isdigit() else 0)
-        commits.append({"h": parts[0], "t": float(parts[1]), "s": parts[2], "files": set(files), "lines": lines})
+                add += int(f[0]) if f[0].isdigit() else 0
+                dele += int(f[1]) if f[1].isdigit() else 0
+        commits.append({"h": parts[0], "t": float(parts[1]), "s": parts[2], "au": parts[3] if len(parts) > 3 else "",
+                        "body": (parts[4] if len(parts) > 4 else "")[-300:], "files": set(files), "lines": add + dele, "add": add, "del": dele})
+    return commits
+
+
+def _git_commits(repo: Path) -> list[dict[str, Any]]:
+    commits = _parse_log(_git(repo, ["log", "--reverse", "--no-merges", "--numstat", "--format=\x01%H\x02%ct\x02%s\x02%an\x02%b\x03"], GIT_FULL_TIMEOUT_S))
     commits.sort(key=lambda c: c["t"])
     return commits
+
+
+def git_commits(repo: Path, state: Optional[Path] = None, allow_full: bool = False) -> list[dict[str, Any]]:
+    """Parsed history, time ordered. With a state dir it comes from the persistent cache (refreshed incrementally; if that refresh times out the
+    cached history is used as is). The full first read happens only when allow_full (the dedicated git_cache job); otherwise GitCacheMissing."""
+    state = state if state is not None else DEFAULT_STATE
+    if state is None:
+        head = _git_head(repo)
+        ck = f"{repo}|{head}"
+        if ck not in _GIT_CACHE:
+            _GIT_CACHE.clear()
+            _GIT_CACHE[ck] = _git_commits(repo)
+        return _GIT_CACHE[ck]
+    path = cache_path(state)
+    if not path.exists() and not allow_full:
+        raise GitCacheMissing(f"{path} not built yet; the git_cache job builds it")
+    try:
+        refresh_git_cache(Path(repo), state, GIT_FULL_TIMEOUT_S if allow_full else GIT_INC_TIMEOUT_S)
+    except (subprocess.SubprocessError, RuntimeError, OSError):
+        if not path.exists():
+            raise
+    commits = _read_cache(path)
+    commits.sort(key=lambda c: c["t"])
+    _GIT_CACHE.clear()
+    _GIT_CACHE[f"{repo}|{commits[-1]['h'] if commits else '-'}"] = commits
+    return commits
+
+
+def git_items(repo: Path, window: int, mode: str, state: Optional[Path] = None) -> list[BItem]:
+    """mode 'fixed' | 'churn'. Read-only `git log`; parsed once into the persistent cache and kept in memory."""
+    return _git_events(git_commits(repo, state), window, mode)
 
 
 def _git_events(commits: list[dict[str, Any]], window: int, mode: str) -> list[BItem]:
@@ -256,10 +342,12 @@ SOURCES: dict[str, str] = {"git_fixed": "git", "git_churn": "git", "journal_pers
 
 
 def load(source: str, state: Path, repo: Path, journal: Path, research: Path) -> list[BItem]:
+    global DEFAULT_STATE
+    DEFAULT_STATE = Path(state)
     if source == "git_fixed":
-        return git_items(repo, FIX_WINDOW, "fixed")
+        return git_items(repo, FIX_WINDOW, "fixed", state)
     if source == "git_churn":
-        return git_items(repo, CHURN_WINDOW, "churn")
+        return git_items(repo, CHURN_WINDOW, "churn", state)
     if source == "journal_persist":
         return journal_items(journal)
     if source == "plan_choice":
@@ -280,7 +368,10 @@ def source_digest(source: str, state: Path, repo: Path, journal: Path, research:
         if SOURCES[source] == "plan":
             return str(sum(1 for _ in (state / "plan_explanations.jsonl").open("rb")))
         return str(sum(len(fs) for _d, _ds, fs in os.walk(research)))
-    except OSError:
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        if SOURCES[source] == "git":                         # head unreadable right now (machine loaded): fall back to what the cache holds
+            c = _read_cache(cache_path(state))
+            return c[-1]["h"][:12] if c else "-"
         return "-"
 
 
@@ -349,10 +440,39 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                         flight[s] -= 1
         return job
 
+    deferred: list[tuple[str, dict[str, Any]]] = []             # jobs whose data could not be read now: retried later, never dropped
+    state_t = {"retry_at": 0.0, "cache_flight": 0.0}
+    gits = [s for s in srcs if SOURCES[s] == "git"]
+
+    def cache_job() -> Callable[[], None]:
+        def job() -> None:
+            try:
+                refresh_git_cache(Path(repo), state, GIT_FULL_TIMEOUT_S if not cache_path(state).exists() else GIT_INC_TIMEOUT_S)
+                digests.clear()
+            except Exception as e:                                 # noqa: BLE001 - a timeout leaves the cache as it was; the next retry continues
+                _error_row(state, "git_cache", {}, e, lock)
+            finally:
+                state_t["cache_flight"] = 0.0
+        return job
+
     def next_job() -> Optional[Callable[[], None]]:
+        now = time.time()
+        if deferred and now >= state_t["retry_at"]:
+            queue[:0] = deferred
+            deferred.clear()
+            digests.clear()
+        if gits and not state_t["cache_flight"] and now >= state_t["retry_at"] and not cache_path(state).exists():
+            state_t["cache_flight"] = now                            # the one slow full read, in its own job
+            state_t["retry_at"] = now + GIT_RETRY_S
+            return cache_job()
         while queue:
             s, v = queue.pop(0)
-            if digest_of(s) == "-" or (s, json.dumps(v, sort_keys=True), digest_of(s)) in done:
+            if digest_of(s) == "-" or (SOURCES[s] == "git" and not cache_path(state).exists()):
+                deferred.append((s, v))                              # unreadable right now: retry after GIT_RETRY_S
+                if state_t["retry_at"] <= now:
+                    state_t["retry_at"] = now + GIT_RETRY_S
+                continue
+            if (s, json.dumps(v, sort_keys=True), digest_of(s)) in done:
                 continue
             return wrap(s, v, False)
         for _ in range(len(srcs)):                                 # fixed grid exhausted: open-ended search

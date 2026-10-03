@@ -68,7 +68,7 @@ def load_cases(topic: str, state: Path, repo: Path) -> list[Case]:
                             f"A development package for requirement kind '{it.kind}' (requirement {it.req or '?'}) is planned at {_iso(it.created)} UTC. "
                             f"Its written spec has {it.spec_len} characters and it lists {it.n_files} output files. Will the kernel ADOPT its result?"))
     elif topic == "git_fixed":
-        items = D.git_items(Path(repo), D.FIX_WINDOW, "fixed")
+        items = D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state)
         subj = {c["h"][:10]: c["s"] for cs in D._GIT_CACHE.values() for c in cs}
         for bi in items:
             if bi.resolved is None:
@@ -167,7 +167,7 @@ def _stat_preds(topic: str, state: Path, repo: Path) -> dict[str, T.Pred]:
     if topic == "verdict":
         preds = T.replay(T.load_items(state), "verdict")
     else:
-        preds = D.walk_forward(D.git_items(Path(repo), D.FIX_WINDOW, "fixed"), "git_fixed")
+        preds = D.walk_forward(D.git_items(Path(repo), D.FIX_WINDOW, "fixed", state), "git_fixed")
     return {p.subject: p for p in preds}
 
 

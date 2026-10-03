@@ -6,6 +6,8 @@ import random
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from creator import drillsources as D
 from creator import thinking as T
 
@@ -150,3 +152,68 @@ def test_variant_features_use_only_the_past(tmp_path: Path) -> None:
     out = D.apply_variant([D.BItem(("a", "b", "c"), t0, None, 0, "x")], {"mask": 1, "extra": "both"}, j)
     assert "jt:creator" in out[0].keys and "jt:weekly7" not in out[0].keys and "a" not in out[0].keys   # same-day entry is not visible
     assert D.walk_forward(planted(), "x", agg="logit", cap=0.1)
+
+
+def _mkrepo(tmp_path: Path, n: int) -> Path:
+    def git(*a: str) -> None:
+        subprocess.run(["git", "-C", str(tmp_path), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True)
+    if not (tmp_path / ".git").exists():
+        git("init", "-q")
+    k = len(subprocess.run(["git", "-C", str(tmp_path), "log", "--oneline"], capture_output=True, text=True).stdout.splitlines()) if (tmp_path / ".git").exists() else 0
+    for i in range(k, k + n):
+        (tmp_path / f"f{i}.py").write_text(f"v{i}\n")
+        git("add", "-A")
+        git("commit", "-qm", f"feat: {i}", "--date", f"2026-01-{i + 1:02d}T00:00:00")
+    return tmp_path
+
+
+def test_git_cache_is_built_once_then_incremental(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(D, "DEFAULT_STATE", None)
+    repo, st = tmp_path / "r", tmp_path / "st"
+    repo.mkdir()
+    _mkrepo(repo, 4)
+    assert D.refresh_git_cache(repo, st) == 4
+    assert D.refresh_git_cache(repo, st) == 0
+    _mkrepo(repo, 2)
+    calls: list[list[str]] = []
+    real = D._git
+    monkeypatch.setattr(D, "_git", lambda r, a, t: (calls.append(a), real(r, a, t))[1])
+    assert D.refresh_git_cache(repo, st) == 2
+    assert any("..HEAD" in x for c in calls for x in c) and len(D._read_cache(D.cache_path(st))) == 6   # only the new range was read
+    items = D.git_items(repo, 2, "churn", st)
+    assert len(items) == 6 and items[0].keys == D.git_items(repo, 2, "churn")[0].keys
+
+
+def test_git_timeout_leaves_source_retryable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(D, "DEFAULT_STATE", None)
+    repo, st = tmp_path / "r", tmp_path / "st"
+    repo.mkdir()
+    _mkrepo(repo, 4)
+    real = D._git
+
+    def slow(r: Path, a: list[str], t: float) -> str:
+        if a[0] == "log":
+            raise subprocess.TimeoutExpired("git", t)
+        return real(r, a, t)
+    monkeypatch.setattr(D, "_git", slow)
+    with pytest.raises(subprocess.TimeoutExpired):
+        D.refresh_git_cache(repo, st)
+    assert not D.cache_path(st).exists()
+    monkeypatch.setattr(D, "GIT_RETRY_S", 0.0)
+    nj = D.drill_filler(st, repo, tmp_path / "n.md", tmp_path / "res", sources=["git_fixed"])
+    j = nj()
+    assert j is not None
+    j()                                                        # the cache job times out: error row, nothing built
+    assert not D.cache_path(st).exists()
+    monkeypatch.setattr(D, "_git", real)                       # machine calms down: the same filler retries and builds it
+    for _ in range(3):
+        j2 = nj()
+        assert j2 is not None
+        j2()
+        if D.cache_path(st).exists():
+            break
+    assert D.cache_path(st).exists()
+    j3 = nj()
+    assert j3 is not None
+    j3()
+    assert any(r.get("source") == "git_fixed" and r.get("resolved") is not None for r in T._jsonl(D.runs_path(st)))
