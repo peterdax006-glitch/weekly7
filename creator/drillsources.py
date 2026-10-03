@@ -566,7 +566,7 @@ def search_report(state: Path, sources: Optional[Iterable[str]] = None) -> dict[
     for s in (list(sources) if sources else list(SOURCES)):
         rows = [r for r in allrows if r.get("source") == s and r.get("select", {}).get("n")]
         if rows:
-            out[s] = search_state(rows, max(r["digest"] for r in rows))
+            out[s] = search_state(rows, rows[-1]["digest"])                 # the LATEST data (file order), not the largest hash string
     return out
 
 
@@ -749,7 +749,7 @@ def best_variant(state: Path, source: str) -> Optional[dict[str, Any]]:
     rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == source and r.get("select", {}).get("n")]
     if not rows:
         return None
-    last = max(r["digest"] for r in rows)
+    last = rows[-1]["digest"]                                       # the latest data: file order = completion order (max() of hashes was arbitrary)
     rows = [r for r in rows if r["digest"] == last] or rows
     b = min(rows, key=lambda r: r["select"]["brier"])
     return {"source": source, "variant": b["variant"], "items": b["items"], "resolved": b["resolved"], "heldout": b["heldout"],

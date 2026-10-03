@@ -103,3 +103,18 @@ def test_drills_in_worker_processes_give_the_same_rows(tmp_path: Path, monkeypat
     assert D._pool().submit(os.getpid).result() != os.getpid()       # the arithmetic really ran in another process
     rows = [json.loads(ln) for ln in D.runs_path(tmp_path).read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 2                                             # the parent wrote both rows
+
+
+def test_the_latest_data_digest_wins_not_the_largest_string(tmp_path: Path) -> None:
+    # 3 Oct: best_variant and the search report picked max(digest); git digests are commit hashes, so after a commit hashing below the
+    # previous one every drill topic would have reported an OLD run
+    p = D.runs_path(tmp_path)
+    p.parent.mkdir(parents=True)
+    sc = {"n": 100, "brier": 0.2}
+    rows = [{"source": "git_fixed", "variant": {"decay": 1.0, "k": 2.0}, "digest": "f00000000000", "items": 1, "resolved": 1,
+             "select": sc, "heldout": {**sc, "tag": "old"}},
+            {"source": "git_fixed", "variant": {"decay": 1.0, "k": 3.0}, "digest": "a00000000000", "items": 2, "resolved": 2,
+             "select": sc, "heldout": {**sc, "tag": "new"}}]
+    p.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    assert D.best_variant(tmp_path, "git_fixed")["heldout"]["tag"] == "new"      # type: ignore[index]
+    assert D.search_report(tmp_path)["git_fixed"]["tried"] == 1
