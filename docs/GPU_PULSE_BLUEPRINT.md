@@ -66,3 +66,21 @@ Pulse 1 decides the rest: if the 8B or 14B is clearly better and fast enough, pu
 2. Rent offer #44585860 (or any verified RTX 4090 at about $0.35/h, reliability > 98%) with the 'Llama.cpp' template, ~80 GB
    disk, SSH on.
 3. Give the teacher the SSH host and port; the runner does the rest and reports spend after each pulse.
+
+## 6. Interface for other modules' GPU work (runner: creator/gpupulse.py)
+
+- **Jobs.** A job list may mix the built-in strings (`smoke|probe|thinkbench|judgment|drills|traces:<model>[:<n>[:<max min>]]`) and
+  external-job dicts (`creator.gpupulse.ext_job`): `name`, `minutes` (the plan's estimate), exactly one of `call`
+  (`"package.module:function"`, run in a child process on the PC with the pulse on; gets `{state, repo, owner_dir, workers, deadline,
+  pulse, tunnel_file, model, endpoints}`, returns a JSON dict), `command` (local argv, same environment) or `remote` (bash run on the pod
+  in `remote_dir`; print `@@result=<json>`); optional `model` (served first), `free_gpu` (stop all servers: training needs the VRAM),
+  `max_minutes`, `outputs` (pod paths copied home to `<runtime>/gpu/outputs/<pulse>/<name>/`), `low_util_abort_minutes`.
+  Run them with `gpu_pulse.py run|plan|prepare --jobs-file list.json` or `--jobs-from package.module:function` (called with the config).
+  Budget cap, GPU monitor, ledger and `gpu_pulse_runs.jsonl` records apply to every job.
+- **Tunnel.** `creator.gpupulse.endpoints()` -> `{"pulse", "models": {model: {"urls": ["http://127.0.0.1:<port>/v1"], "slots"}},
+  "extra": {name: url}}` (file: `<runtime>/gpu/tunnel.json`). Local port of model k of the config's `models` list = `local_port_base` (18100)
+  + 10 k; config `extra_forwards` `{name: pod port}` adds more forwards (e.g. a training dashboard). Loopback only; prompts must pass
+  `outbound_ok()`.
+- **Setup.** Config `setup_steps` `[{"name", "script" | "script_file", "always", "timeout_s"}]` run after the models are verified and before the
+  servers start, once each (marker `run/step_<name>.done`); in-process hooks: append to `creator.gpupulse.SETUP_HOOKS`
+  (`hook(cfg, shell, say)`). This is where a training stack (Unsloth/Axolotl) is installed if the Llama.cpp image is kept.

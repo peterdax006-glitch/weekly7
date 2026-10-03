@@ -98,30 +98,25 @@ def model_path(rt: Optional[Path] = None) -> Path:
 def think_model_path(cfg: Optional[Mapping[str, Any]] = None, rt: Optional[Path] = None) -> Optional[Path]:
     """The THINKING model (judgment, reasoning, narrative) - separate from the fast code-edit model. Setting 'think_model' (a path, or a file
     name inside models/) wins; else THINK_MODEL_FILE. None when none is configured or the file is not there (callers fall back to the fast model)."""
-    name = str((settings() if cfg is None else cfg).get("think_model") or "")
+    c = settings() if cfg is None else cfg
+    name = str(c.get("think_model") or "")
     if not name:
         return None
     p = Path(name)
     p = p if p.is_absolute() else (rt or runtime_dir()) / "models" / name
-    if p.is_file():
+    if p.is_file() or (pulse_on(c) and _gp().serves(_gp().pulse_file(c), p)):   # a GPU pulse may serve a model not on this disk
         return p
-    pf = pulse_file(cfg)                                 # a GPU pulse may serve a model that is not on this disk (e.g. 14B)
-    if pf is not None:
-        from creator import gpupulse as GP               # on demand: only while a pulse is switched on
-        return p if GP.serves(pf, p) else None
     return None
 
 
-def pulse_file(cfg: Optional[Mapping[str, Any]] = None, env: Optional[Mapping[str, str]] = None) -> Optional[Path]:
-    """The GPU pulse's tunnel file when a pulse is switched ON (creator.gpupulse): env NUPEN_GPU_PULSE (set by scripts/gpu_pulse.py for its
-    job processes), else device setting 'gpu_pulse' true (default False) -> <runtime>/gpu/tunnel.json. None = off: everything stays local."""
-    e = os.environ if env is None else env
-    v = e.get("NUPEN_GPU_PULSE")
-    if v:
-        return Path(v)
-    if cfg is not None and cfg.get("gpu_pulse"):
-        return runtime_dir(e) / "gpu" / "tunnel.json"
-    return None
+def pulse_on(cfg: Optional[Mapping[str, Any]] = None) -> bool:
+    """A GPU pulse is switched on (creator.gpupulse): env NUPEN_GPU_PULSE or device setting 'gpu_pulse'. Off = everything stays local."""
+    return bool(os.environ.get("NUPEN_GPU_PULSE") or (cfg or {}).get("gpu_pulse"))
+
+
+def _gp() -> Any:
+    from creator import gpupulse                         # on demand: only while a pulse is switched on
+    return gpupulse
 
 
 def server_gb_for(model: Path) -> float:
@@ -320,10 +315,8 @@ def load_overrides(path: Optional[Path] = None) -> dict[str, Any]:
 
 def settings(refresh: bool = False) -> dict[str, Any]:
     out = derive(get(refresh))
-    pf = pulse_file(out)
-    if pf is not None:                                   # a GPU pulse job: its model is the thinker (creator.gpupulse.settings_overlay)
-        from creator import gpupulse as GP
-        out.update(GP.settings_overlay(pf))
+    if pulse_on(out):                                    # a GPU pulse job: its model is the thinker (creator.gpupulse.settings_overlay)
+        out.update(_gp().settings_overlay(_gp().pulse_file(out)))
     return out
 
 

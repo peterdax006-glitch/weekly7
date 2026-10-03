@@ -296,12 +296,12 @@ class LocalModel:
                 "-c", str(self.ctx), "-t", str(self.threads), "--log-disable"] + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
 
     def _pulse_attach(self) -> bool:
-        """Only while a GPU pulse is switched on (creator.device.pulse_file): use the pod's server of this model through the SSH tunnel."""
-        pf = DEV.pulse_file(DEV.settings())
-        if pf is None:
+        """Only while a GPU pulse is switched on (creator.device.pulse_on): use the pod's server of this model through the SSH tunnel."""
+        cfg = DEV.settings()
+        if not DEV.pulse_on(cfg):
             return False
         from creator import gpupulse as GP
-        got = GP.attach(pf, self.model)
+        got = GP.attach(GP.pulse_file(cfg), self.model)
         if got is None:
             return False
         self.port, self.pulse = got
@@ -437,10 +437,10 @@ class LocalModel:
         """Free RAM minus one more server (DEV.SERVER_GB, measured) must stay above the Governor's floor (device settings)."""
         from creator import testslots
         try:
-            pf = DEV.pulse_file(DEV.settings())
-            if pf is not None:                                 # served by a GPU pulse: no RAM of this PC is taken
+            cfg = DEV.settings()
+            if DEV.pulse_on(cfg):                              # served by a GPU pulse: no RAM of this PC is taken
                 from creator import gpupulse as GP
-                if GP.serves(pf, self.model):
+                if GP.serves(GP.pulse_file(cfg), self.model):
                     return True
             free = self.free_gb()
             if free is None:                                   # unknown free RAM never opens the gate

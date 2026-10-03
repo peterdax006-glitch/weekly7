@@ -41,7 +41,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 LETTERS = "ABCD"
 ANSWER = re.compile(r"ANSWER\s*[:=]\s*\(?\**\s*([A-D])\b", re.I)
@@ -465,7 +465,8 @@ def solved_examples(q: Question, solved: Sequence[tuple[Question, Optional[int],
     return [(s, pick) for _sc, _id, s, pick in cand[:k]]
 
 
-def build_messages(st: Strategy, q: Question, examples: Sequence[tuple[Question, Optional[int]]] = ()) -> list[dict[str, str]]:
+def build_messages(st: Strategy, q: Question, examples: Sequence[tuple[Question, Optional[int]]] = (),
+                   traces: Optional[Mapping[str, str]] = None) -> list[dict[str, str]]:
     sysm = SYSTEM
     if st.style == "plain":
         sysm += " Reply with exactly one line: 'ANSWER: <letter>'."
@@ -479,12 +480,15 @@ def build_messages(st: Strategy, q: Question, examples: Sequence[tuple[Question,
     user = ""
     if examples:
         parts = []
+        tr = traces or {}
         for s, pick in examples:
-            line = f"{s.prompt()}\nCorrect answer: {LETTERS[s.answer]}"
+            line = s.prompt() + (f"\nWorked reasoning: {tr[s.qid]}" if s.qid in tr else "") + f"\nCorrect answer: {LETTERS[s.answer]}"
             if pick is not None and pick != s.answer:
                 line += f" (you answered {LETTERS[pick]} before - that was wrong)"
             parts.append(line)
-        user = "Solved examples from your own earlier practice:\n\n" + "\n\n".join(parts) + "\n\nNow the question:\n"
+        head = ("Solved examples (worked reasoning checked against the known answer):" if any(s.qid in tr for s, _p in examples)
+                else "Solved examples from your own earlier practice:")
+        user = head + "\n\n" + "\n\n".join(parts) + "\n\nNow the question:\n"
     return [{"role": "system", "content": sysm}, {"role": "user", "content": user + q.prompt()}]
 
 
@@ -531,6 +535,48 @@ def ask(llm: Any, st: Strategy, msgs: list[dict[str, str]]) -> tuple[Optional[in
 # ------------------------------------------------------------------------------------------------ records, epochs, halving
 def path(state: Path) -> Path:
     return Path(state) / "thinking" / "reasoning.jsonl"
+
+
+def bank_path(state: Path) -> Path:
+    return Path(state) / "thinking" / "trace_bank.jsonl"
+
+
+TRACE_TOKENS = 260
+_BANK: dict[str, Any] = {"key": None, "rows": {}}
+
+
+def trace_bank(state: Path) -> dict[str, dict[str, Any]]:
+    """qid -> banked worked example: a correct, outcome-blind reasoning trace written by a stronger model on a GPU pulse (creator.gpupulse.traces).
+    The retrieval strategies show these beside Nupen's own solved questions, under the same rules (other repository or strictly earlier, never
+    a shared commit, answered before now). Cached by file size and mtime."""
+    p = bank_path(state)
+    try:
+        st = p.stat()
+    except OSError:
+        return {}
+    key = (str(p), st.st_size, st.st_mtime_ns)
+    if _BANK["key"] != key:
+        _BANK["rows"] = {str(r["qid"]): r for r in _jsonl(p) if r.get("qid") and r.get("trace")}
+        _BANK["key"] = key
+    return dict(_BANK["rows"])
+
+
+def trace_ok(reply: str) -> bool:
+    """A usable worked example: some reasoning before the final answer line (not just 'ANSWER: B') and no talk of the outcome."""
+    body = ANSWER.split(reply or "")[0].strip()
+    return len(body) >= 20 and parse_choice(reply) is not None and "correct answer" not in body.lower()
+
+
+def bank_add(state: Path, q: Question, trace: str, model: str, pulse: str) -> None:
+    p = bank_path(state)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    row = {"qid": q.qid, "kind": q.kind, "source": q.source, "t": q.t, "model": model, "gpu_pulse": pulse, "trace": trace.strip()[-1200:],
+           "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "ts": round(time.time(), 1)}
+    with _BANK_LOCK, p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+_BANK_LOCK = threading.Lock()
 
 
 def status_path(state: Path) -> Path:
@@ -650,7 +696,7 @@ def write_status(state: Path, qs: Sequence[Question], rows: Sequence[dict[str, A
 
 
 def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm: Callable[[], Any], solved: Sequence[tuple[Question, Optional[int], float]],
-              ) -> int:
+              traces: Optional[Mapping[str, str]] = None) -> int:
     """Ask each (question, strategy, epoch) under one server lease; the correct answer is attached to the record only after the answer exists."""
     n = 0
     with make_llm() as llm:
@@ -660,13 +706,15 @@ def run_batch(state: Path, batch: Sequence[tuple[Question, str, int]], make_llm:
             now = time.time()
             ex = solved_examples(q, solved, st.retrieve, now)
             t0 = time.monotonic()
-            pick, picks, first, toks = ask(llm, st, build_messages(st, q, ex))
+            pick, picks, first, toks = ask(llm, st, build_messages(st, q, ex, traces))
             row = {"qid": q.qid, "kind": q.kind, "source": q.source, "difficulty": q.difficulty, "strategy": name, "epoch": e, "model": tag,
                    "pick": pick, "correct": int(pick == q.answer), "lexical_correct": int(lexical_pick(q) == q.answer),
                    "seconds": round(time.monotonic() - t0, 2), "tokens": toks, "examples": [s.qid for s, _p in ex],
                    "reply": first[-160:], "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "ts": round(now, 1)}
             if len(picks) > 1:
                 row["picks"] = picks
+            if traces and any(s.qid in traces for s, _p in ex):
+                row["bank_examples"] = sum(1 for s, _p in ex if s.qid in traces)
             if isinstance(getattr(llm, "pulse", None), str) and llm.pulse:     # answered on a rented GPU (creator.gpupulse): timings kept apart
                 row["gpu_pulse"] = llm.pulse
             _append(state, row)
@@ -774,11 +822,15 @@ def reasoning_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory:
                 taken.add((q.qid, n))
             flight["n"] += 1
             by = cache["by"]
-            solved = [(by[r["qid"]], r.get("pick"), float(r.get("ts") or 0)) for r in rows if r["qid"] in by and r["strategy"] == CONTROL]
+            mine = {r["qid"]: (by[r["qid"]], r.get("pick"), float(r.get("ts") or 0)) for r in rows if r["qid"] in by and r["strategy"] == CONTROL}
+            bank = {k: v for k, v in trace_bank(state).items() if k in by}       # correct worked examples a GPU pulse banked (creator.gpupulse)
+            mine.update({k: (by[k], by[k].answer, float(v.get("ts") or 0)) for k, v in bank.items()})
+            solved = list(mine.values())
+            traces = {k: str(v.get("trace") or "") for k, v in bank.items()}
 
         def job() -> None:
             try:
-                run_batch(state, batch, make_llm, solved)
+                run_batch(state, batch, make_llm, solved, traces)
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm; _Skip = no RAM now
                 with lock:
                     for q, n, _e in batch:
