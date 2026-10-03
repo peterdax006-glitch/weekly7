@@ -39,8 +39,8 @@ FROZEN_HASH = "1f520b202ac4"                    # thinkbench items.json 'hash' (
 PRIVATE_MARKERS = ("Masterstock", "MASTERSTOCK", "Latest owner directives", "owner journal", "JOURNAL.md", "livesim", "oldpc",
                    "BEGIN OPENSSH PRIVATE KEY", "BEGIN RSA PRIVATE KEY", "PRIVATE KEY-----", "OPEN_BUTTON_TOKEN", "pulse.json",
                    "Google Voice")
-MARKER_KIND = {"Masterstock": "owner journal", "MASTERSTOCK": "owner journal", "Latest owner directives": "owner journal",
-               "owner journal": "owner journal", "JOURNAL.md": "owner journal", "livesim": "live trading state", "oldpc": "old-PC projects",
+MARKER_KIND = {"Masterstock": "owner notes", "MASTERSTOCK": "owner notes", "Latest owner directives": "owner notes",
+               "owner journal": "owner notes", "JOURNAL.md": "owner notes", "livesim": "live trading state", "oldpc": "old-PC projects",
                "Google Voice": "owner contact", "pulse.json": "credentials", "OPEN_BUTTON_TOKEN": "credentials"}
 SECRET_RES = (re.compile(r"\bsk-(?:ant-)?[A-Za-z0-9_-]{20,}"), re.compile(r"\bhf_[A-Za-z0-9]{20,}"), re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"),
               re.compile(r"\bAKIA[0-9A-Z]{16}\b"), re.compile(r"(?i)\b(?:api[_-]?key|secret|password|token)\s*[=:]\s*['\"][^'\"\s]{12,}['\"]"))
@@ -659,10 +659,21 @@ def export(state: Path, repo: Path, out: Path, *, strict: bool = False, bank: Op
            "splits": {k: {"train": len(v["train"]), "eval": len(v["eval"])} for k, v in qs.items()},
            "format": {"sft": "{'messages': [system, user, assistant]} - Unsloth/TRL SFTTrainer; Axolotl type chat_template",
                       "pref": "{'prompt': [system, user], 'chosen': [assistant], 'rejected': [assistant]} - TRL/Unsloth DPO, ORPO"},
-           "privacy": "rows with private markers or secrets dropped (never: the live trading state, the old-PC projects, the owner journal); "
+           "privacy": "rows with private markers or secrets dropped (never: the live trading state, the old-PC projects, the owner's notes); "
                       "names, e-mails, home paths scrubbed"}
     (out / "MANIFEST.json").write_text(json.dumps(man, indent=1), encoding="utf-8")
     return man
+
+
+def _strings(obj: Any) -> Iterable[str]:
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, list):
+        for x in obj:
+            yield from _strings(x)
+    elif isinstance(obj, dict):
+        for x in obj.values():
+            yield from _strings(x)
 
 
 def audit_export(out: Path, frozen: Frozen) -> list[str]:
@@ -674,7 +685,7 @@ def audit_export(out: Path, frozen: Frozen) -> list[str]:
         why = private_reason(text)
         if why:
             bad.append(f"{p.name}: {why}")
-        if EMAIL_RE.search(text):
+        if any(EMAIL_RE.search(v) for r in jsonl_rows(p) for v in _strings(r)):     # on the decoded text ('\n@pytest' is no e-mail)
             bad.append(f"{p.name}: e-mail address")
         for t in frozen.texts:
             if t in text:

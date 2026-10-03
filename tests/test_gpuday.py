@@ -339,3 +339,19 @@ def test_day_jobs_size_the_coder_from_the_card(tmp_path: Path, repo: Path) -> No
     j24 = {j["name"]: j for j in GD.day_jobs(dict(base, gpuday_gpu="NVIDIA GeForce RTX 3090, 24576 MiB, 8.6")) if isinstance(j, dict)}
     assert "Qwen3-Coder-30B-A3B" in j48["ft2_coder"]["remote"] and "Qwen3-14B" in j24["ft2_coder"]["remote"]
     assert j24["ft2_coder"]["minutes"] > j48["ft2_coder"]["minutes"]          # the 3090 is given more time for the same work
+
+
+def test_pod_scripts_parse_and_finetune_trains_on_the_answer_only() -> None:
+    import importlib.util
+    root = Path(__file__).resolve().parents[1] / "scripts" / "gpuday"
+    r = subprocess.run(["bash", "-n", str(root / "pod_setup.sh")], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert b"\r\n" not in (root / "pod_setup.sh").read_bytes()               # sent to bash on Linux: LF only
+    spec = importlib.util.spec_from_file_location("gpuday_finetune", root / "finetune.py")
+    assert spec and spec.loader
+    ft = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ft)                                               # no torch needed to import it
+    pc = ft.to_prompt_completion([{"messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"},
+                                                {"role": "assistant", "content": "a"}]}, {"messages": [{"role": "user", "content": "x"}]}])
+    assert pc == [{"prompt": [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}],
+                   "completion": [{"role": "assistant", "content": "a"}]}]
