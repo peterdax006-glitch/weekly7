@@ -135,6 +135,10 @@ def _drill_live() -> None:
         REG.get("drillsources").live_pass(STATE, ROOT)
     except Exception as e:                                # noqa: BLE001 - measuring never stops the swarm
         print(f"DRILL LIVE error: {type(e).__name__}: {e}", flush=True)
+    try:                                                  # the same for the active public upstreams (many commits a day)
+        REG.get("drillsources").live_pass_x(STATE)
+    except Exception as e:                                # noqa: BLE001
+        print(f"DRILL LIVE X error: {type(e).__name__}: {e}", flush=True)
 
 
 def make_filler():                                        # type: ignore[no-untyped-def]
@@ -145,7 +149,8 @@ def make_filler():                                        # type: ignore[no-unty
         focus = REG.optional("focus")
         if focus is not None and focus.current(STATE) == "thinking":
             drills = REG.get("drillsources").drill_filler(STATE, ROOT, Path.home() / "Masterstock" / "JOURNAL.md",
-                                                          ROOT / "state" / "research", processes=True)   # every core, not one (GIL)
+                                                          ROOT / "state" / "research", processes=True,   # every core, not one (GIL)
+                                                          public=True)   # fetch public upstreams, acquire more when dry
             try:
                 judge = REG.get("judgment").judgment_filler(STATE, ROOT, max_servers=int(REG.get("device").settings().get("llama_servers", 1)))
             except Exception as e:                        # noqa: BLE001 - judgment is optional; the drills still run
