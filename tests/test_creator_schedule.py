@@ -182,3 +182,19 @@ def test_a_gap_left_in_progress_by_a_dead_process_is_released_and_planned_again(
     again = S.next_batch(led, 4, SPECS, explain_path=tmp_path / "e2.jsonl")
     assert plan.gap_id in {n.id for n in again.picks}                                  # planned again
     assert K.release_orphans(led, "again") == []                                       # nothing left: idempotent
+
+
+def test_capacity_raising_gaps_go_before_other_gaps_even_off_the_critical_path() -> None:
+    a = S.Node("a", "K05", "exists", 1.0, 900.0)
+    b = S.Node("b", "K29", "exists", 0.1, 100.0, capacity=True)
+    c = S.Node("c", "K06", "exists", 1.0, 5000.0)                          # longest, so it is on the critical path
+    batch = S.schedule([a, b, c], 1)
+    assert [n.id for n in batch.picks] == ["b"] and "improvement capacity" in next(r["why"] for r in batch.reasons if r["node"] == "b")
+    assert [n.id for n in S.schedule([a, b, c], 3).picks][0] == "b"
+
+
+def test_capacity_ids_are_the_goal_approved_and_core_self_development_capabilities() -> None:
+    ids = S.capacity_ids(SM.load_capabilities())
+    assert {"K18", "K19", "K24"} <= ids and not ({"K09", "K14", "K17"} & ids)
+    approved = {s.id for s in SM._read_specs(SM.CAPABILITIES_FILE.with_name(SM.APPROVED_FILE))}
+    assert approved <= ids

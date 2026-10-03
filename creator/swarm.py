@@ -25,6 +25,7 @@ from typing import Any, Callable, Optional
 from creator import registry as REG                                   # goals/constraints load on demand (sparse activation)
 from creator import kernel as K
 from creator import model as M
+from creator import planner as P
 from creator import sandbox as S
 from creator import testslots as TS
 from creator import schedule as SCHED
@@ -250,6 +251,16 @@ class RoundReport:
     reason: str = ""
 
 
+def _focus_allows(item: Any) -> bool:
+    """FOCUS HOOK (owner 2 Oct: work only on thinking until its opinion is trustworthy). When the optional `focus` capability is
+    registered and present, `focus.allowed(plan)` decides; an absent or broken module filters nothing."""
+    try:
+        focus = REG.optional("focus")
+        return True if focus is None else bool(focus.allowed(item))
+    except Exception:                                                   # noqa: BLE001 - no focus module: no filter
+        return True
+
+
 def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, gov: Governor, load: int, cap: int,
                    held: list[str], held_paths: list[str], planned: int) -> Optional[list[Any]]:
     """One scheduling decision for run_round: as many plans as there are free slots AND the governor allows, chosen together by
@@ -266,18 +277,25 @@ def plan_scheduled(cfg: K.KernelConfig, led: Ledger, main: Any, base_sha: str, g
         return []
     held_files = list(held_paths)
     plans: list[Any] = []
-    gap_slots = slots - 1 if (cfg.mode == "auto" and slots >= 2) else slots    # keep one slot for shrink work alongside gaps
-    try:
-        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, gap_slots, held, held_files))
+    try:                                                                # development gaps (capacity-raising ones first) take EVERY slot
+        plans = list(SCHED.plan_batch(dataclasses.replace(cfg, mode="gaps"), led, main, base_sha, slots, held, held_files))
     except Exception as e:                                              # noqa: BLE001 - never lose a round to the scheduler
         SCHED.note(cfg.ledger_path, {"error": f"{type(e).__name__}: {e}"[:300]})
         return None
+    kept = [p for p in plans if _focus_allows(p)]                       # FOCUS HOOK: release what the focus does not allow (not an attempt)
+    for p in plans:
+        if p not in kept:
+            P.record_outcome(led, p, False, "interrupted: not allowed by the current focus")
+    plans = kept
     seen = {p.component for p in plans}
-    if cfg.mode == "auto" and len(plans) < slots:
-        eff = K.plan_one(dataclasses.replace(cfg, mode="efficiency"), led, main, base_sha,
+    probe = P.Plan("", "EFF.size", "", "size", M.Role.KERNEL, "", "", "", "", 1)
+    while cfg.mode == "auto" and len(plans) < slots and _focus_allows(probe):    # FOCUS HOOK: no efficiency work in thinking focus                    # efficiency work only fills what gap work could not (the old
+        eff = K.plan_one(dataclasses.replace(cfg, mode="efficiency"), led, main, base_sha,   # reserved shrink slot, now earned by a shortfall)
                          exclude_components=held + sorted(seen), exclude_paths=held_paths)
-        if eff is not None:
-            plans.append(eff)
+        if eff is None:
+            break
+        plans.append(eff)
+        seen.add(eff.component)
     return plans[:slots]
 
 

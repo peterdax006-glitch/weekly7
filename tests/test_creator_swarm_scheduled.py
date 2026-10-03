@@ -130,3 +130,38 @@ def test_last_plan_reads_the_newest_batch(tmp_path: Path) -> None:
     lp = SCH.last_plan(tmp_path / "ledger.jsonl")
     assert lp["at"] == "t2" and lp["critical_path"] == ["a"] and lp["chosen"] == ["a"] and lp["critical_path_s"] == 9
     assert SCH.last_plan(tmp_path / "sub" / "none.jsonl")["at"] is None
+
+
+def test_gap_work_takes_every_slot_and_efficiency_fills_only_the_shortfall(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    asked: list[int] = []
+    live = {"now": 0, "max": 0}
+    rig(monkeypatch, [[mk(1, "A"), mk(2, "B")]], asked, live)
+    eff = iter([mk(8, "creator/e1.py", "size"), mk(9, "creator/e2.py", "size")])
+    monkeypatch.setattr(K, "plan_one", lambda c, *a, **k: next(eff, None) if c.mode == "efficiency" else None)
+    plans = W.plan_scheduled(dataclasses.replace(cfg, mode="auto"), object(), object(), "sha", gov(), 0, 4, [], [], 0)  # type: ignore[arg-type]
+    assert asked == [4]                                                 # no slot is reserved away from development gaps
+    assert [p.package_id for p in plans or []] == ["CP1", "CP2", "CP8", "CP9"]    # what the gaps could not fill goes to efficiency
+    asked.clear()
+    rig(monkeypatch, [[mk(i, f"C{i}") for i in range(4)]], asked, live)
+    eff2 = iter([mk(8, "creator/e1.py", "size")])
+    monkeypatch.setattr(K, "plan_one", lambda c, *a, **k: next(eff2, None) if c.mode == "efficiency" else None)
+    plans = W.plan_scheduled(dataclasses.replace(cfg, mode="auto"), object(), object(), "sha", gov(), 0, 4, [], [], 0)  # type: ignore[arg-type]
+    assert [p.package_id for p in plans or []] == ["CP0", "CP1", "CP2", "CP3"]    # gap work fills the machine: no shrink slot
+
+
+def test_focus_hook_drops_disallowed_plans_and_all_efficiency_and_absent_focus_filters_nothing(cfg: K.KernelConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    released: list[str] = []
+    monkeypatch.setattr(P, "record_outcome", lambda led, plan, ok, why: released.append(plan.package_id))
+    asked: list[int] = []
+    live = {"now": 0, "max": 0}
+    rig(monkeypatch, [[mk(1, "K18"), mk(2, "K06")]], asked, live)
+    eff = iter([mk(8, "creator/e1.py", "size")])
+    monkeypatch.setattr(K, "plan_one", lambda c, *a, **k: next(eff, None) if c.mode == "efficiency" else None)
+    monkeypatch.setattr(W.REG, "optional", lambda name: SimpleNamespace(allowed=lambda p: p.component == "K18"))
+    plans = W.plan_scheduled(dataclasses.replace(cfg, mode="auto"), object(), object(), "sha", gov(), 0, 4, [], [], 0)  # type: ignore[arg-type]
+    assert [p.package_id for p in plans or []] == ["CP1"] and released == ["CP2"]      # no efficiency plan, K06 released unjudged
+    monkeypatch.setattr(W.REG, "optional", lambda name: None)
+    rig(monkeypatch, [[mk(1, "K18")]], asked, live)
+    plans = W.plan_scheduled(dataclasses.replace(cfg, mode="auto"), object(), object(), "sha", gov(), 0, 2, [], [], 0)  # type: ignore[arg-type]
+    assert [p.package_id for p in plans or []] == ["CP1", "CP8"]

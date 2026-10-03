@@ -21,7 +21,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Mapping, Optional, Sequence
 
 from creator import sandbox as S
 
@@ -80,10 +80,12 @@ def editable(rel: str) -> bool:
     return not S.is_protected(rel) and not rel.endswith("__init__.py")
 
 
-def pick_target(root: Path, avoid: Sequence[str] = ()) -> Optional[tuple[str, int]]:
-    """The largest module the Creator may edit, skipping ones that recently failed to shrink (`avoid`)."""
+def pick_target(root: Path, avoid: Sequence[str] = (), last: Optional[Mapping[str, float]] = None) -> Optional[tuple[str, int]]:
+    """The module the Creator may edit that was least recently attempted (`last`: target -> time; never attempted = oldest), the
+    largest first among equals; skips `avoid` (recently failed or still unjudged)."""
+    seen = last or {}
     cands = [(f, n) for f, n in sizes(root).items() if editable(f) and f not in avoid and n > 0]
-    return max(cands, key=lambda x: (x[1], x[0])) if cands else None
+    return max(cands, key=lambda x: (-seen.get(x[0], 0.0), x[1], x[0])) if cands else None
 
 
 def peak_memory_mb(root: Path, python: str = sys.executable, replicates: int = 2, timeout: float = 600.0) -> list[float]:
