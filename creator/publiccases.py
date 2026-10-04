@@ -19,10 +19,14 @@ Nupen's own history gives ~850 git cases; the public open-source repositories cl
 from __future__ import annotations
 
 import datetime as dt
+import gc
+import hashlib
 import json
 import os
+import pickle
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
@@ -173,32 +177,153 @@ def question(topic: str) -> str:
 
 def setup_text(repo: str, c: dict[str, Any], topic: str) -> str:
     """What was known when the commit landed: never the outcome, never anything later."""
-    top = sorted(c["files"])[0].split("/")[0] if c["files"] else "-"
+    return _setup_head(repo, c) + question(topic)
+
+
+def _setup_head(repo: str, c: dict[str, Any], top: Optional[str] = None) -> str:
+    """setup_text without the question (the same for every topic); `top` when the caller already has it (drillsources' 'd:' key)."""
+    if top is None:
+        top = min(c["files"]).split("/")[0] if c["files"] else "-"
     return (f"A commit to the public open-source project '{repo}' at {_iso(c['t'])} UTC with message '{c['s'][:SUBJECT_MAX]}'. "
-            f"It changed {len(c['files'])} files and {c['lines']} lines; first top folder '{top}'. {question(topic)}")
+            f"It changed {len(c['files'])} files and {c['lines']} lines; first top folder '{top}'. ")
+
+
+# Speed h43: the cases of each repository kept per exact (size, mtime_ns) of its text cache, every topic built from ONE parse (3 Oct: the
+# first thinking.run spent 98 of 120 s re-reading ~240,000 JSON rows and rebuilding 120,000 cases per topic; a fetch that grows one repository
+# now recomputes only that repository). Identical cases; callers get fresh lists (the tuples and items are shared and never modified).
+_REPO_CASES: dict[str, tuple[tuple[int, int], dict[str, list[tuple[str, D.BItem, str, str]]]]] = {}
+_ALL_CASES: dict[str, tuple[tuple[Any, ...], list[tuple[str, D.BItem, str, str]]]] = {}
+
+
+def _file_key(path: Path) -> Optional[tuple[int, int]]:
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns)
+
+
+def _build_repo_cases(repo: Path) -> dict[str, list[tuple[str, D.BItem, str, str]]]:
+    cs = commits(repo)
+    name = repo.name
+    events = {t: D._git_events(cs, MODE[t][1], MODE[t][0]) for t in TOPICS}
+    first = events[TOPICS[0]]
+    heads = [_setup_head(name, c, it.keys[3][2:]) for c, it in zip(cs, first)]         # top folder = the 'd:' key (no second min())
+    mcls = [it.keys[0][2:] for it in first]                                            # message class = the 'm:' key
+    tag = f"r:{name}"
+    out: dict[str, list[tuple[str, D.BItem, str, str]]] = {}
+    for topic in TOPICS:
+        q = question(topic)
+        rows = []
+        for i, it in enumerate(events[topic]):
+            keys = tuple(sys.intern(k) for k in it.keys[:3]) + (sys.intern(f"d:{name}/{it.keys[3][2:]}"), tag)   # kept: shared strings
+            rows.append((name, D.BItem(keys, it.created, it.resolved, it.y, f"{name}:{it.subject}"), mcls[i], heads[i] + q))
+        out[topic] = rows
+    return out
+
+
+def _repo_key(repo: Path) -> Optional[tuple[int, int]]:
+    """The memo key of a repository's cases: its text cache's (size, mtime_ns), None (never memoised) while it has none. Public status is
+    part of it: commits() of a repository that is not public is empty, cached or not."""
+    k = _file_key(text_cache_path(repo))
+    return None if k is None else (k[0], k[1] * 2 + int(is_public(repo)))
+
+
+# Speed h48: a fresh process (every thinking.run, every drill worker) used to re-parse ~370 MB of JSON rows - 38 s - for cases that only change
+# when a text cache changes. The built cases of each repository are also kept on disk (pickle, runtime_dir()/thinking/public_cases/<repo>.pkl),
+# valid only for the exact (size, mtime_ns, public) of the text cache AND the exact source of the two modules that build them; any mismatch, a
+# damaged or foreign file is ignored and the cases are rebuilt (the result is the same objects' values either way).
+_CODE_STAMP: Optional[str] = None
+
+
+def _code_stamp() -> str:
+    global _CODE_STAMP
+    if _CODE_STAMP is None:
+        h = hashlib.sha256()
+        for m in (__file__, D.__file__):
+            try:
+                h.update(Path(m).read_bytes())
+            except OSError:
+                h.update(b"?")
+        _CODE_STAMP = h.hexdigest()
+    return _CODE_STAMP
+
+
+def _disk_path(repo: Path) -> Path:
+    from creator import device as DEV
+    return DEV.runtime_dir() / "thinking" / "public_cases" / f"{Path(repo).name}.pkl"
+
+
+def _disk_cases(repo: Path, key: tuple[int, int]) -> Optional[dict[str, list[tuple[str, D.BItem, str, str]]]]:
+    was = gc.isenabled()
+    gc.disable()                                                    # ~1M small objects built at once: the collector only re-scans them
+    try:
+        with _disk_path(repo).open("rb") as f:
+            stamp, k, built = pickle.load(f)
+    except Exception:                                               # missing, truncated, other version: rebuild
+        return None
+    finally:
+        if was:
+            gc.enable()
+    if stamp != _code_stamp() or k != key or not isinstance(built, dict) or set(built) != set(TOPICS):
+        return None
+    return built
+
+
+def _disk_cases_save(repo: Path, key: tuple[int, int], built: dict[str, list[tuple[str, D.BItem, str, str]]]) -> None:
+    path = _disk_path(repo)
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tmp.open("wb") as f:
+            pickle.dump((_code_stamp(), key, built), f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
+def _repo_cases(repo: Path, topic: str) -> list[tuple[str, D.BItem, str, str]]:
+    path = text_cache_path(repo)
+    key = _repo_key(repo)
+    mk = str(path)
+    hit = _REPO_CASES.get(mk)
+    if key is not None and hit is not None and hit[0] == key:
+        return hit[1][topic]
+    built = _disk_cases(repo, key) if key is not None else None
+    if built is None:
+        built = _build_repo_cases(repo)
+        if key is not None and _repo_key(repo) == key:
+            _disk_cases_save(repo, key, built)
+    if key is not None and _repo_key(repo) == key:                 # unchanged while read: safe to keep
+        _REPO_CASES[mk] = (key, built)
+    else:
+        _REPO_CASES.pop(mk, None)
+    return built[topic]
 
 
 def raw_cases(topic: str, repos: Optional[Sequence[Path]] = None) -> list[tuple[str, D.BItem, str, str]]:
     """(repo name, item, message class, setup text) for every commit of every public repository; windows never cross repositories.
     Unresolved items (the last `window` commits) are included with resolved None."""
-    return _cases(topic, repos, True)
-
-
-def _cases(topic: str, repos: Optional[Sequence[Path]], text: bool) -> list[tuple[str, D.BItem, str, str]]:
-    mode, w = MODE[topic]
+    MODE[topic]                                                    # an unknown topic raises KeyError, as before
+    rs = list(public_repos() if repos is None else repos)
+    sig = tuple((str(text_cache_path(r)), _repo_key(r)) for r in rs)
+    hit = _ALL_CASES.get(topic)
+    if hit is not None and hit[0] == sig and None not in (k for _p, k in sig):
+        return list(hit[1])
     out: list[tuple[str, D.BItem, str, str]] = []
-    for repo in (public_repos() if repos is None else repos):
-        cs = commits(repo)
-        for c, it in zip(cs, D._git_events(cs, w, mode)):
-            keys = it.keys[:3] + (f"d:{repo.name}/{it.keys[3][2:]}", f"r:{repo.name}")
-            out.append((repo.name, D.BItem(keys, it.created, it.resolved, it.y, f"{repo.name}:{it.subject}"),
-                        D._msg_class(c["s"]) if text else "", setup_text(repo.name, c, topic) if text else ""))
+    for repo in rs:
+        out.extend(_repo_cases(repo, topic))
     out.sort(key=lambda x: x[1].created)
-    return out
+    if None not in (k for _p, k in sig) and sig == tuple((str(text_cache_path(r)), _repo_key(r)) for r in rs):
+        _ALL_CASES[topic] = (sig, out)
+    return list(out)
 
 
 def items(topic: str, repos: Optional[Sequence[Path]] = None) -> list[D.BItem]:
     """The same cases as statistical items (for the walk-forward baseline the judge is compared with). h59: built without the setup texts
     and message classes the items never carry (measured 3 Oct on 157,024 public commits: ~10 s of setup_text + ~4 s of _msg_class per call
     of raw_cases' 56 s, and ~50 MB of strings built only to be dropped); the same items in the same order."""
-    return [x[1] for x in _cases(topic, repos, False)]
+    return [x[1] for x in raw_cases(topic, repos)]

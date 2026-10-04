@@ -180,6 +180,34 @@ class Machine:
     free_gb: float
     cpu_pct: float                                  # sustained CPU load, percent of all logical cores
     cpu_now: float = 0.0
+    cpu_usable: float = -1.0                        # load of the cores the OS actually schedules on (-1 = not measured); see usable_cpu
+    parked: int = 0                                 # logical cores left idle while the others are saturated
+
+
+# 3 Oct 2026 (h38): the CPU sample sat at 85.7-86.3% all day although the machine was saturated (processor queue 30). Not a stuck sampler:
+# this Core Ultra 7 255U has 14 logical processors, of which the 2 low-power E-cores (CPU 12-13) get no work from the Windows scheduler
+# (0.1% busy while the other 12 run at 100%; they do run work pinned to them). 12/14 = 85.7% < SATURATED_PCT, so "CPU saturated" never fired
+# and CPU-heavy work kept being admitted into a full machine. A core that stays idle for PARK_S while the others are saturated is not
+# capacity the scheduler will use: saturation is judged on the cores that are.
+PARK_S = 60.0
+PARK_IDLE_PCT = 5.0
+_CPU_BUSY_AT: dict[int, float] = {}
+
+
+def usable_cpu(percpu: list[float], now: float, park_s: float = PARK_S) -> tuple[float, int]:
+    """(busy percent of the scheduled cores, how many cores are parked). A core is parked when it has been under PARK_IDLE_PCT for park_s
+    (since it was first seen) AND the remaining cores average at least SATURATED_PCT: idle capacity next to waiting work. Otherwise every
+    core counts and the result equals the machine-wide mean."""
+    if not percpu:
+        return 0.0, 0
+    for i, v in enumerate(percpu):
+        if v >= PARK_IDLE_PCT or i not in _CPU_BUSY_AT:
+            _CPU_BUSY_AT[i] = now
+    idle = [i for i in range(len(percpu)) if now - _CPU_BUSY_AT[i] >= park_s]
+    rest = [v for i, v in enumerate(percpu) if i not in idle]
+    if idle and rest and sum(rest) / len(rest) >= SATURATED_PCT:
+        return sum(rest) / len(rest), len(idle)
+    return sum(percpu) / len(percpu), 0
 
 
 def read_machine(cpu_pct: Optional[float] = None) -> Machine:
@@ -187,7 +215,12 @@ def read_machine(cpu_pct: Optional[float] = None) -> Machine:
         import psutil
         vm = psutil.virtual_memory()
         now = float(psutil.cpu_percent(interval=None))
-        return Machine(psutil.cpu_count(logical=True) or 1, vm.total / 1e9, vm.available / 1e9, now if cpu_pct is None else cpu_pct, now)
+        try:
+            usable, parked = usable_cpu([float(x) for x in psutil.cpu_percent(interval=None, percpu=True)], time.monotonic())
+        except Exception:                                                       # noqa: BLE001 - per-core figures are a refinement only
+            usable, parked = -1.0, 0
+        return Machine(psutil.cpu_count(logical=True) or 1, vm.total / 1e9, vm.available / 1e9, now if cpu_pct is None else cpu_pct, now,
+                       usable, parked)
     except ImportError:
         return Machine(1, 16.0, 8.0, 0.0 if cpu_pct is None else cpu_pct)
 
@@ -207,7 +240,12 @@ def decide(p: Profile, m: Machine, running_cores: float, running: int, oversub: 
     if running <= 0:
         return Decision(True, "nothing of ours is running: always progress", pri)
     saturated = m.cpu_pct >= SATURATED_PCT
-    if saturated and p.cpu_heavy:
+    # h43 (3 Oct 2026): the lowest class, IDLE (the thinking fillers: IDLE threads; the drill/model processes they start run BELOW_NORMAL),
+    # is not deferred by saturation - "~200% CPU managed by priority", the oversubscription bound below still applies, and a filler always
+    # loses the CPU to cycles and to the owner's programs. Replaying the live samples of 2-3 Oct through
+    # the Admitter: once h38 made saturation visible, a new filler was admitted in 31.8% of samples instead of 100%; now 100% again, while
+    # BELOW_NORMAL CPU-heavy work (cycles) is still deferred as h38 intended.
+    if saturated and p.cpu_heavy and pri != "IDLE":
         return Decision(False, f"CPU saturated ({m.cpu_pct:.0f}%): CPU-heavy work deferred, RAM work preferred", pri, "ram")
     if running_cores + p.cores > oversub * m.cores:
         return Decision(False, f"oversubscribed: {running_cores + p.cores:.1f} runnable cores > {oversub:g} x {m.cores}", pri, "ram")
@@ -274,8 +312,11 @@ def idle_thread(fn: Callable[[], None]) -> Callable[[], None]:
 # ------------------------------------------------------------------------------------------------ samples + admitter
 
 def record_sample(state: Path, m: Machine) -> None:
-    _append(Path(state) / SAMPLES_FILE, {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "cpu": round(m.cpu_now or m.cpu_pct, 1),
-                                         "free_gb": round(m.free_gb, 2), "total_gb": round(m.total_gb, 2), "cores": m.cores})
+    row = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "cpu": round(m.cpu_now or m.cpu_pct, 1), "free_gb": round(m.free_gb, 2),
+           "total_gb": round(m.total_gb, 2), "cores": m.cores}
+    if m.cpu_usable >= 0:
+        row.update(cpu_usable=round(m.cpu_usable, 1), parked=m.parked)
+    _append(Path(state) / SAMPLES_FILE, row)
 
 
 class Admitter:
@@ -297,7 +338,7 @@ class Admitter:
         m = self._machine()
         t = self._clock()
         with self.lock:
-            self._cpu.append((t, m.cpu_now or m.cpu_pct))
+            self._cpu.append((t, m.cpu_usable if m.cpu_usable >= 0 else (m.cpu_now or m.cpu_pct)))
             while self._cpu and t - self._cpu[0][0] > self.sustain_s:
                 self._cpu.popleft()
             enough = len(self._cpu) >= 3 and t - self._cpu[0][0] >= self.sustain_s / 2
@@ -327,7 +368,7 @@ class Admitter:
         m = self._machine()
         with self.lock:
             pct = statistics.fmean(v for _, v in self._cpu) if self._cpu else m.cpu_now
-        return pct / 100.0 * m.cores
+        return pct / 100.0 * (m.cores - m.parked)                              # the window holds the scheduled cores' load
 
     def wants_ram_work(self, running: int) -> bool:
         """CPU has no room (saturated, or runnable work at the oversubscription limit) while RAM does: fill the other resource."""

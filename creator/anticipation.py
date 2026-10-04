@@ -51,8 +51,23 @@ class Doc:
     ref: str = ""
 
 
+_TOKENS: dict[str, tuple[str, ...]] = {}
+
+
 def tokens(text: str) -> set[str]:
-    out = set()
+    """Content words of `text` (memoised per text: h38, 3 Oct - anticipate() re-tokenised the same directives ~64,000 times per trust
+    report, 12.7 of its 18 s). Always a fresh set, built by adding the words in their first-seen order exactly like the uncached loop, so
+    even its iteration order (tie-breaks downstream) is unchanged."""
+    hit = _TOKENS.get(text)
+    if hit is None:
+        if len(_TOKENS) >= 20000:
+            _TOKENS.clear()
+        hit = _TOKENS[text] = tuple(dict.fromkeys(_words(text)))
+    return set(hit)
+
+
+def _words(text: str) -> list[str]:
+    out = []
     for w in re.findall(r"[a-z][a-z0-9_]{3,}", text.lower()):
         if w in STOP:
             continue
@@ -60,7 +75,7 @@ def tokens(text: str) -> set[str]:
             if w.endswith(suf) and len(w) - len(suf) >= 4:
                 w = w[: -len(suf)]
                 break
-        out.add(w)
+        out.append(w)
     return out
 
 
@@ -185,11 +200,11 @@ def match(directive: Doc, art: Doc, said_before: set[str], idf: dict[str, float]
     """(score, shared novel words): echo of earlier owner words is removed from the artefact first."""
     a = tokens(art.text) - said_before
     dtoks = tokens(directive.text)
-    shared = sorted(a & dtoks, key=lambda w: -idf.get(w, 0.0))
+    shared = sorted(a & dtoks, key=lambda w: (-idf.get(w, 0.0), w))     # h43: equal weights ordered by word, not by the per-process hash
     if not a or not dtoks:
         return 0.0, []
-    si = sum(idf.get(w, 0.0) for w in shared)
-    denom = min(sum(idf.get(w, 0.0) for w in a), sum(idf.get(w, 0.0) for w in dtoks)) or 1.0
+    si = math.fsum(idf.get(w, 0.0) for w in shared)                    # fsum: exactly rounded, so no set order can change a score
+    denom = min(math.fsum(idf.get(w, 0.0) for w in a), math.fsum(idf.get(w, 0.0) for w in dtoks)) or 1.0
     return si / denom, shared
 
 
@@ -244,8 +259,8 @@ def drill(dirs: Sequence[Doc], arts: Sequence[Doc]) -> dict[str, Any]:
         for x in dirs[:i]:
             for w in tokens(x.text):
                 freq[w] = freq.get(w, 0) + 1
-        top = [w for w, _ in sorted(score.items(), key=lambda kv: -kv[1])[:TOP_K]]
-        topb = [w for w, _ in sorted(freq.items(), key=lambda kv: -kv[1])[:TOP_K]]
+        top = [w for w, _ in sorted(score.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_K]]     # ties by word (h43: deterministic across runs)
+        topb = [w for w, _ in sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_K]]
         dt_ = tokens(d.text)
         model.append(sum(1 for w in top if w in dt_) / TOP_K)
         base.append(sum(1 for w in topb if w in dt_) / TOP_K)

@@ -387,7 +387,12 @@ class Ledger:
             self.torn = torn
             with self._locked():
                 self._rewrite_without_torn(lines)
-        return self._fold(lines)
+        return self._fold_known(lines)
+
+    def _fold_known(self, lines: list[str]) -> View:
+        """_fold(lines), reusing this process's fold of an identical prefix (creator.ledgerfold; verify() always folds everything)."""
+        from creator import ledgerfold
+        return ledgerfold.fold(self, lines)
 
     def _rewrite_without_torn(self, lines: list[str]) -> None:
         body = "".join(line + "\n" for line in lines)
@@ -398,9 +403,9 @@ class Ledger:
         with side.open("a", encoding="utf-8") as fh:            # the dropped bytes are kept as evidence, never silently lost
             fh.write(json.dumps({"dropped_at": dt.datetime.now(dt.timezone.utc).isoformat(), "bytes": self.torn}) + "\n")
 
-    def _fold(self, lines: Sequence[str]) -> View:
-        view = View()
-        for n, line in enumerate(lines):
+    def _fold(self, lines: Sequence[str], view: Optional[View] = None, start: int = 0) -> View:
+        view = View() if view is None else view
+        for n, line in enumerate(lines[start:], start):
             try:
                 env = json.loads(line)
             except json.JSONDecodeError as e:
@@ -602,7 +607,7 @@ class Ledger:
         if torn is not None:
             raise LedgerError(f"{self.path}: torn final line written by another process; reopen with repair_torn=True")
         if len(lines) != len(self.view.entries):
-            self.view = self._fold(lines)
+            self.view = self._fold_known(lines)
 
     def transition(self, subject_id: str, to: M.Status, reason: str, created_by: M.Role,
                    justification_ids: Iterable[str] = (), evidence: Iterable[M.EvidenceRef] = ()) -> str:
