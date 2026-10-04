@@ -22,7 +22,7 @@ from pathlib import Path
 
 RT = Path("C:/Users/peter/creator_runtime/util3")
 PORT = 18350
-SLOTS = {"4b": 24, "14b": 32}
+SLOTS = {"4b": 36, "14b": 32}
 
 
 def log(msg: str) -> None:
