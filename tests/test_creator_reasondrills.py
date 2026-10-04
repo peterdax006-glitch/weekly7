@@ -374,3 +374,96 @@ def test_real_git_repo_round_trip(tmp_path: Path) -> None:
     assert len(cs) == 40 and cs[0].s == "Tune the parser step 0"
     qs = R.gen_which_first("tiny", cs, every=1)
     assert qs and all("example.invalid" not in q.prompt() for q in qs)
+
+
+# ------------------------------------------------------------------------------------------------ the on-disk question cache (h52, 3 Oct 2026)
+def _tiny_repo(root: Path, n: int = 45) -> tuple[Path, Any]:
+    import os
+    repo = root / "tinyrepo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "tests").mkdir()
+
+    def git(*a: str, env: dict[str, str] | None = None) -> str:
+        return subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True, env=env).stdout
+    git("init", "-q")
+    git("config", "user.email", "t@example.invalid")
+    git("config", "user.name", "t")
+    for i in range(n):
+        (repo / "pkg" / f"m{i % 9}.py").write_text(f"x = {i}\n", encoding="utf-8")
+        if i % 2 == 0:
+            (repo / "tests" / f"test_m{i % 9}.py").write_text(f"y = {i}\n", encoding="utf-8")
+        d = f"2020-{1 + i // 25:02d}-{i % 25 + 1:02d}T12:00:00"
+        git("add", "-A")
+        git("commit", "-q", "-m", f"Tune the parser step {i}", env=dict(os.environ, GIT_AUTHOR_DATE=d, GIT_COMMITTER_DATE=d))
+    return repo, git
+
+
+def _dump(qs: list[R.Question]) -> str:
+    import dataclasses
+    return json.dumps([dataclasses.asdict(q) for q in qs], sort_keys=True)
+
+
+def test_question_cache_is_byte_identical_and_follows_head_and_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo, git = _tiny_repo(tmp_path)
+    state, cache = frozen_state(tmp_path, []), tmp_path / "qcache"
+    src = [("tiny", repo)]
+    R._LOGS.clear()
+    plain = R.generate(src, state, use_cache=False)
+    assert plain
+    cold = R.generate(src, state, cache=cache)
+    assert _dump(cold) == _dump(plain) and list(cache.glob("*.json"))
+    R._LOGS.clear()
+    monkeypatch.setattr(R, "history", lambda p: pytest.fail("a warm cache must not read the git history"))
+    warm = R.generate(src, state, cache=cache)
+    assert _dump(warm) == _dump(plain)
+    assert all(isinstance(q.keys, tuple) for q in warm)
+    monkeypatch.undo()
+    (repo / "pkg" / "new_mod.py").write_text("z = 1\n", encoding="utf-8")         # HEAD moves: the cache is rebuilt
+    git("add", "-A")
+    git("commit", "-q", "-m", "Add the new module for parsing")
+    R._LOGS.clear()
+    moved = R.generate(src, state, cache=cache)
+    assert _dump(moved) == _dump(R.generate(src, state, use_cache=False))
+    calls: list[Path] = []
+    real = R.history
+    monkeypatch.setattr(R, "_SRC_HASH", {"h": "other-code"})                        # other generator code: never reuses the old list
+    monkeypatch.setattr(R, "history", lambda p: calls.append(p) or real(p))
+    R.generate(src, state, cache=cache)
+    assert calls == [repo]
+
+
+def test_question_cache_still_drops_frozen_collisions(tmp_path: Path) -> None:
+    repo, _git = _tiny_repo(tmp_path)
+    R._LOGS.clear()
+    first = R.generate([("tiny", repo)], frozen_state(tmp_path / "a", []), cache=tmp_path / "qc")
+    q0 = first[0]
+    state = frozen_state(tmp_path / "b", [{"id": "c:adopted:" + q0.subject, "prompt": "x\nA. p\nB. q\nC. r\nD. s", "answer": 0}])
+    again = R.generate([("tiny", repo)], state, cache=tmp_path / "qc")                # served from the cache, filtered on load
+    assert q0.qid not in {q.qid for q in again} and len(again) < len(first)
+
+
+def test_head_fast_matches_git_rev_parse_for_loose_packed_and_worktree(tmp_path: Path) -> None:
+    repo, git = _tiny_repo(tmp_path, n=3)
+    assert R.head_fast(repo) == R.head(repo) != ""
+    git("pack-refs", "--all")
+    assert not list((repo / ".git" / "refs" / "heads").iterdir()) and R.head_fast(repo) == R.head(repo)
+    wt = tmp_path / "wt"
+    git("worktree", "add", "-q", "-b", "side", str(wt))
+    (wt / "pkg" / "side.py").write_text("s = 1\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(wt), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(wt), "commit", "-q", "-m", "Side work on the parser"], check=True, capture_output=True)
+    assert R.head_fast(wt) == R.head(wt) != R.head(repo)
+    git("checkout", "-q", "--detach")
+    assert R.head_fast(repo) == R.head(repo)
+
+
+def test_word_in_is_the_old_regex() -> None:
+    import random
+    import re
+    rnd = random.Random(7)
+    alphabet = "ab_1.-/ éZ"
+    for _ in range(4000):
+        st = "".join(rnd.choice("ab_1.") for _ in range(rnd.randint(1, 4)))
+        s = "".join(rnd.choice(alphabet) for _ in range(rnd.randint(0, 14))).lower()
+        old = re.search(r"(?<![a-z0-9_])" + re.escape(st) + r"(?![a-z0-9])", s) is not None
+        assert R._word_in(st, s) == old, (st, s)

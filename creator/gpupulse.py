@@ -70,6 +70,7 @@ DEFAULTS: dict[str, Any] = {
     "remote_dir": "/workspace/nupen", "models": ["Qwen3-1.7B-Q4_K_M.gguf", "Qwen3-4B-Q4_K_M.gguf", "Qwen3-8B-Q4_K_M.gguf", "Qwen3-14B-Q4_K_M.gguf"],
     "slots": "auto", "ctx_per_slot": 8192, "best_model": "Qwen3-8B-Q4_K_M.gguf", "monitor_s": 60.0, "low_util_pct": 70.0, "low_util_abort_minutes": 8, "instances": 1, "remote_port_base": 18100, "local_port_base": 18100,
     "allow_build": False, "deadman": "stop", "hf_base": HF_BASE,
+    "inflight_factor": 3,
 }
 
 
@@ -233,6 +234,36 @@ def auto_slots(name: str, ctx_per_slot: int = 8192, vram_gb: float = VRAM_GB, co
     while n > 1 and not fits([name] * copies, n, ctx, vram_gb):
         n -= 1
     return n, ctx
+
+
+SHORT_SLOT_CHOICES = (32, 24) + SLOT_CHOICES
+
+
+def short_ctx_slots(name: str, prompt_tokens: int, reply_tokens: int, vram_gb: float = VRAM_GB, copies: int = 1,
+                    margin: float = 1.25) -> tuple[int, int]:
+    """PROPOSAL (h52, 3 Oct 2026; not wired into serve): (slots, ctx per slot) sized to the job's real requests instead of the 8k default. The
+    per-slot context is the smallest power of two (>= 2048) holding margin x (prompt + reply); then the most of 32 / 24 / 16 / 12 / 8 slots
+    that fit. Traces prompts are ~1.4k tokens with replies capped at 260 (kept ones ~50-60): 14B on a 32 GB card -> 32 slots x 4096, the
+    same KV cache as today's 16 x 8192, twice the requests decoding at once. Longer jobs (judgment shots, thinkbench) keep 8k."""
+    need = int(margin * (max(0, int(prompt_tokens)) + max(0, int(reply_tokens))))
+    ctx = 2048
+    while ctx < need:
+        ctx *= 2
+    for n in SHORT_SLOT_CHOICES:
+        if fits([name] * copies, n, ctx, vram_gb):
+            return n, ctx
+    return auto_slots(name, ctx, vram_gb, copies)
+
+
+def inflight(cfg: Mapping[str, Any], slots: int) -> int:
+    """Requests a job keeps in flight by default: inflight_factor x the served slots. Measured 3 Oct 2026 (14B, 16 slots, SSH tunnel): each
+    request loses ~1 s in the tunnel, so with in-flight == slots only 3.7-5 of 16 slots were busy; with 48 in flight all 16 were busy (207 tok/s,
+    GPU 69%). An explicit --workers still wins."""
+    try:
+        f = float(cfg.get("inflight_factor", DEFAULTS["inflight_factor"]))
+    except (TypeError, ValueError):
+        f = float(DEFAULTS["inflight_factor"])
+    return max(1, int(round(max(1, int(slots)) * max(1.0, f))))
 
 
 def served_slots(cfg: Mapping[str, Any], models: Sequence[str]) -> dict[str, tuple[int, int]]:
@@ -1145,21 +1176,61 @@ class PodLLM:
 
     def __init__(self, port: int, model: str, pulse: str) -> None:
         self.port, self.model, self.pulse = int(port), model, pulse
+        self._tls = threading.local()                     # one kept-alive connection per thread (h52: a new connection per request cost
+                                                          # ~1 s through the SSH tunnel; the pod answers a tiny chat in 0.27 s)
 
     def __enter__(self) -> "PodLLM":
         return self
 
     def __exit__(self, *exc: Any) -> None:
-        return None
+        self._drop()
+
+    def _drop(self) -> None:
+        c = getattr(self._tls, "conn", None)
+        self._tls.conn = None
+        if c is not None:
+            c.close()
+
+    def _post(self, path: str, body: bytes, timeout: float) -> bytes:
+        """POST on this thread's kept-alive connection; a connection the server closed while idle is reopened once (only a REUSED connection
+        is retried: a fresh one's error is the server's answer). HTTP errors raise urllib.error.HTTPError as urlopen did."""
+        import http.client
+        import io
+        for attempt in (0, 1):
+            conn = getattr(self._tls, "conn", None)
+            fresh = conn is None
+            if conn is None:
+                conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=timeout)
+                self._tls.conn = conn
+            conn.timeout = timeout
+            if conn.sock is not None:
+                conn.sock.settimeout(timeout)
+            try:
+                conn.request("POST", path, body=body, headers={"Content-Type": "application/json"})
+                r = conn.getresponse()
+                data = r.read()
+            except (http.client.RemoteDisconnected, http.client.CannotSendRequest, http.client.BadStatusLine, ConnectionResetError,
+                    ConnectionAbortedError, BrokenPipeError):
+                self._drop()
+                if fresh or attempt:
+                    raise
+                continue
+            except BaseException:
+                self._drop()
+                raise
+            if r.will_close:
+                self._drop()
+            if r.status >= 400:
+                raise urllib.error.HTTPError(f"http://127.0.0.1:{self.port}{path}", r.status, r.reason, r.headers, io.BytesIO(data))
+            return data
+        raise PulseError("unreachable")
 
     def request(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 400, temperature: float = 0.2, seed: int = 0,
                 timeout: float = 300.0) -> dict[str, Any]:
         outbound_ok(messages)
         body = json.dumps({"messages": [dict(m) for m in messages], "max_tokens": max_tokens, "temperature": temperature, "seed": seed}).encode()
-        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            d = json.loads(r.read())
+        d = json.loads(self._post("/v1/chat/completions", body, timeout))
         return {"text": str(d["choices"][0]["message"].get("content") or ""), "tokens": int((d.get("usage") or {}).get("completion_tokens") or 0),
                 "seconds": time.monotonic() - t0}
 
@@ -1225,21 +1296,51 @@ def traces(llm: Any, state: Path, repo: Path, n: int, workers: int, deadline: fl
     (reasondrills.generate drops every collision)."""
     from creator import judgment as J
     from creator import reasondrills as R
-    qs = list(questions()) if questions is not None else R.order(R.generate(R.repos(Path(repo)), Path(state)))
     have = set(R.trace_bank(state))
-    todo = [q for q in qs if q.qid not in have and R.REVISIT not in q.qid]
-    todo = todo[:n] if n else todo
+    qs: list[Any] = []
+    feed: list[Any] = []                              # questions not yet handed to a worker
     st = R.Strategy("trace", "cot", max_tokens=R.TRACE_TOKENS)
     stats = {"asked": 0, "correct": 0, "kept": 0, "errors": 0}
-    lock = threading.Lock()
-    it = iter(todo)
+    lock = threading.Condition()
+    flow = {"queued": 0, "done": False}
+
+    def add(part: Sequence[Any]) -> None:
+        """Questions arrive in pieces (cached repositories at once, the others as they are generated): the GPU starts on the first piece instead of
+        waiting minutes for every git history. One piece = the old order (reasondrills.order) of that piece."""
+        with lock:
+            qs.extend(part)
+            for q in part:
+                if q.qid not in have and R.REVISIT not in q.qid and (not n or flow["queued"] < n):
+                    feed.append(q)
+                    flow["queued"] += 1
+            lock.notify_all()
+
+    def produce() -> None:
+        try:
+            if questions is not None:
+                add(list(questions()))
+            else:
+                for part in R.generate_stream(R.repos(Path(repo)), Path(state)):
+                    add(R.order(part))
+                    if time.monotonic() >= deadline:
+                        break
+        finally:
+            with lock:
+                flow["done"] = True
+                lock.notify_all()
+    producer = threading.Thread(target=produce, daemon=True, name="traces-questions")
+    producer.start()
+    pos = {"i": 0}
 
     def work() -> None:
         while time.monotonic() < deadline:
             with lock:
-                q = next(it, None)
-            if q is None:
-                return
+                while pos["i"] >= len(feed) and not flow["done"] and time.monotonic() < deadline:
+                    lock.wait(timeout=1.0)
+                if pos["i"] >= len(feed):
+                    return
+                q = feed[pos["i"]]
+                pos["i"] += 1
             msgs = R.build_messages(st, q)
             if any("Correct answer" in m["content"] for m in msgs):          # outcome-blind by construction; checked anyway
                 continue
@@ -1262,7 +1363,10 @@ def traces(llm: Any, state: Path, repo: Path, n: int, workers: int, deadline: fl
         t.start()
     for t in ts:
         t.join()
-    stats["fresh_left"] = max(0, len([q for q in qs if q.qid not in have]) - stats["asked"] - stats["errors"])
+    with lock:                                        # the GPU work is over: never hold the pod for questions nobody will ask
+        stats["fresh_left"] = max(0, len([q for q in qs if q.qid not in have]) - stats["asked"] - stats["errors"])
+        if not flow["done"]:
+            stats["fresh_left_partial"] = True            # repositories still being read: a lower bound
     return stats
 
 
@@ -1339,7 +1443,7 @@ def run_jobs(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Pat
              shell: Optional[Shell] = None, tunnel: Optional[Callable[[Mapping[str, Sequence[int]]], Path]] = None,
              say: Callable[[str], None] = print, clock: Callable[[], float] = time.time, poll_s: float = 2.0) -> list[dict[str, Any]]:
     """Each job in order: its model served (others stopped), the tunnel opened, the job run in a child process with the pulse switched on and
-    as many requests in flight as the server has slots (`workers` > 0 overrides). The budget is checked before every job and every `poll_s`
+    inflight_factor x the server's slots requests in flight (`workers` > 0 overrides). The budget is checked before every job and every `poll_s`
     while one runs (at the cap the child is stopped and the run ends); every `monitor_s` the pod's GPU utilisation and tok/s are logged, and a
     job that keeps the GPU under `low_util_pct` for `low_util_abort_minutes` in a row is stopped with the reason (the next job still runs)."""
     budget = budget_for(cfg, clock)
@@ -1377,7 +1481,7 @@ def run_jobs(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Pat
             pf = (tunnel or (lambda pl: open_tunnel(cfg, pl, pulse["id"])))(plan_)
             served = j["model"]
         slots = served_slots(cfg, [j["model"]])[j["model"]][0] * max(1, int(cfg.get("instances", 1))) if j["model"] else 1
-        w = workers or slots
+        w = workers or inflight(cfg, slots)
         env = dict(os.environ, NUPEN_PULSE_MODEL=j["model"], NUPEN_PULSE_SLOTS=str(slots), NUPEN_PULSE_ID=str(pulse["id"]))
         if pf is not None:
             env["NUPEN_GPU_PULSE"] = str(pf)

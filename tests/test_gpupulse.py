@@ -9,6 +9,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Iterator, Optional
@@ -454,7 +455,7 @@ def test_external_jobs_run_from_a_job_list_and_bring_outputs_home(tmp_path: Path
     assert out[0]["rc"] == 0 and out[0]["result"] == {"loss": 0.5}
     home = Path(out[0]["outputs_home"])
     assert (home / "out" / "lora.gguf").read_text(encoding="utf-8").strip() == "weights" and rt in home.parents
-    assert out[1]["rc"] == 0 and out[1]["result"]["models"] == [FAKE_MODEL] and out[1]["result"]["workers"] == 2
+    assert out[1]["rc"] == 0 and out[1]["result"]["models"] == [FAKE_MODEL] and out[1]["result"]["workers"] == GP.inflight(cfg, 2) == 6
     p = GP.plan(cfg, [remote, call], include_setup=False)
     assert [r["minutes"] for r in p["jobs"][:2]] == [30.0, 10.6]
     for bad in ({"name": "a", "minutes": 1}, {"name": "a", "call": "nomodule", "minutes": 1}, {"call": "m:f", "minutes": 1},
@@ -583,3 +584,136 @@ def test_stop_servers_never_stops_the_deadman_switch(tmp_path):
     assert "@@stopped=18120" in out
     assert not (run / "18120.pid").exists()
     assert (run / "deadman.pid").exists() and "deadman" not in out
+
+
+# ------------------------------------------------------------------------------------------------ requests in flight (h52, 3 Oct 2026)
+def test_inflight_default_is_factor_times_slots() -> None:
+    assert GP.DEFAULTS["inflight_factor"] == 3
+    assert GP.inflight(GP.DEFAULTS, 16) == 48 and GP.inflight({}, 16) == 48            # the measured fix: 48 in flight kept all 16 slots busy
+    assert GP.inflight({"inflight_factor": 1}, 16) == 16 and GP.inflight({"inflight_factor": 2.5}, 4) == 10
+    assert GP.inflight({"inflight_factor": "x"}, 2) == 6 and GP.inflight({"inflight_factor": 0}, 2) == 2 and GP.inflight({}, 0) == 3
+
+
+def test_run_jobs_keeps_factor_x_slots_in_flight_and_explicit_workers_win(tmp_path: Path, rt: Path, monkeypatch: pytest.MonkeyPatch,
+                                                                           fake_server: int) -> None:
+    cfg = GP.load_config(rt / "gpu" / "pulse.json")
+    cfg.update(budget_usd=100.0, monitor_s=0.0, shell_argv=["unused"], slots=4)
+    monkeypatch.setattr(GP, "serve", lambda c, models, sh=None, exe="", say=print: {models[0]: [fake_server]})
+    job = {"name": "noop", "command": [sys.executable, "-c", "print('@@result={}')"], "model": FAKE_MODEL, "minutes": 1}
+    said: list[str] = []
+    tunnel = lambda plan: GP.write_tunnel(plan, "P", path=rt / "gpu" / "tunnel.json")  # noqa: E731
+    out = GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", tunnel=tunnel, say=said.append, poll_s=0.02)
+    assert out[0]["rc"] == 0 and out[0]["workers"] == 12 and any("(12 requests in flight)" in s for s in said)
+    cfg["inflight_factor"] = 1
+    assert GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", tunnel=tunnel, say=said.append, poll_s=0.02)[0]["workers"] == 4
+    out = GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", workers=5, tunnel=tunnel, say=said.append, poll_s=0.02)
+    assert out[0]["workers"] == 5                                                     # an explicit --workers still wins
+
+
+def test_traces_start_on_the_first_questions_while_the_rest_are_generated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_server: int) -> None:
+    """h52: the GPU no longer waits for every git history: the cached piece is asked while a cold repository is still being read."""
+    st = tmp_path / "state"
+    gate = threading.Event()
+    asked_before_second: list[int] = []
+
+    def stream(sources: Any, state: Any, cache: Any = None) -> Iterator[list[R.Question]]:
+        yield [_q(1, answer=0), _q(2, answer=0)]
+        assert gate.wait(30)                                                     # the 'cold repository' finishes only after work started
+        asked_before_second.append(len(FAKE.STATE["requests"]))
+        yield [_q(3, answer=0)]
+    monkeypatch.setattr(R, "generate_stream", stream)
+    real = GP.PodLLM.request
+
+    def request(self: Any, *a: Any, **k: Any) -> dict[str, Any]:
+        r = real(self, *a, **k)
+        gate.set()
+        return r
+    monkeypatch.setattr(GP.PodLLM, "request", request)
+    FAKE.STATE["requests"].clear()
+    FAKE.STATE["bare"] = False
+    stats = GP.traces(GP.PodLLM(fake_server, GP.M8, "P5"), st, ROOT, 0, 2, time.monotonic() + 60)
+    assert stats["asked"] == 3 and stats["kept"] == 3 and asked_before_second and asked_before_second[0] >= 1
+    assert set(R.trace_bank(st)) == {"q1", "q2", "q3"} and "fresh_left_partial" not in stats
+
+
+def test_generate_stream_is_generate_in_pieces(tmp_path: Path) -> None:
+    import dataclasses
+    repo = tmp_path / "tiny"
+    repo.mkdir()
+    for i in range(40):
+        (repo / f"m{i % 6}.py").write_text(f"x = {i}\n", encoding="utf-8")
+        d = f"2020-01-{i % 28 + 1:02d}T{i % 24:02d}:00:00"
+        env = dict(os.environ, GIT_AUTHOR_DATE=d, GIT_COMMITTER_DATE=d, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
+        if i == 0:
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", f"Tune the parser step {i}"], check=True, capture_output=True, env=env)
+    src = [("tiny", repo)]
+    st = tmp_path / "state"
+    whole = R.generate(src, st, cache=tmp_path / "qc")
+    parts = list(R.generate_stream(src, st, cache=tmp_path / "qc"))
+    assert parts[0] and len(parts) == 1                                             # warm: everything in the first piece
+    dump = lambda qs: sorted(json.dumps(dataclasses.asdict(q), sort_keys=True) for q in qs)  # noqa: E731
+    assert dump(parts[0]) == dump(whole) and R.order(parts[0]) == R.order(whole)
+    cold = list(R.generate_stream(src, st, cache=tmp_path / "qc2"))
+    assert cold[0] == [] and dump([q for p in cold for q in p]) == dump(whole)
+
+
+# ------------------------------------------------------------------------------------------------ kept-alive connections (h52, 3 Oct 2026)
+def test_podllm_keeps_one_connection_per_thread_and_reconnects(fake_server: int) -> None:
+    import http.server
+    import urllib.error
+    conns: list[Any] = []
+
+    class KeepAlive(FAKE.Handler):
+        protocol_version = "HTTP/1.1"
+
+        def setup(self) -> None:
+            super().setup()
+            conns.append(self.connection)
+
+        def do_POST(self) -> None:
+            if "boom" in self.headers.get("X-Test", "") or self.headers.get("Content-Length") == "0":
+                self._send(500, b"{}")
+                return
+            super().do_POST()
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), KeepAlive)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        llm = GP.PodLLM(srv.server_address[1], GP.M8, "P6")
+        q = [{"role": "user", "content": "What is 17 + 25? Reply with only the number."}]
+        for _ in range(5):
+            r = llm.request(q, max_tokens=8)
+            assert r["text"] == "42" and r["tokens"] == 8 and r["seconds"] >= 0
+        assert len(conns) == 1                                                    # five requests, one connection
+        conns[0].shutdown(2)                                                      # the server drops the idle connection
+        assert llm.chat(q, max_tokens=8) == "42" and len(conns) == 2               # reopened once, same answer
+        out: list[str] = []
+        ts = [threading.Thread(target=lambda: out.append(llm.chat(q, max_tokens=8))) for _ in range(3)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        assert out == ["42"] * 3 and len(conns) == 5                              # one connection per thread
+        n = len(FAKE.STATE["requests"])
+        with pytest.raises(GP.PulseError):                                        # the private-marker guard still runs before any send
+            llm.request([{"role": "user", "content": "Masterstock notes"}])
+        assert len(FAKE.STATE["requests"]) == n and len(conns) == 5
+        with pytest.raises(urllib.error.HTTPError) as e:                          # an HTTP error is still an HTTPError (as with urlopen)
+            llm._post("/v1/chat/completions", b"", 10.0)
+        assert e.value.code == 500
+        assert llm.chat(q, max_tokens=8) == "42"                                  # and the connection still works afterwards
+    finally:
+        srv.shutdown()
+
+
+def test_short_ctx_slots_proposal_doubles_slots_for_short_requests_at_the_same_kv() -> None:
+    assert GP.auto_slots(GP.M14, 8192, 32.0) == (16, 8192)                                      # today's default on the 5090
+    assert GP.short_ctx_slots(GP.M14, 1400, 260, 32.0) == (32, 4096)                           # traces: ~1.4k prompt + 260 reply cap
+    assert GP.vram_need_gb(GP.M14, 32, 4096) == GP.vram_need_gb(GP.M14, 16, 8192)               # the same KV cache
+    assert GP.fits([GP.M14], 32, 4096, 32.0) and not GP.fits([GP.M14], 48, 4096, 32.0)
+    assert GP.short_ctx_slots(GP.M14, 1400, 260, 24.0) == (16, 4096)                           # a 24 GB card: 16 (today 8 x 8192)
+    assert GP.short_ctx_slots(GP.M14, 3500, 400, 32.0) == (16, 8192)                           # long prompts keep 8k
+    assert GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[1] == 2048 and GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[0] == 32
