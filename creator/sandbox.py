@@ -45,6 +45,8 @@ PROTECTED: tuple[str, ...] = (
     "state/creator/ledger.jsonl",
     # thinking focus + trust (3 Oct, F7): owner/teacher-owned focus switch and the drill records/report a worker could otherwise forge
     "state/creator/focus.json", "state/creator/trust.json", "state/creator/thinking/*", "state/creator/thinking/**",
+    # the coding trust gate (3 Oct, h56): its yardstick, held-out set and records decide what Nupen may change unsupervised
+    "creator/codetrust.py", "creator/codetrust_heldout.json", "state/creator/codetrust/*", "state/creator/codetrust/**",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"

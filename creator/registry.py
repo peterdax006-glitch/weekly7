@@ -53,6 +53,7 @@ CAPABILITIES: dict[str, str] = {
     "decide": "creator.decide",
     "trialerror": "creator.trialerror",
     "benchfill": "creator.benchfill",
+    "codetrust": "creator.codetrust",
 }
 
 _loaded: dict[str, Any] = {}
