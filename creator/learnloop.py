@@ -154,7 +154,8 @@ def skill_rows(tj: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append(_score_row(f"thinking:{t}", (v or {}).get("score"), "replay+live", at))
     for s, v in (tj.get("drills") or {}).items():
         if isinstance(v, dict):
-            rows.append(_score_row(f"drill:{s}:heldout", v.get("heldout"), "heldout", at, {"variant": v.get("variant"), "search": v.get("search")}))
+            rows.append(_score_row(f"drill:{s}:heldout", v.get("heldout"), "heldout", at, {"variant": v.get("variant"), "search": v.get("search"),
+                                                                                                 "digest": v.get("digest")}))
             rows.append(_score_row(f"drill:{s}:live", v.get("live"), "prospective", at))
     for t, v in (tj.get("judgment") or {}).items():
         if not isinstance(v, dict):
@@ -257,7 +258,7 @@ def drill_history(state: Path) -> list[dict[str, Any]]:
         if last.get(s) == (dg, h.get("gain_vs_best"), h.get("n")):
             continue
         last[s] = (dg, h.get("gain_vs_best"), h.get("n"))
-        row = _score_row(f"drill:{s}:heldout", h, "heldout", r.get("at"), {"variant": best[k]["variant"], "backfill": True})
+        row = _score_row(f"drill:{s}:heldout", h, "heldout", r.get("at"), {"variant": best[k]["variant"], "backfill": True, "digest": dg})
         if row is not None:
             out.append(row)
     return out
@@ -349,9 +350,17 @@ def bench_curve(state: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _superseded_point(r: dict[str, Any]) -> bool:
+    """A drill held-out progress point measured before drillsources.WALK_VERSION (no digest, or an older one): marked history, not a curve point."""
+    from creator import drillsources as D
+    return not str(r.get("digest") or "").endswith("." + D.WALK_VERSION)
+
+
 def curve(state: Path, now: float) -> dict[str, Any]:
     series: dict[str, list[tuple[float, float, Any]]] = {}
     for r in _read(state, "progress"):
+        if r.get("kind") == "heldout" and str(r.get("skill", "")).startswith("drill:") and _superseded_point(r):
+            continue                                                # h58: computed before walk-forward w2 - kept in progress.jsonl, not in the curve
         if r.get("kind") != "bench" and r.get("value") is not None:
             series.setdefault(r["skill"], []).append((_ts(r.get("measured_at")) or float(r.get("t", 0.0)), float(r["value"]), r.get("ci")))
     skills = {s: classify(pts) for s, pts in series.items()}

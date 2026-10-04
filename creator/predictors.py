@@ -188,7 +188,8 @@ def walk_forward_model(rows: Sequence[Row], topic: str, learner: str = "logit", 
     resolutions); then Platt-calibrate on earlier out-of-sample predictions whose outcome was already known. Baselines as in the other drills."""
     np = _np()
     rs = [r for r in rows if r.resolved is not None]
-    ev = sorted([(r.created, 1, i) for i, r in enumerate(rs)] + [(r.resolved or 0.0, 0, i) for i, r in enumerate(rs)])
+    # create (0) before resolve (1) at EQUAL time: an outcome known only at the prediction instant is never seen (h58 leak fix, as walk_forward)
+    ev = sorted([(r.created, 0, i) for i, r in enumerate(rs)] + [(r.resolved or 0.0, 1, i) for i, r in enumerate(rs)])
     X = np.array([[r.x[c] for c in (cols if cols is not None else range(len(r.x)))] for r in rs], dtype=float) if rs else np.zeros((0, 0))
     Y = np.array([r.y for r in rs], dtype=float)
     done: list[int] = []                                       # row indices resolved so far
@@ -202,7 +203,7 @@ def walk_forward_model(rows: Sequence[Row], topic: str, learner: str = "logit", 
     cal_at = -10 ** 9
     out: list[T.Pred] = []
     for _t, kind, i in ev:
-        if kind == 0:
+        if kind == 1:
             done.append(i)
             hist.append(rs[i].y)
             if i in pend:

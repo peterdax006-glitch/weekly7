@@ -77,11 +77,11 @@ def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: flo
 def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
     """Predict each resolved item at its creation time using only items resolved strictly before; learn from every resolution as it happens.
     Per feature key a decayed (n, positives); p = mean over the item's keys of (pos_k + k*global)/(n_k + k). Baselines: running base rate, last value."""
-    ev: list[tuple[float, int, int]] = []                    # (time, 0=resolve first / 1=create, index)
-    for i, it in enumerate(items):
-        if it.resolved is not None:
-            ev.append((it.created, 1, i))
-            ev.append((it.resolved, 0, i))
+    ev: list[tuple[float, int, int]] = []                    # (time, 0=create first / 1=resolve, index): at EQUAL time a creation is
+    for i, it in enumerate(items):                            # predicted before any resolution is learned - an outcome known only at the
+        if it.resolved is not None:                           # prediction instant (its own, created == resolved) is never seen (h58 leak fix;
+            ev.append((it.created, 0, i))                     # before it, resolve sorted first and plan_choice / research_bool items were
+            ev.append((it.resolved, 1, i))                    # predicted WITH their own outcome)
     ev.sort()
     scale = 1.0
     cnt: dict[str, list[float]] = {}                          # key -> [n, pos] in units of 1/scale
@@ -90,7 +90,7 @@ def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.
     out: list[T.Pred] = []
     for t, kind, i in ev:
         it = items[i]
-        if kind == 0:                                         # resolution: the model learns
+        if kind == 1:                                         # resolution: the model learns
             scale *= decay
             w = 1.0 / scale
             for key in it.keys:
@@ -536,8 +536,27 @@ def load(source: str, state: Path, repo: Path, journal: Path, research: Path) ->
     raise KeyError(source)
 
 
+WALK_VERSION = "w2"   # h58 (3 Oct 2026): create-before-resolve at equal time + frozen benchmark items never in the select part. Every drill row
+#                      whose digest lacks this suffix was computed before both fixes: SUPERSEDED, kept in drill_runs.jsonl as history, never chosen
+#                      once a new row exists (best_variant reads the latest digest only) and never trusted - the rows of plan_choice /
+#                      research_bool were LEAKY (each item predicted with its own outcome), those of git_fixed / git_churn / journal_persist
+#                      chose variants partly on frozen benchmark items.
+LEAKY_BEFORE_W2 = ("plan_choice", "research_bool")
+
+
+def superseded(row: dict[str, Any]) -> bool:
+    """A drill row computed before WALK_VERSION (history: shown as such, never a basis for trust)."""
+    return not str(row.get("digest") or "").endswith("." + WALK_VERSION)
+
+
 def source_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> str:
-    """Cheap fingerprint of a source's data (no full load): new commits / journal lines / plan rows / research files change it and re-queue jobs."""
+    """Cheap fingerprint of a source's data (no full load) plus the walk-forward version: new commits / journal lines / plan rows / research
+    files - or a new WALK_VERSION - change it and re-queue jobs."""
+    d = _data_digest(source, state, repo, journal, research)
+    return d if d == "-" else f"{d}.{WALK_VERSION}"
+
+
+def _data_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> str:
     try:
         if SOURCES[source] == "git":
             return _git_head(repo)[:12]
@@ -886,13 +905,18 @@ def trust_section(state: Path) -> dict[str, Any]:
         lp = live.get(s, [])
         sc["n_live"] = len(lp)                                          # the prospective ones are the stored live predictions, resolved since
         ok, why = T.trust_of(sc) if sc.get("n") else (False, ["no held-out predictions"])
+        if b.get("superseded"):                                         # h58: computed before the tie / frozen-select fixes - history only
+            ok = False
+            why.append(f"best row computed before walk-forward {WALK_VERSION} ("
+                       f"{'LEAKY: items predicted with their own outcome' if s in LEAKY_BEFORE_W2 else 'selection saw frozen benchmark items'}"
+                       "); recompute pending")
         lsc = T.score(lp) if lp else {}
         hi = (lsc.get("gain_ci95") or [None, None])[1]
         if len(lp) >= T.MIN_LIVE and hi is not None and hi < 0:        # the future contradicts the replay: never trusted on the replay alone
             ok = False
             why.append(f"its {len(lp)} prospective predictions do WORSE than the best baseline (gain CI upper bound {hi})")
         out[s] = {"trusted": ok, "why_not": why, "variant": b["variant"], "heldout": sc, "live": lsc, "variants_tried": b["variants_tried"],
-                  "search": rep.get(s)}
+                  "search": rep.get(s), "digest": b.get("digest"), "superseded": b.get("superseded")}
     return out
 
 
