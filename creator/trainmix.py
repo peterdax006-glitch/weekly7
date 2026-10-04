@@ -469,7 +469,9 @@ SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
 }
 
 # Training rates on the RTX 5090 (Unsloth LoRA bf16, no packing; conservative): tokens/s. Overheads: base download + load, merge + GGUF.
-TRAIN_TOK_S = {"0.6b": 25000.0, "1.7b": 12000.0, "4b": 6000.0}
+TRAIN_TOK_S = {"0.6b": 13000.0, "1.7b": 6500.0, "4b": 3500.0}      # 1.7B measured on the 5090 (3 Oct); 0.6B / 4B scaled from it
+STEP_OVERHEAD_S = 0.1
+TOKEN_BUDGET = {"0.6b": 12e6, "1.7b": 8e6, "4b": 6e6}                # trained tokens per fine-tune (all epochs) before epochs are cut
 OVERHEAD_MIN = {"0.6b": 3.0, "1.7b": 5.0, "4b": 9.0}
 HF_BASE = {"0.6b": "Qwen/Qwen3-0.6B", "1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B"}
 HOME_GGUF = {"0.6b": "Qwen3-0.6B-Q4_K_M.gguf", "1.7b": "Qwen3-1.7B-Q4_K_M.gguf", "4b": "Qwen3-4B-Q4_K_M.gguf"}
@@ -662,13 +664,35 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
     return man
 
 
+def epochs_for(t: Target, man: Mapping[str, Any]) -> float:
+    """Epochs sized to the data: at most t.epochs, and no more than TOKEN_BUDGET trained tokens in total (at least one epoch). A large
+    mix (e.g. the grown trace bank: 87k rows, 19.5M tokens) gets one pass; a small one its full epochs. Dev early stopping only shortens it."""
+    tok = max(1, int(man.get("tokens_train") or 0))
+    return float(max(1, min(t.epochs, math.floor(TOKEN_BUDGET[t.size] / tok))))
+
+
+def steps_for(t: Target, man: Mapping[str, Any]) -> int:
+    return math.ceil(int(man["rows"]["train"]) / max(1, t.batch * t.accum)) * int(math.ceil(epochs_for(t, man)))
+
+
 def minutes(t: Target, man: Mapping[str, Any]) -> dict[str, float]:
-    """Expected GPU minutes: train tokens x epochs / rate (early stopping only shortens it) + overhead; the effladder eval; the gate."""
-    tr = man["tokens_train"] * t.epochs / TRAIN_TOK_S[t.size] / 60.0 + OVERHEAD_MIN[t.size]
-    if man["rows"]["pref"] >= 20:
-        tr += 2.0
-    return {"train": round(tr, 1), "eval": float(t.eval_minutes), "gate": 12.0 if t.gate else 0.0,
+    """Expected GPU minutes, calibrated on the MEASURED 5090 run (3 Oct, ft_thinker_17b: 3175 tokens/step at 2.1 it/s -> ~6.5k tok/s
+    including logging): trained tokens / rate x a long-sequence factor + a per-step overhead + dev evaluations (~4 per epoch, forward only)
+    + DPO + load/merge/GGUF. The runner's cap (cap_minutes) is twice this plus 10."""
+    ep = epochs_for(t, man)
+    tok = float(man["tokens_train"]) * ep
+    long_f = 1.3 if t.max_seq > 2048 else 1.0
+    train_s = tok / TRAIN_TOK_S[t.size] * long_f + steps_for(t, man) * STEP_OVERHEAD_S
+    dev_tok = float(man.get("tokens_dev") or man["tokens_train"] * man["rows"]["dev"] / max(1, man["rows"]["train"]))
+    dev_s = dev_tok * 4 * math.ceil(ep) / (3 * TRAIN_TOK_S[t.size])
+    pref_s = float(man["rows"]["pref"]) * 3 * t.max_seq / 4 / TRAIN_TOK_S[t.size] * 2 if man["rows"]["pref"] >= 20 else 0.0
+    tr = (train_s + dev_s + pref_s) / 60.0 + OVERHEAD_MIN[t.size]
+    return {"train": round(tr, 1), "eval": float(t.eval_minutes), "gate": 12.0 if t.gate else 0.0, "epochs": ep, "steps": steps_for(t, man),
             "total": round(tr + t.eval_minutes + (12.0 if t.gate else 0.0) + 1.0, 1)}
+
+
+def cap_minutes(train_minutes: float) -> float:
+    return round(train_minutes * 2 + 10, 1)
 
 
 def build(state: Path, repo: Path, targets: Sequence[str] = (), out_root: Optional[Path] = None, say: Callable[[str], None] = print) -> dict[str, Any]:
@@ -868,7 +892,7 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
     shm_gb = math.ceil(2 * BF16_GB[t.size] + Q4_GB[t.size] + 0.5)            # merged + f16 GGUF + Q4 GGUF
     pref = man["rows"]["pref"] >= 20
     opts = (f"--base {HF_BASE[t.size]} --data {data}/train.jsonl --eval-data {data}/dev.jsonl --out {w} --max-seq {t.max_seq} "
-            f"--epochs {t.epochs} --batch {t.batch} --accum {t.accum} --lr {t.lr} --patience 2 "
+            f"--epochs {epochs_for(t, man)} --batch {t.batch} --accum {t.accum} --lr {t.lr} --patience 2 "
             f"--llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\" --quant Q4_K_M --adapter-gguf"
             + (f" --pref {data}/pref.jsonl --method dpo" if pref else ""))
     skip = lambda why: f"printf '@@result={{\"skipped\": \"%s\"}}\\n' \"{why}\"; exit 0"  # noqa: E731
@@ -928,10 +952,10 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
     from creator import gpuday as GD
     out: list[dict[str, Any]] = [{"name": "trainmix_upload", "remote": GD.upload_script(blob, info), "minutes": 1, "low_util_abort_minutes": 0}]
     for t, man in plan:
-        mins = man.get("gpu_minutes") or minutes(t, man)
+        mins = minutes(t, man)                       # always from the current estimator (a manifest's figure may predate a calibration)
         sv = serve_name(t)
         out.append({"name": f"ft_{t.name}", "remote": ft_remote(t, man), "free_gpu": True, "minutes": mins["train"],
-                    "max_minutes": round(mins["train"] * 2 + 5, 1), "low_util_abort_minutes": 0,
+                    "max_minutes": cap_minutes(mins["train"]), "low_util_abort_minutes": 0,
                     "outputs": [f"{POD_DIR}/runs/ft_{t.name}/result.json", f"{POD_DIR}/runs/ft_{t.name}/adapter",
                                 f"{POD_DIR}/runs/ft_{t.name}/adapter.gguf", f"{POD_DIR}/runs/ft_{t.name}/train.log"]})
         out.append({"name": f"register_{t.name}", "call": "creator.gpuday:register_tuned_job", "args": {"source": f"ft_{t.name}", "serve_as": sv},

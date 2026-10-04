@@ -290,3 +290,12 @@ def test_talk_compare_is_paired_and_never_adopts_below_min_n() -> None:
     assert TM.talk_compare(base[:45], tuned[:45])["verdict"] == "INSUFFICIENT_N"
     worse = [dict(r, grounded=False) for r in tuned]
     assert TM.talk_compare(base, worse)["verdict"] == "KEEP_BASE"
+
+
+def test_epochs_and_caps_scale_with_the_data() -> None:
+    t = TM.BY_NAME["coder_17b"]
+    small = {"rows": {"train": 4318, "dev": 493, "pref": 99}, "tokens_train": 2_884_551}
+    big = {"rows": {"train": 87_323, "dev": 9508, "pref": 0}, "tokens_train": 19_517_346}
+    assert TM.epochs_for(t, small) == 2.0 and TM.epochs_for(TM.BY_NAME["thinker_17b"], big) == 1.0     # a big mix gets one pass
+    m = TM.minutes(t, small)
+    assert m["steps"] == 540 and 20 < m["train"] < 45 and TM.cap_minutes(m["train"]) > 2 * m["train"]
