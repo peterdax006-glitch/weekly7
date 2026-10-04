@@ -392,7 +392,8 @@ def src_talk(ctx: Ctx, drops: collections.Counter[str], kind: str) -> list[Row]:
         for i, r in enumerate(jsonl(p)):
             if r.get("messages"):
                 out.append(Row(f"talk:{kind}:{p.parent.name}:{i}", f"talk_{kind}", f"talk:{exact_key(prompt_text(r))}", {"messages": r["messages"]},
-                               licence="own (Nupen's records + a big model's grounded answer)", meta={"intent": r.get("intent")}))
+                               licence="own (Nupen's records + a big model's grounded answer)",
+                               meta={"intent": r.get("intent"), "tag": "voice-only, not gate-eligible", "post_cut": True}))
     return out
 
 
@@ -498,6 +499,10 @@ class Target:
     vram_mib: int = 12000
     blocked: str = ""                                # non-empty: built and audited, but no GPU job (with the reason)
     also_vs: tuple[str, ...] = ()                    # further base models the tuned one is compared with (their ladder rows exist)
+    # Teacher decision 3 Oct 2026: the exclusion rule keeps the CODING trust gate honest; the voice (conversation layer) is never evaluated
+    # by that gate, so talk rows built from post-cut records are allowed for the voice adapter ONLY: never in a coder/thinker mix, the adapter
+    # is tagged "voice-only, not gate-eligible", and it is evaluated with creator.talkeval (talk_eval_job) instead of the ladder.
+    voice_only: bool = False
 
     @property
     def base_gguf(self) -> str:
@@ -526,9 +531,7 @@ TARGETS: tuple[Target, ...] = (
            "medium once C2 has run: review at home instead of on the 27B", max_seq=4096, epochs=2, batch=4, accum=4, min_rows=100,
            vram_mib=18000),
     Target("voice_17b", "1.7b", ("talk_understand", "talk_speak"), "the terminal voice (creator.talk): understand + grounded speak rows",
-           "small CPU saving; language quality", max_seq=2048, epochs=2, batch=8, accum=2, min_rows=100, vram_mib=12000,
-           blocked="exclusion rule: talk rows are built from Nupen's CURRENT docs and records (after the 2026-10-01T21:58:30Z cut); "
-                   "needs the teacher's decision that a voice model is outside the coding trust gate's rule (set allow_talk)"),
+           "small CPU saving; language quality", max_seq=2048, epochs=2, batch=8, accum=2, min_rows=60, vram_mib=12000, voice_only=True),
 )
 BY_NAME = {t.name: t for t in TARGETS}
 
@@ -610,6 +613,8 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
     pref_raw: list[Row] = []
     drops: collections.Counter[str] = collections.Counter()
     for s in t.sources + t.pref:
+        if s.startswith("talk_") and not t.voice_only:
+            raise ValueError(f"{t.name}: talk rows are allowed in the voice-only mix only")
         if s not in cache:
             dr: collections.Counter[str] = collections.Counter()
             cache[s] = (SOURCES[s](ctx, dr), dr)
@@ -649,6 +654,7 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
            "by_source_kept": dict(used), "drops": dict(sorted(drops.items())), "epochs": t.epochs, "max_seq": t.max_seq,
            "eval_sets": {k: {"n": len(v["texts"]), "hash": v["hash"]} for k, v in evals.items()},
            "heldout_cut": ctx.heldout.get("cut_utc"), "blocked": t.blocked,
+           "tag": "voice-only, not gate-eligible" if t.voice_only else "gate-eligible (exclusion rule applied)",
            "files": {n: {"rows": sum(1 for _ in (d / n).open(encoding="utf-8")), "sha256": hashlib.sha256((d / n).read_bytes()).hexdigest()}
                      for n in ("train.jsonl", "dev.jsonl", "pref.jsonl")}}
     man["gpu_minutes"] = minutes(t, man)
@@ -686,6 +692,12 @@ def audit_mix(d: Path, heldout: Mapping[str, Any]) -> list[str]:
     """Before upload: gpuday.audit_export (private markers, e-mails, frozen texts) + the trust-gate exclusion on every ids row."""
     from creator import gpuday as GD
     bad = GD.audit_export(d, frozen())
+    t = BY_NAME.get(Path(d).name)
+    if t is not None and t.voice_only:              # voice-only: post-cut talk rows allowed, but nothing else may be in it
+        for ids in sorted(Path(d).glob("*_train.ids.jsonl")):
+            bad += [f"{d.name}/{ids.name}: {r.get('id')} is not a talk row (voice-only mix)" for r in jsonl(ids)
+                    if not str(r.get("source", "")).startswith("talk_")]
+        return bad
     for ids in sorted(Path(d).glob("*_train.ids.jsonl")):
         for r in jsonl(ids):
             if excluded(float(r.get("ts") or 0.0), str(r.get("sha") or ""), heldout):
@@ -748,7 +760,8 @@ def inventory(state: Path, mixes: Optional[Mapping[str, Mapping[str, Any]]] = No
         "coder_17b (SFT+DEBUG), reviewer_17b (REVIEW), coder DPO (pairs) - the jobs skip themselves until the rows exist",
         used_by("c2_sft", "c2_debug", "c2_review", "c2_pairs"))
     add("talk rows", str(g / "talk"), talk_rows, "understand / speak SFT", "big model on Nupen's docs + records (creator.talkdata)",
-        "own", "BLOCKED by the exclusion rule (current docs/records)", "voice_17b - BLOCKED until the teacher allows it", used_by("talk_understand", "talk_speak"))
+        "own", "post-cut (current docs/records): allowed for the VOICE adapter only (teacher, 3 Oct) - never in a coder/thinker mix",
+        "voice_17b SFT (tag 'voice-only, not gate-eligible'), evaluated with creator.talkeval", used_by("talk_understand", "talk_speak"))
     add("bake-off transcripts", str(runtime() / "agents" / "runs" / "c1"), _count(runtime() / "agents" / "runs" / "c1" / "results.jsonl"),
         "eval (bake-off task set)", "4 agents x 33 tasks", "own runs", "task prompts/shas/function names are an EVAL SET for every dedupe",
         "agent bake-off verdict; UNUSED for training on purpose (the bake-off is a benchmark; training on it would end it)", None)
@@ -890,11 +903,10 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
     """The GPU-runner job list (gpu_pulse.py run --jobs-from creator.trainmix:jobs). Reads the built mixes (build first)."""
     c = dict(cfg or {})
     root = Path(root or c.get("trainmix_root") or mix_dir())
-    allow_talk = bool(c.get("allow_talk"))
     want = list(targets or c.get("trainmix_targets") or [t.name for t in TARGETS])
     plan: list[tuple[Target, dict[str, Any]]] = []
     for t in TARGETS:
-        if t.name not in want or (t.blocked and not (allow_talk and t.name.startswith("voice"))):
+        if t.name not in want or t.blocked:
             continue
         mp = root / t.name / "MANIFEST.json"
         if not mp.is_file():
@@ -917,6 +929,11 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
                         "max_minutes": round(t.eval_minutes * 2.5, 1), "low_util_abort_minutes": 0,
                         "args": {"target": t.name, "suites": list(t.eval_suites), "configs": dict(t.eval_configs), "n": dict(t.eval_n),
                                  "base": ",".join([t.base_gguf, *t.also_vs]), "run": f"train-{t.name}"}})
+        if t.voice_only:                             # talk eval: the base voice, then the adapter (same questions, same pulse)
+            for m, role in ((t.base_gguf, "base"), (sv, "tuned")):
+                out.append({"name": f"talkeval_{t.name}_{role}", "call": "creator.trainmix:talk_eval_job", "model": m, "minutes": 6,
+                            "max_minutes": 15, "low_util_abort_minutes": 0,
+                            "args": {"target": t.name, "role": role, "base": t.base_gguf, "tuned": sv}})
         if t.gate:
             out.append({"name": f"gate_{t.name}", "call": "creator.gpuselfteach:heldout_gate_job", "model": sv, "minutes": 12, "max_minutes": 25,
                         "low_util_abort_minutes": 0, "args": {"n": 400, "home_model": t.base_gguf, "tuned": sv,
@@ -998,6 +1015,61 @@ def record(state: Path, tuned: str, base: str, suites: Sequence[str], items_hash
     return rec
 
 
+def talk_compare(base_rows: Sequence[Mapping[str, Any]], tuned_rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Paired by question text: intent accuracy, groundedness, answered; tuned - base with 95% CI. ADOPT needs n >= MIN_N, both intent and
+    grounded CI lower bounds >= 0 and one > 0. The talk eval has ~45 questions: below MIN_N the verdict is INSUFFICIENT_N (never adopted)."""
+    from creator import gpuselfteach as GS
+    b = {str(r["q"]): r for r in base_rows}
+    common = [r for r in tuned_rows if str(r["q"]) in b]
+    out: dict[str, Any] = {"n": len(common)}
+    los = []
+    for k in ("intent_ok", "grounded", "answered"):
+        d = [float(int(bool(r[k])) - int(bool(b[str(r["q"])][k]))) for r in common]
+        m, lo, hi = GS.mean_ci(d)
+        los.append(lo)
+        out[k] = {"gain": round(m, 4), "ci95": [None if not math.isfinite(lo) else round(lo, 4), None if not math.isfinite(hi) else round(hi, 4)]}
+    out["tokens_out_mean"] = {"base": round(sum(float(b[str(r["q"])].get("tokens_out") or 0) for r in common) / max(1, len(common)), 1),
+                              "tuned": round(sum(float(r.get("tokens_out") or 0) for r in common) / max(1, len(common)), 1)}
+    if len(common) < MIN_N:
+        out["verdict"] = "INSUFFICIENT_N"
+    else:
+        out["verdict"] = "ADOPT" if min(los[:2]) >= 0 and max(los[:2]) > 0 else "KEEP_BASE"
+    return out
+
+
+def talk_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """gpupulse 'call' job: creator.talkeval's held-out questions answered by the voice this pulse serves (the base voice, then the voice-only
+    adapter). Each run is one record in <state>/thinking/train_gate.jsonl; the tuned run carries the paired comparison with the base run of
+    the same pulse. Tag: voice-only, not gate-eligible."""
+    from creator import gpupulse as GP
+    from creator import talk as T
+    from creator import talkeval as TE
+    a = dict(ctx.get("args") or {})
+    model, role = str(ctx.get("model") or ""), str(a.get("role") or "tuned")
+    got = GP.attach(Path(str(ctx["tunnel_file"])), model)
+    if got is None:
+        return {"verdict": "NOT_RUN", "why": f"the pulse does not serve {model}"}
+    port, pulse_id = got
+    voice = T.Voice(Path(model), factory=lambda: GP.PodLLM(port, model, pulse_id))
+    try:
+        res = TE.run_layer(Path(str(ctx["repo"])), "voice", list(TE.QUESTIONS), voice)
+    finally:
+        voice.close()
+    state, pulse = Path(str(ctx["state"])), str(ctx.get("pulse") or "")
+    rec: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "pulse": pulse, "target": a.get("target"),
+                           "kind": "talkeval", "role": role, "model": model, "tag": "voice-only, not gate-eligible",
+                           **{k: v for k, v in res.items() if k != "rows"}, "rows": res["rows"]}
+    if role == "tuned":
+        base = [r for r in jsonl(gate_path(state)) if r.get("kind") == "talkeval" and r.get("role") == "base" and r.get("pulse") == pulse
+                and r.get("target") == a.get("target")]
+        rec["compare"] = talk_compare(base[-1]["rows"], res["rows"]) if base else {"verdict": "NOT_RUN", "why": "no base run in this pulse"}
+    p = gate_path(state)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+    return {k: v for k, v in rec.items() if k != "rows"}
+
+
 # ------------------------------------------------------------------------------------------------ CLI
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m creator.trainmix", description=(__doc__ or "").split("\n\n")[0])
@@ -1006,7 +1078,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--repo", default=str(ROOT))
     ap.add_argument("--targets", default="")
     ap.add_argument("--out", default="")
-    ap.add_argument("--allow-talk", action="store_true")
     a = ap.parse_args(argv)
     targets = [t for t in a.targets.split(",") if t]
     if a.cmd in ("build", "inventory"):
@@ -1018,7 +1089,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         (g / "DATA_INVENTORY.md").write_text(inventory_md(E, mixes), encoding="utf-8")
         print(f"inventory: {len(E)} datasets -> {g / 'DATA_INVENTORY.md'}")
         return 0
-    js = jobs({"allow_talk": a.allow_talk}, targets=targets)
+    js = jobs({}, targets=targets)
     from creator import gpupulse as GP
     for j in js:
         GP.ext_job(j)

@@ -133,7 +133,8 @@ def _mix(root: Path, name: str, n_train: int, ts: float = 0.0) -> None:
             f.write(json.dumps(chat(f"question {i} about history", "ANSWER: A")) + "\n")
     (d / "dev.jsonl").write_text(json.dumps(chat("dev question", "ANSWER: B")) + "\n", encoding="utf-8")
     (d / "pref.jsonl").write_text("", encoding="utf-8")
-    (d / "sft_train.ids.jsonl").write_text(json.dumps({"id": "x", "ts": ts, "sha": ""}) + "\n", encoding="utf-8")
+    src = "talk_speak" if name.startswith("voice") else "trace_bank_cot"
+    (d / "sft_train.ids.jsonl").write_text(json.dumps({"id": "x", "source": src, "ts": ts, "sha": ""}) + "\n", encoding="utf-8")
     (d / "train_qids.json").write_text("[]", encoding="utf-8")
     man = {"rows": {"train": n_train, "dev": 1, "pref": 0}, "tokens_train": 1000 * n_train}
     (d / "MANIFEST.json").write_text(json.dumps(man), encoding="utf-8")
@@ -154,8 +155,8 @@ def test_jobs_are_valid_runner_specs_in_value_order_and_blocked_targets_stay_out
     names = [j["name"] for j in js]
     assert names[0] == "trainmix_upload" and names[-1] == "trainmix_cleanup"
     assert names.index("ft_thinker_17b") < names.index("ft_thinker_06b") < names.index("ft_coder_17b") < names.index("ft_reviewer_17b")
-    assert not any("voice" in n for n in names)                                   # blocked by the exclusion rule unless allowed
-    assert any("voice" in n for n in (j["name"] for j in TM.jobs({"allow_talk": True}, root=tmp_path)))
+    v = names.index("ft_voice_17b")                                               # voice-only adapter: talk eval, base first, no ladder/gate
+    assert names[v + 1:v + 5] == ["register_voice_17b", "talkeval_voice_17b_base", "talkeval_voice_17b_tuned", "delete_voice_17b"]
     i = names.index("ft_thinker_17b")
     assert names[i + 1:i + 5] == ["register_thinker_17b", "eval_thinker_17b", "gate_thinker_17b", "delete_thinker_17b"]
     ft = js[i]
@@ -260,3 +261,27 @@ def test_eval_job_dry_run_records_one_verdict_per_base(tmp_path: Path, monkeypat
     assert res["verdicts"] == {"base.gguf": "ADOPT", "big.gguf": "ADOPT"} and res["n"]["base.gguf"] == n
     recs = [json.loads(ln) for ln in TM.gate_path(state).read_text(encoding="utf-8").splitlines()]
     assert [r["base"] for r in recs] == ["base.gguf", "big.gguf"] and all(r["target"] == "thinker_17b" for r in recs)
+
+
+def test_talk_rows_stay_in_the_voice_only_mix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(TM, "frozen", lambda: GD.Frozen.empty())
+    d = tmp_path / "voice_17b"
+    d.mkdir()
+    (d / "sft_train.ids.jsonl").write_text(json.dumps({"id": "talk:speak:p:0", "source": "talk_speak", "ts": 0.0}) + "\n", encoding="utf-8")
+    assert TM.audit_mix(d, HELD) == []
+    with (d / "sft_train.ids.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "trace_bank:cot:x", "source": "trace_bank_cot", "ts": 0.0}) + "\n")
+    assert any("not a talk row" in b for b in TM.audit_mix(d, HELD))
+    bad = TM.Target("thinker_x", "1.7b", ("trace_bank", "talk_speak"), "", "")
+    with pytest.raises(ValueError, match="voice-only"):
+        TM.build_target(bad, TM.Ctx(tmp_path, tmp_path, HELD, {}), {}, GD.Frozen.empty(), tmp_path)
+
+
+def test_talk_compare_is_paired_and_never_adopts_below_min_n() -> None:
+    base = [{"q": f"q{i}", "intent_ok": i % 2 == 0, "grounded": True, "answered": True, "tokens_out": 40} for i in range(60)]
+    tuned = [{"q": f"q{i}", "intent_ok": True, "grounded": True, "answered": True, "tokens_out": 30} for i in range(60)]
+    res = TM.talk_compare(base, tuned)
+    assert res["n"] == 60 and res["verdict"] == "ADOPT" and res["intent_ok"]["gain"] == 0.5
+    assert TM.talk_compare(base[:45], tuned[:45])["verdict"] == "INSUFFICIENT_N"
+    worse = [dict(r, grounded=False) for r in tuned]
+    assert TM.talk_compare(base, worse)["verdict"] == "KEEP_BASE"
