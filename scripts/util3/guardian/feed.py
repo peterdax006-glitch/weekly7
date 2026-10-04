@@ -153,10 +153,12 @@ def main():
             threading.Thread(target=worker, args=(p, i), daemon=True).start()
     last_load = time.time()
     while not os.path.exists(f"{D}/STOP_FEED"):
-        tm = traces_models()
         for p in PORTS:
-            m = served(p)
-            live[p] = m if m in tm else ""
+            try:
+                tag = open(f"{D}/port_{p}.tag").read().strip()
+            except OSError:
+                tag = ""
+            live[p] = served(p) if tag == "traces" else ""      # guard.sh tags each port with the queue item it serves
         if time.time() - last_load > 120:
             try:
                 load()

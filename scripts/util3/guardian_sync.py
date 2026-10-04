@@ -122,9 +122,62 @@ def pull(a, main: Path, qmap: dict) -> dict:
     return stats
 
 
+CODING_SOURCES = ("rl_tasks_hf.jsonl", "rl_tasks_more.jsonl")            # PUBLIC only (OpenCodeInstruct + mined public repos); never rl_tasks.jsonl
+EXPORT = Path("C:/Users/peter/creator_runtime/gpuday/export_plus")
+BRIEF = Path("C:/Users/peter/creator_runtime/gpuday/TEACHER_BRIEF.md")
+ROLES = Path("C:/Users/peter/creator_runtime/gpuday/trajectories/roles")
+
+
+def stage_coding(a) -> int:
+    """Public coding tasks (train split only) + the teacher brief -> the pod's coder.py. Every prompt passes the private-marker guard."""
+    from creator import gpupulse as GP
+    import ast
+    rows = []
+    for name in CODING_SOURCES:
+        for ln in (EXPORT / name).read_text(encoding="utf-8").splitlines():
+            r = json.loads(ln)
+            if r.get("split") != "train" or not str(r.get("id", "")).startswith(("hf:", "pub:")):
+                continue
+            GP.outbound_ok([{"content": r["prompt"]}, {"content": str(r["tests"])}])
+            ast.literal_eval(r["tests"]) if isinstance(r["tests"], str) else None
+            rows.append({"id": r["id"], "name": r["name"], "prompt": r["prompt"],
+                         "tests": r["tests"] if isinstance(r["tests"], str) else repr(r["tests"])})
+    brief = BRIEF.read_text(encoding="utf-8")
+    GP.outbound_ok([{"content": brief}])
+    RT.mkdir(parents=True, exist_ok=True)
+    tmp = RT / "coding_tasks.jsonl.gz"
+    with gzip.open(tmp, "wt", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r) + "\n")
+    run_ssh(a, "mkdir -p /root/guardian/q && cat > /root/guardian/q/coding_tasks.jsonl.gz", stdin=tmp.read_bytes())
+    run_ssh(a, "cat > /root/guardian/q/TEACHER_BRIEF.md", stdin=brief.encode("utf-8"))
+    print(f"staged {len(rows)} public coding tasks + the teacher brief", flush=True)
+    return len(rows)
+
+
+def pull_roles(a) -> dict:
+    """New bytes of the pod's role rows (out_roles/<model>.jsonl) -> trajectories/roles/<model>.jsonl here (whole lines only)."""
+    offs_p = RT / "offsets_roles.json"
+    offs = json.loads(offs_p.read_text()) if offs_p.exists() else {}
+    names = run_ssh(a, "ls /root/guardian/out_roles/ 2>/dev/null | grep 'jsonl$' || true").decode().split()
+    ROLES.mkdir(parents=True, exist_ok=True)
+    got = 0
+    for name in names:
+        off = int(offs.get(name, 0))
+        data = run_ssh(a, f"tail -c +{off + 1} /root/guardian/out_roles/{name} | head -c 50000000", timeout=900)
+        cut = data.rfind(b"\n") + 1
+        if cut:
+            with (ROLES / name).open("ab") as f:
+                f.write(data[:cut])
+            got += data[:cut].count(b"\n")
+        offs[name] = off + cut
+        offs_p.write_text(json.dumps(offs), encoding="utf-8")
+    return {"role_rows": got}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("stage", "pull", "loop"))
+    ap.add_argument("cmd", choices=("stage", "stage-coding", "pull", "loop"))
     ap.add_argument("--main", default="C:/Users/peter/weekly7")
     ap.add_argument("--host", required=True)
     ap.add_argument("--sshport", required=True)
@@ -139,6 +192,9 @@ def main() -> int:
     from lowprio import lower_own_priority, IDLE_PRIORITY_CLASS
     lower_own_priority(IDLE_PRIORITY_CLASS)
     RT.mkdir(parents=True, exist_ok=True)
+    if a.cmd == "stage-coding":
+        stage_coding(a)
+        return 0
     if a.cmd == "stage":
         stage(a, main_dir)
         return 0
@@ -150,7 +206,7 @@ def main() -> int:
     last_q = time.monotonic()
     while not (RT / "STOP").exists():
         try:
-            print(time.strftime("%H:%M:%S"), json.dumps(pull(a, main_dir, qmap)), flush=True)
+            print(time.strftime("%H:%M:%S"), json.dumps(dict(pull(a, main_dir, qmap), **pull_roles(a))), flush=True)
             if time.monotonic() - last_q > 3600:                         # new repositories / commits: re-stage when the set grew
                 qmap = {q.qid: q for q in questions(main_dir)}
                 last_q = time.monotonic()

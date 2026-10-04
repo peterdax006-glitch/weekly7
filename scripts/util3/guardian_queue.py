@@ -26,6 +26,7 @@ PORTS = (18350, 18351, 18352, 18353)
 LADDER_JOBS = Path("C:/Users/peter/creator_runtime/gpu/ladder/jobs_tiers.json")
 EFFICIENCY = ["Qwen3-1.7B-Q3_K_M.gguf", "Qwen3-4B-Q3_K_M.gguf", "Qwen3-0.6B-Q5_K_M.gguf", "Qwen3-1.7B-Q5_K_M.gguf", "Qwen3-4B-Q5_K_M.gguf"]
 TRACES = [(8, "Qwen3-4B-Q4_K_M.gguf"), (9, "Qwen3-1.7B-Q4_K_M.gguf")]
+CODING = [(5, "Qwen3-4B-Q4_K_M.gguf")]               # pod-driven role trajectories (coder.py); below efficiency, above traces
 
 
 def log(msg: str) -> None:
@@ -63,7 +64,7 @@ def main() -> int:
     for m in EFFICIENCY:
         e = E.LADDER[m]
         lines.append(f"1 {m} effladder {e['bytes']} {e['sha256']} {GP.HF_BASE}/{e['repo']}/resolve/main/{m}")
-    lines += [f"{p} {m} traces" for p, m in TRACES]
+    lines += [f"{p} {m} coding" for p, m in CODING] + [f"{p} {m} traces" for p, m in TRACES]
     GS.run_ssh(a, "cat > /root/guardian/queue.txt.new && mv -f /root/guardian/queue.txt.new /root/guardian/queue.txt",
                stdin=("\n".join(lines) + "\n").encode())
     log(f"queue written: {len(EFFICIENCY)} efficiency jobs, traces fallback")

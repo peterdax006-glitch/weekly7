@@ -48,20 +48,27 @@ pick(){ # echo the model file of the best queue item that fits $1 MiB of VRAM (a
   local room=$1
   sort -n $D/queue.txt 2>/dev/null | while read prio file tag bytes sha url; do
     [ -z "$file" ] && continue
-    [ "$tag" != traces ] && ! pcalive && continue
-    [ -f $MODELS/$file ] || { [ "$tag" != traces ] && fetch_bg "$file" "${bytes:-0}" "$sha" "$url"; continue; }
-    [ "$tag" != traces ] && [[ " ${kinds[*]} " == *" $file "* ]] && continue
-    local need=$(( $(stat -c %s $MODELS/$file) / 1048576 + 1900 ))
-    [ $room -ge $need ] && { echo $file; break; }
+    [ "$tag" = effladder ] && ! pcalive && continue
+    [ -f $MODELS/$file ] || { fetch_bg "$file" "${bytes:-0}" "$sha" "$url"; continue; }
+    [ "$tag" = effladder ] && [[ " ${kinds[*]} " == *" $file|$tag "* ]] && continue
+    local need=$(( $(stat -c %s $MODELS/$file) / 1048576 + $(extra $tag) ))
+    [ $room -ge $need ] && { echo "$file|$tag"; break; }
   done
 }
-inqueue(){ awk -v f="$1" '$2==f {found=1} END {exit !found}' $D/queue.txt 2>/dev/null; }
+# server shape per item: effladder = the runner's ladder conditions (4096 tokens per slot, f16 KV; think@2048 must fit), coding = long role
+# prompts (the teacher brief + code + real test output: 4096 per slot), traces = short questions (1024 per slot); extra = VRAM beyond weights
+srvargs(){ case $1 in effladder) echo "-np 8 -c 32768";; coding) echo "-ctk q8_0 -ctv q8_0 -np 8 -c 32768";; *) echo "-ctk q8_0 -ctv q8_0 -np 16 -c 16384";; esac; }
+extra(){ case $1 in effladder) echo 5600;; coding) echo 3200;; *) echo 1900;; esac; }
+inqueue(){ awk -v f="${1%%|*}" -v t="${1##*|}" '$2==f && $3==t {found=1} END {exit !found}' $D/queue.txt 2>/dev/null; }   # entry = file|tag
+infile(){ awk -v f="$1" '$2==f {found=1} END {exit !found}' $D/queue.txt 2>/dev/null; }
+prio(){ awk -v f="${1%%|*}" -v t="${1##*|}" '$2==f && $3==t {print $1; exit}' $D/queue.txt 2>/dev/null; }
 pcalive(){ [ -n "$(find $D/pc_heartbeat -mmin -5 2>/dev/null)" ]; }   # queued JOBS are driven from the PC: serve them only while it is alive
-istraces(){ awk -v f="$1" '$2==f && $3=="traces" {t=1} END {exit !t}' $D/queue.txt 2>/dev/null; }
-start(){ # $1 = model file under $MODELS
-  local port=$((BASE+${#pids[@]})) m=$MODELS/$1
+
+start(){ # $1 = queue entry 'file|tag'; the port's tag file tells the pod drivers (feed.py: traces, coder.py: coding) which ports are theirs
+  local port=$((BASE+${#pids[@]})) m=$MODELS/${1%%|*}
+  echo "${1##*|}" > $D/port_$port.tag
   [ -f "$m" ] || { log "missing $m"; return; }
-  nohup /opt/llama.cpp/llama-server -m $m --host 127.0.0.1 --port $port -ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 16 -c 16384 -t 2 -tb 2 \
+  nohup /opt/llama.cpp/llama-server -m $m --host 127.0.0.1 --port $port -ngl 99 -fa on $(srvargs ${1##*|}) -t 2 -tb 2 \
     --no-webui --metrics > $D/srv_$port.log 2>&1 &
   local p=$!; pids+=($p); kinds+=($1); mode=on; last_start=$(date +%s)
   for k in $(seq 1 120); do
@@ -78,7 +85,7 @@ diskguard(){
 \
            $(ls /root/pubembed*/chunks.jsonl 2>/dev/null); do
     case "$f" in $M4|$M17|$M14) continue;; esac
-    inqueue "$(basename "$f" .part)" && continue                        # a queued job's model (or its download) stays
+    infile "$(basename "$f" .part)" && continue                        # a queued job's model (or its download) stays
     echo "$open" | grep -q -F "$f" && continue
     log "disk guard: ${free} MiB free, deleting $f ($(du -sm "$f" | cut -f1) MiB)"; rm -rf -- "$f"
     free=$(df --output=avail -m / | tail -1 | tr -d ' '); [ "$free" -ge 6144 ] && break
@@ -87,6 +94,7 @@ diskguard(){
 while [ ! -f $D/STOP ]; do
   for i in "${!pids[@]}"; do kill -0 ${pids[$i]} 2>/dev/null || { log "an instance exited"; killall_ "instance exited"; break; }; done
   pgrep -f "guardian/feed.py" > /dev/null || { nohup nice -n 5 python3 $D/feed.py >> $D/feed.out 2>&1 & log "feed started"; }
+  pgrep -f "guardian/coder.py" > /dev/null || { nohup nice -n 5 /usr/bin/python3 $D/coder.py >> $D/coder.out 2>&1 & log "coder started"; }
   read util free <<< "$(nvidia-smi --query-gpu=utilization.gpu,memory.free --format=csv,noheader,nounits | head -1 | tr -d ',')"
   utils+=(${util:-0}); [ ${#utils[@]} -gt 60 ] && utils=("${utils[@]:1}")
   u15=$(printf '%s\n' "${utils[@]: -15}" | awk '{s+=$1;n++} END {print (n? int(s/n) : 0)}')
@@ -133,12 +141,13 @@ while [ ! -f $D/STOP ]; do
   elif [ ${#pids[@]} -gt 0 ] && [ "${free:-0}" -lt $mf ]; then killone "free ${free} MiB"
   else
     # an instance whose queue job is finished (line removed) makes room for the next job
-    for i in "${!kinds[@]}"; do { inqueue "${kinds[$i]}" && { istraces "${kinds[$i]}" || pcalive; }; } || { if [ $i -eq $((${#pids[@]}-1)) ]; then killone "job ${kinds[$i]} done"; else killall_ "job ${kinds[$i]} done"; fi; break; }; done
+    for i in "${!kinds[@]}"; do { inqueue "${kinds[$i]}" && { [ "${kinds[$i]##*|}" != effladder ] || pcalive; }; } || { if [ $i -eq $((${#pids[@]}-1)) ]; then killone "job ${kinds[$i]} done"; else killall_ "job ${kinds[$i]} done"; fi; break; }; done
     # a job that outranks a running traces instance takes its place when it would fit in that instance's VRAM
-    if [ ${#pids[@]} -gt 0 ] && istraces "${kinds[-1]}" && [ $((now-last_start)) -ge 4 ]; then
-      j=$(pick $(( ${free:-0} - mf - 400 ))); if [ -z "$j" ] || istraces "$j" || [ ${#pids[@]} -ge 4 ]; then
-        j2=$(pick $(( ${free:-0} + $(( $(stat -c %s $MODELS/${kinds[-1]}) / 1048576 + 1900 )) - mf - 400 )))
-        [ -n "$j2" ] && ! istraces "$j2" && killone "make room for $j2"
+    # a higher-priority item that would fit in the newest instance's VRAM takes its place (efficiency > coding > traces)
+    if [ ${#pids[@]} -gt 0 ] && [ $((now-last_start)) -ge 4 ]; then
+      j=$(pick $(( ${free:-0} - mf - 400 ))); if [ -z "$j" ] || [ ${#pids[@]} -ge 4 ]; then
+        j2=$(pick $(( ${free:-0} + $(( $(stat -c %s $MODELS/${kinds[-1]%%|*}) / 1048576 + $(extra ${kinds[-1]##*|}) )) - mf - 400 )))
+        [ -n "$j2" ] && [ "$(prio "$j2")" -lt "$(prio "${kinds[-1]}")" ] && killone "make room for $j2"
       fi
     fi
     if [ $((now-stable_since)) -ge $STABLE_S ] && [ $((now-last_start)) -ge 4 ] && [ ${#pids[@]} -lt 4 ] && [ "$u15" -lt $UTIL_T ]; then
