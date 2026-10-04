@@ -53,6 +53,7 @@ class Facts:
     lines: list[str]
     evidence: list[str] = dataclasses.field(default_factory=list)
     confirm: Optional[dict[str, Any]] = None        # an action waiting for the owner's yes/no
+    user: str = ""                                  # the owner's words this answers (set by Conversation; a model speaker needs them)
 
 
 class Understand(Protocol):
@@ -214,6 +215,7 @@ def h_plan(c: Ctx, s: dict[str, Any]) -> Facts:
     for r in chosen[:5]:
         lines.append(f"- {r['component']} {r['step']} ({r['node']}): {r['why']}")
     if not chosen:
+        lines.append("Nothing is chosen right now, so I am not working on a package; these steps were considered and not chosen:")
         for r in p["reasons"][:3]:
             lines.append(f"- not chosen: {r['component']} {r['step']}: {r['why']}")
     return Facts("plan", lines, [f"plan_explanations.jsonl@{p['at']}"] + p["chosen"][:5])
@@ -504,8 +506,13 @@ class LMSpeak:
 
 class Conversation:
     def __init__(self, root: Path, understand: Optional[Understand] = None, speak: Optional[Speak] = None,
-                 now: Optional[Callable[[], dt.datetime]] = None, auto_confirm: bool = False, log: bool = True) -> None:
+                 now: Optional[Callable[[], dt.datetime]] = None, auto_confirm: bool = False, log: bool = True,
+                 handlers: Optional[dict[str, Callable[[Ctx, dict[str, Any]], Facts]]] = None,
+                 meta: Optional[Callable[[], dict[str, Any]]] = None) -> None:
         self.root = Path(root)
+        self.handlers = dict(handlers or {})        # layer 2+: extra intents, or replacements of table handlers (checked first)
+        self.meta = meta                            # extra fields for the log record of each exchange (e.g. which voice, latency)
+        self.last: dict[str, Any] = {}              # the last exchange: parsed intent, facts, answer (evals read it)
         self.understand: Understand = understand or RuleUnderstand()
         self.speak: Speak = speak or LMSpeak()
         self.clock = now or dt.datetime.now
@@ -551,7 +558,7 @@ class Conversation:
             if self.waiting is not None:
                 self.waiting = None
             parsed = self.understand.parse(text)
-            handler = INTENT_BY_NAME[parsed.intent].handler if parsed.intent in INTENT_BY_NAME else h_unknown
+            handler = self.handlers.get(parsed.intent) or (INTENT_BY_NAME[parsed.intent].handler if parsed.intent in INTENT_BY_NAME else h_unknown)
             try:
                 facts = handler(c, parsed.slots)
             except Exception as e:  # noqa: BLE001 - a broken record must not end the conversation
@@ -562,7 +569,9 @@ class Conversation:
                     facts = Facts(facts.intent, facts.lines[:1] + done.lines, facts.evidence + done.evidence)
                 else:
                     self.waiting = facts.confirm
+        facts.user = text
         answer = self.speak.render(facts)
+        self.last = {"parsed": parsed, "facts": facts, "answer": answer}
         if self.log:
             self._append(c, text, parsed, facts, answer)
         return answer
@@ -570,6 +579,11 @@ class Conversation:
     def _append(self, c: Ctx, user: str, p: Parsed, f: Facts, answer: str) -> None:
         rec = {"user": user, "intent": p.intent, "slots": p.slots, "answer": answer, "evidence": f.evidence,
                "at": c.now.isoformat(timespec="seconds"), "source": SOURCE, "session": self.session}
+        if self.meta is not None:
+            try:
+                rec.update({k: v for k, v in self.meta().items() if k not in rec})
+            except Exception:  # noqa: BLE001 - logging extras never break the exchange
+                pass
         try:
             c.state.mkdir(parents=True, exist_ok=True)
             with open(c.state / CONVERSATIONS_FILE, "ab") as fh:
