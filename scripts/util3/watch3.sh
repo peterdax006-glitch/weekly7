@@ -1,9 +1,10 @@
 #!/bin/bash
-# util3 GPU filler (h64): trace-generation llama-servers on pod ports 18350-18352 that only fill what the runner leaves.
+# util3 GPU filler (h64): trace-generation llama-servers on pod ports 18350-18353 that only fill what the runner leaves.
 # One llama-server is bound by its single server thread (36 slots of a 4B: GPU 44%); a second instance took it to 75%, so the filler runs
 # several small instances instead of one big one.
 #  - a runner 8B/14B/27B/30B/32B llama-server up            -> all filler instances OFF (instantly)
-#  - the set of runner GPU processes changes (server/fine-tune start or stop) -> all OFF, then wait STABLE_S before refilling
+#  - a NEW runner GPU process appears (server/fine-tune start) -> all OFF, refill after STABLE_S; one that only goes away keeps ours running
+#  - runner gap (no runner GPU process at all)             -> a 4th 4B instance (owner: 90%+ even in gaps)
 #  - runner active (small server or a non-llama GPU app)   -> up to 3 x 4B Q4 (-np 16, ~4.3 GB each) while free VRAM >= 6300 MiB per new one
 #  - runner idle >= IDLE_S                                  -> up to 2 x 14B Q4 (-np 16, ~11 GB each) while free VRAM >= 14000 MiB per new one
 #  - free VRAM < MINFREE while instances run                -> drop the newest instance
@@ -11,7 +12,7 @@
 D=/root/util3; cd $D; touch watch.on
 M4=/workspace/nupen/models/Qwen3-4B-Q4_K_M.gguf
 M14=/workspace/nupen/models/Qwen3-14B-Q4_K_M.gguf
-BASE=18350; IDLE_S=${IDLE_S:-240}; STABLE_S=${STABLE_S:-20}; MINFREE=${MINFREE:-2000}
+BASE=18350; IDLE_S=${IDLE_S:-240}; STABLE_S=${STABLE_S:-10}; MINFREE=${MINFREE:-2000}
 pids=(); mode=off; idle_since=$(date +%s); stable_since=$(date +%s); lastsig=""; last_start=0
 log(){ echo "$(date +%T) $*" >> watch.log; }
 writemode(){ { echo "$mode ${#pids[@]}"; } > mode.txt; }
@@ -42,14 +43,18 @@ while [ ! -f STOP ]; do
   now=$(date +%s)
   [ "$sig" != "|" ] && idle_since=$now
   if [ "$sig" != "$lastsig" ]; then
-    [ -n "$lastsig" ] && killall_ "runner change"; lastsig=$sig; stable_since=$now
+    # a NEW runner process needs room: free it all, refill once it has allocated; a runner process that only went away (a gap) keeps ours
+    new=$(echo "${sig//|/,}" | tr ',' '
+' | grep . | while read q; do case ",${lastsig//|/,}," in *",$q,"*) ;; *) echo $q;; esac; done | head -1)
+    if [ -n "$lastsig" ] && [ -n "$new" ]; then killall_ "runner change"; stable_since=$now; fi
+    lastsig=$sig
   fi
   if [ "$big" -gt 0 ]; then killall_ "runner big server"
   elif [ ${#pids[@]} -gt 0 ] && [ "${free:-0}" -lt $MINFREE ]; then killone "free ${free} MiB"; writemode
   elif [ $((now-stable_since)) -ge $STABLE_S ] && [ $((now-last_start)) -ge 5 ]; then
     want=4b; [ "$sig" = "|" ] && [ $((now-idle_since)) -ge $IDLE_S ] && want=14b
     if [ "$mode" != off ] && [ "$mode" != "$want" ]; then killall_ "switch to $want"
-    elif [ "$want" = 4b ] && [ ${#pids[@]} -lt 3 ] && [ "${free:-0}" -ge ${NEED4:-6300} ]; then start 4b
+    elif [ "$want" = 4b ] && { [ ${#pids[@]} -lt 3 ] || { [ "$sig" = "|" ] && [ ${#pids[@]} -lt 4 ]; }; } && [ "${free:-0}" -ge ${NEED4:-6300} ]; then start 4b
     elif [ "$want" = 14b ] && [ ${#pids[@]} -lt 2 ] && [ "${free:-0}" -ge 14000 ]; then start 14b
     fi
   fi

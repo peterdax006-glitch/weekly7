@@ -1,4 +1,4 @@
-"""h64 util3: the PC side of the GPU filler - drives creator.gpupulse.traces against the util3 filler servers (pod ports 18350-18352, watch3.sh).
+"""h64 util3: the PC side of the GPU filler - drives creator.gpupulse.traces against the util3 filler servers (pod ports 18350-18353, watch3.sh).
 
 The pod watcher decides how many filler instances run and which model (4B Q4 beside the runner's work, 14B Q4 when the runner is idle, nothing
 while the runner serves an 8B+ model). This driver keeps one SSH tunnel to those ports, and one thread per port feeds whatever instance answers
@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 RT = Path("C:/Users/peter/creator_runtime/util3")
-PORTS = (18350, 18351, 18352)
+PORTS = (18350, 18351, 18352, 18353)
 SLOTS = 16                                   # -np of every filler instance (watch3.sh)
 BATCH_Q = SLOTS * 60
 
