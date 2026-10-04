@@ -749,7 +749,9 @@ def homecost(threads: int = 4, models: Sequence[str] = (), say: Callable[[str], 
         if m in rows:
             continue
         pb = model_facts(m)["params_b"]
-        ref = next((r for k, r in rows.items() if model_facts(k)["params_b"] == pb and r.get("tg_tok_s")), None)
+        # the least-contended measurement of this size is the reference (a starved run on a busy PC must not drag every estimate down)
+        refs = [r for k, r in rows.items() if r.get("measured") and model_facts(k)["params_b"] == pb and r.get("tg_tok_s")]
+        ref = max(refs, key=lambda r: float(r["tg_tok_s"]) * float(r["disk_bytes"])) if refs else None
         b = LADDER[m]["bytes"]
         if ref is None:
             rows[m] = {"model": m, "disk_bytes": b, "measured": False, "note": "no measured file of this size on the PC"}
