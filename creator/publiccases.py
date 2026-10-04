@@ -181,18 +181,24 @@ def setup_text(repo: str, c: dict[str, Any], topic: str) -> str:
 def raw_cases(topic: str, repos: Optional[Sequence[Path]] = None) -> list[tuple[str, D.BItem, str, str]]:
     """(repo name, item, message class, setup text) for every commit of every public repository; windows never cross repositories.
     Unresolved items (the last `window` commits) are included with resolved None."""
+    return _cases(topic, repos, True)
+
+
+def _cases(topic: str, repos: Optional[Sequence[Path]], text: bool) -> list[tuple[str, D.BItem, str, str]]:
     mode, w = MODE[topic]
     out: list[tuple[str, D.BItem, str, str]] = []
     for repo in (public_repos() if repos is None else repos):
         cs = commits(repo)
         for c, it in zip(cs, D._git_events(cs, w, mode)):
             keys = it.keys[:3] + (f"d:{repo.name}/{it.keys[3][2:]}", f"r:{repo.name}")
-            out.append((repo.name, D.BItem(keys, it.created, it.resolved, it.y, f"{repo.name}:{it.subject}"), D._msg_class(c["s"]),
-                        setup_text(repo.name, c, topic)))
+            out.append((repo.name, D.BItem(keys, it.created, it.resolved, it.y, f"{repo.name}:{it.subject}"),
+                        D._msg_class(c["s"]) if text else "", setup_text(repo.name, c, topic) if text else ""))
     out.sort(key=lambda x: x[1].created)
     return out
 
 
 def items(topic: str, repos: Optional[Sequence[Path]] = None) -> list[D.BItem]:
-    """The same cases as statistical items (for the walk-forward baseline the judge is compared with)."""
-    return [x[1] for x in raw_cases(topic, repos)]
+    """The same cases as statistical items (for the walk-forward baseline the judge is compared with). h59: built without the setup texts
+    and message classes the items never carry (measured 3 Oct on 157,024 public commits: ~10 s of setup_text + ~4 s of _msg_class per call
+    of raw_cases' 56 s, and ~50 MB of strings built only to be dropped); the same items in the same order."""
+    return [x[1] for x in _cases(topic, repos, False)]
