@@ -4,7 +4,7 @@
 # several small instances instead of one big one.
 #  - a runner 8B/14B/27B/30B/32B llama-server up            -> all filler instances OFF (instantly)
 #  - the set of runner GPU processes changes (server/fine-tune start or stop) -> all OFF, then wait STABLE_S before refilling
-#  - runner active (small server or a non-llama GPU app)   -> up to 3 x 4B Q4 (-np 16, ~4.3 GB each) while free VRAM >= 7000 MiB per new one
+#  - runner active (small server or a non-llama GPU app)   -> up to 3 x 4B Q4 (-np 16, ~4.3 GB each) while free VRAM >= 6300 MiB per new one
 #  - runner idle >= IDLE_S                                  -> up to 2 x 14B Q4 (-np 16, ~11 GB each) while free VRAM >= 14000 MiB per new one
 #  - free VRAM < MINFREE while instances run                -> drop the newest instance
 # STOP file ends it. Polls every 0.5 s. CPU servers (-ngl 0) and the teacher's ports 1830x are not runner activity.
@@ -49,7 +49,7 @@ while [ ! -f STOP ]; do
   elif [ $((now-stable_since)) -ge $STABLE_S ] && [ $((now-last_start)) -ge 5 ]; then
     want=4b; [ "$sig" = "|" ] && [ $((now-idle_since)) -ge $IDLE_S ] && want=14b
     if [ "$mode" != off ] && [ "$mode" != "$want" ]; then killall_ "switch to $want"
-    elif [ "$want" = 4b ] && [ ${#pids[@]} -lt 3 ] && [ "${free:-0}" -ge 7000 ]; then start 4b
+    elif [ "$want" = 4b ] && [ ${#pids[@]} -lt 3 ] && [ "${free:-0}" -ge ${NEED4:-6300} ]; then start 4b
     elif [ "$want" = 14b ] && [ ${#pids[@]} -lt 2 ] && [ "${free:-0}" -ge 14000 ]; then start 14b
     fi
   fi
