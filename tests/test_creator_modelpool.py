@@ -181,6 +181,48 @@ def test_in_thinking_focus_the_pool_keeps_the_thinking_model(tmp_path: Path) -> 
     assert MP.pool_model(st, cfg) == {}                                  # no focus: the fast model, as before
     (st / "focus.json").write_text(json.dumps({"focus": "thinking"}), encoding="utf-8")
     got = MP.pool_model(st, cfg)
-    assert got["model"] == think and got["max_servers"] == 4 and got["server_gb"] > 0
+    assert got["model"] == think and got["max_servers"] * got.get("share", 1) == 4 and got["server_gb"] > 0    # 4 lessees at once
+    assert got["share"] == 4 and got["max_servers"] == 1 and 1 <= got["threads"] <= 8                    # h59: on one shared server
+    old = MP.pool_model(st, {**cfg, "think_share": 1})                                                  # the one-per-server pool
+    assert old["max_servers"] == 4 and "share" not in old and got["server_gb"] < 4 * old["server_gb"]
     assert MP.pool_model(st, {"think_model": str(think), "think_servers": 0}) == {}         # thinking servers not allowed: fast model
     assert MP.pool_model(st, {"think_model": str(tmp_path / "missing.gguf"), "think_servers": 4}) == {}
+
+
+def test_a_shared_server_takes_one_lessee_per_parallel_slot_and_shrinks_only_when_all_are_free(tmp_path: Path) -> None:
+    r = Rig(tmp_path, free=20.0, slots=1)
+    r.pool.share = 3
+    r.step()
+    st = json.loads((tmp_path / "llama_pool.json").read_text(encoding="utf-8"))
+    assert st["share"] == 3
+    cmd = r.pool._command(1234)
+    assert cmd[cmd.index("-np") + 1] == "3" and cmd[cmd.index("--kv-unified-per-slot") + 1] == "4096" and cmd[cmd.index("-c") + 1] == "12288"
+    assert cmd[cmd.index("--cache-ram") + 1] == str(MP.SHARED_CACHE_MIB)
+    ok = dict(health=lambda p: True, alive=lambda p: True)
+    got = [MP.lease(r.base, r.pool.model, 4096, **ok) for _ in range(3)]
+    assert all(g is not None for g in got) and len({g[1].path for g in got if g is not None}) == 3   # three distinct leases, one server
+    assert MP.lease(r.base, r.pool.model, 4096, **ok) is None                # all parallel slots taken
+    r.free = 1.2                                                              # RAM tight: a server with any lessee is never stopped
+    r.step()
+    assert r.pool.status()["servers"] == 1
+    for g in got[:2]:
+        assert g is not None
+        g[1].release()
+    r.step()
+    assert r.pool.status()["servers"] == 1                                    # one lessee left
+    assert got[2] is not None
+    got[2][1].release()
+    r.step()
+    assert r.pool.status()["servers"] == 0
+    r.pool.close()
+
+
+def test_an_unshared_server_keeps_the_old_command_and_one_lessee(rig: Rig) -> None:
+    cmd = rig.pool._command(1234)
+    assert "-np" not in cmd and cmd[cmd.index("-c") + 1] == "4096"
+    rig.step()
+    ok = dict(health=lambda p: True, alive=lambda p: True)
+    first = MP.lease(rig.base, rig.pool.model, 4096, **ok)
+    assert first is not None
+    assert MP.lease(rig.base, rig.pool.model, 4096, **ok) is None
+    first[1].release()

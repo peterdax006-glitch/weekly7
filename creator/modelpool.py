@@ -45,6 +45,12 @@ def slot_paths(base_pidfile: Path, i: int) -> tuple[Path, Path, Path, Path]:
             d / f"llama_pool{_sfx(i)}.json", d / f"llama_pool{_sfx(i)}.lease")
 
 
+def lease_path(base_pidfile: Path, i: int, j: int) -> Path:
+    """Lease lock j of slot i's server: j 0 is slot_paths' lease lock; a SHARED server (several parallel slots) has one more per slot."""
+    lk = slot_paths(base_pidfile, i)[3]
+    return lk if j == 0 else lk.with_name(f"{lk.name}{j}")
+
+
 def _alive(pid: int) -> bool:
     return pid > 0 and G._pid_image(pid) is not None
 
@@ -59,8 +65,9 @@ def _healthy(port: int, timeout: float = 1.5) -> bool:
 
 def lease(base_pidfile: Path, model: Path, ctx: int, health: Callable[[int], bool] = _healthy,
           alive: Callable[[int], bool] = _alive) -> Optional[tuple[int, Any, int]]:
-    """Attach to an idle warm server of this machine (any process): (port, held lease lock, slot) or None. The caller releases the
-    lock when done; the server itself stays loaded."""
+    """Attach to a free lease of a warm server of this machine (any process): (port, held lease lock, slot) or None. The caller releases the
+    lock when done; the server itself stays loaded. A SHARED server (state 'share' K > 1, h59) takes K lessees at once, one per parallel
+    slot of the llama-server: their requests decode together in one batch instead of K servers each decoding one."""
     try:
         states = sorted(base_pidfile.parent.glob(STATE_GLOB))
     except OSError:
@@ -75,19 +82,21 @@ def lease(base_pidfile: Path, model: Path, ctx: int, health: Callable[[int], boo
             continue
         if not (alive(owner) and alive(pid)):
             continue
-        lk = G.MachineLock(slot_paths(base_pidfile, slot)[3])
-        try:
-            lk.path.parent.mkdir(parents=True, exist_ok=True)
-            lk.fh = open(lk.path, "a+b")
-        except OSError:
-            continue
-        if not lk._try():
-            lk.fh.close()
-            lk.fh = None
-            continue
-        if health(port):
-            return port, lk, slot
-        lk.release()
+        for j in range(max(1, int(st.get("share") or 1))):
+            lk = G.MachineLock(lease_path(base_pidfile, slot, j))
+            try:
+                lk.path.parent.mkdir(parents=True, exist_ok=True)
+                lk.fh = open(lk.path, "a+b")
+            except OSError:
+                continue
+            if not lk._try():
+                lk.fh.close()
+                lk.fh = None
+                continue
+            if health(port):
+                return port, lk, slot
+            lk.release()
+            break                                                      # an unhealthy server: none of its leases
     return None
 
 
@@ -99,13 +108,14 @@ class ModelPool:
                  headroom_gb: float = HEADROOM_GB, max_servers: Optional[int] = None,
                  free_gb: Callable[[], Optional[float]] = G._free_ram_gb,
                  spawn: Optional[Callable[[list[str]], Any]] = None, health: Callable[[int], bool] = _healthy,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, share: int = 1, threads: Optional[int] = None) -> None:
         cfg = DEV.settings()
         self.base, self.model, self.exe, self.ctx = Path(base_pidfile), Path(model), Path(exe), ctx
         self.slots = max(1, int(cfg.get("llama_servers", 1)) if slots is None else slots)
         self.max_servers = self.slots if max_servers is None else min(self.slots, max_servers)
         # threads for the servers that may REALLY run at once (a 2-server thinking pool of 7 slots: 4 each, not 3)
-        self.threads = DEV.server_threads(cfg, self.max_servers)
+        self.threads = DEV.server_threads(cfg, self.max_servers) if threads is None else int(threads)
+        self.share = max(1, int(share))                         # lessees per server (parallel llama-server slots, h59)
         self.gpu_layers = int(cfg["gpu_layers"])
         self.floor_gb = floor_gb if floor_gb is not None else self._floor()
         self.server_gb, self.headroom_gb = server_gb, headroom_gb
@@ -163,8 +173,12 @@ class ModelPool:
     # ------------------------------------------------------------------ servers
 
     def _command(self, port: int) -> list[str]:
-        return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(port), "-c", str(self.ctx),
-                "-t", str(self.threads), "--log-disable"] + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
+        # a shared server: K parallel slots, each still limited to `ctx` tokens (the per-request limit a lessee had alone), KV pool K x ctx
+        # and a bounded host prompt cache: llama-server's default --cache-ram 8192 MiB grew a shared server from 5.6 to 10.4 GB over 64
+        # distinct judgment prompts (measured 3 Oct); each lessee keeps its own slot, so its prompt reuse never needs that cache
+        par = (["-np", str(self.share), "--kv-unified-per-slot", str(self.ctx), "--cache-ram", str(SHARED_CACHE_MIB)] if self.share > 1 else [])
+        return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(port), "-c", str(self.ctx * self.share),
+                "-t", str(self.threads), "--log-disable"] + par + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
 
     def _take_slot(self) -> Optional[tuple[int, Any]]:
         for i in range(self.slots):
@@ -216,7 +230,7 @@ class ModelPool:
             else:
                 raise TimeoutError("pooled server did not become healthy")
             state.write_text(json.dumps({"slot": slot, "port": port, "pid": proc.pid, "owner": os.getpid(), "model": str(self.model),
-                                         "ctx": self.ctx}), encoding="utf-8")
+                                         "ctx": self.ctx, "share": self.share}), encoding="utf-8")
             with self.guard:
                 self.servers[slot] = {"proc": proc, "port": port, "lock": lock, "ready_s": self.clock() - t0}
             self.log.append({"event": "ready", "slot": slot, "port": port, "pid": proc.pid, "seconds": round(self.clock() - t0, 2)})
@@ -255,21 +269,28 @@ class ModelPool:
         v["lock"].release()
 
     def _stop_one_idle(self) -> bool:
-        """Stop one server nobody has leased (the lease lock is ours to take only when it is idle)."""
+        """Stop one server nobody has leased (its lease locks - all of them for a shared server - are ours to take only when it is idle)."""
         for slot in sorted(self.servers, reverse=True):
-            lk = G.MachineLock(slot_paths(self.base, slot)[3])
+            held: list[Any] = []
             try:
-                lk.fh = open(lk.path, "a+b")
-            except OSError:
-                continue
-            if lk._try():
-                try:
+                for j in range(self.share):
+                    lk = G.MachineLock(lease_path(self.base, slot, j))
+                    try:
+                        lk.fh = open(lk.path, "a+b")
+                    except OSError:
+                        break
+                    if not lk._try():
+                        lk.fh.close()
+                        lk.fh = None
+                        break
+                    held.append(lk)
+                if len(held) == self.share:
                     self._drop(slot)
                     self.log.append({"event": "shrunk", "slot": slot})
-                finally:
+                    return True
+            finally:
+                for lk in held:
                     lk.release()
-                return True
-            lk.fh.close()
         return False
 
     def drain(self) -> bool:
@@ -301,6 +322,27 @@ class ModelPool:
 _POOL: Optional[ModelPool] = None
 
 
+THINK_SHARE = 4                 # lessees per shared thinking server (device setting 'think_share' overrides; 1 = the old one-per-server pool)
+SHARE_EXTRA = 0.7               # each extra parallel slot of ctx 8192 adds this fraction of a single server's resident size (measured 3 Oct,
+                                # Qwen3-1.7B: 1 slot 1.8 GB, 4 slots x 8192 5.57 GB working set)
+SHARED_CACHE_MIB = 512         # host prompt cache of a shared server (llama-server default 8192 MiB)
+SHARED_THREADS = 8              # threads of one shared server (measured 3 Oct, Ultra 7 255U ~85% busy, IDLE priority, 64 real judgment
+                                # prompts: shared x8 threads 38.6 answers/CPU-hour, 1774 s, peak 10.4 GB; 4 single servers x4 35.3, 1924 s,
+                                # 16.2 GB; Brier 0.2276 vs 0.2351, paired gain +0.008 CI [-0.051, 0.066]. 4 single x5 threads: 18.6 (oversubscribed))
+
+
+def shared_gb(single_gb: float, k: int) -> float:
+    return round(single_gb * (1.0 + SHARE_EXTRA * (k - 1)), 2)
+
+
+def shared_threads(cfg: Any, servers: int) -> int:
+    """Threads of each of `servers` shared servers: device setting 'think_threads', else SHARED_THREADS split over the servers, never more
+    than 'llama_threads'."""
+    if cfg.get("think_threads"):
+        return max(1, int(cfg["think_threads"]))
+    return max(2, min(int(cfg.get("llama_threads") or SHARED_THREADS), SHARED_THREADS // max(1, servers)))
+
+
 def pool_model(state: Optional[Path] = None, cfg: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """What the warm servers load. 3 Oct 2026: in THINKING focus no code student runs, yet the pool kept 6 of 7 slots loaded with the fast code
     model while every judgment batch queued for the one slot left (and cold-started the thinking model each time). In thinking focus the pool
@@ -311,7 +353,13 @@ def pool_model(state: Optional[Path] = None, cfg: Optional[dict[str, Any]] = Non
         c = DEV.settings() if cfg is None else cfg
         think = DEV.think_model_path(c)
         if think is not None and int(c.get("think_servers", 0)) > 0 and F.current(state or F.DEFAULT_STATE) == "thinking":
-            return {"model": think, "max_servers": int(c["think_servers"]), "server_gb": DEV.server_gb_for(think)}
+            n = int(c["think_servers"])
+            k = max(1, min(n, int(c.get("think_share") or THINK_SHARE)))
+            if k == 1:
+                return {"model": think, "max_servers": n, "server_gb": DEV.server_gb_for(think)}
+            # h59: the same number of lessees (think_servers) on ceil(n / k) SHARED servers of k parallel slots each
+            return {"model": think, "max_servers": -(-n // k), "share": k, "server_gb": shared_gb(DEV.server_gb_for(think), k),
+                    "threads": shared_threads(c, -(-n // k))}
     except Exception:                                                  # noqa: BLE001 - an unreadable focus keeps the old pool
         pass
     return {}

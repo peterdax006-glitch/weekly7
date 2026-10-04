@@ -6,6 +6,7 @@ import json
 import math
 import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -335,3 +336,39 @@ def test_anchor_prompt_carries_the_walk_forward_probability(tmp_path: Path, pub:
     msgs = J.build_prompt(J.ANCHOR_STRATEGY, cases, c, None, None, ap)
     assert f"P = {ap:.2f}" in msgs[-1]["content"]
     assert "P = " not in J.build_prompt(J.REF_STRATEGY, cases, c, None, None, ap)[-1]["content"]
+
+
+def test_a_public_reload_is_built_off_the_lock_while_the_old_cases_keep_serving(tmp_path: Path, pub: dict[str, list[dict[str, Any]]],
+                                                                                 monkeypatch: Any) -> None:
+    import threading
+    st = tmp_path / "st"
+    monkeypatch.setattr(J, "active_tag", lambda: "fake-thinker.gguf")
+    monkeypatch.setattr(J, "PUB_REFRESH_S", 1e12)
+    from creator import registry as REG
+    PC = REG.get("publiccases")
+    sigv = {"v": "a"}
+    monkeypatch.setattr(PC, "signature", lambda: sigv["v"])
+    real = J.load_cases
+    gate, calls = threading.Event(), []
+
+    def slow_load(topic: str, state: Path, repo: Path) -> list[J.Case]:
+        calls.append(topic)
+        if len(calls) > 1:                                                     # the reload: blocks until the test lets it finish
+            assert gate.wait(10)
+        return real(topic, state, repo)
+    monkeypatch.setattr(J, "load_cases", slow_load)
+    monkeypatch.setattr(J, "_stat_preds", lambda t, s, r: {})
+    nj = J.judgment_filler(st, tmp_path, max_servers=8, llm_factory=StratLLM, topics=("pub_git_fixed",))
+    assert nj() is not None and calls == ["pub_git_fixed"]                     # the first load is made in place
+    sigv["v"] = "b"                                                            # a public cache grew
+    monkeypatch.setattr(time, "time", lambda: 1e10)                            # past the once-a-minute check
+    t0 = time.monotonic()
+    j = nj()                                                                   # served from the old cases, not blocked by the reload
+    assert j is not None and time.monotonic() - t0 < 5 and len(calls) == 2
+    gate.set()
+    for _ in range(100):
+        th = [t for t in threading.enumerate() if t.name == "judgment-public-reload"]
+        if not th:
+            break
+        th[0].join(0.1)
+    assert not [t for t in threading.enumerate() if t.name == "judgment-public-reload"]
