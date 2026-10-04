@@ -37,14 +37,24 @@ def proxy(url: str) -> Any:
         return None
 
 
+def server_ctx(url: str, default: int = CTX) -> int:
+    """The per-slot context of a llama-server (/props); agents told a larger one overflow and compact the task away."""
+    try:
+        with urllib.request.urlopen(url.rstrip("/").removesuffix("/v1") + "/props", timeout=30) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        return int((d.get("default_generation_settings") or {}).get("n_ctx") or default)
+    except Exception:                                                  # noqa: BLE001
+        return default
+
+
 def task_tests(task_text: str, ws: Path) -> list[str]:
     return [p for p in re.findall(r"^- (tests/\S+\.py)$", task_text, re.M) if (ws / p).is_file()]
 
 
-def build(agent: str, ws: Path, base: str, task_text: str, rd: Path) -> list[str]:
+def build(agent: str, ws: Path, base: str, task_text: str, rd: Path, ctx: int = CTX) -> list[str]:
     if agent in ("aider", "aider_t"):
         meta = rd / "aider_model_meta.json"
-        meta.write_text(json.dumps({"openai/qwen": {"max_input_tokens": CTX - 4096, "max_output_tokens": 8192, "max_tokens": 8192,
+        meta.write_text(json.dumps({"openai/qwen": {"max_input_tokens": ctx - 4096, "max_output_tokens": min(8192, ctx // 4), "max_tokens": min(8192, ctx // 4),
                                                     "input_cost_per_token": 0, "output_cost_per_token": 0, "litellm_provider": "openai",
                                                     "mode": "chat"}}), encoding="utf-8")
         tests = task_tests(task_text, ws)
@@ -61,7 +71,7 @@ def build(agent: str, ws: Path, base: str, task_text: str, rd: Path) -> list[str
     if agent == "opencode":
         cfg = {"$schema": "https://opencode.ai/config.json", "autoupdate": False, "share": "disabled", "model": "nupen/qwen",
                "provider": {"nupen": {"npm": "@ai-sdk/openai-compatible", "name": "Nupen llama-server", "options": {"baseURL": base, "apiKey": "sk-local"},
-                                      "models": {"qwen": {"name": "qwen", "tool_call": True, "limit": {"context": CTX, "output": 8192}}}}},
+                                      "models": {"qwen": {"name": "qwen", "tool_call": True, "limit": {"context": ctx, "output": min(8192, ctx // 4)}}}}},
                "permission": {"edit": "allow", "bash": "allow", "webfetch": "deny", "external_directory": "deny"}}
         (rd / "opencode.json").write_text(json.dumps(cfg, indent=1), encoding="utf-8")
         exe = AG / "npm" / "node_modules" / "opencode-windows-x64" / "bin" / "opencode.exe"
@@ -130,7 +140,7 @@ def main(argv: list[str]) -> int:
     t0 = time.monotonic()
     rc, timed_out = -1, False
     with (rd / "agent.log").open("w", encoding="utf-8", errors="replace") as log:
-        p = subprocess.Popen(build(a.agent, ws, base, task_text, rd), cwd=ws, env=env_for(a.agent, base, rd), stdout=log,
+        p = subprocess.Popen(build(a.agent, ws, base, task_text, rd, server_ctx(a.url)), cwd=ws, env=env_for(a.agent, base, rd), stdout=log,
                              stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
         try:
             rc = p.wait(timeout=a.cap)
