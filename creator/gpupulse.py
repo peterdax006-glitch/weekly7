@@ -235,6 +235,25 @@ def auto_slots(name: str, ctx_per_slot: int = 8192, vram_gb: float = VRAM_GB, co
     return n, ctx
 
 
+SHORT_SLOT_CHOICES = (32, 24) + SLOT_CHOICES
+
+
+def short_ctx_slots(name: str, prompt_tokens: int, reply_tokens: int, vram_gb: float = VRAM_GB, copies: int = 1,
+                    margin: float = 1.25) -> tuple[int, int]:
+    """PROPOSAL (h52, 3 Oct 2026; not wired into serve): (slots, ctx per slot) sized to the job's real requests instead of the 8k default. The
+    per-slot context is the smallest power of two (>= 2048) holding margin x (prompt + reply); then the most of 32 / 24 / 16 / 12 / 8 slots
+    that fit. Traces prompts are ~1.4k tokens with replies capped at 260 (kept ones ~50-60): 14B on a 32 GB card -> 32 slots x 4096, the
+    same KV cache as today's 16 x 8192, twice the requests decoding at once. Longer jobs (judgment shots, thinkbench) keep 8k."""
+    need = int(margin * (max(0, int(prompt_tokens)) + max(0, int(reply_tokens))))
+    ctx = 2048
+    while ctx < need:
+        ctx *= 2
+    for n in SHORT_SLOT_CHOICES:
+        if fits([name] * copies, n, ctx, vram_gb):
+            return n, ctx
+    return auto_slots(name, ctx, vram_gb, copies)
+
+
 def inflight(cfg: Mapping[str, Any], slots: int) -> int:
     """Requests a job keeps in flight by default: inflight_factor x the served slots. Measured 3 Oct 2026 (14B, 16 slots, SSH tunnel): each
     request loses ~1 s in the tunnel, so with in-flight == slots only 3.7-5 of 16 slots were busy; with 48 in flight all 16 were busy (207 tok/s,

@@ -674,3 +674,13 @@ def test_podllm_keeps_one_connection_per_thread_and_reconnects(fake_server: int)
         assert llm.chat(q, max_tokens=8) == "42"                                  # and the connection still works afterwards
     finally:
         srv.shutdown()
+
+
+def test_short_ctx_slots_proposal_doubles_slots_for_short_requests_at_the_same_kv() -> None:
+    assert GP.auto_slots(GP.M14, 8192, 32.0) == (16, 8192)                                      # today's default on the 5090
+    assert GP.short_ctx_slots(GP.M14, 1400, 260, 32.0) == (32, 4096)                           # traces: ~1.4k prompt + 260 reply cap
+    assert GP.vram_need_gb(GP.M14, 32, 4096) == GP.vram_need_gb(GP.M14, 16, 8192)               # the same KV cache
+    assert GP.fits([GP.M14], 32, 4096, 32.0) and not GP.fits([GP.M14], 48, 4096, 32.0)
+    assert GP.short_ctx_slots(GP.M14, 1400, 260, 24.0) == (16, 4096)                           # a 24 GB card: 16 (today 8 x 8192)
+    assert GP.short_ctx_slots(GP.M14, 3500, 400, 32.0) == (16, 8192)                           # long prompts keep 8k
+    assert GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[1] == 2048 and GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[0] == 32
