@@ -53,6 +53,7 @@ def main() -> int:
     ap.add_argument("--main", default="C:/Users/peter/weekly7")
     ap.add_argument("--host", required=True)
     ap.add_argument("--sshport", required=True)
+    ap.add_argument("--relay", default="", help="fallback host:port (vast ssh relay) used when the direct tunnel keeps failing")
     ap.add_argument("--key", default=str(Path.home() / ".ssh" / "nupen_vast"))
     ap.add_argument("--batch-minutes", type=float, default=6.0)
     a = ap.parse_args()
@@ -172,14 +173,18 @@ def main() -> int:
                 time.sleep(2)
 
     load_questions()
-    tun = tunnel(a.host, a.sshport, a.key)
+    routes = [(a.host, a.sshport)] + ([tuple(a.relay.split(":"))] if a.relay else [])
+    ri = 0
+    tun = tunnel(*routes[ri], a.key)
     ts = [threading.Thread(target=port_worker, args=(p,), daemon=True, name=f"port{p}") for p in PORTS]
     for t in ts:
         t.start()
     while not (RT / "STOP").exists():
-        if tun.poll() is not None:
+        if tun.poll() is not None:                                       # the tunnel died: next route (direct <-> relay)
             time.sleep(3)
-            tun = tunnel(a.host, a.sshport, a.key)
+            ri = (ri + 1) % len(routes)
+            log(f"tunnel down; reconnecting via route {ri}")
+            tun = tunnel(*routes[ri], a.key)
         time.sleep(5)
     for t in ts:
         t.join(timeout=a.batch_minutes * 60 + 30)
