@@ -156,9 +156,9 @@ def test_jobs_are_valid_runner_specs_in_value_order_and_blocked_targets_stay_out
     assert names[0] == "trainmix_upload" and names[-1] == "trainmix_cleanup"
     assert names.index("ft_thinker_17b") < names.index("ft_thinker_06b") < names.index("ft_coder_17b") < names.index("ft_reviewer_17b")
     v = names.index("ft_voice_17b")                                               # voice-only adapter: talk eval, base first, no ladder/gate
-    assert names[v + 1:v + 5] == ["register_voice_17b", "talkeval_voice_17b_base", "talkeval_voice_17b_tuned", "delete_voice_17b"]
+    assert names[v + 1:v + 5] == ["register_voice_17b", "talkeval_voice_17b_base", "talkeval_voice_17b_tuned", "stopeval_voice_17b"]
     i = names.index("ft_thinker_17b")
-    assert names[i + 1:i + 5] == ["register_thinker_17b", "eval_thinker_17b", "gate_thinker_17b", "delete_thinker_17b"]
+    assert names[i + 1:i + 6] == ["register_thinker_17b", "eval_thinker_17b", "gate_thinker_17b", "stopeval_thinker_17b", "delete_thinker_17b"]
     ft = js[i]
     assert ft["free_gpu"] and "--eval-data gpuday/trainmix/thinker_17b/dev.jsonl" in ft["remote"] and "/dev/shm/nupen_train" in ft["remote"]
     gate = js[names.index("gate_thinker_17b")]
@@ -207,7 +207,7 @@ def test_the_fine_tune_script_runs_end_to_end_against_stubs(tmp_path: Path) -> N
     bin_ = tmp_path / "bin"
     bin_.mkdir()
     (bin_ / "nvidia-smi").write_text("#!/bin/sh\necho 30000\n", encoding="utf-8")
-    script = TM.ft_remote(t, man, shm=shm)
+    script = TM.ft_remote(t, man, shm=shm, vram_wait_s=0)
     bp = bin_.as_posix()
     if len(bp) > 1 and bp[1] == ":":                                              # Git bash on Windows: C:/x -> /c/x (a ':' would split PATH)
         bp = "/" + bp[0].lower() + bp[2:]
@@ -227,7 +227,7 @@ def test_the_fine_tune_script_runs_end_to_end_against_stubs(tmp_path: Path) -> N
     # too little VRAM (the 27B coder stage still loaded): skipped with the reason, nothing trained
     (bin_ / "nvidia-smi").write_text("#!/bin/sh\necho 2000\n", encoding="utf-8")
     r2 = subprocess.run([BASH, "-c", f"export PATH={env['PATH']}:$PATH; {script}"], cwd=pod, capture_output=True, text=True, timeout=60)
-    assert r2.returncode == 0 and '"skipped": "VRAM: 2000 MiB free' in r2.stdout
+    assert r2.returncode == 0 and '"skipped": "VRAM: 2000 MiB free after 0 s' in r2.stdout
 
 
 def test_trainmix_stays_out_of_the_eager_start_load() -> None:

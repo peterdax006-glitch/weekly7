@@ -392,10 +392,12 @@ def queue_dir() -> Path:
 
 def _queued_names(q: Path) -> set[str]:
     out = set()
-    for sub in ("", "done", "failed"):
+    for sub in ("", "done", "hold"):                # failed/ is NOT 'seen': a failed module may be queued once more (backoff: 2 failures)
         d = q / sub if sub else q
         for f in d.glob("*.json") if d.is_dir() else []:
-            out.add(f.stem.split("_", 1)[1] if "_" in f.stem and f.stem.split("_", 1)[0].isdigit() else f.stem)
+            stem = f.stem.split(".", 1)[0]            # stage files: <name>.train / <name>.eval
+            body = stem.split("_", 1)[1] if "_" in stem and stem.split("_", 1)[0].isdigit() else stem
+            out.update(body.split("+"))               # a paired file names both modules
     return out
 
 
@@ -433,7 +435,7 @@ def weak_spot_specs(state: Path) -> list[dict[str, Any]]:
             out.append({"name": f"role_{role.lower()}_17b", "priority": 15, "size": "1.7b",
                         "sources": ["roles", "aider_sft"] if role in ("CODE", "DEBUG") else ["roles"], "filter": {"role": [role]},
                         "module": "roles", "why": f"weak spot: {role} tuned accuracy {v['tuned_acc']} on held-out tasks",
-                        "value": "high: the weakest pipeline step", "max_seq": 4096, "epochs": 2, "batch": 8, "accum": 2, "packing": True,
+                        "value": "high: the weakest pipeline step", "max_seq": 4096, "epochs": 2, "batch": 4, "accum": 4, "packing": False,
                         "lora_serve": True, "target_minutes": [45, 60], "min_rows": 200, "eval_minutes": 6, "vram_mib": 20000})
     return out
 
@@ -446,6 +448,75 @@ def pipeline_busy() -> bool:
     except OSError:
         return False
     return "pipeline training" in text and "pipeline training exit" not in text
+
+
+def code_hash(t: Any) -> str:
+    """What a module's fine-tune depends on: finetune.py, the pod script builder, and the module's own settings. A new hash = a 5-step GPU
+    smoke runs as the module file's first job before any training."""
+    import dataclasses as _dc
+    import hashlib
+    import inspect
+    TM = _tm()
+    h = hashlib.sha256((TM.ROOT / "scripts" / "gpuday" / "finetune.py").read_bytes())
+    h.update(inspect.getsource(TM.ft_remote).encode("utf-8"))
+    h.update(json.dumps({k: v for k, v in _dc.asdict(t).items() if k not in ("why", "value", "priority", "suspended")}, sort_keys=True,
+                        default=str).encode("utf-8"))
+    return h.hexdigest()[:12]
+
+
+def _jfile(name: str) -> Path:
+    return _tm().mix_dir() / name
+
+
+def _jload(name: str) -> dict[str, Any]:
+    try:
+        v = json.loads(_jfile(name).read_text(encoding="utf-8"))
+        return v if isinstance(v, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _jsave(name: str, v: Mapping[str, Any]) -> None:
+    _jfile(name).parent.mkdir(parents=True, exist_ok=True)
+    _jfile(name).write_text(json.dumps(v, indent=1, sort_keys=True), encoding="utf-8")
+
+
+def confirm_smokes(state: Path) -> dict[str, str]:
+    """smoke_pending.json {name: [hash, runs-file line count at queue time]} -> smoke_ok.json {name: hash} once a later runner row of
+    ext:smoke_<name> has rc 0."""
+    TM = _tm()
+    rows = TM.jsonl(Path(state) / "thinking" / "gpu_pulse_runs.jsonl")
+    pend, ok = _jload("smoke_pending.json"), _jload("smoke_ok.json")
+    for name, (h, n0) in list(pend.items()):
+        if any(r.get("job") == f"ext:smoke_{name}" and r.get("rc") == 0 for r in rows[int(n0):]):
+            ok[name] = h
+            pend.pop(name)
+    _jsave("smoke_pending.json", pend)
+    _jsave("smoke_ok.json", ok)
+    return ok
+
+
+def failures(state: Path, name: str) -> list[str]:
+    """Failed fine-tunes / smokes of a module (rc not 0 in the runner's rows), with their tail as the reason."""
+    TM = _tm()
+    out = []
+    for r in TM.jsonl(Path(state) / "thinking" / "gpu_pulse_runs.jsonl"):
+        if r.get("job") in (f"ext:ft_{name}", f"ext:smoke_{name}") and r.get("rc") not in (0, None):
+            out.append(str(r.get("tail") or r.get("rc"))[-300:])
+    return out
+
+
+def suspend(t: Any, why: str) -> Path:
+    """Backoff: write the module's spec with 'suspended' into the runtime specs folder (a later spec wins): autogen never queues it again."""
+    import dataclasses as _dc
+    d = {k: (list(v) if isinstance(v, tuple) else v) for k, v in _dc.asdict(t).items() if v is not None}
+    if t.filter:
+        d["filter"] = {k: list(vs) for k, vs in t.filter}
+    d["suspended"] = why[-500:] or "failed twice"
+    f = _tm().mix_dir() / "specs" / f"{t.name}.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(d, indent=1), encoding="utf-8")
+    return f
 
 
 def autogen_once(state: Path, repo: Path, say: Any = print, queue_min: int = QUEUE_MIN, dry: bool = False) -> list[str]:
@@ -465,6 +536,9 @@ def autogen_once(state: Path, repo: Path, say: Any = print, queue_min: int = QUE
     if pipeline_busy():
         say("autogen: pipeline training still running - no new file")
         return []
+    if any((q / "hold").glob("*.json")):                # the watchdog parked files after failures: no new work until hold is empty
+        say("autogen: queue/hold has files - not queuing (failure storm guard)")
+        return []
     pending = sorted(q.glob("*.json"))
     if len(pending) >= queue_min:
         return []
@@ -472,12 +546,23 @@ def autogen_once(state: Path, repo: Path, say: Any = print, queue_min: int = QUE
     TM = importlib.reload(TM)                       # specs written since the last pass are part of TARGETS now
     ctx = TM.Ctx(Path(state), Path(repo), TM.load_heldout())
     seen = _queued_names(q)
-    cands = [t for t in TM.TARGETS if t.module and t.name not in seen and not t.blocked]
+    smoke_ok = confirm_smokes(Path(state))
+    for t in TM.TARGETS:                             # backoff: a module that failed twice (safe mode included) is suspended
+        if t.module and not t.suspended:
+            f = failures(Path(state), t.name)
+            if len(f) >= 2:
+                say(f"autogen: {t.name} failed {len(f)}x - SUSPENDED ({suspend(t, f[-1]).name}): {f[-1][-160:]}")
+    TM = importlib.reload(TM)
+    cands = [t for t in TM.TARGETS if t.module and t.name not in seen and not t.blocked and not t.suspended]
     written: list[str] = []
+    used: set[str] = set()
     from creator import gpupulse as GP
+    learn_peaks(Path(state))                        # the VRAM plan (checkpointing, pairing) from every fine-tune measured so far
     for i, t in enumerate(cands):
         if len(pending) + len(written) >= queue_min:
             break
+        if t.name in used:
+            continue
         ok, why = gates_ok(t, ctx, state)
         if not ok:
             say(f"autogen: {t.name} not yet ({why})")
@@ -486,11 +571,30 @@ def autogen_once(state: Path, repo: Path, say: Any = print, queue_min: int = QUE
         if man["rows"]["train"] < t.min_rows:
             say(f"autogen: {t.name} has {man['rows']['train']} training rows < {t.min_rows}: skipped this pass")
             continue
-        nxt = next((c for c in cands[i + 1:] if gates_ok(c, ctx, state)[0]), None)
-        js = TM.jobs({}, targets=[t.name], cleanup=False, prestage=nxt)
+        rest = [c for c in cands[i + 1:] if c.name not in used and gates_ok(c, ctx, state)[0]]
+        needs_smoke = smoke_ok.get(t.name) != code_hash(t)
+        mate = None if needs_smoke else next((c for c in rest if can_pair(t, c) and smoke_ok.get(c.name) == code_hash(c)), None)
+        if mate is not None:                         # two small fine-tunes fit together: one file, trained at the same time
+            man_b = TM.build(Path(state), Path(repo), [mate.name], say=lambda m: None)[mate.name]
+            if man_b["rows"]["train"] < mate.min_rows:
+                mate = None
+        nxt = next((c for c in rest if c is not mate), None)
+        js = TM.jobs({}, targets=[t.name], cleanup=False, prestage=None if mate else nxt)
+        if mate is not None:
+            jb = TM.jobs({}, targets=[mate.name], cleanup=False, prestage=nxt)
+            js = pair_jobs(js, jb, t, mate)
+            used.add(mate.name)
+        if needs_smoke:                              # new trainer code / settings: 5 real GPU steps first; a failure fails the file before training
+            sm = {"name": f"smoke_{t.name}", "remote": smoke_remote(t, man), "free_gpu": True, "minutes": 4, "max_minutes": 20,
+                  "low_util_abort_minutes": 0, "stage": "train"}
+            js = js[:1] + [sm] + js[1:]
+            if not dry:
+                pend = _jload("smoke_pending.json")
+                pend[t.name] = [code_hash(t), len(TM.jsonl(Path(state) / "thinking" / "gpu_pulse_runs.jsonl"))]
+                _jsave("smoke_pending.json", pend)
         for j in js:
             GP.ext_job(j)
-        out = q / f"{t.priority:02d}_{t.name}.json"
+        out = q / f"{t.priority:02d}_{t.name}{'+' + mate.name if mate else ''}.json"
         if not dry:
             tmp = out.with_suffix(".tmp")
             tmp.write_text(_json.dumps(js, indent=1), encoding="utf-8")
@@ -512,3 +616,227 @@ def autogen_loop(state: Path, repo: Path, interval_s: float = 300.0, say: Any = 
         except Exception as e:                       # noqa: BLE001 - one failed pass is logged; the loop goes on
             say(f"autogen: pass failed: {type(e).__name__}: {str(e)[:300]}")
         time.sleep(interval_s)
+
+
+# ------------------------------------------------------------------------------------------------ VRAM plan, learned peaks, stages, pairing
+VRAM_TOTAL_GB = 31.0               # usable on the 5090 (32 GB minus the CUDA context)
+EVAL_SERVER_GB = 5.0               # base Q4 GGUF + adapter + KV of the eval server's slots (EVAL_SLOTS x ctx) - see eval_config
+EVAL_SLOTS = 8
+NOCKPT_FACTOR = 1.6                # peak without gradient checkpointing ~ 1.6x the peak with it (until a run measures it)
+DEFAULT_PEAK_GB = {"0.6b": 10.0, "1.7b": 25.0, "4b": 30.0}      # with checkpointing, at the module batch sizes (1.7B measured ~25 GB, 4 Oct)
+
+
+def peaks_path() -> Path:
+    return _tm().mix_dir() / "peaks.json"
+
+
+def learn_peaks(state: Path) -> dict[str, dict[str, float]]:
+    """Peak VRAM per (size, ckpt|nockpt) from the fine-tune results the runner recorded (finetune.py perf: peak_vram_gb, grad_ckpt):
+    the max seen, per size. Written to peaks.json; ckpt_plan reads it."""
+    TM = _tm()
+    size_of = {t.name: t.size for t in TM.TARGETS}
+    out: dict[str, dict[str, float]] = {}
+    for r in TM.jsonl(Path(state) / "thinking" / "gpu_pulse_runs.jsonl"):
+        job = str(r.get("job") or "")
+        res = r.get("result")
+        if not job.startswith(("ext:ft_", "ext:smoke_")) or not isinstance(res, Mapping):
+            continue
+        sft = res.get("sft") if isinstance(res.get("sft"), Mapping) else None
+        nm = job.split("_", 1)[1]
+        for suf in ("_nockpt", "_gbl"):
+            nm = nm[: -len(suf)] if nm.endswith(suf) else nm
+        size = size_of.get(nm)
+        if not sft or not size or not sft.get("peak_vram_gb"):
+            continue
+        k = "ckpt" if sft.get("grad_ckpt", True) else "nockpt"
+        e = out.setdefault(size, {})
+        e[k] = max(float(e.get(k, 0.0)), float(sft["peak_vram_gb"]))
+    peaks_path().parent.mkdir(parents=True, exist_ok=True)
+    peaks_path().write_text(json.dumps(out, indent=1, sort_keys=True), encoding="utf-8")
+    return out
+
+
+def peak_gb(size: str, ckpt: bool = True) -> float:
+    try:
+        e = json.loads(peaks_path().read_text(encoding="utf-8")).get(size) or {}
+    except (OSError, ValueError):
+        e = {}
+    if ckpt:
+        return float(e.get("ckpt") or DEFAULT_PEAK_GB[size])
+    return float(e.get("nockpt") or float(e.get("ckpt") or DEFAULT_PEAK_GB[size]) * NOCKPT_FACTOR)
+
+
+def ckpt_plan(t: Any) -> tuple[bool, float]:
+    """(no gradient checkpointing?, VRAM GB to wait for): checkpointing goes off only when a no-ckpt peak was MEASURED on the GPU (a smoke
+    or real run with --no-grad-ckpt) and it plus an overlapping eval server fits the card; never on an estimate (4 Oct: an untested speed
+    path failed a queued module). The need is the chosen peak + 1 GB headroom."""
+    try:
+        measured = json.loads(peaks_path().read_text(encoding="utf-8")).get(t.size, {}).get("nockpt")
+    except (OSError, ValueError, AttributeError):
+        measured = None
+    if measured and float(measured) + EVAL_SERVER_GB <= VRAM_TOTAL_GB:
+        return True, float(measured) + 1.0
+    return False, peak_gb(t.size, ckpt=True) + 1.0
+
+
+def can_pair(a: Any, b: Any) -> bool:
+    """Two fine-tunes at once only when both learned peaks (with checkpointing) + 1 GB each fit beside an eval server."""
+    return peak_gb(a.size) + peak_gb(b.size) + 2.0 + EVAL_SERVER_GB <= VRAM_TOTAL_GB
+
+
+def pair_jobs(ja: Sequence[Mapping[str, Any]], jb: Sequence[Mapping[str, Any]], ta: Any, tb: Any) -> list[dict[str, Any]]:
+    """One queue file for two modules whose fine-tunes run AT THE SAME TIME: B's fine-tune starts in the background on the pod (its script's
+    output to a file), A's runs in the foreground once B holds its VRAM (A waits for B's first training step), then 'ft_<B>' collects B's
+    result under the same job name, so B's register job and the evals work unchanged. Each module's own upload carries its own mix."""
+    TM = _tm()
+    up_b = next(j for j in jb if j["name"] == "trainmix_upload")
+    ft_b = next(j for j in jb if j["name"] == f"ft_{tb.name}")
+    runs = f"{TM.POD_DIR}/runs/ft_{tb.name}"
+    bg_out = f"{runs}/stage.out"
+    start = {"name": f"ftstart_{tb.name}", "stage": "train", "minutes": 0.2, "low_util_abort_minutes": 0,
+             "remote": (f"mkdir -p {runs}; rm -f {runs}/stage.done; cat > {runs}/stage.sh <<'PAIR_FT'\n{ft_b['remote']}\nPAIR_FT\n"
+                        f"nohup bash -c 'bash {runs}/stage.sh > {bg_out} 2>&1; touch {runs}/stage.done' >/dev/null 2>&1 &\n"
+                        "echo '@@result={\"started\": true}'\n")}
+    collect = dict(ft_b, remote=(f"for i in $(seq 1 1440); do [ -f {runs}/stage.done ] && break; sleep 10; done\n"
+                                 f"[ -f {runs}/stage.done ] || {{ echo 'paired fine-tune did not finish'; exit 5; }}\n"
+                                 f"cat {bg_out}\ngrep -q '@@result=' {bg_out} || exit 5\n"))
+    man_a = json.loads((TM.mix_dir() / ta.name / "MANIFEST.json").read_text(encoding="utf-8"))
+    out: list[dict[str, Any]] = [dict(up_b, name="trainmix_upload_b", stage="train"), start]
+    for j in ja:
+        out.append(dict(j, remote=TM.ft_remote(ta, man_a, wait_for=f"{runs}/train.log")) if j["name"] == f"ft_{ta.name}" else dict(j))
+    for j in jb:
+        if j["name"] == "trainmix_upload":
+            continue
+        out.append(collect if j["name"] == ft_b["name"] else dict(j))
+    return out
+
+
+def split_stages(jobs: Sequence[Mapping[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """(train stage, eval stage). In the train stage 'free_gpu' is dropped: the previous module's eval server must survive (overlap) - the
+    fine-tune script itself waits for its learned VRAM need, and every eval stage ends by stopping its own server (stopeval_*)."""
+    TM = _tm()
+    tr = [{k: v for k, v in j.items() if k != "free_gpu"} for j in jobs if TM.stage_of(j) == "train"]
+    ev = [dict(j) for j in jobs if TM.stage_of(j) != "train"]
+    return tr, ev
+
+
+def eval_config(src: Optional[Path] = None, out: Optional[Path] = None) -> Path:
+    """The eval stage's runner config: pulse.json with few slots (EVAL_SLOTS) so the eval server fits beside a trainer (EVAL_SERVER_GB), and
+    usd_per_hr 0 - the overlapping train-stage run already counts the rented hour (two runs would double-bill the budget ledger)."""
+    from creator import gpupulse as GP
+    cfg = json.loads(Path(src or GP.config_path()).read_text(encoding="utf-8"))
+    cfg.update(slots=EVAL_SLOTS, ctx_per_slot=min(int(cfg.get("ctx_per_slot", 4096) or 4096), 8192), vram_gb=EVAL_SERVER_GB + 3.0,
+               usd_per_hr=0.0, setup_steps=[])
+    p = Path(out or Path(GP.config_path()).with_name("pulse_eval.json"))
+    p.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
+    return p
+
+
+def throughput(logs: Sequence[Path] = ()) -> dict[str, Any]:
+    """Modules/hour from the runner logs ('<HH:MM:SS> module <name>: start' ... 'DONE' / 'FAILED' / 'eval done'): per-module wall time and
+    the rate over the span from the first start to the last finish."""
+    import re as _re
+    rt = _tm().runtime() / "gpu"
+    starts: dict[str, int] = {}
+    done: list[tuple[str, int, int]] = []
+
+    def sec(hms: str) -> int:
+        h, m, s = (int(x) for x in hms.split(":"))
+        return h * 3600 + m * 60 + s
+    for f in list(logs) or [rt / "module_runner.out", rt / "module_runner2.out"]:
+        try:
+            lines = Path(f).read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        day = 0
+        last = -1
+        for ln in lines:
+            m = _re.match(r"(\d\d:\d\d:\d\d) module (\S+): (start|DONE|FAILED|eval done)", ln)
+            if not m:
+                continue
+            t = sec(m.group(1))
+            if t < last:
+                day += 86400
+            last = t
+            t += day
+            if m.group(3) == "start":
+                starts[m.group(2)] = t
+            elif m.group(2) in starts:
+                done.append((m.group(2), starts[m.group(2)], t))
+    if not done:
+        return {"modules": 0, "modules_per_hour": None}
+    span = max(e for _n, _s, e in done) - min(s for _n, s, _e in done)
+    return {"modules": len(done), "wall_min_each": {n: round((e - s) / 60, 1) for n, s, e in done}, "span_min": round(span / 60, 1),
+            "modules_per_hour": round(len(done) / (span / 3600), 2) if span else None}
+
+
+
+# ------------------------------------------------------------------------------------------------ GPU smoke (before any module is queued)
+def smoke_remote(t: Any, man: Mapping[str, Any], variant: str = "") -> str:
+    """The module's REAL fine-tune script (same base, tokenizer, Unsloth path, flags, data) cut to 5 optimizer steps with 2 dev evaluations,
+    into runs/smoke_<name>[_<variant>]; nothing is served or registered. variant 'nockpt' / 'gbl': the same with --no-grad-ckpt /
+    --group-by-length, never failing the file (it only measures: peak VRAM, steps/s) - what the scheduler needs before it may use them."""
+    TM = _tm()
+    tag = f"smoke_{t.name}" + (f"_{variant}" if variant else "")
+    s = TM.ft_remote(t, man, vram_wait_s=900).replace(f"ft_{t.name}", tag)
+    s = s.replace("finetune.py pipeline ", "finetune.py pipeline --max-steps 5 --eval-steps 2 "
+                  + ("--no-grad-ckpt " if variant == "nockpt" else "--group-by-length " if variant == "gbl" else ""), 1)
+    s = s.replace(f"cp -f {TM.SHM}/{tag}/adapter.gguf models/{TM.lora_name(t)}", "true")
+    check = (f"grep -q '\"steps\": 5' {TM.POD_DIR}/runs/{tag}/result.json || {{ echo 'smoke: not 5 steps'; tail -30 {TM.POD_DIR}/runs/{tag}/train.log; "
+             "exit 6; }")
+    if variant:
+        return f"( set -e\n{s}\n{check}\n) || echo '@@result={{\"{variant}\": \"failed\"}}'\nexit 0\n"
+    return s + "\n" + check + "\n"
+
+
+def smoke_jobs(names: Sequence[str], variants: Sequence[str] = ("nockpt", "gbl")) -> list[dict[str, Any]]:
+    """One file: upload of the modules' mixes, then per module the 5-step real-path smoke (fails the file on any error), then the
+    measuring variants. Run by the module runner like a module (queue/00_smoke_*.json)."""
+    TM = _tm()
+    root = TM.mix_dir()
+    blob, info = TM.upload_bundle(root, list(names))
+    from creator import gpuday as GD
+    out: list[dict[str, Any]] = [{"name": "trainmix_upload", "remote": GD.upload_script(blob, info), "minutes": 1, "low_util_abort_minutes": 0,
+                                  "stage": "train"}]
+    for n in names:
+        t = TM.BY_NAME[n]
+        man = json.loads((root / n / "MANIFEST.json").read_text(encoding="utf-8"))
+        out.append({"name": f"smoke_{n}", "remote": smoke_remote(t, man), "free_gpu": True, "minutes": 4, "max_minutes": 20, "low_util_abort_minutes": 0,
+                    "stage": "train", "outputs": [f"{TM.POD_DIR}/runs/smoke_{n}/result.json"]})
+    for n in names[:1]:
+        t = TM.BY_NAME[n]
+        man = json.loads((root / n / "MANIFEST.json").read_text(encoding="utf-8"))
+        for v in variants:
+            out.append({"name": f"smoke_{n}_{v}", "remote": smoke_remote(t, man, v), "minutes": 4, "max_minutes": 20, "low_util_abort_minutes": 0,
+                        "stage": "train", "outputs": [f"{TM.POD_DIR}/runs/smoke_{n}_{v}/result.json"]})
+    return out
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """python -m creator.trainmods split <file> <train_out> <eval_out> | evalcfg | throughput [log ...] | peaks"""
+    import sys
+    a = list(sys.argv[1:] if argv is None else argv)
+    if a[:1] == ["split"]:
+        tr, ev = split_stages(json.loads(Path(a[1]).read_text(encoding="utf-8")))
+        Path(a[2]).write_text(json.dumps(tr, indent=1), encoding="utf-8")
+        Path(a[3]).write_text(json.dumps(ev, indent=1), encoding="utf-8")
+        print(f"train {len(tr)} jobs, eval {len(ev)} jobs")
+    elif a[:1] == ["evalcfg"]:
+        print(eval_config())
+    elif a[:1] == ["throughput"]:
+        print(json.dumps(throughput([Path(x) for x in a[1:]]), indent=1))
+    elif a[:1] == ["smoke"]:
+        out = Path(a[1])
+        js = smoke_jobs([x for x in a[2:]])
+        out.write_text(json.dumps(js, indent=1), encoding="utf-8")
+        print(f"{len(js)} smoke jobs -> {out}")
+    elif a[:1] == ["peaks"]:
+        from creator import trainmix as TM
+        print(json.dumps(learn_peaks(Path(a[1]) if len(a) > 1 else TM.ROOT / "state" / "creator"), indent=1))
+    else:
+        print(main.__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

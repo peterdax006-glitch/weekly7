@@ -99,7 +99,8 @@ def test_pipeline_jobs_have_per_role_eval_for_base_and_tuned(tmp_path: Path, mon
         GP.ext_job(j)
     names = [j["name"] for j in js]
     i = names.index("ft_pipeline_17b")
-    assert names[i + 1:i + 5] == ["register_pipeline_17b", "roleeval_pipeline_17b_base", "roleeval_pipeline_17b_tuned", "delete_pipeline_17b"]
+    assert names[i + 1:i + 6] == ["register_pipeline_17b", "roleeval_pipeline_17b_base", "roleeval_pipeline_17b_tuned", "stopeval_pipeline_17b",
+                                  "delete_pipeline_17b"]
     assert js[names.index("roleeval_pipeline_4b_base")]["model"] == "Qwen3-4B-Q4_K_M.gguf"
     ft4 = js[names.index("ft_pipeline_4b")]["remote"]
     assert "HF_HOME=\"/dev/shm/nupen_train/hf_cache\"" in ft4 and "needs 27" in ft4              # 4B base on the RAM disk; skip below 27 GB

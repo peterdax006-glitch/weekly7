@@ -491,7 +491,8 @@ SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
 # Training rates on the RTX 5090 (Unsloth LoRA bf16, no packing; conservative): tokens/s. Overheads: base download + load, merge + GGUF.
 TRAIN_TOK_S = {"0.6b": 13000.0, "1.7b": 6500.0, "4b": 3500.0}      # 1.7B measured on the 5090 (3 Oct); 0.6B / 4B scaled from it
 STEP_OVERHEAD_S = 0.1
-PACKING_SPEEDUP = 1.5                                # packed short rows: ~1.5x fewer padded tokens (CPU check: 4x fewer steps on role rows)
+PACKING_SPEEDUP = 1.5                                # packed short rows: ~1.5x fewer padded tokens (only where packing is verified on the GPU)
+GROUP_BY_LENGTH_VERIFIED = False                     # set True once a GPU smoke run of --group-by-length passed (4 Oct: packing failed under Unsloth)
 TOKEN_BUDGET = {"0.6b": 12e6, "1.7b": 8e6, "4b": 6e6}                # trained tokens per fine-tune (all epochs) before epochs are cut
 OVERHEAD_MIN = {"0.6b": 3.0, "1.7b": 5.0, "4b": 9.0}
 HF_BASE = {"0.6b": "Qwen/Qwen3-0.6B", "1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B"}
@@ -535,6 +536,9 @@ class Target:
     lora_serve: bool = False                         # no merge: the adapter GGUF is served on the cached base GGUF (llama-server --lora)
     target_minutes: Optional[tuple[int, int]] = None  # size the run to this GPU-minute window (epochs 1-2, train rows sampled down)
     requires: tuple[str, ...] = ()                   # autogen gates: 'adopted:<target>', 'rows:<source>>=N'
+    safe_batch: int = 4                              # SAFE MODE = the settings proven on the real GPU (pipeline_17b, 4 Oct): batch 4 x accum 4,
+    safe_accum: int = 4                              # no packing, gradient checkpointing on - the automatic retry of a failed fine-tune
+    suspended: str = ""                              # autogen backoff: failed twice (after safe mode) -> never queued again (with the error)
 
     @property
     def base_gguf(self) -> str:
@@ -1023,7 +1027,7 @@ def upload_bundle(root: Path, names: Sequence[str]) -> tuple[bytes, dict[str, An
     return blob, {"files": [m[0] for m in members], "bytes": len(blob), "sha256": hashlib.sha256(blob).hexdigest()}
 
 
-def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
+def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM, wait_for: str = "", vram_wait_s: int = 1800) -> str:
     """Pod script of one fine-tune: row/VRAM/disk checks (skip with the reason, exit 0) -> finetune.py pipeline with dev early stopping,
     merge + f16 + Q4 GGUF on /dev/shm -> the Q4 GGUF moved into models/ (served after register) -> adapter + result.json kept under
     gpuday/runs/<job>/ (they come home) -> /dev/shm scratch removed."""
@@ -1037,13 +1041,18 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
     if t.lora_serve:                                 # no merge / f16 / Q4: only the base download (cached) and the adapter
         ws_gb, shm_gb = (1 if t.hf_on_shm else math.ceil(BF16_GB[t.size] + 0.5)), (math.ceil(BF16_GB[t.size] + 1) if t.hf_on_shm else 2)
     pref = man["rows"]["pref"] >= 20
+    no_ckpt, need_gb = _mods().ckpt_plan(t)
+    need_mib = max(int(t.vram_mib), int(need_gb * 1024))
     opts = (f"--base {HF_BASE[t.size]} --data {data}/train.jsonl --eval-data {data}/dev.jsonl --out {w} --max-seq {t.max_seq} "
             f"--epochs {epochs_for(t, man)} --batch {t.batch} --accum {t.accum} --lr {t.lr} --patience 2 "
             f"--llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\" --quant Q4_K_M --adapter-gguf"
             + (f" --pref {data}/pref.jsonl --method dpo" if pref else "") + (" --packing" if t.packing else "")
-            + (" --no-merge" if t.lora_serve else ""))
+            + (" --no-merge" if t.lora_serve else "") + (" --no-grad-ckpt" if no_ckpt else "")
+            + (" --group-by-length" if GROUP_BY_LENGTH_VERIFIED and not t.packing else ""))
     skip = lambda why: f"printf '@@result={{\"skipped\": \"%s\"}}\\n' \"{why}\"; exit 0"  # noqa: E731
     sv = serve_name(t)
+    safe_opts = re.sub(r" --(packing|no-grad-ckpt|group-by-length)\b", "", opts)
+    safe_opts = re.sub(r"--batch \d+ --accum \d+", f"--batch {t.safe_batch} --accum {t.safe_accum}", safe_opts)
     # The pod's Python / llama.cpp: gpuday/python (pod_setup.sh) when present, else the image's venv /venv/main (Unsloth stack), else python3
     # (h61 first run: gpuday/python and gpuday/quantize_path were missing - the setup had run with $HOME as its cwd - and the system python3
     # has no 'datasets'). Converter: gpuday/llama.cpp or $HOME/gpuday/llama.cpp; quantizer: the recorded path, PATH, /opt/llama.cpp.
@@ -1061,15 +1070,25 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
         find_llama,
         f"n=$(wc -l < {data}/train.jsonl 2>/dev/null || echo 0)",
         f"if [ \"$n\" -lt {t.min_rows} ]; then {skip(f'$n training rows, needs {t.min_rows}')}; fi",
-        "vfree=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc 0-9); vfree=${vfree:-0}",
-        f"if [ \"$vfree\" -lt {t.vram_mib} ]; then {skip(f'VRAM: $vfree MiB free, needs {t.vram_mib} (is the 27B coder stage still loaded?)')}; fi",
+        *([f"for i in $(seq 1 120); do grep -q -E \"'loss'|it/s\" {wait_for} 2>/dev/null && break; sleep 5; done   # paired run: the partner holds its VRAM first"]
+          if wait_for else []),
+        # wait (an overlapping eval server or a paired trainer may still be loading/finishing) - then skip with the reason
+        f"need={need_mib}; t0=$(date +%s); while :; do vfree=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc 0-9); "
+        f"vfree=${{vfree:-0}}; [ \"$vfree\" -ge \"$need\" ] && break; [ $(( $(date +%s) - t0 )) -ge {int(vram_wait_s)} ] && break; sleep 15; done",
+        f"if [ \"$vfree\" -lt \"$need\" ]; then {skip(f'VRAM: $vfree MiB free after {int(vram_wait_s)} s, needs {need_mib}')}; fi",
         f"wsf=$(df -Pk . | awk 'NR==2 {{print int($4/1048576)}}'); shf=$(df -Pk {posixpath.dirname(shm)} | awk 'NR==2 {{print int($4/1048576)}}')",
         f"if [ \"$wsf\" -lt {ws_gb} ]; then {skip(f'disk: $wsf GB free on the workspace, needs {ws_gb}')}; fi",
         f"if [ \"$shf\" -lt {shm_gb} ]; then {skip(f'disk: $shf GB free on {posixpath.dirname(shm)}, needs {shm_gb}')}; fi",
         f"export HF_HOME=\"{hf_home}\" PIP_NO_CACHE_DIR=1 TOKENIZERS_PARALLELISM=false",
         f"for i in $(seq 1 360); do ls \"$HF_HOME\"/.prestage_*.lock >/dev/null 2>&1 || break; sleep 5; done   # a base pre-staged in the background: wait",
         f"rm -rf {w}; mkdir -p {w} {keep} models",
-        f"\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {keep}/train.log 2>&1 || {{ tail -40 {keep}/train.log; rm -rf {w}; exit 5; }}",
+        # SAFE MODE: a failed fine-tune is retried ONCE with the proven settings (no packing / no speed flags, safe batch); the reason is kept
+        f"if ! \"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {keep}/train.log 2>&1; then "
+        f"why=$(grep -a -E 'Error|error' {keep}/train.log | tail -1 | tr -d '\"\\\\' | cut -c1-300); cp -f {keep}/train.log {keep}/train_failed.log; "
+        f"echo \"safe mode retry: $why\"; rm -rf {w}; mkdir -p {w}; "
+        f"\"$PY\" {POD_DIR}/finetune.py pipeline {safe_opts} > {keep}/train.log 2>&1 || {{ tail -40 {keep}/train.log; rm -rf {w}; exit 5; }}; "
+        f"\"$PY\" -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d[\"safe_mode\"]={{\"why\": sys.argv[2]}}; json.dump(d,open(p,\"w\"))' "
+        f"{w}/result.json \"$why\"; fi",
         f"g={w}/model-Q4_K_M.gguf; if [ -f \"$g\" ]; then mv -f \"$g\" models/{sv}; sha256sum models/{sv} | cut -d' ' -f1 > models/{sv}.ok; "
         f"echo \"@@served_as={sv}\"; fi",
         f"ad={w}/adapter; [ -d {w}/dpo/adapter ] && ad={w}/dpo/adapter; cp -r \"$ad\" {keep}/adapter; cp -f {w}/result.json {keep}/; "
@@ -1086,6 +1105,25 @@ def cleanup_remote() -> str:
     the base again while the GPU idled (teacher, 4 Oct); the guardian's disk guard protects them."""
     return (f"rm -rf {SHM}/ft_*; rm -f models/*-nupen-*.gguf models/*-nupen-*.gguf.ok; "
             "echo '@@result={\"cleaned\": true, \"kept\": \"hf_cache\"}'\n")
+
+
+def stop_model_servers_remote(models: Sequence[str]) -> str:
+    """Stop only the runner's servers that serve these models (run/<port>.sig names the model): the eval server leaves the VRAM to the next
+    trainer; a guardian filler or another model's server is not touched."""
+    pats = " ".join(f"'{m}|'" for m in models)
+    return ("cd run 2>/dev/null || { echo '@@result={\"stopped\": []}'; exit 0; }\nst=\"\"\n"
+            "for sig in *.sig; do [ -f \"$sig\" ] || continue; p=${sig%.sig}; for m in " + pats + "; do "
+            "case \"$(cat $sig)\" in \"$m\"*) kill \"$(cat $p.pid 2>/dev/null)\" 2>/dev/null; rm -f $p.pid $p.sig; st=\"$st $p\";; esac; done; done\n"
+            "echo \"@@result={\\\"stopped\\\": \\\"$st\\\"}\"\n")
+
+
+def stage_of(job: Mapping[str, Any]) -> str:
+    """'train' (upload, fetch, fine-tune, register, prestage) or 'eval' (the held-out evals, stop the eval server, delete): the module runner
+    overlaps module N's eval stage with module N+1's train stage."""
+    n = str(job.get("name") or "")
+    if job.get("stage"):
+        return str(job["stage"])
+    return "train" if n.startswith(("trainmix_upload", "ft_", "register_", "fetch_", "prestage_")) else "eval"
 
 
 def delete_remote(t: Target) -> str:
@@ -1195,7 +1233,7 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
     for t, man in plan:
         mins = minutes(t, man)                       # always from the current estimator (a manifest's figure may predate a calibration)
         sv = serve_name(t)
-        out.append({"name": f"ft_{t.name}", "remote": ft_remote(t, man), "free_gpu": True, "minutes": mins["train"],
+        out.append({"name": f"ft_{t.name}", "remote": ft_remote(t, man), "free_gpu": True, "minutes": mins["train"], "stage": "train",
                     "max_minutes": cap_minutes(mins["train"]), "low_util_abort_minutes": 0,
                     "outputs": [f"{POD_DIR}/runs/ft_{t.name}/result.json", f"{POD_DIR}/runs/ft_{t.name}/adapter",
                                 f"{POD_DIR}/runs/ft_{t.name}/adapter.gguf", f"{POD_DIR}/runs/ft_{t.name}/train.log"]})
@@ -1233,6 +1271,8 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
         if fetched:
             from creator import effladder as EL
             out.append({"name": f"delete_{t.name}_basegguf", "remote": EL.delete_script(".", t.base_gguf), "minutes": 0.1, "low_util_abort_minutes": 0})
+        out.append({"name": f"stopeval_{t.name}", "remote": stop_model_servers_remote([sv, t.base_gguf]), "minutes": 0.1,
+                    "low_util_abort_minutes": 0})
         out.append({"name": f"delete_{t.name}", "remote": delete_remote(t), "minutes": 0.1, "low_util_abort_minutes": 0})
     if prestage is not None:                         # the NEXT module's base, downloaded in the background while this file's evals run
         out.append({"name": f"prestage_{prestage.name}", "remote": prestage_remote(prestage), "minutes": 0.1, "low_util_abort_minutes": 0})

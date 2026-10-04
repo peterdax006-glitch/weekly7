@@ -418,9 +418,99 @@ def heldout_rows(d: Path) -> list[dict[str, Any]]:
     return out
 
 
-def run_rows(ask: Any, rows: Sequence[Mapping[str, Any]], workers: int = 8) -> list[dict[str, Any]]:
-    """Ask every held-out row (prompt = its messages without the reference answer); score it per role."""
+POD_EXEC_WORKERS = 8               # test programs run on the POD's CPU (public tasks only): <= 8 at a time, nice 10
+
+
+def program_for(role: str, meta: Mapping[str, Any], reply: str) -> Optional[str]:
+    """The test program of a CODE / DEBUG answer (edits applied to the task's starting file), or None when there is nothing to run."""
+    if role not in ("CODE", "DEBUG") or meta.get("check") != "py" or not meta.get("test") or "current" not in meta:
+        return None
+    code = apply_edits(str(meta["current"]), reply)
+    if code is None:
+        return None
+    from creator import effladder as EL
+    return EL.program(meta["test"], code)
+
+
+POD_RUNNER = r"""import json, subprocess, sys, tempfile, os, base64
+from concurrent.futures import ThreadPoolExecutor
+progs = json.loads(base64.b64decode(sys.stdin.readline()).decode())
+RUN = %r
+def one(item):
+    k, prog = item
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            p = subprocess.run(["nice", "-n", "10", sys.executable, "-I", "-c", RUN], input=prog.encode(), capture_output=True, timeout=10, cwd=td)
+        except subprocess.TimeoutExpired:
+            return k, False
+    return k, p.stdout.decode("utf-8", "replace").strip().startswith("PASS")
+with ThreadPoolExecutor(%d) as ex:
+    res = dict(ex.map(one, progs.items()))
+print("@@result=" + json.dumps(res))
+"""
+
+
+def pod_exec(progs: Mapping[str, str], shell: Any = None, cfg: Optional[Mapping[str, Any]] = None) -> dict[str, bool]:
+    """Run the test programs on the pod's CPU (one ssh call; <= POD_EXEC_WORKERS at once under nice 10) -> {id: passed}. The programs are
+    public-task code + tests only (the caller filters); the private-marker guard runs before anything leaves the PC."""
+    import base64
+    from creator import effladder as EL
+    from creator import gpupulse as GP
+    if not progs:
+        return {}
+    GP.outbound_ok([{"content": v} for v in progs.values()])
+    sh = shell or GP.shell_for(cfg or GP.load_config())
+    blob = base64.b64encode(json.dumps(dict(progs)).encode("utf-8")).decode("ascii")
+    script = ("PY=\"$(cat gpuday/python 2>/dev/null || true)\"; [ -n \"$PY\" ] && [ -x \"$PY\" ] || PY=$(command -v python3 || command -v python)\n"
+              f"cat > /tmp/nupen_pod_exec.py <<'POD_EXEC'\n{POD_RUNNER % (EL.RUNNER, POD_EXEC_WORKERS)}POD_EXEC\n"
+              f"echo '{blob}' | \"$PY\" /tmp/nupen_pod_exec.py\n")
+    rc, out = sh.run(script, timeout=1800, check=False)
+    for ln in out.splitlines():
+        if ln.startswith("@@result="):
+            return {str(k): bool(v) for k, v in json.loads(ln[len("@@result="):]).items()}
+    raise RuntimeError(f"pod exec gave no result (rc {rc}): {out[-300:]}")
+
+
+def run_rows(ask: Any, rows: Sequence[Mapping[str, Any]], workers: int = 8, code_exec: Any = None) -> list[dict[str, Any]]:
+    """Ask every held-out row (prompt = its messages without the reference answer); score it per role. `code_exec` ({id: program} ->
+    {id: passed}, e.g. pod_exec): CODE / DEBUG programs of PUBLIC tasks run there in one batch after all answers are in (the busy PC only
+    applies the edits); anything it cannot answer is scored here as before."""
     import concurrent.futures as cf
+    if code_exec is not None:
+        progs: dict[str, str] = {}
+        raw: list[tuple[Mapping[str, Any], Any]] = []
+
+        def ask_only(r: Mapping[str, Any]) -> tuple[Mapping[str, Any], Any]:
+            try:
+                return r, ask(list(r["messages"])[:-1], MAX_TOKENS.get(str(r["role"]), 512))
+            except Exception as e:                        # noqa: BLE001
+                return r, e
+        with cf.ThreadPoolExecutor(max(1, workers)) as ex:
+            raw = list(ex.map(ask_only, rows))
+        for r, got in raw:
+            if isinstance(got, Exception):
+                continue
+            reply = str(got.get("content") or "") if isinstance(got, Mapping) else str(got)
+            pg = program_for(str(r["role"]), r.get("meta") or {}, reply)
+            if pg is not None and str((r.get("meta") or {}).get("task", "")).startswith(("hf:", "pub:")):
+                progs[str(r["id"])] = pg
+        try:
+            passed = code_exec(progs) if progs else {}
+        except Exception:                                 # noqa: BLE001 - the pod is unreachable: score on this PC
+            passed = {}
+        out: list[dict[str, Any]] = []
+        for r, got in raw:
+            if isinstance(got, Exception):
+                out.append({"id": r["id"], "role": r["role"], "error": f"{type(got).__name__}: {str(got)[:120]}"})
+                continue
+            reply = str(got.get("content") or "") if isinstance(got, Mapping) else str(got)
+            cost = {k: got[k] for k in ("tok_in", "tok_out") if k in got} if isinstance(got, Mapping) else {}
+            if str(r["id"]) in passed:
+                sc: Optional[dict[str, Any]] = {"correct": passed[str(r["id"])], "applied": True, "exec": "pod"}
+            else:
+                sc = score(str(r["role"]), r.get("meta") or {}, str(r["messages"][-1].get("content") or ""), reply)
+            out.append({"id": r["id"], "role": r["role"], "scored": sc is not None, **cost, **(sc or {})})
+        return out
 
     def one(r: Mapping[str, Any]) -> dict[str, Any]:
         msgs = list(r["messages"])
@@ -517,7 +607,8 @@ def pipeline_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
         brief = brief_sections()
         rows = [dict(r, messages=[{"role": "system", "content": brief.get(str(r["role"]), tag(str(r["role"])))}] + list(r["messages"][1:]))
                 for r in rows]
-    res = run_rows(lambda msgs, n: ep.call(msgs, n, False), rows, int(ctx.get("workers") or 8))
+    pod = (lambda progs: pod_exec(progs)) if a.get("exec", "pod") == "pod" else None      # test programs on the pod's CPU, not this busy PC
+    res = run_rows(lambda msgs, n: ep.call(msgs, n, False), rows, int(ctx.get("workers") or 8), code_exec=pod)
     state, pulse = Path(str(ctx["state"])), str(ctx.get("pulse") or "")
     rec: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "pulse": pulse, "target": target,
                            "kind": "pipeline_eval", "role": which, "model": model, "n": len(res), "rows": res}

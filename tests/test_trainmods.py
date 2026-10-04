@@ -158,10 +158,11 @@ def test_specs_are_config_and_unknown_keys_are_refused() -> None:
     with pytest.raises(ValueError, match="unknown keys"):
         TM.target_from_spec({"name": "y", "size": "1.7b", "srcs": []})
     names = [t.name for t in TM.TARGETS if t.module]
-    assert names[:4] == ["calib_17b", "brevity_17b", "promptbake_17b", "locate_17b"]          # value order from the spec priorities
+    idx = [names.index(n) for n in ("calib_17b", "brevity_17b", "promptbake_17b", "locate_17b")]
+    assert idx == sorted(idx)                                                              # value order from the spec priorities
     lo = TM.BY_NAME["calib_17b"]
     ft = TM.ft_remote(lo, {"rows": {"pref": 0}, "tokens_train": 2_000_000})
-    assert "--no-merge" in ft and "--packing" in ft and "-lora.gguf" in ft and ".prestage_" in ft
+    assert "--no-merge" in ft and "--packing" not in ft and "-lora.gguf" in ft and ".prestage_" in ft   # packing off: it broke under Unsloth (4 Oct)
     js = TM.jobs({}, root=TM.mix_dir(), targets=["judge_06b"], cleanup=False) if (TM.mix_dir() / "judge_06b" / "MANIFEST.json").is_file() else []
     if js:
         n = [j["name"] for j in js]
@@ -179,3 +180,67 @@ def test_epochs_fill_the_window_and_autogen_respects_gates(tmp_path: Path, monke
     (st / "thinking" / "train_gate.jsonl").write_text(json.dumps({"target": "pipeline_17b", "compare": {"adopt_roles": ["CODE"]}}) + "\n",
                                                        encoding="utf-8")
     assert M.gates_ok(TM.BY_NAME["draft_06b"], None, st)[0]
+
+
+def test_speed_paths_need_a_gpu_measurement_and_stages_split_cleanly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(M, "peaks_path", lambda: tmp_path / "peaks.json")
+    t17, t06 = TM.BY_NAME["calib_17b"], TM.BY_NAME["judge_06b"]
+    assert M.ckpt_plan(t06)[0] is False                                               # never on an estimate
+    (tmp_path / "peaks.json").write_text(json.dumps({"0.6b": {"ckpt": 8.0, "nockpt": 12.0}, "1.7b": {"ckpt": 25.0, "nockpt": 38.0}}), encoding="utf-8")
+    assert M.ckpt_plan(t06) == (True, 13.0) and M.ckpt_plan(t17) == (False, 26.0)    # 1.7B no-ckpt + an eval server would not fit
+    assert not M.can_pair(t17, t06) and M.can_pair(t06, t06)
+    jobs = [{"name": "trainmix_upload", "remote": "x", "minutes": 1}, {"name": "ft_a", "remote": "x", "minutes": 1, "free_gpu": True},
+            {"name": "register_a", "call": "m:f", "minutes": 1}, {"name": "roleeval_a_base", "call": "m:f", "minutes": 1},
+            {"name": "stopeval_a", "remote": "x", "minutes": 1}, {"name": "delete_a", "remote": "x", "minutes": 1},
+            {"name": "prestage_b", "remote": "x", "minutes": 1}]
+    tr, ev = M.split_stages(jobs)
+    assert [j["name"] for j in tr] == ["trainmix_upload", "ft_a", "register_a", "prestage_b"] and "free_gpu" not in tr[1]
+    assert [j["name"] for j in ev] == ["roleeval_a_base", "stopeval_a", "delete_a"]
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="no bash")
+def test_stopeval_stops_only_servers_of_its_models(tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    procs = {}
+    for port, model in ((18130, "Qwen3-1.7B-nupen-calib-Q4_K_M.gguf"), (18140, "Other.gguf")):
+        p = subprocess.Popen([str(shutil.which("bash")), "-c", "sleep 60"])
+        procs[port] = p
+        (run / f"{port}.pid").write_text(str(p.pid), encoding="utf-8")
+        (run / f"{port}.sig").write_text(f"{model}|8|4096", encoding="utf-8")
+    s = TM.stop_model_servers_remote(["Qwen3-1.7B-nupen-calib-Q4_K_M.gguf", "Qwen3-1.7B-Q4_K_M.gguf"])
+    r = subprocess.run([str(shutil.which("bash")), "-s"], input=s, cwd=tmp_path, capture_output=True, text=True, timeout=30)
+    assert "18130" in r.stdout and not (run / "18130.sig").exists() and (run / "18140.sig").exists()
+    for p in procs.values():
+        p.kill()
+
+
+def test_pod_exec_runs_the_programs_in_one_batch(tmp_path: Path) -> None:
+    from creator import gpupulse as GP
+    if shutil.which("bash") is None:
+        pytest.skip("no bash")
+    sh = GP.Shell([str(shutil.which("bash")), "-s"])
+    progs = {"ok": "def f(x):\n    return x * 2\nassert f(2) == 4\n", "bad": "assert 1 == 2\n"}
+    try:
+        got = PM.pod_exec(progs, shell=sh)
+    except RuntimeError as e:
+        pytest.skip(f"no python3 / nice in this bash: {e}")
+    assert got == {"ok": True, "bad": False}
+
+
+def test_safe_mode_retry_and_backoff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    t = TM.target_from_spec({"name": "x_17b", "size": "1.7b", "sources": ["roles"], "module": "roles", "packing": True, "batch": 8, "accum": 2})
+    ft = TM.ft_remote(t, {"rows": {"pref": 0}, "tokens_train": 1_000_000})
+    first, retry = ft.split("safe mode retry", 1)
+    assert "--packing" in first and "--batch 8 --accum 2" in first
+    assert "--packing" not in retry and "--batch 4 --accum 4" in retry and "safe_mode" in retry
+    st = tmp_path / "s"
+    (st / "thinking").mkdir(parents=True)
+    rows = [{"job": "ext:ft_x_17b", "rc": 5, "tail": "ValueError: boom"}, {"job": "ext:ft_x_17b", "rc": 0}, {"job": "ext:smoke_x_17b", "rc": 6}]
+    (st / "thinking" / "gpu_pulse_runs.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert len(M.failures(st, "x_17b")) == 2
+    monkeypatch.setattr(TM, "mix_dir", lambda: tmp_path / "mix")
+    f = M.suspend(t, "ValueError: boom")
+    assert json.loads(f.read_text())["suspended"] == "ValueError: boom" and TM.target_from_spec(json.loads(f.read_text())).suspended
+    h1 = M.code_hash(t)
+    assert h1 == M.code_hash(t) and h1 != M.code_hash(TM.target_from_spec({"name": "x_17b", "size": "1.7b", "sources": ["roles"], "batch": 2}))

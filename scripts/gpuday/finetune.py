@@ -69,6 +69,9 @@ def use_unsloth(force_hf: bool) -> bool:
         return False
 
 
+GRAD_CKPT = {"on": True}            # --no-grad-ckpt: off when the measured peak VRAM allows (faster steps, more memory)
+
+
 def load(base: str, max_seq: int, qlora: bool, r: int, alpha: int, force_hf: bool, adapter: str = "", train: bool = True) -> tuple[Any, Any, str]:
     """(model with a trainable LoRA, tokenizer, backend). `adapter`: continue from an existing LoRA (e.g. SFT before DPO)."""
     if use_unsloth(force_hf):
@@ -76,7 +79,7 @@ def load(base: str, max_seq: int, qlora: bool, r: int, alpha: int, force_hf: boo
         model, tok = FastLanguageModel.from_pretrained(model_name=adapter or base, max_seq_length=max_seq, load_in_4bit=qlora, dtype=None)
         if not adapter:
             model = FastLanguageModel.get_peft_model(model, r=r, lora_alpha=alpha, lora_dropout=0.0, target_modules=TARGETS, bias="none",
-                                                     use_gradient_checkpointing="unsloth", random_state=3407)
+                                                     use_gradient_checkpointing="unsloth" if GRAD_CKPT["on"] else False, random_state=3407)
         return model, tok, "unsloth"
     import torch
     from peft import LoraConfig, PeftModel, get_peft_model
@@ -131,7 +134,9 @@ def common_args(a: argparse.Namespace, cls: Any, **extra: Any) -> Any:
     kw: dict[str, Any] = dict(output_dir=str(Path(a.out) / "ckpt"), per_device_train_batch_size=a.batch, gradient_accumulation_steps=a.accum,
                               learning_rate=a.lr, num_train_epochs=a.epochs, max_steps=a.max_steps if a.max_steps else -1,
                               logging_steps=1, save_strategy="no", report_to=[], bf16=bf16, fp16=cuda and not bf16, seed=3407,
-                              lr_scheduler_type="cosine", warmup_ratio=0.05, gradient_checkpointing=cuda and a.backend == "hf",
+                              lr_scheduler_type="cosine", warmup_ratio=0.05,
+                              gradient_checkpointing=cuda and a.backend == "hf" and GRAD_CKPT["on"],
+                              group_by_length=bool(getattr(a, "group_by_length", False)),
                               use_cpu=not cuda)
     kw.update(extra)
     import inspect
@@ -179,8 +184,31 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
                                              "best_step": getattr(tr.state, "best_global_step", None) or (min(evl, key=lambda x: x[1])[0] if evl else None),
                                              "max_steps_planned": tr.state.max_steps,
                                              "stopped_early": bool(evl) and st.global_step < tr.state.max_steps,
-                                             "seconds": round(time.time() - t0, 1), "adapter": str(ad),
+                                             "seconds": round(time.time() - t0, 1), "adapter": str(ad), **perf(a, st),
                                              "files": files_info(sorted(ad.glob("adapter_*")))})
+
+
+def perf(a: argparse.Namespace, st: Any) -> dict[str, Any]:
+    """What the scheduler learns from a run: peak VRAM (GB), steps/s, and the speed settings used."""
+    out: dict[str, Any] = {"grad_ckpt": GRAD_CKPT["on"], "packing": bool(getattr(a, "packing", False)),
+                           "group_by_length": bool(getattr(a, "group_by_length", False)), "batch": a.batch, "accum": a.accum}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            out["peak_vram_gb"] = round(torch.cuda.max_memory_reserved() / 2**30, 2)
+            out["gpu"] = torch.cuda.get_device_name(0)
+    except Exception:                                   # noqa: BLE001 - perf facts are optional
+        pass
+    m = getattr(st, "metrics", None) or {}
+    if m.get("train_steps_per_second"):
+        out["steps_per_s"] = m["train_steps_per_second"]
+    try:
+        import importlib
+        for mod in ("flash_attn", "xformers"):
+            out[f"has_{mod}"] = importlib.util.find_spec(mod) is not None
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
 
 
 def eval_every(rows: int, batch: int, accum: int, eval_steps: int = 0) -> int:
@@ -342,6 +370,8 @@ def main(argv: list[str]) -> int:
         p.add_argument("--eval-steps", type=int, default=0, help="optimizer steps between dev evaluations (0 = ~4 per epoch)")
         p.add_argument("--patience", type=int, default=2, help="dev evaluations without improvement before training stops")
         p.add_argument("--packing", action="store_true", help="pack short rows into max-seq sequences (fewer steps; loss on the answers only)")
+        p.add_argument("--no-grad-ckpt", action="store_true", help="no gradient checkpointing (faster; only when the measured peak VRAM allows)")
+        p.add_argument("--group-by-length", action="store_true", help="batch rows of similar length (less padding when not packing)")
     p = sub.add_parser("sft")
     train_opts(p)
     p = sub.add_parser("pref")
@@ -379,6 +409,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--bf16", action="store_true")
     a = ap.parse_args(argv)
     a.backend = "hf"
+    GRAD_CKPT["on"] = not getattr(a, "no_grad_ckpt", False)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     {"sft": cmd_sft, "pref": cmd_pref, "merge": cmd_merge, "gguf": cmd_gguf, "lora-gguf": cmd_lora_gguf, "pipeline": cmd_pipeline}[a.cmd](a)
     return 0
