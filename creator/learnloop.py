@@ -789,7 +789,27 @@ def improvements(state: Path) -> dict[str, dict[str, Any]]:
             out[e["id"]] = dict(e)
         elif e.get("event") == "verdict" and e.get("id") in out:
             out[e["id"]]["verdict"] = e
+        elif e.get("event") == "revert" and e.get("id") in out:
+            out[e["id"]]["revert"] = e
     return out
+
+
+def record_reverts(state: Path, imps: dict[str, dict[str, Any]], now: float) -> list[dict[str, Any]]:
+    """AUTO-REVERT (h58): drillsources.best_variant never chooses a variant of an improvement judged hurt_flag_revert; this records each such
+    revert once (what was excluded, which variant is the best now) so the rollback is visible, never silent."""
+    from creator import drillsources as D
+    recs = []
+    for iid, imp in imps.items():
+        if (imp.get("verdict") or {}).get("verdict") != "hurt_flag_revert" or "revert" in imp or imp.get("action") != "queue_variants":
+            continue
+        src = str((imp.get("weakness") or {}).get("source") or "")
+        b = D.best_variant(Path(state), src) or {}
+        recs.append({"event": "revert", "id": iid, "at": _iso(now), "source": src, "skill": imp.get("skill"),
+                     "excluded": f"every variant tagged learn={iid}", "best_now": b.get("variant"), "heldout_now": (b.get("heldout") or {}).get("gain_vs_best")})
+    _append(state, "improvements", recs)
+    for r in recs:
+        imps[str(r["id"])]["revert"] = r
+    return recs
 
 
 def propose_goal(state: Path, w: dict[str, Any], skill: str, before: Optional[dict[str, Any]], why: str, now: float) -> Optional[str]:
@@ -825,6 +845,7 @@ def improve(state: Path, diag: dict[str, Any], tj: dict[str, Any], data: Optiona
                 _append(state, "improvements", [v])
                 imp["verdict"] = v
                 done.append(v)
+    record_reverts(state, imps, now)
     open_skills = {imp["skill"] for imp in imps.values() if "verdict" not in imp}
     tried = {imp["weakness"]["id"]: imp for imp in imps.values()}
     applied: list[dict[str, Any]] = []                                 # at most one small fix and one goal proposal per round
@@ -910,7 +931,8 @@ def verify(state: Path, imp: dict[str, Any], tj: dict[str, Any], now: float) -> 
             rec["verdict"] = "inconclusive"
         elif bci[0] is not None and av < float(bci[0]):
             rec["verdict"] = "hurt_flag_revert"
-            rec["flag"] = f"held-out gain fell from {bv} to {av} after the search adopted {b.get('variant')}: revert by excluding it (teacher decides)"
+            rec["flag"] = (f"held-out gain fell from {bv} to {av} after the search adopted {b.get('variant')}: auto-reverted "
+                           "(drillsources.best_variant excludes it; the revert event records the best after)")
         elif av > bv:
             rec["verdict"] = "helped"
         else:

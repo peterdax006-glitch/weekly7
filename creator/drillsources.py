@@ -921,8 +921,10 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                 rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == s]
                 if search_state(rows, d)["stopped"]:
                     continue
+                bad = reverted(state)                                # a reverted variant is never the hill-climb's starting point
+                cand = [r for r in rows if r.get("digest") == d and str((r.get("variant") or {}).get("learn") or "") not in bad]
                 for _try in range(20):
-                    v = propose(s, [r for r in rows if r.get("digest") == d], rnd)
+                    v = propose(s, cand, rnd)
                     why = _proposal_why(v)
                     if (s, json.dumps(v, sort_keys=True), d) not in done:
                         break
@@ -1218,13 +1220,25 @@ def search_state(rows: Sequence[dict[str, Any]], digest_now: str) -> dict[str, A
             "select_heldout_rho": None if rho is None else round(rho, 3), "noise_stopped": noise, "stopped": fails >= SEARCH_STOP_K or noise}
 
 
-def best_variant(state: Path, source: str) -> Optional[dict[str, Any]]:
-    """Choose the variant with the best Brier on the SELECT part; report its HELD-OUT score (the number to believe) with the baselines."""
+def reverted(state: Path) -> set[str]:
+    """Improvement ids (a variant's 'learn' tag) the learning loop judged harmful: verdict hurt_flag_revert in thinking/improvements.jsonl.
+    AUTO-REVERT (h58): such a variant never stays or becomes the best; best_variant falls back to the best of the others (the previous best)."""
+    return {str(e.get("id")) for e in T._jsonl(Path(state) / "thinking" / "improvements.jsonl")
+            if e.get("event") == "verdict" and e.get("verdict") == "hurt_flag_revert"}
+
+
+def best_variant(state: Path, source: str, exclude: Optional[set[str]] = None) -> Optional[dict[str, Any]]:
+    """Choose the variant with the best Brier on the SELECT part; report its HELD-OUT score (the number to believe) with the baselines.
+    Variants of a reverted improvement (`reverted(state)`, or `exclude` when given) are never chosen."""
     rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == source and r.get("select", {}).get("n")]
     if not rows:
         return None
     last = rows[-1]["digest"]                                       # the latest data: file order = completion order (max() of hashes was arbitrary)
     rows = [r for r in rows if r["digest"] == last] or rows
-    b = min(rows, key=lambda r: r["select"]["brier"])
+    bad = reverted(state) if exclude is None else exclude
+    ok = [r for r in rows if str((r.get("variant") or {}).get("learn") or "") not in bad]
+    if not ok:
+        return None
+    b = min(ok, key=lambda r: r["select"]["brier"])
     return {"source": source, "variant": b["variant"], "items": b["items"], "resolved": b["resolved"], "heldout": b["heldout"],
-            "variants_tried": len(rows)}
+            "variants_tried": len(rows), "digest": b.get("digest"), "superseded": superseded(b), "reverted_skipped": len(rows) - len(ok)}
