@@ -311,3 +311,28 @@ def test_derived_tests_tasks_need_tests_that_catch_the_change(repo: Path, tmp_pa
     assert not weak["passed"] and "do not test the change" in weak["why"], weak
     assert not run.run(der, CT.StubAgent("null"))[0]["passed"]
     assert "pkg/mathx.py" in CT.context_files(der[0])
+
+
+def test_agent_recipe_self_rates_and_cleans(tmp_path: Path) -> None:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("codetrust_agent", Path(__file__).resolve().parents[1] / "scripts" / "codetrust_agent.py")
+    assert spec and spec.loader
+    A = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(A)
+    url, srv = CT.stub_server({"": "CONFIDENCE: 0.35"})                        # '' matches every task text
+    try:
+        conf, tin, tout = A.self_rate(url, "do x", "diff --git a/x b/x")
+    finally:
+        srv.shutdown()
+    assert conf == 0.35 and tin > 0
+    ws = tmp_path / "ws"
+    put(ws, "tests/test_a.py", "x = 1\n")
+    put(ws, ".aider.chat.history.md", "h")
+    (ws / ".aider.tags.cache.v4").mkdir()
+    A.clean(ws)
+    assert sorted(p.name for p in ws.iterdir()) == ["tests"]
+    assert A.task_tests("Files:\n- tests/test_a.py\n- creator/x.py\n- tests/test_b.py\n", ws) == ["tests/test_a.py"]
+    argv = A.build("aider", ws, "http://127.0.0.1:1/v1", "Files:\n- tests/test_a.py\n", tmp_path)
+    assert "--auto-test" in argv and argv[-2:] == ["--message", "Files:\n- tests/test_a.py\n"]
+    oc = A.build("opencode", ws, "http://127.0.0.1:1/v1", "t", tmp_path)
+    assert oc[1] == "run" and json.loads((tmp_path / "opencode.json").read_text())["permission"]["external_directory"] == "deny"

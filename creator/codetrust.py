@@ -531,7 +531,7 @@ def stub_server(answers: Mapping[str, str]) -> tuple[str, Any]:
         def do_POST(self) -> None:                                     # noqa: N802 - http.server API
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             user = next((m["content"] for m in body.get("messages", []) if m.get("role") == "user"), "")
-            reply = next((v for k, v in table.items() if user.startswith(f"Your task:\n{k.strip()}")), "REASONING: unknown task\n")
+            reply = next((v for k, v in table.items() if not k or user.startswith(f"Your task:\n{k.strip()}")), "REASONING: unknown task\n")
             data = json.dumps({"choices": [{"message": {"content": reply}}],
                                "usage": {"prompt_tokens": len(user) // 4, "completion_tokens": len(reply) // 4}}).encode()
             self.send_response(200)
