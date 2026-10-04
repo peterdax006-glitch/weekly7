@@ -199,13 +199,34 @@ class Task:
     test_files: list[str]          # the reference's test files (overlaid after the attempt in code classes)
     code_files: list[str]          # the reference's non-test, non-doc files
     doc_files: list[str]
+    start_overlay: list[str] = dataclasses.field(default_factory=list)   # derived tasks: reference files written at the start
+    derived_from: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> "Task":
-        return cls(**{f.name: d[f.name] for f in dataclasses.fields(cls)})
+        return cls(**{f.name: d[f.name] for f in dataclasses.fields(cls) if f.name in d})
+
+
+DERIVED_TEXT = ("The change described below is ALREADY implemented in the code. Write its tests: add or extend test functions under tests/ "
+                "that pass on the current code AND would catch the change being missing (they must fail on the code as it was before the "
+                "change). Do not change any non-test file.\n\nThe change (its commit message):\n")
+
+
+def derive_tests_tasks(tasks: Sequence[Task]) -> list[Task]:
+    """A tests-only task from every held-out code change that came with its own tests (same commits, so the same exclusion rule): the
+    start is the parent tree WITH the reference code; the check is that the attempt's new or changed tests pass there and at least one of
+    them fails on the parent code (the tests catch the change). Measuring code is left out (its tests are the protected suite)."""
+    out = []
+    for t in tasks:
+        if t.cls not in ("feature", "bugfix", "refactor") or not t.test_files or not t.code_files or t.start_overlay:
+            continue
+        out.append(Task(id=f"ct-dt-{t.sha[:12]}", sha=t.sha, base=t.base, ts=t.ts, cls="tests_only", task=DERIVED_TEXT + t.task,
+                        files={p: t.files.get(p, 0) for p in t.test_files}, test_files=list(t.test_files), code_files=list(t.code_files),
+                        doc_files=[], start_overlay=[p for p in t.code_files if not _omitted(p)], derived_from=t.id))
+    return out
 
 
 def _ledger_tasks(repo: Path, rev: str) -> dict[str, str]:
@@ -365,7 +386,7 @@ def context_files(task: Task) -> list[str]:
     """Files shown to a model that cannot explore (the 'oracle files' setting, recorded in every result): what the reference touched;
     for a tests-only task also the modules its test files are named after."""
     fs = list(task.code_files) + list(task.test_files) + list(task.doc_files)
-    if task.cls == "tests_only":
+    if task.cls == "tests_only" and not task.start_overlay:
         for t in task.test_files:
             stem = Path(t).stem.removeprefix("test_")
             for cand in (f"creator/{stem.removeprefix('creator_')}.py", f"scripts/{stem}.py"):
@@ -670,6 +691,18 @@ class LocalChecker:
                 "workers": k if "-n" in args else 1}
 
 
+START_PREFIX = "codetrust start:"
+
+
+def upstream_head(root: Path) -> str:
+    """The newest commit of a sandbox that is not a local start commit (derived tasks commit the reference code locally first)."""
+    for ln in _git(root, "log", "--format=%H %s", "-n", "5").splitlines():
+        sha, _, subj = ln.partition(" ")
+        if not subj.startswith(START_PREFIX):
+            return sha
+    return _git(root, "rev-parse", "HEAD").strip()
+
+
 POD_SSH = ("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-i", str(Path.home() / ".ssh" / "nupen_vast"), "-p", "56727",
            "root@38.49.42.46")
 POD_DIR = "/workspace/nupen/codetrust"
@@ -710,8 +743,8 @@ class RemoteChecker:
             return {"status": "NO_TESTS", "cases": {}, "seconds": 0.0}
         t0 = time.monotonic()
         _git_ok(root, "add", "-A")
-        head = _git(root, "rev-parse", "HEAD").strip()
-        patch = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--binary", "HEAD", "--", ".", ":(exclude)state",
+        head = upstream_head(root)
+        patch = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--binary", head, "--", ".", ":(exclude)state",
                                 ":(exclude).creator_sandbox.json"], capture_output=True, timeout=300).stdout
         wid = f"{label}-{time.time_ns()}"
         d = shlex.quote(self.dir)
@@ -837,7 +870,7 @@ class Runner:
         try:
             checkout_reference(sb.path, task, task.test_files)
             base = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-base.xml", "start", self.test_timeout, self.checker)
-            checkout_reference(sb.path, task, [p for p in task.files if not _omitted(p)])
+            checkout_reference(sb.path, task, [p for p in (*task.files, *task.start_overlay) if not _omitted(p)])
             ref = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout, self.checker)
         finally:
             S.discard(sb)
@@ -853,6 +886,8 @@ class Runner:
             usable, why = False, "no test fails at the start and passes on the reference (a do-nothing attempt would pass)"
         elif task.cls == "tests_only" and not req:
             usable, why = False, "the reference's tests do not pass"
+        elif task.start_overlay and not f2p:
+            usable, why = False, "the reference's own tests do not fail on the parent code (no proof the change is testable)"
         v = {"task": task.id, "usable": usable, "why": why, "required": req, "fail_to_pass": f2p,
              "start": {"status": base["status"], "seconds": base["seconds"]}, "reference": {"status": ref["status"], "seconds": ref["seconds"]}}
         cache.write_text(json.dumps(v, indent=1), encoding="utf-8")
@@ -870,13 +905,20 @@ class Runner:
         except Exception as e:                                          # noqa: BLE001 - our side broke: not the agent's failure
             rec.update(infra_error=f"sandbox: {type(e).__name__}: {str(e)[:300]}", passed=False)
             return rec
+        start = task.base
         try:
+            if task.start_overlay:                                       # derived task: the reference code is the start
+                checkout_reference(sb.path, task, task.start_overlay)
+                _git_ok(sb.path, "add", "-A")
+                _git_ok(sb.path, "-c", "user.name=codetrust", "-c", "user.email=codetrust@localhost", "commit", "-q", "-m",
+                        f"{START_PREFIX} {task.id}")
+                start = _git(sb.path, "rev-parse", "HEAD").strip()
             ao = agent.attempt(task, sb.path, scratch, lambda: "")
             rec.update(confidence=ao.confidence, tokens_in=ao.tokens_in, tokens_out=ao.tokens_out, agent_seconds=ao.seconds,
                        agent_error=ao.error, notes=ao.notes)
             for marker in (*S.HANDOFF_FILES, RESULT_FILE):
                 (sb.path / marker).unlink(missing_ok=True)
-            ch = changed_paths(sb.path, task.base)
+            ch = changed_paths(sb.path, start)
             rec["changed"] = ch
             prot_touch = sorted(p for p in ch if S.is_protected(p) or _match(p, MEASURING))
             rec["protected_touched"] = prot_touch if task.cls != "measuring" else []
@@ -922,6 +964,7 @@ class Runner:
             cand_src = {f: (root / f).read_text(encoding="utf-8", errors="replace") for f in attempt_tests if (root / f).is_file()}
             new = [c for c in mine if _func_src(cand_src.get(_file_of(c), ""), c) != _func_src(base_src.get(_file_of(c), ""), c)]
             ok = bool(attempt_tests) and bool(mine) and not fails and not touched_code and bool(new)
+            out["_new"] = new
             out.update(check="the attempt's own new tests pass on the unchanged code; code untouched; nothing weakened", check_passed=ok,
                        why="" if ok else f"tests {len(mine)}, failing {len(fails)}, new {len(new)}, code touched {touched_code[:5]}")
         else:
@@ -947,6 +990,24 @@ class Runner:
             bad_prot = [c for c in bad_prot if all(a.get(c) != "pass" for a in again)]
         out.update(regressions=bad_prot[:50], n_regressions=len(bad_prot), protected_files=prot_files,
                    protected_tier="full" if ok and self.full_suite else "affected")
+        if ok and task.start_overlay and task.cls == "tests_only":      # derived: the new tests must catch the change on the parent code
+            new_cases = list(out.pop("_new", []))
+            for p in task.code_files:
+                if _omitted(p):
+                    continue
+                old = subprocess.run(["git", "-C", str(root), "show", f"{task.base}:{p}"], capture_output=True, timeout=120)
+                f = root / p
+                if old.returncode == 0:
+                    f.write_bytes(old.stdout)
+                elif f.exists():
+                    f.unlink()
+            par = run_tests(root, attempt_tests, self.out / "sandboxes" / f"{task.id}-{time.time_ns()}-parent.xml", "parent",
+                            self.test_timeout, self.checker)
+            caught = [c for c in new_cases if par["cases"].get(c) != "pass"]
+            out.update(caught_on_parent=caught[:20], check_passed=bool(caught),
+                       check="derived: the attempt's new or changed tests pass on the reference code and at least one fails on the parent code",
+                       why="" if caught else f"none of {len(new_cases)} new/changed tests fails on the parent code (they do not test the change)")
+        out.pop("_new", None)
         return out
 
     def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "") -> list[dict[str, Any]]:

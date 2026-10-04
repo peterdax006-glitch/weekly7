@@ -33,6 +33,8 @@ RUNTIME = Path.home() / "creator_runtime" / "codetrust"
 def _tasks(a: argparse.Namespace) -> list[CT.Task]:
     h = CT.load_heldout(Path(a.heldout))
     ts = [CT.Task.from_dict(t) for t in h["tasks"]]
+    if not a.no_derived:
+        ts = ts + CT.derive_tests_tasks(ts)
     if a.classes:
         ts = [t for t in ts if t.cls in a.classes]
     if a.task_ids:
@@ -77,6 +79,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--spread", action="store_true", help="with --limit: one task of each class first")
     ap.add_argument("--classes", nargs="*", default=[])
     ap.add_argument("--task-ids", nargs="*", default=[])
+    ap.add_argument("--no-derived", action="store_true", help="leave out the derived tests-only tasks")
     ap.add_argument("--repo", default=str(RUNTIME / "repo"))
     ap.add_argument("--source", default=str(Path.home() / "weekly7"))
     ap.add_argument("--out", default="")
@@ -101,7 +104,10 @@ def main(argv: list[str]) -> int:
         return 0
     if a.cmd == "tasks":
         h = CT.load_heldout(Path(a.heldout))
-        print(json.dumps({k: h[k] for k in ("cut_utc", "head", "by_class", "skipped", "rule")}, indent=1))
+        ts = _tasks(a)
+        print(json.dumps({**{k: h[k] for k in ("cut_utc", "head", "skipped", "rule")}, "frozen_by_class": h["by_class"],
+                          "with_derived_by_class": {c: sum(1 for t in ts if t.cls == c) for c in CT.CLASSES},
+                          "derived_tests_only": sum(1 for t in ts if t.start_overlay)}, indent=1))
         return 0
     if a.cmd == "safeloop":
         print(json.dumps(CT.safe_loop_check(), indent=1))

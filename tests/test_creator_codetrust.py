@@ -286,3 +286,28 @@ def test_remote_checker_uploads_no_state_caps_cores_and_parses_junit(repo: Path,
     CT.RemoteChecker(ssh=["ssh", "pod"], cores=8, runner=serial).run(repo, ["tests/test_guard.py", "tests/test_mathx.py"],
                                                                     tmp_path / "k.xml", "r", 600, serial=True)
     assert "-n 8" not in next(s for s, _ in serial.calls if "pytest" in s)
+
+
+# ------------------------------------------------------------------------------------------------ derived tests-only tasks
+class WeakTester(CT.Agent):
+    """Adds a passing test that does not exercise the change (mul): it must not count."""
+    name = "weak-tester"
+
+    def attempt(self, task: CT.Task, workdir: Path, scratch: Path, reference: Any) -> CT.AgentOutcome:
+        put(workdir, "tests/test_mathx.py", (workdir / "tests" / "test_mathx.py").read_text(encoding="utf-8")
+            + "\n\ndef test_add_more():\n    assert add(3, 4) == 7\n")
+        return CT.AgentOutcome(confidence=0.6)
+
+
+def test_derived_tests_tasks_need_tests_that_catch_the_change(repo: Path, tmp_path: Path) -> None:
+    run, tasks = _runner(repo, tmp_path)
+    der = CT.derive_tests_tasks(tasks)
+    assert [t.cls for t in der] == ["tests_only"] and der[0].start_overlay == ["pkg/mathx.py"] and der[0].files == {"tests/test_mathx.py": 5}
+    assert CT.Task.from_dict(der[0].to_dict()) == der[0] and CT.derive_tests_tasks(der) == []
+    ok = run.run(der, CT.StubAgent("reference"))[0]
+    assert "unusable" not in ok, ok
+    assert ok["passed"] and ok["caught_on_parent"] == ["tests/test_mathx.py::test_mul"] and list(ok["changed"]) == ["tests/test_mathx.py"], ok
+    weak = run.run(der, WeakTester())[0]
+    assert not weak["passed"] and "do not test the change" in weak["why"], weak
+    assert not run.run(der, CT.StubAgent("null"))[0]["passed"]
+    assert "pkg/mathx.py" in CT.context_files(der[0])
