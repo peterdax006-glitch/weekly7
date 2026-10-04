@@ -23,32 +23,42 @@ def make(REG: Any, state: Path, root: Path, last: dict[str, float], think_every:
     drills = REG.get("drillsources").drill_filler(state, root, Path.home() / "Masterstock" / "JOURNAL.md",
                                                   root / "state" / "research", processes=True,   # every core, not one (GIL)
                                                   public=True)   # fetch public upstreams, acquire more when dry
-    models = []                                   # local-model batches: judgment, and (3 Oct 2026) the reasoning drills
+    models: list[Any] = []                        # local-model batches: judgment, and (3 Oct 2026) the reasoning drills
+    names: dict[int, str] = {id(drills): "drills"}  # job source -> its timing name (creator.slowpath)
     for name, make_fn in (("judgment", "judgment_filler"), ("reasondrills", "reasoning_filler")):
         try:
             models.append(getattr(REG.get(name), make_fn)(state, root, max_servers=int(REG.get("device").settings().get("llama_servers", 1))))
+            names[id(models[-1])] = name
         except Exception as e:                    # noqa: BLE001 - optional; the drills still run
             print(f"{name.upper()} filler unavailable: {type(e).__name__}: {e}", flush=True)
+
+    def timed(name: str, fn: Callable[[], Any]) -> Callable[[], Any]:
+        """Every filler job is timed under its name (creator.slowpath: flags operations far over their median or budget)."""
+        def run() -> Any:
+            from creator import slowpath as SP            # lazy: the swarm's start load stays as it is
+            with SP.timed(state, name):
+                return fn()
+        return run
 
     def next_job() -> Optional[Callable[[], Any]]:
         now = time.time()
         if now - last["run"] >= think_every:
             last["run"] = now
-            return lambda: (drill_live(), REG.get("thinking").run(state))   # live drill predictions first: trust.json counts them
+            return timed("think.run", lambda: (drill_live(), REG.get("thinking").run(state)))   # live drill predictions first: trust.json counts them
         if now - last["blueprint"] >= blueprint_every:
             last["blueprint"] = now
-            return lambda: subprocess.run([sys.executable, str(root / "scripts" / "nupen_blueprint.py"), "--state", str(state)],
-                                          capture_output=True, timeout=1800, cwd=root)
+            return timed("think.blueprint", lambda: subprocess.run([sys.executable, str(root / "scripts" / "nupen_blueprint.py"), "--state", str(state)],
+                                                                   capture_output=True, timeout=1800, cwd=root))
         learn = REG.optional("learnloop")
         if learn is not None and now - last.get("learn", 0.0) >= learn_every:
             last["learn"] = now                   # test on the data, diagnose, improve, re-measure (creator.learnloop)
-            return lambda: learn.run(state, root)
+            return timed("think.learnloop", lambda: learn.run(state, root))
         n = int(last.get("n", 0)) + 1
         last["n"] = n
         k = n // 3 % max(1, len(models))          # every third call a model batch first (RAM-heavy; admission decides), in turns
         for f in ((models[k:] + models[:k]) if n % 3 == 0 else []) + [drills] + models:
             j = f()
             if j is not None:
-                return j
+                return timed(f"think.{names.get(id(f), 'job')}", j)
         return None
     return next_job
