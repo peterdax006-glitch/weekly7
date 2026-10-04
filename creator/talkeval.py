@@ -15,6 +15,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import statistics
+import sys
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -89,7 +90,8 @@ def _answered(intent: str, answer: str) -> bool:
     return not (answer.startswith("I don't understand") or "I found nothing in my records" in answer)
 
 
-def run_layer(root: Path, layer: str, questions: list[Q], voice: Optional[T.Voice] = None, mode: str = "hybrid") -> dict[str, Any]:
+def run_layer(root: Path, layer: str, questions: list[Q], voice: Optional[T.Voice] = None, mode: str = "hybrid",
+              progress: bool = False) -> dict[str, Any]:
     conv = T.conversation(root, voice, mode="rules" if layer == "1" else mode, log=False, handlers={"request": dry_request})
     sess: T.Session = conv.talk_session  # type: ignore[attr-defined]
     rows = []
@@ -106,7 +108,11 @@ def run_layer(root: Path, layer: str, questions: list[Q], voice: Optional[T.Voic
                      "grounded": not bad, "ungrounded": bad, "answered": _answered(p.intent, ans), "seconds": round(dt_s, 2),
                      "voice_s": sess.turn.get("voice_s", 0.0), "tokens_in": sess.turn.get("tokens_in", 0), "tokens_out": sess.turn.get("tokens_out", 0),
                      "understand_by": sess.turn.get("understand_by", "rules"), "spoken_by": sess.turn.get("spoken_by", "rules"),
-                     "answer": ans[:600]})
+                     "answer": ans[:600], "rejected": sess.turn.get("rejected", [])})
+        if progress:
+            r = rows[-1]
+            print(f"[{layer} {len(rows)}/{len(questions)}] {r['intent']}{'' if r['intent_ok'] else '(x)'} {r['seconds']}s {r['spoken_by']}",
+                  file=sys.stderr, flush=True)
     n = len(rows)
     lat = sorted(r["seconds"] for r in rows)
     by_kind: dict[str, list[bool]] = {}
@@ -129,16 +135,16 @@ def out_dir() -> Path:
     return Path(DEV.runtime_dir()) / "talk" / "eval"
 
 
-def run(root: Path, layers: list[str], limit: int = 0, ctx: int = 0, servers: Optional[int] = None, out: Optional[Path] = None,
+def run(root: Path, layers: list[str], limit: int = 0, every: int = 1, ctx: int = 0, servers: Optional[int] = None, out: Optional[Path] = None,
         route: str = "") -> dict[str, Any]:
-    qs = QUESTIONS[:limit] if limit else QUESTIONS
+    qs = (QUESTIONS[:limit] if limit else QUESTIONS)[::max(1, every)]     # every k-th: a spread sample for a slow voice
     res = []
     for layer in layers:
         voice = None
         if layer != "1":
             voice = T.Voice(T.resolve_model(layer), ctx=ctx or (8192 if layer == "1.7b" else 4096), servers=servers, route=route)
         try:
-            res.append(run_layer(root, layer, qs, voice))
+            res.append(run_layer(root, layer, qs, voice, progress=True))
         finally:
             if voice is not None:
                 voice.close()

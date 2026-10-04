@@ -34,7 +34,7 @@ def root(tmp_path: Path) -> Path:
     _w(tmp_path / "creator" / "pulsething.py", '"""pulsething: routes model calls to the rented GPU pod while its tunnel is healthy."""\nx = 1\n')
     _w(tmp_path / "creator" / "other.py", '"""other: counts apples in the orchard for the harvest report."""\n')
     _w(tmp_path / "docs" / "GUIDE.md", "# Planner\nThe planner orders work packages by the critical path.\n# Secret\nMasterstock notes live here.\n")
-    _w(st / "lessons.jsonl", json.dumps({"lesson_id": "abcdef123456", "package_id": "CP0007", "task_kind": "gap",
+    _w(st / "lessons.jsonl", json.dumps({"lesson_id": "abcdef123456", "package_id": "CP0007", "task_kind": "gap", "component": "K05", "solver": "claude",
                                           "objective": "make the planner skip duplicate packages", "verdict": "adopted"}) + "\n")
     T._INDEX.clear()
     return tmp_path
@@ -237,3 +237,19 @@ def test_talk_jobs_is_a_valid_call_job() -> None:
     j = GP.parse_job(jobs[0])
     assert j["via"] == "call" and j["call"] == "creator.talkdata:pairs_job" and j["model"] == "Qwen3-14B-Q4_K_M.gguf"
     assert 5 <= j["minutes"] <= j["max_minutes"] <= 120
+
+
+def test_chooser_stats_are_measured_only_when_asked_then_cached(root: Path, tmp_path_factory: pytest.TempPathFactory,
+                                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    from creator import shadow as SH
+    monkeypatch.setenv("NUPEN_RUNTIME", str(tmp_path_factory.mktemp("rt")))
+    calls: list[int] = []
+
+    def fake(state: Path, les: list[Any]) -> dict[str, Any]:
+        calls.append(1)
+        return {"n": 3, "chooser_acc": 0.5, "default_acc": 0.25}
+    monkeypatch.setattr(SH, "stats", fake)
+    c = CV.Ctx(root, NOW)
+    assert "not measured yet" in "\n".join(CV.h_lessons(c, {"question": "what have you learned"}).lines) and not calls
+    assert "chooser accuracy 0.5 vs default 0.25." in "\n".join(CV.h_lessons(c, {"question": "how good is the chooser?"}).lines)
+    assert "chooser accuracy 0.5" in "\n".join(CV.h_lessons(c, {"question": "what have you learned"}).lines) and len(calls) == 1
