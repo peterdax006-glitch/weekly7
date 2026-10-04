@@ -795,7 +795,9 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         return out
 
     def public_changed() -> None:
-        """Reload the public cases when a cache grew or a repository appeared (checked at most once a minute)."""
+        """Reload the public cases when a cache grew or a repository appeared (checked at most once a minute). The first load is made here;
+        a RE-load (h59: ~35 s per public topic, measured 3 Oct on 158,000 commits, and it ran under `lock`, stalling every next_job) is built
+        in a background thread while the cases already loaded keep being served, and swapped in when ready (with its baseline warmed)."""
         now = time.time()
         if now - sig["checked"] < 60.0 and all(t in cache for t in topics if t in PUB_TOPICS):
             return
@@ -803,9 +805,28 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
         from creator import registry as REG
         v = REG.get("publiccases").signature()
         if v != sig["value"]:
+            first = sig["value"] is None or not any(t in cache for t in PUB_TOPICS)
             sig["value"] = v
-            for t in PUB_TOPICS:
-                cache.pop(t, None)
+            if first:
+                for t in PUB_TOPICS:
+                    cache.pop(t, None)
+                    idx.pop(t, None)
+            elif sig.get("reloading") is None or not sig["reloading"].is_alive():
+                sig["reloading"] = threading.Thread(target=reload_public, name="judgment-public-reload", daemon=True)
+                sig["reloading"].start()
+
+    def reload_public() -> None:
+        for t in [t for t in topics if t in PUB_TOPICS]:
+            try:
+                fresh = load_cases(t, state, Path(repo))
+                _stat_preds(t, state, Path(state))                    # the walk-forward baseline of the new caches, outside the lock too
+            except Exception as e:                                     # noqa: BLE001 - the old cases stay; the next change retries
+                _append(state, {"topic": t, "error": f"reload {type(e).__name__}: {e}"[:300]})
+                with lock:
+                    sig["value"] = None if not any(x in cache for x in PUB_TOPICS) else "stale"
+                continue
+            with lock:
+                cache[t] = fresh
                 idx.pop(t, None)
 
     def fixed_arms(rs: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
@@ -889,12 +910,17 @@ def judgment_filler(state: Path, repo: Path, max_servers: int = 1, llm_factory: 
             try:
                 if do_refresh:
                     refresh()
-                if topic not in idx:
-                    idx[topic] = RM.Index(RM.build_corpus(state, cache[topic]))
+                cs = cache[topic]                                  # one snapshot: a background reload may swap the topic's cases meanwhile
+                ix = idx.get(topic)
+                if ix is None:
+                    ix = RM.Index(RM.build_corpus(state, cs))
+                    with lock:
+                        if cache.get(topic) is cs:                 # never keep an index of cases a reload has replaced
+                            idx[topic] = ix
                 own = None
                 if topic in PUB_TOPICS and any(s.get("own") for _c, s in batch):
-                    own = own_index([r for r in _mine(_records(state), active_tag()) if r.get("topic") == topic], cache[topic])
-                run_batch(state, batch, cache[topic], make_llm, idx[topic], own, extra)
+                    own = own_index([r for r in _mine(_records(state), active_tag()) if r.get("topic") == topic], cs)
+                run_batch(state, batch, cs, make_llm, ix, own, extra)
             except _Skip:
                 skipped = True
             except Exception as e:                                 # noqa: BLE001 - a filler never stops the swarm
