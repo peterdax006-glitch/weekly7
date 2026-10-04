@@ -813,13 +813,22 @@ class Runner:
         self.repo, self.out, self.suite, self.test_timeout, self.log = Path(repo), Path(out), tuple(suite), test_timeout, log
         self.full_suite = full_suite
         self.checker = checker or LocalChecker()
+        import threading
+        self._git_lock = threading.RLock()
+        self._out_lock = threading.Lock()
         self.out.mkdir(parents=True, exist_ok=True)
         self.cache = Path(cache) if cache else self.out / "validation"
         self.cache.mkdir(parents=True, exist_ok=True)
 
     def _open(self, task: Task, label: str, rev: str = "") -> Any:
         from creator import sandbox as S
-        return S.Sandbox.open(self.repo, rev or task.base, scratch=self.out / "sandboxes", label=label, omit=OMIT)
+        with self._git_lock:                                            # parallel tasks: one worktree add/remove at a time
+            return S.Sandbox.open(self.repo, rev or task.base, scratch=self.out / "sandboxes", label=label, omit=OMIT)
+
+    def _discard(self, sb: Any) -> None:
+        from creator import sandbox as S
+        with self._git_lock:
+            S.discard(sb)
 
     def affected(self, root: Path, changed: Iterable[str], exclude: Iterable[str] = ()) -> list[str]:
         """Tier 1: the protected test files that name a changed module (dotted import or its registry key) - cheap and static."""
@@ -853,7 +862,7 @@ class Runner:
             try:
                 r = run_tests(sb.path, need, self.out / "sandboxes" / f"{sb.id}-refprot.xml", "reference", self.test_timeout, self.checker)
             finally:
-                S.discard(sb)
+                self._discard(sb)
             for f in need:
                 have[f] = sorted(c for c, o in r["cases"].items() if o == "pass" and _file_of(c) == f)
             cf.write_text(json.dumps(have, indent=1), encoding="utf-8")
@@ -873,7 +882,7 @@ class Runner:
             checkout_reference(sb.path, task, [p for p in (*task.files, *task.start_overlay) if not _omitted(p)])
             ref = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout, self.checker)
         finally:
-            S.discard(sb)
+            self._discard(sb)
         own = set(task.test_files)
         req = sorted(c for c, o in ref["cases"].items() if o == "pass" and _file_of(c) in own)
         f2p = sorted(c for c in req if base["cases"].get(c) != "pass")
@@ -931,7 +940,7 @@ class Runner:
             rec.update(infra_error=f"evaluation: {type(e).__name__}: {str(e)[:300]}", passed=False)
         finally:
             try:
-                S.discard(sb)
+                self._discard(sb)
             except Exception:                                           # noqa: BLE001
                 pass
         rec["passed"] = bool(rec.get("check_passed") and not rec.get("regressions") and not rec.get("protected_touched")
@@ -1010,15 +1019,15 @@ class Runner:
         out.pop("_new", None)
         return out
 
-    def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "") -> list[dict[str, Any]]:
-        """Validate and attempt every task; results append to <out>/results-<agent>.jsonl (a re-run skips tasks already attempted)."""
+    def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "", parallel: int = 1) -> list[dict[str, Any]]:
+        """Validate and attempt every task (`parallel` at a time); results append to <out>/results-<agent>.jsonl (a re-run skips tasks
+        already attempted)."""
         name = results_name or slug(agent.name)
         path = self.out / f"results-{name}.jsonl"
         done = {r.get("task") for r in _jsonl(path)}
-        recs = []
-        for i, t in enumerate(tasks):
-            if t.id in done:
-                continue
+        todo = [(i, t) for i, t in enumerate(tasks) if t.id not in done]
+
+        def one(i: int, t: Task) -> dict[str, Any]:
             self.log(f"[{i + 1}/{len(tasks)}] {t.id} {t.cls}: validating")
             try:
                 val = self.validate(t)
@@ -1030,12 +1039,16 @@ class Runner:
                 self.log(f"[{i + 1}/{len(tasks)}] {t.id}: attempt by {agent.name}")
                 rec = self.attempt(t, agent, val)
             rec["setup"] = agent.describe()
-            with path.open("a", encoding="utf-8") as fh:
+            with self._out_lock, path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(rec) + "\n")
-            recs.append(rec)
             verdict = "PASS" if rec.get("passed") else f"unusable: {rec.get('unusable')}" if rec.get("unusable") else "FAIL"
-            self.log(f"   -> {verdict} {str(rec.get('why') or rec.get('infra_error') or '')[:160]}")
-        return recs
+            self.log(f"   {t.id} -> {verdict} {str(rec.get('why') or rec.get('infra_error') or '')[:160]}")
+            return rec
+        if parallel <= 1:
+            return [one(i, t) for i, t in todo]
+        import concurrent.futures as cf
+        with cf.ThreadPoolExecutor(max_workers=parallel) as pool:
+            return [f.result() for f in [pool.submit(one, i, t) for i, t in todo]]
 
 
 def _func_src(text: str, case_id: str) -> Optional[str]:

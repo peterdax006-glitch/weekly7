@@ -88,7 +88,9 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--check-host", choices=("local", "pod"), default="local",
                     help="where the sandbox tests run: this PC (xdist on free cores) or the GPU pod's CPUs over ssh (public code only)")
     ap.add_argument("--workers", type=int, default=0, help="local xdist workers (0 = free cores, max 8; 1 = serial)")
-    ap.add_argument("--pod-cores", type=int, default=8)
+    ap.add_argument("--pod-cores", type=int, default=4)
+    ap.add_argument("--pod-ssh", default="", help="ssh command for the pod, e.g. 'ssh -i ~/.ssh/nupen_vast -p 35735 root@ssh9.vast.ai'")
+    ap.add_argument("--tasks-parallel", type=int, default=1, help="tasks attempted at the same time")
     ap.add_argument("--affected-only", action="store_true", help="skip the full protected suite on passing attempts (dry runs only)")
     ap.add_argument("--n-recent", type=int, default=300)
     ap.add_argument("--min-n", type=int, default=CT.MIN_N)
@@ -130,7 +132,12 @@ def main(argv: list[str]) -> int:
     tasks = _tasks(a)
     checker: Any = CT.LocalChecker(workers=a.workers)
     if a.check_host == "pod":
-        checker = CT.RemoteChecker(cores=a.pod_cores)
+        ssh: tuple[str, ...] = CT.POD_SSH
+        if a.pod_ssh:
+            parts = CT.split_command(a.pod_ssh)
+            ssh = (parts[0], "-o", "BatchMode=yes", "-o", "ConnectTimeout=30",
+                   *[str(Path(x).expanduser()) if x.startswith("~") else x for x in parts[1:]])
+        checker = CT.RemoteChecker(ssh=ssh, cores=a.pod_cores)
         print(checker.setup())
     agent: CT.Agent
     url = tunnel_url(a.tunnel) if a.tunnel else a.url
@@ -151,7 +158,7 @@ def main(argv: list[str]) -> int:
     out = Path(a.out).expanduser() if a.out else RUNTIME / CT.slug(agent.name)
     run = CT.Runner(repo, out, suite=tuple(a.suite) if a.suite is not None else CT.PROTECTED_SUITE, test_timeout=a.test_timeout,
                     full_suite=not a.affected_only, cache=RUNTIME / "validation" / checker.name, checker=checker)
-    run.run(tasks, agent)
+    run.run(tasks, agent, parallel=a.tasks_parallel)
     recs = CT._jsonl(out / f"results-{CT.slug(agent.name)}.jsonl")
     rep = _write_report(out, recs, agent.describe(), g)
     print(CT.markdown(rep))
