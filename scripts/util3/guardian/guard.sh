@@ -5,8 +5,8 @@
 #  - a runner 8B/14B/27B/30B/32B llama-server up                 -> every filler instance OFF at once (the 27B / 14B tiers own the card)
 #  - a NEW runner GPU process appears (server or fine-tune start) -> every filler OFF, refill after STABLE_S; one that only goes away
 #    (a job gap: fetch, download, upload, PC-side merge/eval) keeps ours running and lets us scale UP
-#  - util < 90% over the last 15 s and free VRAM >= need + margin -> one more instance (4B Q4 ~4.3 GB; a 1.7B Q4 ~2.4 GB where a 4B does
-#    not fit; 2 x 14B Q4 ~11 GB when the runner has been idle IDLE_S); up to 4 (2 for 14B)
+#  - util < 90% over the last 15 s and free VRAM >= need + margin -> one more instance: the best item of the WORK QUEUE (queue.txt, by
+#    priority: efficiency jobs, coding, language, traces last) whose model fits; up to 4. A job outranks and replaces a traces instance.
 #  - free VRAM < margin                                          -> drop the newest instance (margin 1.5 GB beside llama-servers,
 #    2.5 GB beside a fine-tune, which can grow)
 #  - feed.py (question feeder) kept running; filler servers -t 2 (pod CPU: filler work stays <= ~6 cores)
@@ -20,6 +20,9 @@ MODELS=/workspace/nupen/models
 M4=$MODELS/Qwen3-4B-Q4_K_M.gguf; M17=$MODELS/Qwen3-1.7B-Q4_K_M.gguf; M14=$MODELS/Qwen3-14B-Q4_K_M.gguf
 BASE=18350; IDLE_S=${IDLE_S:-240}; STABLE_S=${STABLE_S:-10}; UTIL_T=${UTIL_T:-90}
 declare -A ftpeak ftkey
+[ -s $D/queue.txt ] || printf "8 Qwen3-4B-Q4_K_M.gguf traces
+9 Qwen3-1.7B-Q4_K_M.gguf traces
+" > $D/queue.txt   # traces fallback without a PC
 pids=(); kinds=(); mode=off; now=$(date +%s); idle_since=$now; stable_since=$now; lastsig=""; last_start=0; utils=(); lastmin=0; lastdisk=0
 log(){ echo "$(date '+%F %T') $*" >> $D/events.log; }
 # a restarted guardian adopts nothing: clear filler servers a dead predecessor left (only ports 18350-18353, only llama-server)
@@ -30,13 +33,37 @@ killall_(){ # all at once: TERM every instance, 1 s grace, then KILL (a runner s
   [ ${#pids[@]} -gt 0 ] || return 0; kill ${pids[@]} 2>/dev/null
   for i in $(seq 1 10); do local alive=0; for p in ${pids[@]}; do kill -0 $p 2>/dev/null && alive=1; done; [ $alive -eq 0 ] && break; sleep 0.1; done
   kill -9 ${pids[@]} 2>/dev/null; log "all ${#pids[@]} instances off ($1)"; pids=(); kinds=(); mode=off; }
-start(){ # $1 = 4b|17b|14b
-  local port=$((BASE+${#pids[@]})) m
-  case $1 in 14b) m=$M14;; 17b) m=$M17;; *) m=$M4;; esac
+# ---- the work queue (owner 3 Oct: run the unfinished work by priority, 1 efficiency, 2 coding, 3 language; traces last)
+# queue.txt lines: '<prio> <model file> <tag> [<bytes> <sha256> <url>]'. A non-'traces' line is one job: served by at most one instance, driven
+# from the PC (guardian_queue.py), removed from the file when done (its instance is then stopped). 'traces' lines may fill any number of
+# instances (the pod feeder drives them). Missing model files are fetched in the background (sha256-checked) while disk stays >= 6 GB.
+fetch_bg(){ # $1 file $2 bytes $3 sha $4 url
+  local f=$MODELS/$1; [ -f $D/fetch_$1.on ] && return; [ -n "$4" ] || return
+  local avail=$(df --output=avail -m / | tail -1 | tr -d ' '); [ $((avail - $2/1048576)) -lt 6144 ] && return
+  touch $D/fetch_$1.on; log "fetching $1"
+  ( nice -n 10 curl -fL --retry 5 -s -o $f.part "$4" && [ "$(sha256sum $f.part | cut -d' ' -f1)" = "$3" ] && mv -f $f.part $f && log "fetched $1" \
+      || { rm -f $f.part; log "fetch of $1 failed"; }; rm -f $D/fetch_$1.on ) &
+}
+pick(){ # echo the model file of the best queue item that fits $1 MiB of VRAM (after margin), or nothing
+  local room=$1
+  sort -n $D/queue.txt 2>/dev/null | while read prio file tag bytes sha url; do
+    [ -z "$file" ] && continue
+    [ "$tag" != traces ] && ! pcalive && continue
+    [ -f $MODELS/$file ] || { [ "$tag" != traces ] && fetch_bg "$file" "${bytes:-0}" "$sha" "$url"; continue; }
+    [ "$tag" != traces ] && [[ " ${kinds[*]} " == *" $file "* ]] && continue
+    local need=$(( $(stat -c %s $MODELS/$file) / 1048576 + 1900 ))
+    [ $room -ge $need ] && { echo $file; break; }
+  done
+}
+inqueue(){ awk -v f="$1" '$2==f {found=1} END {exit !found}' $D/queue.txt 2>/dev/null; }
+pcalive(){ [ -n "$(find $D/pc_heartbeat -mmin -5 2>/dev/null)" ]; }   # queued JOBS are driven from the PC: serve them only while it is alive
+istraces(){ awk -v f="$1" '$2==f && $3=="traces" {t=1} END {exit !t}' $D/queue.txt 2>/dev/null; }
+start(){ # $1 = model file under $MODELS
+  local port=$((BASE+${#pids[@]})) m=$MODELS/$1
   [ -f "$m" ] || { log "missing $m"; return; }
   nohup /opt/llama.cpp/llama-server -m $m --host 127.0.0.1 --port $port -ngl 99 -fa on -ctk q8_0 -ctv q8_0 -np 16 -c 16384 -t 2 -tb 2 \
     --no-webui --metrics > $D/srv_$port.log 2>&1 &
-  local p=$!; pids+=($p); kinds+=($1); [ $1 = 14b ] && mode=14b || mode=4b; last_start=$(date +%s)
+  local p=$!; pids+=($p); kinds+=($1); mode=on; last_start=$(date +%s)
   for k in $(seq 1 120); do
     curl -sf -o /dev/null localhost:$port/health && { log "instance $((${#pids[@]}-1)) ($1) up on $port"; return; }
     kill -0 $p 2>/dev/null || { log "instance ($1) died at start: $(tail -2 $D/srv_$port.log | tr '\n' ' ' | cut -c1-200)"; unset 'pids[-1]'; unset 'kinds[-1]'; return; }
@@ -51,6 +78,7 @@ diskguard(){
 \
            $(ls /root/pubembed*/chunks.jsonl 2>/dev/null); do
     case "$f" in $M4|$M17|$M14) continue;; esac
+    inqueue "$(basename "$f" .part)" && continue                        # a queued job's model (or its download) stays
     echo "$open" | grep -q -F "$f" && continue
     log "disk guard: ${free} MiB free, deleting $f ($(du -sm "$f" | cut -f1) MiB)"; rm -rf -- "$f"
     free=$(df --output=avail -m / | tail -1 | tr -d ' '); [ "$free" -ge 6144 ] && break
@@ -103,12 +131,18 @@ while [ ! -f $D/STOP ]; do
   fi
   if [ "$big" -gt 0 ]; then killall_ "runner big server"
   elif [ ${#pids[@]} -gt 0 ] && [ "${free:-0}" -lt $mf ]; then killone "free ${free} MiB"
-  elif [ $((now-stable_since)) -ge $STABLE_S ] && [ $((now-last_start)) -ge 4 ] && [ "$u15" -lt $UTIL_T ]; then
-    want=4b; [ "$sig" = "|" ] && [ $((now-idle_since)) -ge $IDLE_S ] && want=14b
-    if [ "$mode" != off ] && [ "$mode" != "$want" ]; then killall_ "switch to $want"
-    elif [ $want = 14b ] && [ ${#pids[@]} -lt 2 ] && [ "${free:-0}" -ge $((11000 + mf + 400)) ]; then start 14b
-    elif [ $want = 4b ] && [ ${#pids[@]} -lt 4 ] && [ "${free:-0}" -ge $((4300 + mf + 400)) ]; then start 4b
-    elif [ $want = 4b ] && [ ${#pids[@]} -lt 4 ] && [ "${free:-0}" -ge $((2400 + mf + 400)) ]; then start 17b
+  else
+    # an instance whose queue job is finished (line removed) makes room for the next job
+    for i in "${!kinds[@]}"; do { inqueue "${kinds[$i]}" && { istraces "${kinds[$i]}" || pcalive; }; } || { if [ $i -eq $((${#pids[@]}-1)) ]; then killone "job ${kinds[$i]} done"; else killall_ "job ${kinds[$i]} done"; fi; break; }; done
+    # a job that outranks a running traces instance takes its place when it would fit in that instance's VRAM
+    if [ ${#pids[@]} -gt 0 ] && istraces "${kinds[-1]}" && [ $((now-last_start)) -ge 4 ]; then
+      j=$(pick $(( ${free:-0} - mf - 400 ))); if [ -z "$j" ] || istraces "$j" || [ ${#pids[@]} -ge 4 ]; then
+        j2=$(pick $(( ${free:-0} + $(( $(stat -c %s $MODELS/${kinds[-1]}) / 1048576 + 1900 )) - mf - 400 )))
+        [ -n "$j2" ] && ! istraces "$j2" && killone "make room for $j2"
+      fi
+    fi
+    if [ $((now-stable_since)) -ge $STABLE_S ] && [ $((now-last_start)) -ge 4 ] && [ ${#pids[@]} -lt 4 ] && [ "$u15" -lt $UTIL_T ]; then
+      j=$(pick $(( ${free:-0} - mf - 400 ))); [ -n "$j" ] && start $j
     fi
   fi
   if [ $((now-lastmin)) -ge 60 ]; then

@@ -134,6 +134,15 @@ def worker(port, wi):
                 f.write(json.dumps(row) + "\n")
 
 
+def traces_models():
+    """Models the queue gives to traces (queue.txt '<prio> <file> traces'); ports serving a queued JOB are driven from the PC instead."""
+    try:
+        with open(f"{D}/queue.txt") as f:
+            return {ln.split()[1] for ln in f if len(ln.split()) >= 3 and ln.split()[2] == "traces"}
+    except OSError:
+        return {"Qwen3-4B-Q4_K_M.gguf", "Qwen3-1.7B-Q4_K_M.gguf"}
+
+
 def main():
     while not os.path.exists(QF):
         time.sleep(30)
@@ -144,8 +153,10 @@ def main():
             threading.Thread(target=worker, args=(p, i), daemon=True).start()
     last_load = time.time()
     while not os.path.exists(f"{D}/STOP_FEED"):
+        tm = traces_models()
         for p in PORTS:
-            live[p] = served(p)
+            m = served(p)
+            live[p] = m if m in tm else ""
         if time.time() - last_load > 120:
             try:
                 load()
