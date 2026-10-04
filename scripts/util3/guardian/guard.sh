@@ -19,6 +19,7 @@ D=/root/guardian; cd $D || exit 1
 MODELS=/workspace/nupen/models
 M4=$MODELS/Qwen3-4B-Q4_K_M.gguf; M17=$MODELS/Qwen3-1.7B-Q4_K_M.gguf; M14=$MODELS/Qwen3-14B-Q4_K_M.gguf
 BASE=18350; IDLE_S=${IDLE_S:-240}; STABLE_S=${STABLE_S:-10}; UTIL_T=${UTIL_T:-90}
+declare -A ftpeak ftkey
 pids=(); kinds=(); mode=off; now=$(date +%s); idle_since=$now; stable_since=$now; lastsig=""; last_start=0; utils=(); lastmin=0; lastdisk=0
 log(){ echo "$(date '+%F %T') $*" >> $D/events.log; }
 # a restarted guardian adopts nothing: clear filler servers a dead predecessor left (only ports 18350-18353, only llama-server)
@@ -71,13 +72,23 @@ while [ ! -f $D/STOP ]; do
   apps=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader | tr -d ' ' | grep . | while read q; do case "$mine$fill" in *" $q "*) ;; *) echo $q;; esac; done | sort | tr '\n' ,)
   sig="$(echo "$others" | awk '{print $1}' | grep . | sort | tr '\n' ,)|$apps"
   allllama=",$(pgrep -f llama-server | tr '\n' ,)"; nonllama=0
-  ftused=0
+  # a fine-tune grows while it loads and trains: reserve its MEASURED peak + 2 GB (peaks learned per training data path in ftpeaks.txt;
+  # an unseen kind gets 16 GB, the 1.7B LoRA runs measured 15-16 GB), minus what it already holds
+  ftused=0; res=0
   while IFS=', ' read q mem; do [ -z "$q" ] && continue; case "$mine$fill" in *" $q "*) continue;; esac
-    case "$allllama" in *",$q,"*) ;; *) nonllama=1; ftused=$((ftused + ${mem:-0}));; esac
+    case "$allllama" in *",$q,"*) ;; *) nonllama=1; mem=${mem:-0}; ftused=$((ftused + mem))
+      key=$(tr '\0' ' ' < /proc/$q/cmdline 2>/dev/null | grep -o -E -- '--data [^ ]+|^[^ ]+ [^ ]+' | head -1 | tr ' /' '__')
+      [ -z "${ftkey[$q]}" ] && ftkey[$q]=${key:-unknown}
+      [ "$mem" -gt "${ftpeak[$q]:-0}" ] && ftpeak[$q]=$mem
+      pk=$(awk -v k="${ftkey[$q]}" '$1==k {m=$2} END {print m}' $D/ftpeaks.txt 2>/dev/null)      # peak of a COMPLETED run of this kind
+      [ -z "$pk" ] && pk=${FT_DEFAULT:-16000}
+      [ "${ftpeak[$q]}" -gt "$pk" ] && pk=${ftpeak[$q]}
+      r=$((pk + 2000 - mem)); [ $r -gt 0 ] && res=$((res + r));;
+    esac
   done <<< "$(nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits)"
-  if [ $nonllama -eq 1 ]; then
-    # a fine-tune grows while it loads and trains (the 1.7B trainmix run peaked ~20.7 GB): reserve FT_RESERVE for it, not what it holds now
-    mf=2500; res=$(( ${FT_RESERVE:-22000} - ftused )); [ $res -lt 0 ] && res=0; free=$(( ${free:-0} - res ))
+  for q in "${!ftpeak[@]}"; do kill -0 $q 2>/dev/null && continue    # the run ended: remember its peak for the next run of that kind
+    echo "${ftkey[$q]} ${ftpeak[$q]}" >> $D/ftpeaks.txt; log "fine-tune ${ftkey[$q]} ended, peak ${ftpeak[$q]} MiB"; unset "ftpeak[$q]" "ftkey[$q]"; done
+  if [ $nonllama -eq 1 ]; then mf=1500; free=$(( ${free:-0} - res ))
   else mf=1500; fi
   now=$(date +%s)
   [ "$sig" != "|" ] && idle_since=$now
