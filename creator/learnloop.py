@@ -154,7 +154,8 @@ def skill_rows(tj: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append(_score_row(f"thinking:{t}", (v or {}).get("score"), "replay+live", at))
     for s, v in (tj.get("drills") or {}).items():
         if isinstance(v, dict):
-            rows.append(_score_row(f"drill:{s}:heldout", v.get("heldout"), "heldout", at, {"variant": v.get("variant"), "search": v.get("search")}))
+            rows.append(_score_row(f"drill:{s}:heldout", v.get("heldout"), "heldout", at, {"variant": v.get("variant"), "search": v.get("search"),
+                                                                                                 "digest": v.get("digest")}))
             rows.append(_score_row(f"drill:{s}:live", v.get("live"), "prospective", at))
     for t, v in (tj.get("judgment") or {}).items():
         if not isinstance(v, dict):
@@ -257,7 +258,7 @@ def drill_history(state: Path) -> list[dict[str, Any]]:
         if last.get(s) == (dg, h.get("gain_vs_best"), h.get("n")):
             continue
         last[s] = (dg, h.get("gain_vs_best"), h.get("n"))
-        row = _score_row(f"drill:{s}:heldout", h, "heldout", r.get("at"), {"variant": best[k]["variant"], "backfill": True})
+        row = _score_row(f"drill:{s}:heldout", h, "heldout", r.get("at"), {"variant": best[k]["variant"], "backfill": True, "digest": dg})
         if row is not None:
             out.append(row)
     return out
@@ -349,9 +350,17 @@ def bench_curve(state: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _superseded_point(r: dict[str, Any]) -> bool:
+    """A drill held-out progress point measured before drillsources.WALK_VERSION (no digest, or an older one): marked history, not a curve point."""
+    from creator import drillsources as D
+    return not str(r.get("digest") or "").endswith("." + D.WALK_VERSION)
+
+
 def curve(state: Path, now: float) -> dict[str, Any]:
     series: dict[str, list[tuple[float, float, Any]]] = {}
     for r in _read(state, "progress"):
+        if r.get("kind") == "heldout" and str(r.get("skill", "")).startswith("drill:") and _superseded_point(r):
+            continue                                                # h58: computed before walk-forward w2 - kept in progress.jsonl, not in the curve
         if r.get("kind") != "bench" and r.get("value") is not None:
             series.setdefault(r["skill"], []).append((_ts(r.get("measured_at")) or float(r.get("t", 0.0)), float(r["value"]), r.get("ci")))
     skills = {s: classify(pts) for s, pts in series.items()}
@@ -681,12 +690,19 @@ def limits(state: Path, data: Data, sources: Sequence[str], now: float) -> dict[
     return out
 
 
+def diag_pairs(state: Path, source: str, pairs: Sequence[tuple[Any, T.Pred]]) -> list[tuple[Any, T.Pred]]:
+    """What the diagnosis may look at (h58): only the SELECT part of the walk-forward (drillsources.select_part) - never the held-out tail the
+    trust gate scores, never a frozen benchmark item. Diagnosing on them chose the next variants by the very data that judges them."""
+    from creator import drillsources as D
+    return list(D.select_part(pairs, D.frozen_subjects(Path(state), source), made_at=lambda x: float(x[1].made_at), subject=lambda x: str(x[0].subject)))
+
+
 def diagnose(state: Path, repo: Path, data: Data, tj: dict[str, Any], cur: dict[str, Any], sources: Sequence[str], now: float) -> dict[str, Any]:
     acc: dict[tuple[str, str], dict[str, Any]] = {}
     for s in sources:
         d = data.get(s)
         if d is not None:
-            drill_groups(s, d["preds"], acc)
+            drill_groups(s, diag_pairs(state, s, d["preds"]), acc)
     judgment_groups(state, repo, tj, acc)
     live_groups(state, acc)
     ranked = rank(acc)
@@ -694,7 +710,8 @@ def diagnose(state: Path, repo: Path, data: Data, tj: dict[str, Any], cur: dict[
     lim = limits(state, data, sources, now)
     rep = {"at": _iso(now), "measure": "excess Brier over the running base rate (judgment: over the statistical predictor), summed over the group; "
            "ranked by n x 95% lower bound", "weaknesses": ranked[:40], "n_groups": len(ranked), "limits": lim,
-           "note": "benchmark items are never diagnosed (they only measure); this report only reads the predictions"}
+           "note": "drill groups use the select part only: benchmark items and the held-out tail are never diagnosed (they only measure); "
+                   "this report only reads the predictions"}
     _write(state, "diagnosis", rep)
     return rep
 
@@ -772,7 +789,27 @@ def improvements(state: Path) -> dict[str, dict[str, Any]]:
             out[e["id"]] = dict(e)
         elif e.get("event") == "verdict" and e.get("id") in out:
             out[e["id"]]["verdict"] = e
+        elif e.get("event") == "revert" and e.get("id") in out:
+            out[e["id"]]["revert"] = e
     return out
+
+
+def record_reverts(state: Path, imps: dict[str, dict[str, Any]], now: float) -> list[dict[str, Any]]:
+    """AUTO-REVERT (h58): drillsources.best_variant never chooses a variant of an improvement judged hurt_flag_revert; this records each such
+    revert once (what was excluded, which variant is the best now) so the rollback is visible, never silent."""
+    from creator import drillsources as D
+    recs = []
+    for iid, imp in imps.items():
+        if (imp.get("verdict") or {}).get("verdict") != "hurt_flag_revert" or "revert" in imp or imp.get("action") != "queue_variants":
+            continue
+        src = str((imp.get("weakness") or {}).get("source") or "")
+        b = D.best_variant(Path(state), src) or {}
+        recs.append({"event": "revert", "id": iid, "at": _iso(now), "source": src, "skill": imp.get("skill"),
+                     "excluded": f"every variant tagged learn={iid}", "best_now": b.get("variant"), "heldout_now": (b.get("heldout") or {}).get("gain_vs_best")})
+    _append(state, "improvements", recs)
+    for r in recs:
+        imps[str(r["id"])]["revert"] = r
+    return recs
 
 
 def propose_goal(state: Path, w: dict[str, Any], skill: str, before: Optional[dict[str, Any]], why: str, now: float) -> Optional[str]:
@@ -808,6 +845,7 @@ def improve(state: Path, diag: dict[str, Any], tj: dict[str, Any], data: Optiona
                 _append(state, "improvements", [v])
                 imp["verdict"] = v
                 done.append(v)
+    record_reverts(state, imps, now)
     open_skills = {imp["skill"] for imp in imps.values() if "verdict" not in imp}
     tried = {imp["weakness"]["id"]: imp for imp in imps.values()}
     applied: list[dict[str, Any]] = []                                 # at most one small fix and one goal proposal per round
@@ -893,7 +931,8 @@ def verify(state: Path, imp: dict[str, Any], tj: dict[str, Any], now: float) -> 
             rec["verdict"] = "inconclusive"
         elif bci[0] is not None and av < float(bci[0]):
             rec["verdict"] = "hurt_flag_revert"
-            rec["flag"] = f"held-out gain fell from {bv} to {av} after the search adopted {b.get('variant')}: revert by excluding it (teacher decides)"
+            rec["flag"] = (f"held-out gain fell from {bv} to {av} after the search adopted {b.get('variant')}: auto-reverted "
+                           "(drillsources.best_variant excludes it; the revert event records the best after)")
         elif av > bv:
             rec["verdict"] = "helped"
         else:

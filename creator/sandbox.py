@@ -45,6 +45,12 @@ PROTECTED: tuple[str, ...] = (
     "state/creator/ledger.jsonl",
     # thinking focus + trust (3 Oct, F7): owner/teacher-owned focus switch and the drill records/report a worker could otherwise forge
     "state/creator/focus.json", "state/creator/trust.json", "state/creator/thinking/*", "state/creator/thinking/**",
+    # the self-teaching measuring code (3 Oct, h58 self-teach gate check g): the trust gate (thinking.trust_of), the frozen benchmark and its
+    # items, the walk-forward / select-held-out split, the learn loop's verdicts, judgment / fast-topic scoring, decision arms, the search's
+    # stop rules and the self-teach gate itself. Nupen improves through variants (data) and new goal_think_* modules, never by editing these.
+    "creator/thinking.py", "creator/thinkbench.py", "creator/learnloop.py", "creator/drillsources.py", "creator/fastwalk.py",
+    "creator/judgment.py", "creator/fastpred.py", "creator/decide.py", "creator/trialerror.py", "creator/selfteach.py", "creator/gpuselfteach.py",
+    "state/creator/thinkbench/*", "state/creator/thinkbench/**",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"

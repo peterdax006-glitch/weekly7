@@ -98,7 +98,8 @@ def test_drills_in_worker_processes_give_the_same_rows(tmp_path: Path, monkeypat
     v = {"decay": 0.97, "k": 3.0}
     a = D.run_job("journal_persist", v, tmp_path, tmp_path, j, tmp_path, processes=False)
     b = D.run_job("journal_persist", v, tmp_path, tmp_path, j, tmp_path, processes=True)
-    a.pop("at"), b.pop("at")
+    for k in ("at", "cpu_s", "wall_s"):                                   # timings (h58 cost fields) differ by nature
+        a.pop(k), b.pop(k)
     assert a == b and a["resolved"] > 100
     assert D._pool().submit(os.getpid).result() != os.getpid()       # the arithmetic really ran in another process
     rows = [json.loads(ln) for ln in D.runs_path(tmp_path).read_text(encoding="utf-8").splitlines()]

@@ -77,11 +77,11 @@ def walk_forward(items: Sequence[BItem], topic: str, decay: float = 0.97, k: flo
 def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.97, k: float = 3.0, agg: str = "mean", cap: float = 0.02) -> list[T.Pred]:
     """Predict each resolved item at its creation time using only items resolved strictly before; learn from every resolution as it happens.
     Per feature key a decayed (n, positives); p = mean over the item's keys of (pos_k + k*global)/(n_k + k). Baselines: running base rate, last value."""
-    ev: list[tuple[float, int, int]] = []                    # (time, 0=resolve first / 1=create, index)
-    for i, it in enumerate(items):
-        if it.resolved is not None:
-            ev.append((it.created, 1, i))
-            ev.append((it.resolved, 0, i))
+    ev: list[tuple[float, int, int]] = []                    # (time, 0=create first / 1=resolve, index): at EQUAL time a creation is
+    for i, it in enumerate(items):                            # predicted before any resolution is learned - an outcome known only at the
+        if it.resolved is not None:                           # prediction instant (its own, created == resolved) is never seen (h58 leak fix;
+            ev.append((it.created, 0, i))                     # before it, resolve sorted first and plan_choice / research_bool items were
+            ev.append((it.resolved, 1, i))                    # predicted WITH their own outcome)
     ev.sort()
     scale = 1.0
     cnt: dict[str, list[float]] = {}                          # key -> [n, pos] in units of 1/scale
@@ -90,7 +90,7 @@ def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.
     out: list[T.Pred] = []
     for t, kind, i in ev:
         it = items[i]
-        if kind == 0:                                         # resolution: the model learns
+        if kind == 1:                                         # resolution: the model learns
             scale *= decay
             w = 1.0 / scale
             for key in it.keys:
@@ -124,9 +124,61 @@ def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.
     return out
 
 
-def split_score(preds: Sequence[T.Pred]) -> dict[str, Any]:
+def split_score(preds: Sequence[T.Pred], frozen: Iterable[str] = ()) -> dict[str, Any]:
+    """select = the first SELECT_SPLIT of the time order WITHOUT the frozen benchmark's items (h58: as the data grew, the moving cut swept
+    frozen part-a items into the part variants are chosen on); held-out = the rest, unchanged."""
     cut = int(len(preds) * SELECT_SPLIT)
-    return {"select": T.score(preds[:cut]), "heldout": T.score(preds[cut:]), "all": T.score(preds)}
+    fz = frozenset(frozen)
+    return {"select": T.score([p for p in preds[:cut] if p.subject not in fz]), "heldout": T.score(preds[cut:]), "all": T.score(preds)}
+
+
+def select_part(preds: Sequence[Any], frozen: Iterable[str] = (), made_at: Callable[[Any], float] = lambda p: float(p.made_at),
+                subject: Callable[[Any], str] = lambda p: str(p.subject)) -> list[Any]:
+    """What a learner may LOOK AT to decide what to try next (learnloop diagnosis, trialerror.react): exactly the select part of
+    split_score - the first SELECT_SPLIT of the time order, frozen benchmark items removed. Never the held-out tail."""
+    ps = sorted(preds, key=made_at)
+    fz = frozenset(frozen)
+    return [p for p in ps[:int(len(ps) * SELECT_SPLIT)] if subject(p) not in fz]
+
+
+PINNED_BENCH_HASH = "1f520b202ac4"   # creator.thinkbench items.json content hash, pinned HERE (outside the file that stores its own hash)
+
+
+def frozen_subjects(state: Path, source: str) -> frozenset[str]:
+    """The frozen benchmark's part-a subjects of this source (never selected on). The file's content hash is recomputed and compared with
+    PINNED_BENCH_HASH; an edited or refrozen file still has its subjects excluded (excluding more is harmless) and frozen_hash_ok says so."""
+    return _frozen(Path(state))[0].get(source, frozenset())
+
+
+def frozen_hash_ok(state: Path) -> Optional[bool]:
+    """True: items.json is the pinned frozen set; False: edited/refrozen/unreadable; None: no frozen set."""
+    return _frozen(Path(state))[1]
+
+
+_FROZEN_MEMO: dict[tuple[str, int, int], tuple[dict[str, frozenset[str]], Optional[bool]]] = {}
+
+
+def _frozen(state: Path) -> tuple[dict[str, frozenset[str]], Optional[bool]]:
+    p = state / "thinkbench" / "items.json"
+    try:
+        st = p.stat()
+    except OSError:
+        return {}, None
+    key = (str(p), st.st_size, st.st_mtime_ns)
+    if key not in _FROZEN_MEMO:
+        try:
+            body = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}, False
+        h = hashlib.sha256(json.dumps({k: v for k, v in body.items() if k not in ("hash", "frozen_at")}, sort_keys=True, default=str)
+                           .encode("utf-8")).hexdigest()
+        by: dict[str, set[str]] = {}
+        for x in body.get("a") or []:
+            if isinstance(x, dict) and x.get("source") and x.get("subject") is not None:
+                by.setdefault(str(x["source"]), set()).add(str(x["subject"]))
+        _FROZEN_MEMO.clear()
+        _FROZEN_MEMO[key] = ({s: frozenset(v) for s, v in by.items()}, h.startswith(PINNED_BENCH_HASH) and body.get("hash") == h)
+    return _FROZEN_MEMO[key]
 
 
 # ------------------------------------------------------------------------------------------------ sources
@@ -536,8 +588,27 @@ def load(source: str, state: Path, repo: Path, journal: Path, research: Path) ->
     raise KeyError(source)
 
 
+WALK_VERSION = "w2"   # h58 (3 Oct 2026): create-before-resolve at equal time + frozen benchmark items never in the select part. Every drill row
+#                      whose digest lacks this suffix was computed before both fixes: SUPERSEDED, kept in drill_runs.jsonl as history, never chosen
+#                      once a new row exists (best_variant reads the latest digest only) and never trusted - the rows of plan_choice /
+#                      research_bool were LEAKY (each item predicted with its own outcome), those of git_fixed / git_churn / journal_persist
+#                      chose variants partly on frozen benchmark items.
+LEAKY_BEFORE_W2 = ("plan_choice", "research_bool")
+
+
+def superseded(row: dict[str, Any]) -> bool:
+    """A drill row computed before WALK_VERSION (history: shown as such, never a basis for trust)."""
+    return not str(row.get("digest") or "").endswith("." + WALK_VERSION)
+
+
 def source_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> str:
-    """Cheap fingerprint of a source's data (no full load): new commits / journal lines / plan rows / research files change it and re-queue jobs."""
+    """Cheap fingerprint of a source's data (no full load) plus the walk-forward version: new commits / journal lines / plan rows / research
+    files - or a new WALK_VERSION - change it and re-queue jobs."""
+    d = _data_digest(source, state, repo, journal, research)
+    return d if d == "-" else f"{d}.{WALK_VERSION}"
+
+
+def _data_digest(source: str, state: Path, repo: Path, journal: Path, research: Path) -> str:
     try:
         if SOURCES[source] == "git":
             return _git_head(repo)[:12]
@@ -571,10 +642,13 @@ def runs_path(state: Path) -> Path:
 
 def compute_row(source: str, variant: dict[str, Any], state: Path, repo: Path, journal: Path, research: Path) -> dict[str, Any]:
     """One drill batch's result (no write): load the whole dataset, walk forward with this variant, score. Module-level so a worker process runs it."""
+    c0, w0 = time.thread_time(), time.perf_counter()                 # COST (h58 self-teach gate f): this thread's CPU, so gain per CPU-hour
     items = apply_variant(load(source, state, repo, journal, research), variant, journal)
     preds = walk_forward(items, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
-    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
+    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds, frozen_subjects(state, source))}
     row["at"] = T.dt.datetime.now(T.dt.timezone.utc).isoformat(timespec="seconds")
+    row["cpu_s"], row["wall_s"] = round(time.thread_time() - c0, 3), round(time.perf_counter() - w0, 3)   # additive: no score changes
+    row["frozen_excluded"], row["frozen_hash_ok"] = len(frozen_subjects(state, source)), frozen_hash_ok(state)
     return row
 
 
@@ -847,8 +921,10 @@ def drill_filler(state: Path, repo: Path, journal: Path, research: Path, sources
                 rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == s]
                 if search_state(rows, d)["stopped"]:
                     continue
+                bad = reverted(state)                                # a reverted variant is never the hill-climb's starting point
+                cand = [r for r in rows if r.get("digest") == d and str((r.get("variant") or {}).get("learn") or "") not in bad]
                 for _try in range(20):
-                    v = propose(s, [r for r in rows if r.get("digest") == d], rnd)
+                    v = propose(s, cand, rnd)
                     why = _proposal_why(v)
                     if (s, json.dumps(v, sort_keys=True), d) not in done:
                         break
@@ -886,13 +962,18 @@ def trust_section(state: Path) -> dict[str, Any]:
         lp = live.get(s, [])
         sc["n_live"] = len(lp)                                          # the prospective ones are the stored live predictions, resolved since
         ok, why = T.trust_of(sc) if sc.get("n") else (False, ["no held-out predictions"])
+        if b.get("superseded"):                                         # h58: computed before the tie / frozen-select fixes - history only
+            ok = False
+            why.append(f"best row computed before walk-forward {WALK_VERSION} ("
+                       f"{'LEAKY: items predicted with their own outcome' if s in LEAKY_BEFORE_W2 else 'selection saw frozen benchmark items'}"
+                       "); recompute pending")
         lsc = T.score(lp) if lp else {}
         hi = (lsc.get("gain_ci95") or [None, None])[1]
         if len(lp) >= T.MIN_LIVE and hi is not None and hi < 0:        # the future contradicts the replay: never trusted on the replay alone
             ok = False
             why.append(f"its {len(lp)} prospective predictions do WORSE than the best baseline (gain CI upper bound {hi})")
         out[s] = {"trusted": ok, "why_not": why, "variant": b["variant"], "heldout": sc, "live": lsc, "variants_tried": b["variants_tried"],
-                  "search": rep.get(s)}
+                  "search": rep.get(s), "digest": b.get("digest"), "superseded": b.get("superseded")}
     return out
 
 
@@ -1139,13 +1220,25 @@ def search_state(rows: Sequence[dict[str, Any]], digest_now: str) -> dict[str, A
             "select_heldout_rho": None if rho is None else round(rho, 3), "noise_stopped": noise, "stopped": fails >= SEARCH_STOP_K or noise}
 
 
-def best_variant(state: Path, source: str) -> Optional[dict[str, Any]]:
-    """Choose the variant with the best Brier on the SELECT part; report its HELD-OUT score (the number to believe) with the baselines."""
+def reverted(state: Path) -> set[str]:
+    """Improvement ids (a variant's 'learn' tag) the learning loop judged harmful: verdict hurt_flag_revert in thinking/improvements.jsonl.
+    AUTO-REVERT (h58): such a variant never stays or becomes the best; best_variant falls back to the best of the others (the previous best)."""
+    return {str(e.get("id")) for e in T._jsonl(Path(state) / "thinking" / "improvements.jsonl")
+            if e.get("event") == "verdict" and e.get("verdict") == "hurt_flag_revert"}
+
+
+def best_variant(state: Path, source: str, exclude: Optional[set[str]] = None) -> Optional[dict[str, Any]]:
+    """Choose the variant with the best Brier on the SELECT part; report its HELD-OUT score (the number to believe) with the baselines.
+    Variants of a reverted improvement (`reverted(state)`, or `exclude` when given) are never chosen."""
     rows = [r for r in T._jsonl(runs_path(state)) if r.get("source") == source and r.get("select", {}).get("n")]
     if not rows:
         return None
     last = rows[-1]["digest"]                                       # the latest data: file order = completion order (max() of hashes was arbitrary)
     rows = [r for r in rows if r["digest"] == last] or rows
-    b = min(rows, key=lambda r: r["select"]["brier"])
+    bad = reverted(state) if exclude is None else exclude
+    ok = [r for r in rows if str((r.get("variant") or {}).get("learn") or "") not in bad]
+    if not ok:
+        return None
+    b = min(ok, key=lambda r: r["select"]["brier"])
     return {"source": source, "variant": b["variant"], "items": b["items"], "resolved": b["resolved"], "heldout": b["heldout"],
-            "variants_tried": len(rows)}
+            "variants_tried": len(rows), "digest": b.get("digest"), "superseded": superseded(b), "reverted_skipped": len(rows) - len(ok)}

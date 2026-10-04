@@ -1,0 +1,346 @@
+{
+ "at": "2026-10-03T23:54:05+00:00",
+ "checks": {
+  "a_grounded": {
+   "evidence": {
+    "sources": {
+     "git_churn": {
+      "grounding": "checker",
+      "label": "a file of it changes again within 10 commits (git history)",
+      "trusted": false
+     },
+     "git_fixed": {
+      "grounding": "checker",
+      "label": "a later commit with a fix word touches one of its files within 20 commits (git history)",
+      "trusted": false
+     },
+     "journal_persist": {
+      "grounding": "checker",
+      "label": "keyword topic of the owner's next journal entry (owner-written facts; keyword classifier)",
+      "trusted": false
+     },
+     "plan_choice": {
+      "grounding": "self_output",
+      "label": "whether Nupen's own scheduler chose the node: Nupen predicting its own decisions",
+      "trusted": false
+     },
+     "research_bool": {
+      "grounding": "mixed",
+      "label": "top-level yes/no fields of research JSON written by Nupen's own research code",
+      "trusted": false
+     },
+     "x_git_churn": {
+      "grounding": "checker",
+      "label": "same rule on other projects' / public upstreams' git history",
+      "trusted": false
+     },
+     "x_git_fixed": {
+      "grounding": "checker",
+      "label": "same rule on other projects' / public upstreams' git history",
+      "trusted": true
+     }
+    },
+    "trace_bank_frozen": 0,
+    "trace_bank_rows": 832,
+    "trace_bank_unverified": 0,
+    "unverified_sources": [
+     "plan_choice",
+     "research_bool"
+    ]
+   },
+   "fix": [],
+   "pass": true,
+   "why_not": []
+  },
+  "b_leakproof": {
+   "evidence": {
+    "bench_contamination": {
+     "git_churn": {
+      "excluded_by_drills": 40,
+      "frozen": 40,
+      "heldout_in_diagnosis_input": 0,
+      "in_diagnosis_input": 0,
+      "in_select_now": 0,
+      "share": 0.0
+     },
+     "git_fixed": {
+      "excluded_by_drills": 40,
+      "frozen": 40,
+      "heldout_in_diagnosis_input": 0,
+      "in_diagnosis_input": 0,
+      "in_select_now": 0,
+      "share": 0.0
+     },
+     "journal_persist": {
+      "excluded_by_drills": 40,
+      "frozen": 40,
+      "heldout_in_diagnosis_input": 0,
+      "in_diagnosis_input": 0,
+      "in_select_now": 0,
+      "share": 0.0
+     }
+    },
+    "bench_hash": "1f520b202ac4",
+    "canaries": {
+     "in_use": {
+      "later_outcome_leaks": false,
+      "own_outcome_at_same_instant_leaks": false,
+      "p_honest": 0.02,
+      "p_tied": 0.02
+     },
+     "leak": false,
+     "reference": {
+      "later_outcome_leaks": false,
+      "own_outcome_at_same_instant_leaks": false,
+      "p_honest": 0.02,
+      "p_tied": 0.02
+     }
+    },
+    "pinned": "1f520b202ac4",
+    "select_split": 0.6,
+    "ties": {
+     "git_churn": {
+      "resolved": 743,
+      "share": 0.0,
+      "ties": 0
+     },
+     "git_fixed": {
+      "resolved": 733,
+      "share": 0.0,
+      "ties": 0
+     },
+     "journal_persist": {
+      "resolved": 194,
+      "share": 0.0,
+      "ties": 0
+     },
+     "plan_choice": {
+      "resolved": 890,
+      "share": 1.0,
+      "ties": 890
+     },
+     "research_bool": {
+      "note": "created == resolved == file mtime by construction",
+      "resolved": null,
+      "share": 1.0,
+      "ties": null
+     }
+    }
+   },
+   "fix": [],
+   "pass": true,
+   "why_not": []
+  },
+  "c_heldout": {
+   "evidence": {
+    "drill_trust_on_heldout": {
+     "git_churn": {
+      "heldout_ci": [
+       -0.0115,
+       0.0053
+      ],
+      "trusted": false
+     },
+     "git_fixed": {
+      "heldout_ci": [
+       -0.0063,
+       0.0156
+      ],
+      "trusted": false
+     },
+     "journal_persist": {
+      "heldout_ci": [
+       -0.0274,
+       0.0856
+      ],
+      "trusted": false
+     },
+     "plan_choice": {
+      "heldout_ci": [
+       0.0121,
+       0.0423
+      ],
+      "trusted": false
+     },
+     "research_bool": {
+      "heldout_ci": [
+       0.0308,
+       0.0553
+      ],
+      "trusted": false
+     },
+     "x_git_churn": {
+      "heldout_ci": [
+       0.0293,
+       0.0304
+      ],
+      "trusted": false
+     },
+     "x_git_fixed": {
+      "heldout_ci": [
+       0.0103,
+       0.0111
+      ],
+      "trusted": true
+     }
+    },
+    "helped_significant": [
+     "IM-12cf051cc5"
+    ],
+    "judgment_selection_on_eval": [
+     {
+      "strategies": 15,
+      "topic": "git_fixed",
+      "trusted": false
+     },
+     {
+      "strategies": 14,
+      "topic": "pub_git_churn",
+      "trusted": false
+     },
+     {
+      "strategies": 14,
+      "topic": "pub_git_fixed",
+      "trusted": false
+     },
+     {
+      "strategies": 15,
+      "topic": "verdict",
+      "trusted": false
+     }
+    ],
+    "open_regressions": [],
+    "verdicts": {
+     "helped": 1,
+     "hurt_flag_revert": 1,
+     "inconclusive": 1,
+     "no_effect": 1
+    }
+   },
+   "fix": [],
+   "pass": true,
+   "why_not": []
+  },
+  "d_no_drift": {
+   "evidence": {
+    "acquisitions_7d": 5,
+    "outside_share": 0.5863,
+    "resolved_live_outside": 146,
+    "resolved_live_own": 103,
+    "self_output_sources": [
+     "plan_choice"
+    ],
+    "window_h": 24.0
+   },
+   "fix": [
+    "keep them as replay-only (no trust, no learn-loop goals) or drop them from DIAG_SOURCES"
+   ],
+   "pass": false,
+   "why_not": [
+    "learning sources that are Nupen's own decisions: ['plan_choice'] (it predicts itself; never a trust basis)"
+   ]
+  },
+  "e_choosing": {
+   "evidence": {
+    "chooser_score": {
+     "brier": 0.1026,
+     "brier_base_rate": 0.1331,
+     "ece": 0.0205,
+     "gain_ci95": [
+      0.0243,
+      0.0368
+     ],
+     "n": 2388,
+     "n_live": 1167
+    },
+    "chooser_topic": "drill_beats_best",
+    "chooser_trusted": true,
+    "chooses_by_gain_per_cpu_h": false,
+    "improvements": 11,
+    "improvements_with_predicted_gain": 0
+   },
+   "fix": [
+    "drill_filler: order candidate jobs by P(beats best) x expected Brier gain / predicted CPU-hours (cpu_s of the source's recent rows), once the cost is recorded (check f) and the gain predictor is trusted",
+    "learnloop.improve: record predicted_gain (e.g. the weakness's conservative loss share) so verify can score it"
+   ],
+   "pass": false,
+   "why_not": [
+    "the drill filler picks the next job by fixed grid / learn queue / round robin, not by expected gain per CPU-hour",
+    "11 of 11 learn-loop improvements recorded no predicted gain: predicted vs actual cannot be calibrated"
+   ]
+  },
+  "f_efficiency": {
+   "evidence": {
+    "cost_share": 0.0,
+    "cpu_pct_mean": 86.0,
+    "disk_mb": {
+     "drill_live_x.jsonl": 0.49,
+     "drill_runs.jsonl": 1.33,
+     "fast_predictions.jsonl": 2.07,
+     "git_history.jsonl": 8.31,
+     "retention.jsonl": 0.86,
+     "trace_bank.jsonl": 0.38
+    },
+    "free_gb_min": 4.02,
+    "per_source": {},
+    "resource_samples": 50,
+    "rows_costed": 0,
+    "rows_last_day": 1300
+   },
+   "fix": [
+    "drillsources.compute_row records cpu_s / wall_s (added on h58); rows written by the running swarm get it once merged"
+   ],
+   "pass": false,
+   "why_not": [
+    "only 0% of the last day's drill rows record their CPU cost (need 90%)"
+   ]
+  },
+  "g_own_ruler": {
+   "evidence": {
+    "focus_lists_as_thinking_work": [
+     "creator/thinking.py"
+    ],
+    "measuring_paths": [
+     "creator/thinking.py",
+     "creator/thinkbench.py",
+     "creator/learnloop.py",
+     "creator/drillsources.py",
+     "creator/fastwalk.py",
+     "creator/judgment.py",
+     "creator/fastpred.py",
+     "creator/decide.py",
+     "creator/trialerror.py",
+     "creator/selfteach.py",
+     "creator/gpuselfteach.py",
+     "state/creator/trust.json",
+     "state/creator/thinking/drill_runs.jsonl",
+     "state/creator/thinking/selfteach_gate.json",
+     "state/creator/thinkbench/items.json",
+     "state/creator/thinkbench/baseline_x.json"
+    ],
+    "note": "a focus-listed measuring module is still planned as thinking work; its packages are refused at adoption",
+    "unprotected": []
+   },
+   "fix": [],
+   "pass": true,
+   "why_not": []
+  }
+ },
+ "failing": [
+  "d_no_drift",
+  "e_choosing",
+  "f_efficiency"
+ ],
+ "self_teach_trusted": false,
+ "thresholds": {
+  "MAX_BENCH_IN_SELECT": 0.0,
+  "MAX_OPEN_REGRESSIONS": 0,
+  "MAX_TIE_SHARE": 0.0,
+  "MIN_COST_RECORDED": 0.9,
+  "MIN_HELPED_SIGNIFICANT": 1.0,
+  "MIN_OUTSIDE_SHARE": 0.2,
+  "PINNED_BENCH_HASH": "1f520b202ac4",
+  "chooser": "thinking.trust_of on fastpred 'drill_beats_best'"
+ },
+ "trust_json_at": "2026-10-03T23:20:30+00:00"
+}

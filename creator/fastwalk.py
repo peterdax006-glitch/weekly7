@@ -28,7 +28,7 @@ def enabled() -> bool:
 
 def _core(ev_t: Any, ev_kind: Any, ev_i: Any, ys: Any, kstart: Any, kids: Any, nkeys: int,
           decay: float, k: float, logit: bool, cap: float) -> Any:
-    """Events already in the reference order (time, kind: 0 resolve before 1 create, index). Returns per creation event:
+    """Events already in the reference order (time, kind: 0 create before 1 resolve, index). Returns per creation event:
     (item index, time, p, laplace base, last value)."""
     n_ev = ev_t.shape[0]
     cnt_n = np.zeros(nkeys)
@@ -48,7 +48,7 @@ def _core(ev_t: Any, ev_kind: Any, ev_i: Any, ys: Any, kstart: Any, kids: Any, n
     hlast = -1
     for e in range(n_ev):
         i = ev_i[e]
-        if ev_kind[e] == 0:                                             # resolution: the model learns
+        if ev_kind[e] == 1:                                             # resolution: the model learns
             scale *= decay
             w = 1.0 / scale
             y = ys[i]
@@ -123,8 +123,8 @@ def walk_forward(items: Sequence[Any], topic: str, decay: float = 0.97, k: float
         kstart[i + 1] = len(flat)
         ys[i] = int(it.y)
         if it.resolved is not None:
-            ev.append((it.created, 1, i))
-            ev.append((it.resolved, 0, i))
+            ev.append((it.created, 0, i))                               # create before resolve at equal time (h58 leak fix)
+            ev.append((it.resolved, 1, i))
     ev.sort()                                                           # exactly the reference's tuple order
     if not ev:
         return []
