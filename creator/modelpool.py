@@ -174,7 +174,9 @@ class ModelPool:
 
     def _command(self, port: int) -> list[str]:
         # a shared server: K parallel slots, each still limited to `ctx` tokens (the per-request limit a lessee had alone), KV pool K x ctx
-        par = (["-np", str(self.share), "--kv-unified-per-slot", str(self.ctx)] if self.share > 1 else [])
+        # and a bounded host prompt cache: llama-server's default --cache-ram 8192 MiB grew a shared server from 5.6 to 10.4 GB over 64
+        # distinct judgment prompts (measured 3 Oct); each lessee keeps its own slot, so its prompt reuse never needs that cache
+        par = (["-np", str(self.share), "--kv-unified-per-slot", str(self.ctx), "--cache-ram", str(SHARED_CACHE_MIB)] if self.share > 1 else [])
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(port), "-c", str(self.ctx * self.share),
                 "-t", str(self.threads), "--log-disable"] + par + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
 
@@ -323,8 +325,10 @@ _POOL: Optional[ModelPool] = None
 THINK_SHARE = 4                 # lessees per shared thinking server (device setting 'think_share' overrides; 1 = the old one-per-server pool)
 SHARE_EXTRA = 0.7               # each extra parallel slot of ctx 8192 adds this fraction of a single server's resident size (measured 3 Oct,
                                 # Qwen3-1.7B: 1 slot 1.8 GB, 4 slots x 8192 5.57 GB working set)
-SHARED_THREADS = 5              # threads of one shared server (measured 3 Oct, Ultra 7 255U ~85% busy, IDLE priority, 8 judgment answers:
-                                # 5 threads 36.5 answers/CPU-hour in 577 s; 8 threads 31.9 in 263 s; 4 single servers x5 18.6 in 474 s)
+SHARED_CACHE_MIB = 512         # host prompt cache of a shared server (llama-server default 8192 MiB)
+SHARED_THREADS = 8              # threads of one shared server (measured 3 Oct, Ultra 7 255U ~85% busy, IDLE priority, 64 real judgment
+                                # prompts: shared x8 threads 38.6 answers/CPU-hour, 1774 s, peak 10.4 GB; 4 single servers x4 35.3, 1924 s,
+                                # 16.2 GB; Brier 0.2276 vs 0.2351, paired gain +0.008 CI [-0.051, 0.066]. 4 single x5 threads: 18.6 (oversubscribed))
 
 
 def shared_gb(single_gb: float, k: int) -> float:

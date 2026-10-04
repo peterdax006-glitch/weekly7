@@ -182,7 +182,7 @@ def test_in_thinking_focus_the_pool_keeps_the_thinking_model(tmp_path: Path) -> 
     (st / "focus.json").write_text(json.dumps({"focus": "thinking"}), encoding="utf-8")
     got = MP.pool_model(st, cfg)
     assert got["model"] == think and got["max_servers"] * got.get("share", 1) == 4 and got["server_gb"] > 0    # 4 lessees at once
-    assert got["share"] == 4 and got["max_servers"] == 1 and 1 <= got["threads"] <= 5                    # h59: on one shared server
+    assert got["share"] == 4 and got["max_servers"] == 1 and 1 <= got["threads"] <= 8                    # h59: on one shared server
     old = MP.pool_model(st, {**cfg, "think_share": 1})                                                  # the one-per-server pool
     assert old["max_servers"] == 4 and "share" not in old and got["server_gb"] < 4 * old["server_gb"]
     assert MP.pool_model(st, {"think_model": str(think), "think_servers": 0}) == {}         # thinking servers not allowed: fast model
@@ -197,6 +197,7 @@ def test_a_shared_server_takes_one_lessee_per_parallel_slot_and_shrinks_only_whe
     assert st["share"] == 3
     cmd = r.pool._command(1234)
     assert cmd[cmd.index("-np") + 1] == "3" and cmd[cmd.index("--kv-unified-per-slot") + 1] == "4096" and cmd[cmd.index("-c") + 1] == "12288"
+    assert cmd[cmd.index("--cache-ram") + 1] == str(MP.SHARED_CACHE_MIB)
     ok = dict(health=lambda p: True, alive=lambda p: True)
     got = [MP.lease(r.base, r.pool.model, 4096, **ok) for _ in range(3)]
     assert all(g is not None for g in got) and len({g[1].path for g in got if g is not None}) == 3   # three distinct leases, one server
