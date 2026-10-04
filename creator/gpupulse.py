@@ -1207,21 +1207,51 @@ def traces(llm: Any, state: Path, repo: Path, n: int, workers: int, deadline: fl
     (reasondrills.generate drops every collision)."""
     from creator import judgment as J
     from creator import reasondrills as R
-    qs = list(questions()) if questions is not None else R.order(R.generate(R.repos(Path(repo)), Path(state)))
     have = set(R.trace_bank(state))
-    todo = [q for q in qs if q.qid not in have and R.REVISIT not in q.qid]
-    todo = todo[:n] if n else todo
+    qs: list[Any] = []
+    feed: list[Any] = []                              # questions not yet handed to a worker
     st = R.Strategy("trace", "cot", max_tokens=R.TRACE_TOKENS)
     stats = {"asked": 0, "correct": 0, "kept": 0, "errors": 0}
-    lock = threading.Lock()
-    it = iter(todo)
+    lock = threading.Condition()
+    flow = {"queued": 0, "done": False}
+
+    def add(part: Sequence[Any]) -> None:
+        """Questions arrive in pieces (cached repositories at once, the others as they are generated): the GPU starts on the first piece instead of
+        waiting minutes for every git history. One piece = the old order (reasondrills.order) of that piece."""
+        with lock:
+            qs.extend(part)
+            for q in part:
+                if q.qid not in have and R.REVISIT not in q.qid and (not n or flow["queued"] < n):
+                    feed.append(q)
+                    flow["queued"] += 1
+            lock.notify_all()
+
+    def produce() -> None:
+        try:
+            if questions is not None:
+                add(list(questions()))
+            else:
+                for part in R.generate_stream(R.repos(Path(repo)), Path(state)):
+                    add(R.order(part))
+                    if time.monotonic() >= deadline:
+                        break
+        finally:
+            with lock:
+                flow["done"] = True
+                lock.notify_all()
+    producer = threading.Thread(target=produce, daemon=True, name="traces-questions")
+    producer.start()
+    pos = {"i": 0}
 
     def work() -> None:
         while time.monotonic() < deadline:
             with lock:
-                q = next(it, None)
-            if q is None:
-                return
+                while pos["i"] >= len(feed) and not flow["done"] and time.monotonic() < deadline:
+                    lock.wait(timeout=1.0)
+                if pos["i"] >= len(feed):
+                    return
+                q = feed[pos["i"]]
+                pos["i"] += 1
             msgs = R.build_messages(st, q)
             if any("Correct answer" in m["content"] for m in msgs):          # outcome-blind by construction; checked anyway
                 continue
@@ -1244,7 +1274,10 @@ def traces(llm: Any, state: Path, repo: Path, n: int, workers: int, deadline: fl
         t.start()
     for t in ts:
         t.join()
-    stats["fresh_left"] = max(0, len([q for q in qs if q.qid not in have]) - stats["asked"] - stats["errors"])
+    with lock:                                        # the GPU work is over: never hold the pod for questions nobody will ask
+        stats["fresh_left"] = max(0, len([q for q in qs if q.qid not in have]) - stats["asked"] - stats["errors"])
+        if not flow["done"]:
+            stats["fresh_left_partial"] = True            # repositories still being read: a lower bound
     return stats
 
 

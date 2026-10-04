@@ -9,6 +9,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Iterator, Optional
@@ -550,3 +551,54 @@ def test_prepare_counts_a_model_registered_mid_run_as_pinned(tmp_path: Path, rt:
     assert r["missing_from_config"] == []
     with pytest.raises(GP.PulseError, match="args must be a dict"):
         GP.parse_job({"name": "x", "call": "m:f", "args": ["no"], "minutes": 1})
+
+
+
+def test_traces_start_on_the_first_questions_while_the_rest_are_generated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_server: int) -> None:
+    """h52: the GPU no longer waits for every git history: the cached piece is asked while a cold repository is still being read."""
+    st = tmp_path / "state"
+    gate = threading.Event()
+    asked_before_second: list[int] = []
+
+    def stream(sources: Any, state: Any, cache: Any = None) -> Iterator[list[R.Question]]:
+        yield [_q(1, answer=0), _q(2, answer=0)]
+        assert gate.wait(30)                                                     # the 'cold repository' finishes only after work started
+        asked_before_second.append(len(FAKE.STATE["requests"]))
+        yield [_q(3, answer=0)]
+    monkeypatch.setattr(R, "generate_stream", stream)
+    real = GP.PodLLM.request
+
+    def request(self: Any, *a: Any, **k: Any) -> dict[str, Any]:
+        r = real(self, *a, **k)
+        gate.set()
+        return r
+    monkeypatch.setattr(GP.PodLLM, "request", request)
+    FAKE.STATE["requests"].clear()
+    FAKE.STATE["bare"] = False
+    stats = GP.traces(GP.PodLLM(fake_server, GP.M8, "P5"), st, ROOT, 0, 2, time.monotonic() + 60)
+    assert stats["asked"] == 3 and stats["kept"] == 3 and asked_before_second and asked_before_second[0] >= 1
+    assert set(R.trace_bank(st)) == {"q1", "q2", "q3"} and "fresh_left_partial" not in stats
+
+
+def test_generate_stream_is_generate_in_pieces(tmp_path: Path) -> None:
+    import dataclasses
+    repo = tmp_path / "tiny"
+    repo.mkdir()
+    for i in range(40):
+        (repo / f"m{i % 6}.py").write_text(f"x = {i}\n", encoding="utf-8")
+        d = f"2020-01-{i % 28 + 1:02d}T{i % 24:02d}:00:00"
+        env = dict(os.environ, GIT_AUTHOR_DATE=d, GIT_COMMITTER_DATE=d, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.invalid",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.invalid")
+        if i == 0:
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", f"Tune the parser step {i}"], check=True, capture_output=True, env=env)
+    src = [("tiny", repo)]
+    st = tmp_path / "state"
+    whole = R.generate(src, st, cache=tmp_path / "qc")
+    parts = list(R.generate_stream(src, st, cache=tmp_path / "qc"))
+    assert parts[0] and len(parts) == 1                                             # warm: everything in the first piece
+    dump = lambda qs: sorted(json.dumps(dataclasses.asdict(q), sort_keys=True) for q in qs)  # noqa: E731
+    assert dump(parts[0]) == dump(whole) and R.order(parts[0]) == R.order(whole)
+    cold = list(R.generate_stream(src, st, cache=tmp_path / "qc2"))
+    assert cold[0] == [] and dump([q for p in cold for q in p]) == dump(whole)

@@ -41,7 +41,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, Iterable, Iterator, Mapping, Optional, Sequence
 
 LETTERS = "ABCD"
 ANSWER = re.compile(r"ANSWER\s*[:=]\s*\(?\**\s*([A-D])\b", re.I)
@@ -133,6 +133,44 @@ def head(repo: Path) -> str:
     return _git(repo, "rev-parse", "HEAD").strip()
 
 
+_SHA = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
+
+
+def head_fast(repo: Path) -> str:
+    """`git rev-parse HEAD` read straight from the files (a git process costs ~2 s on the busy PC): HEAD -> loose ref -> packed-refs, worktrees
+    (a '.git' file pointing at its gitdir + commondir) included. Anything unusual falls back to the git process."""
+    try:
+        g = Path(repo) / ".git"
+        if g.is_file():
+            gd = g.read_text(encoding="utf-8").strip()
+            if not gd.startswith("gitdir:"):
+                return head(repo)
+            g = (Path(repo) / gd[len("gitdir:"):].strip()).resolve()
+        common = g
+        if (g / "commondir").is_file():
+            common = (g / (g / "commondir").read_text(encoding="utf-8").strip()).resolve()
+        h = (g / "HEAD").read_text(encoding="utf-8").strip()
+        if _SHA.fullmatch(h):
+            return h
+        if not h.startswith("ref: refs/"):
+            return head(repo)
+        ref = h[len("ref: "):]
+        for base in ((g, common) if g != common else (g,)):
+            p = base / ref
+            if p.is_file():
+                v = p.read_text(encoding="utf-8").strip()
+                return v if _SHA.fullmatch(v) else head(repo)
+        packed = common / "packed-refs"
+        if packed.is_file():
+            for line in packed.read_text(encoding="utf-8").splitlines():
+                parts = line.split(" ", 1)
+                if len(parts) == 2 and parts[1].strip() == ref and _SHA.fullmatch(parts[0]):
+                    return parts[0]
+    except (OSError, ValueError):
+        pass
+    return head(repo)
+
+
 def parse_log(text: str) -> list[Commit]:
     """`git log --no-merges --name-status --format=@@%H%x09%at%x09%s` (newest first) -> commits oldest first. Authors are never requested."""
     out: list[Commit] = []
@@ -199,7 +237,21 @@ def _names(subject: str, path: str) -> bool:
     s = subject.lower()
     b = path.rsplit("/", 1)[-1].lower()
     st = _stem_of(path)
-    return b in s or (len(st) >= 4 and re.search(r"(?<![a-z0-9_])" + re.escape(st) + r"(?![a-z0-9])", s) is not None)
+    return b in s or (len(st) >= 4 and _word_in(st, s))
+
+
+_BEFORE, _AFTER = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_"), frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
+
+
+def _word_in(st: str, s: str) -> bool:
+    """re.search(r"(?<![a-z0-9_])" + re.escape(st) + r"(?![a-z0-9])", s) without compiling a pattern per file name (the regex cache thrashed:
+    one compile per distinct stem, millions of calls over a large history)."""
+    i, n = s.find(st), len(st)
+    while i >= 0:
+        if (i == 0 or s[i - 1] not in _BEFORE) and (i + n >= len(s) or s[i + n] not in _AFTER):
+            return True
+        i = s.find(st, i + 1)
+    return False
 
 
 def _ok_subject(s: str) -> bool:
@@ -229,7 +281,7 @@ def _dir(p: str) -> str:
 def gen_files_changed(source: str, cs: Sequence[Commit]) -> list[Question]:
     out: list[Question] = []
     live: dict[str, int] = {}                                          # path -> index of its last commit; insertion order = recency
-    by_dir: dict[str, set[str]] = {}
+    by_dir: dict[tuple[str, str], set[str]] = {}                       # (directory, extension) -> live files (the hard distractor pool)
     for i, c in enumerate(cs):
         changed = [p for st, p in c.changes if st != "D"]
         if 1 <= len(c.changes) <= MAX_FILES and changed and _ok_subject(c.s) and len(live) >= 20:
@@ -240,7 +292,7 @@ def gen_files_changed(source: str, cs: Sequence[Commit]) -> list[Question]:
             cand: list[str] = []
             if hard:
                 ext = truth.rsplit(".", 1)[-1]
-                cand = sorted(p for p in by_dir.get(_dir(truth), ()) if p not in touched and p.rsplit(".", 1)[-1] == ext)
+                cand = sorted(p for p in by_dir.get((_dir(truth), ext), ()) if p not in touched)
             if len(cand) < 3:
                 hard = False
                 cand = sorted(itertools.islice((p for p in reversed(live) if p not in touched), 300))
@@ -256,10 +308,10 @@ def gen_files_changed(source: str, cs: Sequence[Commit]) -> list[Question]:
         for st, p in c.changes:
             live.pop(p, None)
             if st == "D":
-                by_dir.get(_dir(p), set()).discard(p)
+                by_dir.get((_dir(p), p.rsplit(".", 1)[-1]), set()).discard(p)
             else:
                 live[p] = i
-                by_dir.setdefault(_dir(p), set()).add(p)
+                by_dir.setdefault((_dir(p), p.rsplit(".", 1)[-1]), set()).add(p)
     return out
 
 
@@ -342,12 +394,16 @@ def gen_co_change(source: str, cs: Sequence[Commit], checkpoints: Sequence[int] 
     co: dict[str, dict[str, int]] = {}
     seen: dict[str, int] = {}
     live: set[str] = set()
+    live_src: set[str] = set()                              # live non-test .py files, kept as the walk goes (was a rescan of `live` per question)
     for c in cs:
         for st, p in c.changes:
             if st == "D":
                 live.discard(p)
+                live_src.discard(p)
             else:
                 live.add(p)
+                if p.endswith(".py") and not _is_test(p):
+                    live_src.add(p)
         if len(c.changes) > 12:
             continue
         tests = [p for _st, p in c.changes if _is_test(p)]
@@ -362,7 +418,7 @@ def gen_co_change(source: str, cs: Sequence[Commit], checkpoints: Sequence[int] 
                     top = sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))
                     if top[0][1] >= 4 and (len(top) == 1 or top[0][1] >= 1.5 * top[1][1]) and top[0][0] in live:
                         truth = top[0][0]
-                        zero = sorted(p for p in live if p.endswith(".py") and not _is_test(p) and p not in d)
+                        zero = sorted(p for p in live_src if p not in d)
                         r = _rng(source, tf, str(seen[tf]), "cc")
                         r.shuffle(zero)
                         easy = _stem_of(truth) in _stem_of(tf)
@@ -410,18 +466,90 @@ class Frozen:
         return q.source == "nupen" and self.answers.__contains__(q.options[q.answer])
 
 
-def generate(sources: Sequence[tuple[str, Path]], state: Path, kinds: Sequence[str] = KINDS) -> list[Question]:
-    """Every question available now (deterministic ids and options), frozen-benchmark collisions removed."""
+_SRC_HASH: dict[str, str] = {}
+
+
+def _src_hash() -> str:
+    """The generators' code: a cached question list is only reused by the code that made it."""
+    if "h" not in _SRC_HASH:
+        _SRC_HASH["h"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:20]
+    return _SRC_HASH["h"]
+
+
+def qcache_dir() -> Path:
+    from creator import device as DEV
+    return DEV.runtime_dir() / "thinking" / "reasondrills_q"
+
+
+def _repo_questions(name: str, path: Path, cache: Optional[Path], cached_only: bool = False) -> Optional[dict[str, list[Question]]]:
+    """Every kind's questions of one repository (before the frozen filter). Generating them reads the whole git history and walks it (about a
+    minute per large repository on a busy PC), so the result is kept on disk outside the repository, keyed on the repository's HEAD and this
+    module's source: unchanged HEAD + unchanged code = the identical list without a git log. Never fatal: any cache problem regenerates."""
+    h = head_fast(path) if cache is not None and (Path(path) / ".git").exists() else ""
+    key = f"{name}|{h}|{_src_hash()}"
+    f = (cache / f"{re.sub(r'[^A-Za-z0-9_.-]', '_', name)}.json") if cache is not None and h else None
+    if f is not None:
+        try:
+            body = json.loads(f.read_text(encoding="utf-8"))
+            if body.get("key") == key:
+                return {k: [Question(**dict(d, keys=tuple(d["keys"]))) for d in v] for k, v in body["kinds"].items()}
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+    if cached_only:
+        return None
+    cs = history(path)
+    got = {k: GENERATORS[k](name, cs) for k in KINDS}
+    if f is not None and head_fast(path) == h:                     # HEAD moved while reading: do not file new questions under the old key
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_name(f"{f.name}.{threading.get_ident()}.tmp")
+            tmp.write_text(json.dumps({"key": key, "kinds": {k: [dataclasses.asdict(q) for q in v] for k, v in got.items()}}), encoding="utf-8")
+            tmp.replace(f)
+        except OSError:
+            pass
+    return got
+
+
+def generate(sources: Sequence[tuple[str, Path]], state: Path, kinds: Sequence[str] = KINDS, cache: Optional[Path] = None,
+             use_cache: bool = True) -> list[Question]:
+    """Every question available now (deterministic ids and options), frozen-benchmark collisions removed. Per repository the generated list is
+    cached on disk (qcache_dir(), outside the repository) by HEAD and source hash: identical output, no git log while nothing changed."""
     fz = Frozen(frozen_c(state))
+    cdir = (cache or qcache_dir()) if use_cache else None
     out: list[Question] = []
     for name, path in sources:
         try:
-            cs = history(path)
+            got = _repo_questions(name, path, cdir)
         except Exception:                                             # noqa: BLE001 - a broken clone is skipped, never fatal
             continue
         for k in kinds:
-            out += [q for q in GENERATORS[k](name, cs) if not fz.collides(q)]
+            out += [q for q in got[k] if not fz.collides(q)] if got else []
     return out
+
+
+def generate_stream(sources: Sequence[tuple[str, Path]], state: Path, cache: Optional[Path] = None) -> Iterator[list[Question]]:
+    """generate() in pieces, so a consumer (gpupulse.traces) can start at once: first every repository the disk cache already holds (one list),
+    then each repository that has to be generated, one list each. Together exactly generate()'s questions."""
+    fz = Frozen(frozen_c(state))
+    cdir = cache or qcache_dir()
+    warm: list[Question] = []
+    cold: list[tuple[str, Path]] = []
+    for name, path in sources:
+        try:
+            got = _repo_questions(name, path, cdir, cached_only=True)
+        except Exception:                                             # noqa: BLE001
+            got = None
+        if got is None:
+            cold.append((name, path))
+        else:
+            warm += [q for k in KINDS for q in got[k] if not fz.collides(q)]
+    yield warm
+    for name, path in cold:
+        try:
+            got = _repo_questions(name, path, cdir)
+        except Exception:                                             # noqa: BLE001 - a broken clone is skipped, never fatal
+            continue
+        yield [q for k in KINDS for q in (got or {}).get(k, []) if not fz.collides(q)]
 
 
 def _round_robin(groups: dict[str, list[Question]]) -> list[Question]:
