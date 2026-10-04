@@ -4,6 +4,7 @@ scripted workers; the real protected suite is replaced by stub runners except in
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 import json
 import sys
 import time
@@ -273,3 +274,47 @@ def test_the_real_runner_reports_failing_cases_at_below_normal_priority(tmp_path
     if (CT.PYLIB / "xdist").is_dir():
         par = SF.run_suite(r, ["tests/test_a.py", "tests/test_b.py"], tmp_path / "j" / "p.xml", 300, sys.executable, 2)
         assert par["workers"] == 2 and par["failed"] == out["failed"]
+
+
+# ------------------------------------------------------------------------------------------------ digest and the safe-loop rows
+def _digest_mod() -> Any:
+    spec = importlib.util.spec_from_file_location("nupen_digest", ROOT / "scripts" / "nupen_digest.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_daily_digest_tells_the_owner_every_adoption_rollback_and_refusal(tmp_path: Path) -> None:
+    D = _digest_mod()
+    st = tmp_path / "state"
+    t = time.time()
+    day = D._day(t)
+    SF.record(st, {"at": t, "outcome": "ADOPTED", "package": "CP1", "objective": "Shrink the planner", "by": "claude-session",
+                   "supervised": True, "cls": "refactor", "paths": ["creator/planner.py"], "verdict": "IMPROVEMENT", "merge": "abcdef1234567",
+                   "regression": "CLEAN", "suite": {"status": "PASSED", "failed": [], "cases": 250, "seconds": 190.0, "workers": 6},
+                   "gate": "supervised", "evidence": "state/creator/cycles/CP1/"})
+    SF.record(st, {"at": t, "outcome": "ROLLED_BACK", "package": "CP2", "reason": "protected suite failed after the merge: ['t::x']",
+                   "merge": "1234567abcdef", "by": "coder", "supervised": False, "cls": "feature"})
+    SF.record(st, {"at": t, "outcome": "REJECTED", "package": "CP3", "refused": "trust", "by": "self-search-v1", "supervised": False,
+                   "reason": "needs owner/teacher: class feature: only 0 scored tasks"})
+    SF.record(st, {"at": t, "outcome": "REJECTED", "package": "CP4", "reason": "claim NO_IMPROVEMENT"})        # ordinary: not listed
+    SF.record(st, {"at": t - 3 * 86400, "outcome": "ADOPTED", "package": "OLD"})
+    (st / "pending").mkdir(parents=True)
+    (st / "pending" / "CP3_sbx9.patch").write_text("diff", encoding="utf-8")
+    text = D.digest(st, day)
+    assert "1 adopted, 1 rolled back, 1 refused by the safety loop (4 cycles recorded)" in text
+    assert "ADOPTED (merged into main): CP1" in text and "Shrink the planner" in text and "git revert -m 1 abcdef123456" in text
+    assert "full protected suite after the merge: green (250 cases" in text and "claude-session (the teacher, supervised)" in text
+    assert "ROLLED BACK" in text and "protected suite failed after the merge" in text and "cool-down after a rollback" in text
+    assert "Review **CP3**" in text and "state/creator/pending/CP3_sbx9.patch" in text and "CP4" not in text and "OLD" not in text
+    assert "No measured coding setup is named" in text
+    assert D.main(["--state", str(st), "--date", day]) == 0 and (st / "digest" / f"{day}.md").read_text(encoding="utf-8") == text
+
+
+def test_the_safe_loop_check_sees_every_guard_wired() -> None:
+    rows = {r["requirement"]: r for r in CT.safe_loop_check()}
+    for req in ("automatic revert when the adopted change fails after adoption", "rate limit on self-changes", "a readable change log",
+                "the trust gate is consulted before an unsupervised adoption"):
+        assert rows[req]["status"] == "ok", (req, rows[req])
+    assert "not the whole protected suite" not in rows["automatic revert when the adopted change fails after adoption"]["gap"]
