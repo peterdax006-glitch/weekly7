@@ -129,13 +129,14 @@ def out_dir() -> Path:
     return Path(DEV.runtime_dir()) / "talk" / "eval"
 
 
-def run(root: Path, layers: list[str], limit: int = 0, ctx: int = 0, servers: Optional[int] = None, out: Optional[Path] = None) -> dict[str, Any]:
+def run(root: Path, layers: list[str], limit: int = 0, ctx: int = 0, servers: Optional[int] = None, out: Optional[Path] = None,
+        route: str = "") -> dict[str, Any]:
     qs = QUESTIONS[:limit] if limit else QUESTIONS
     res = []
     for layer in layers:
         voice = None
         if layer != "1":
-            voice = T.Voice(T.resolve_model(layer), ctx=ctx or (8192 if layer == "1.7b" else 4096), servers=servers)
+            voice = T.Voice(T.resolve_model(layer), ctx=ctx or (8192 if layer == "1.7b" else 4096), servers=servers, route=route)
         try:
             res.append(run_layer(root, layer, qs, voice))
         finally:

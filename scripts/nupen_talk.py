@@ -28,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default="1.7b", help="voice: 1.7b | 4b | 8b | a GGUF path (default 1.7b)")
     ap.add_argument("--ctx", type=int, default=0, help="context size (default: 8192 for 1.7b so a warm pool server is leased, else 4096)")
     ap.add_argument("--servers", type=int, default=0, help="model-server slots this machine may run (default: device setting llama_servers)")
+    ap.add_argument("--route", default="", choices=("", "auto"), help="auto: use a healthy GPU pod route even if the device setting is off")
     ap.add_argument("--rules", action="store_true", help="no model: layer-1 understanding and rule speaking")
     ap.add_argument("--understand", default="hybrid", choices=("hybrid", "model", "rules"), help="who maps text to an intent")
     ap.add_argument("--root", default=str(ROOT), help="repo root whose state/ is read")
@@ -42,14 +43,14 @@ def main(argv: list[str] | None = None) -> int:
     if a.eval:
         from creator import talkeval as TE
         layers = [x.strip() for x in (a.eval_layers or f"1,{a.model}").split(",") if x.strip()]
-        rep = TE.run(root, layers, limit=a.eval_limit, ctx=a.ctx, servers=a.servers or None)
+        rep = TE.run(root, layers, limit=a.eval_limit, ctx=a.ctx, servers=a.servers or None, route=a.route)
         print(TE.table(rep))
         print(f"report: {rep['file']}")
         return 0
     voice = None
     if not a.rules:
         model = T.resolve_model(a.model)
-        voice = T.Voice(model, ctx=a.ctx or (8192 if a.model == "1.7b" else 4096), servers=a.servers or None)
+        voice = T.Voice(model, ctx=a.ctx or (8192 if a.model == "1.7b" else 4096), servers=a.servers or None, route=a.route)
     conv = T.conversation(root, voice, mode="rules" if a.rules else a.understand, log=not a.no_log, auto_confirm=a.yes)
     sess: T.Session = conv.talk_session  # type: ignore[attr-defined]
     try:

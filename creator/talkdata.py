@@ -14,7 +14,7 @@ Pipeline (pairs_job), every step checked:
   3 facts       the REAL layer-1 handlers (and the BM25 search for open questions) read Nupen's records on this PC; a request is answered by a
                 dry handler (no proposal is written), actions are skipped
   4 answer      the big model answers from the facts only (the voice's own speak prompt); kept only when every number and id occurs in the
-                facts (creator.talk.ungrounded) -> speak SFT rows + dialogue items
+                facts (creator.talk.ungrounded) and every verb of state matches the record (talk.state_claims) -> speak SFT rows + dialogue items
 Privacy (as creator.gpuday's export): a prompt carrying a private marker never leaves (gpuday.private_reason before the pod's own guard),
 names, e-mails and home paths are scrubbed, nothing is read from state/livesim, ~/Masterstock or ~/oldpc (the handlers read state/creator
 only; private text is never indexed). Outputs live outside the repository: <runtime>/gpuday/talk/<pulse>/."""
@@ -133,20 +133,22 @@ def build(root: Path, chat: Chat, out: Path, *, per_intent: int = 16, docs: int 
             return None
 
     # 1 questions -------------------------------------------------------------------------------------------------------------
-    jobs: list[tuple[str, str]] = []                    # (label, prompt)
+    jobs: list[tuple[str, str, int]] = []               # (label, prompt, lines kept: a model that writes more is cut, so intents stay balanced)
     for it in CV.INTENTS:
         if it.name not in SKIP:
-            jobs.append((it.name, PARAPHRASE.format(n=per_intent, example=it.example, about=it.about)))
+            jobs.append((it.name, PARAPHRASE.format(n=per_intent, example=it.example, about=it.about), per_intent))
+    n_small = max(1, per_intent // 4)
     for s in SMALLTALK_SEEDS:
-        jobs.append(("smalltalk", PARAPHRASE.format(n=max(2, per_intent // 4), example=s, about="small talk")))
+        jobs.append(("smalltalk", PARAPHRASE.format(n=n_small, example=s, about="small talk"), n_small))
     rng = random.Random(seed)
     corpus = [d for d in T.index_for(root).docs if d["kind"] in ("module", "doc")]
     for d in rng.sample(corpus, min(docs, len(corpus))):
-        jobs.append(("ask", DOC_QUESTIONS.format(text=GD.scrub(d["text"]), n=per_doc)))
+        jobs.append(("ask", DOC_QUESTIONS.format(text=GD.scrub(d["text"]), n=per_doc), per_doc))
     cands: list[tuple[str, str]] = []
     with ThreadPoolExecutor(max(1, workers)) as ex:
-        for label, raw in zip([j[0] for j in jobs], ex.map(lambda j: None if late() else ask([{"role": "user", "content": j[1]}], 400, 0.8), jobs)):
-            for q in _lines(raw or ""):
+        raws = ex.map(lambda j: None if late() else ask([{"role": "user", "content": j[1]}], 400, 0.8), jobs)
+        for (label, _, keep), raw in zip(jobs, raws):
+            for q in _lines(raw or "")[:keep]:
                 cands.append((label, q))
     seen: set[str] = set()
     qs: list[tuple[str, str]] = []
@@ -191,7 +193,7 @@ def build(root: Path, chat: Chat, out: Path, *, per_intent: int = 16, docs: int 
             return
         sm = T.speak_messages(f, [])
         ans = (ask(sm, T.SPEAK_TOKENS, 0.3) or "").strip()
-        if not ans or T.ungrounded(ans, T.facts_text(f)):
+        if not ans or T.ungrounded(ans, T.facts_text(f)) or T.state_claims(ans, T.facts_text(f)):
             bump("ungrounded")
             with lock:
                 und.append(und_row)
@@ -258,7 +260,7 @@ def estimate_minutes(per_intent: int = 16, docs: int = 60, per_doc: int = 3, agg
     """Output tokens / aggregate decode speed (14B on a 4090 with 8 slots: ~300 tok/s assumed) + prompt processing + 1 min of slack."""
     n_int = len([i for i in CV.INTENTS if i.name not in SKIP])
     para = (n_int + len(SMALLTALK_SEEDS) + docs) * 250
-    n_q = n_int * per_intent + len(SMALLTALK_SEEDS) * max(2, per_intent // 4) + docs * per_doc
+    n_q = n_int * per_intent + len(SMALLTALK_SEEDS) * max(1, per_intent // 4) + docs * per_doc
     out_tok = para + n_q * (15 + 100)
     in_tok = n_q * (450 + 600)
     return round(out_tok / agg_tok_s / 60 + in_tok / (agg_tok_s * 40) / 60 + 1.0, 1)
@@ -280,12 +282,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--per-intent", type=int, default=2)
     ap.add_argument("--docs", type=int, default=2)
     ap.add_argument("--servers", type=int, default=0)
+    ap.add_argument("--route", default="", help="auto: a healthy GPU pod route serves --local's model")
     a = ap.parse_args(argv)
     if not a.local:
         print(json.dumps({"jobs": talk_jobs({}), "estimate_minutes": estimate_minutes(), "plan": "python scripts/gpu_pulse.py plan --jobs-from "
                           "creator.talkdata:talk_jobs", "run": "python scripts/gpu_pulse.py run --jobs-from creator.talkdata:talk_jobs"}, indent=1))
         return 0
-    v = T.Voice(T.resolve_model(a.local), ctx=8192 if a.local == "1.7b" else 4096, servers=a.servers or None)
+    v = T.Voice(T.resolve_model(a.local), ctx=8192 if a.local == "1.7b" else 4096, servers=a.servers or None, route=a.route)
     try:
         def chat(msgs: list[dict[str, str]], max_tokens: int, temp: float) -> str:
             return v.ask(msgs, max_tokens, temp).text

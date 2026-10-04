@@ -70,7 +70,8 @@ class Voice:
     one, or attaches to a routed pod); anything with .chat(messages, max_tokens=, temperature=) works (tests use a stub)."""
 
     def __init__(self, model: Path, ctx: int = 8192, slot_wait_s: float = 60.0, factory: Optional[Callable[[], Any]] = None,
-                 timeout_s: float = 180.0, servers: Optional[int] = None, startup_s: float = 300.0) -> None:
+                 timeout_s: float = 180.0, servers: Optional[int] = None, startup_s: float = 300.0, route: str = "") -> None:
+        self.route = route                   # 'auto': use a healthy pod route (creator.pulseroute) even where the device setting is off
         self.startup_s = startup_s           # a busy PC (the swarm at full CPU) loads a server slowly
         self.model, self.ctx, self.slot_wait_s, self.timeout_s, self.servers = Path(model), ctx, slot_wait_s, timeout_s, servers
         self.factory = factory
@@ -94,10 +95,28 @@ class Voice:
                 from creator import generator as G
                 lm = G.LocalModel(model=self.model, ctx=self.ctx, slot_wait_s=self.slot_wait_s, servers=self.servers,
                                   startup_s=self.startup_s)
-                self.lm = lm.__enter__()
+                if self.route == "auto" and not self._attach_route(lm):
+                    self.lm = lm.__enter__()
+                elif self.route != "auto":
+                    self.lm = lm.__enter__()
+                else:
+                    self.lm = lm
         except Exception as e:  # noqa: BLE001 - no voice means layer 1 answers
             self.error = f"{type(e).__name__}: {str(e)[:160]}"
             return False
+        return True
+
+    def _attach_route(self, lm: Any) -> bool:
+        """Attach `lm` to a healthy routed pod server of this model (as LocalModel._route_attach does when the setting is 'auto')."""
+        try:
+            from creator import pulseroute as PR
+            got = PR.attach(self.model, {"pulse_route": "auto"})
+        except Exception:  # noqa: BLE001
+            return False
+        if got is None:
+            return False
+        lm.port, lm.pulse = got
+        lm.routed = True
         return True
 
     def close(self) -> None:
@@ -126,16 +145,21 @@ class Voice:
         t0 = time.monotonic()
         lm = self.lm
         tin = tout = 0
-        if getattr(lm, "port", 0) and not getattr(lm, "pulse", "") and not getattr(lm, "routed", False):
-            import urllib.request
-            body = json.dumps({"messages": msgs, "max_tokens": max_tokens, "temperature": temperature, "seed": 0,
-                               "cache_prompt": True}).encode()
-            req = urllib.request.Request(f"http://127.0.0.1:{lm.port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-                d = json.loads(r.read().decode("utf-8"))
-            text = str(d["choices"][0]["message"].get("content") or "")
-            u = d.get("usage") or {}
-            tin, tout = int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
+        direct = bool(getattr(lm, "port", 0)) and not getattr(lm, "pulse", "")
+        if getattr(lm, "routed", False):                     # the overflow route: direct only when the prompt may leave this PC
+            from creator import pulseroute as PR
+            direct = PR.may_leave(msgs)
+        got = None
+        if direct:
+            try:
+                got = self._post(lm.port, msgs, max_tokens, temperature)
+            except OSError:                                  # (URLError, timeouts, resets) a routed pod that fails: LocalModel falls back
+                if not getattr(lm, "routed", False):
+                    raise
+                from creator import pulseroute as PR
+                PR.invalidate()
+        if got is not None:
+            text, tin, tout = got
         else:
             text = str(lm.chat(msgs, max_tokens=max_tokens, temperature=temperature))
         text = G.THINK_BLOCK.sub("", text).strip()
@@ -145,6 +169,15 @@ class Voice:
         if not tout:
             tout = max(1, len(text) // 4)
         return Reply(text, tin, tout, time.monotonic() - t0)
+
+    def _post(self, port: int, msgs: list[dict[str, str]], max_tokens: int, temperature: float) -> tuple[str, int, int]:
+        import urllib.request
+        body = json.dumps({"messages": msgs, "max_tokens": max_tokens, "temperature": temperature, "seed": 0, "cache_prompt": True}).encode()
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        u = d.get("usage") or {}
+        return str(d["choices"][0]["message"].get("content") or ""), int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
 
 
 # ------------------------------------------------------------------------------------------------ grounding: no invented numbers or ids
@@ -518,18 +551,20 @@ class ModelUnderstand:
         return CV.Parsed(intent, slots)
 
 
-SPEAK_SYSTEM = ("You are Nupen, a self-improving coding system, talking with your owner ('you' in the owner's words means Nupen). "
-                "Answer in at most 3 short sentences, first person, plainly. Use ONLY the FACTS: never write a number, name or id that is not in them. If the FACTS do not answer the "
-                "question, say \"I don't know\" and what you do know. Do not list evidence; it is added for you.")
+SPEAK_SYSTEM = ("You are Nupen, a self-improving coding system. Your owner is asking YOU about YOURSELF: answer as Nupen in the first person "
+                "('I', 'my'); 'you' in the question means you, Nupen. At most 3 short sentences, plainly. Use ONLY the FACTS given with the "
+                "question: never write a number, name or id that is not in them, and say a status exactly as they state it (considered is not "
+                "working on). If the FACTS do not answer it, say \"I don't know\" and what you do know. Do not list evidence; it is added for you.")
 
 
 def speak_messages(f: CV.Facts, history: list[dict[str, str]]) -> list[dict[str, str]]:
-    msgs = [{"role": "system", "content": SPEAK_SYSTEM}]
-    for h in history[-HISTORY_TURNS:]:
-        msgs += [{"role": "user", "content": h["user"][:300]}, {"role": "assistant", "content": h["reply"][:400]}]
+    """System + one user message: the facts, the earlier questions (context for a follow-up; earlier ANSWERS are not repeated - measured
+    3 Oct: with them in the prompt the 1.7B voice re-told the previous turn's facts), and the question."""
     block = "\n".join(f.lines)[:FACT_CHARS]
-    msgs.append({"role": "user", "content": f"FACTS:\n{block}\n\nOWNER: {f.user}"})
-    return msgs
+    prev = [h["user"][:200] for h in history[-HISTORY_TURNS:] if h.get("user")]
+    ctx = ("Earlier the owner asked: " + " / ".join(prev) + "\n") if prev else ""
+    return [{"role": "system", "content": SPEAK_SYSTEM},
+            {"role": "user", "content": f"FACTS:\n{block}\n\n{ctx}QUESTION TO NUPEN: {f.user}"}]
 
 
 def evidence_line(f: CV.Facts) -> str:
@@ -569,6 +604,7 @@ class ModelSpeak:
             if text and not bad and not claims:
                 self.session.turn["spoken_by"] = "model" if attempt == 0 else "model (corrected)"
                 return text + evidence_line(facts)
+            self.session.turn.setdefault("rejected", []).append(text[:240])
             if bad:
                 self.session.turn["ungrounded"] = bad[:6]
             if claims:
