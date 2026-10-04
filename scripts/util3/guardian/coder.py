@@ -39,6 +39,9 @@ def log(msg):
         f.write(time.strftime("%H:%M:%S ") + msg + "\n")
 
 
+_cost = threading.local()          # the last call's cost on this thread (recorded on every row: owner's efficiency mandate)
+
+
 def chat(port, model, system, user, max_tokens):
     body = json.dumps({"messages": [{"role": "system", "content": system}, {"role": "user", "content": user + "\n/no_think"}],
                        "max_tokens": max_tokens, "temperature": 0.3, "seed": 0}).encode()
@@ -47,6 +50,8 @@ def chat(port, model, system, user, max_tokens):
         d = json.loads(r.read())
     if os.path.basename(str(d.get("model") or model)) != model:
         raise RuntimeError("model changed")
+    u = d.get("usage") or {}
+    _cost.last = {"tok_in": int(u.get("prompt_tokens") or 0), "tok_out": int(u.get("completion_tokens") or 0)}
     return THINK.sub("", str(d["choices"][0]["message"].get("content") or "")).strip()
 
 
@@ -138,21 +143,27 @@ def one_task(port, model, brief, task):
     tid, name = task["id"], task["name"]
     stub = f"def {name}(*args, **kwargs):\n    raise NotImplementedError\n"
     req = task["prompt"]
-    rows, t0 = [], time.time()
+    rows, t0, costs = [], time.time(), {}
+
+    def ask(role, user, max_tokens):
+        t = time.time()
+        out = chat(port, model, brief, user, max_tokens)
+        costs[role] = dict(getattr(_cost, "last", {}), seconds=round(time.time() - t, 1))
+        return out
 
     def row(role, user, out, verified, **kw):
         rows.append(dict({"role": role, "task_id": tid, "model": model, "verified": verified, "input": user, "output": out,
-                          "ts": round(time.time(), 1)}, **kw))
+                          "cost": dict(costs.get(role) or {}), "ts": round(time.time(), 1)}, **kw))
     u_spec = f"ROLE: SPEC\nRequest:\n{req}\n\nStarting code (solution.py):\n```python\n{stub}```\nWrite the acceptance tests as pytest functions that import nothing but the function under test (it is already imported)."
-    spec = chat(port, model, brief, u_spec, 700)
+    spec = ask("SPEC", u_spec, 700)
     u_plan = f"ROLE: PLAN\nSPEC:\n{spec}\n\nRequest:\n{req}"
-    plan = chat(port, model, brief, u_plan, 400)
+    plan = ask("PLAN", u_plan, 400)
     code = stub
     u_code = f"ROLE: CODE\nPlan:\n{plan}\n\nRequest:\n{req}\n\nCurrent solution.py:\n```python\n{code}```\n{EDIT_HELP}"
-    reply = chat(port, model, brief, u_code, 1500)
+    reply = ask("CODE", u_code, 1500)
     cand, fmt = apply_edits(code, reply, name)
     u_rev = f"ROLE: REVIEW\nRequest:\n{req}\n\nCandidate solution.py:\n```python\n{cand or reply}\n```"
-    review = chat(port, model, brief, u_rev, 300)
+    review = ask("REVIEW", u_rev, 300)
     ok, out = hidden(task, cand) if cand else (False, f"edit could not be applied ({fmt})")
     vm = re.search(r"VERDICT:\s*(correct|incorrect|unsure)", review, re.I)
     verdict = vm.group(1).lower() if vm else None
@@ -164,7 +175,7 @@ def one_task(port, model, brief, task):
         rnd += 1
         u_dbg = (f"ROLE: DEBUG\nRequest (expected behaviour):\n{req}\n\nCurrent solution.py:\n```python\n{cand or code}```\n\n"
                  f"Exact failing output:\n{out}\n{EDIT_HELP}")
-        dbg = chat(port, model, brief, u_dbg, 900)
+        dbg = ask("DEBUG", u_dbg, 900)
         new, fmt = apply_edits(cand or code, dbg, name)
         ok2, out2 = hidden(task, new) if new else (False, f"edit could not be applied ({fmt})")
         row("DEBUG", u_dbg, dbg, ok2, edit_format=fmt, failing_output=out, test_output=out2, round=rnd)
@@ -185,14 +196,15 @@ def one_task(port, model, brief, task):
     row("PLAN", u_plan, plan, ok)
     if ok:
         u_val = f"ROLE: VALIDATE\nSPEC:\n{spec}\n\nFinal solution.py:\n```python\n{cand}```"
-        val = chat(port, model, brief, u_val, 250)
+        val = ask("VALIDATE", u_val, 250)
         mm = re.search(r"MEETS SPEC:\s*(yes|no)", val, re.I)
         truth = ok and (spec_ok is not False)
         row("VALIDATE", u_val, val, (mm.group(1).lower() == "yes") == truth if mm else False, meets=(mm.group(1).lower() if mm else None), truth=truth)
     summary = "; ".join(f"{a['stage']}: {'pass' if a['pass'] else 'fail'} ({a['output'][:160]})" for a in attempts)
     u_les = f"ROLE: LESSON\nTask: {name}\nTrajectory: {summary}"
-    lesson = chat(port, model, brief, u_les, 80)
-    row("LESSON", u_les, lesson, ok and "->" in lesson)
+    lesson = ask("LESSON", u_les, 80)
+    real = lesson.count("->") >= 2 and "what worked or failed" not in lesson.lower() and "<situation>" not in lesson
+    row("LESSON", u_les, lesson, ok and real)
     rows.append({"role": "trajectory", "task_id": tid, "model": model, "verified": ok, "rounds": rnd, "attempts": attempts, "final_code": cand if ok else None,
                  "spec_verified": spec_ok, "seconds": round(time.time() - t0, 1), "ts": round(time.time(), 1)})
     write(model, rows)
