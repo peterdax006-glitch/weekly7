@@ -530,7 +530,7 @@ def react(state: Path, row: dict[str, Any], repo: Path, journal: Path, research:
     raw = D.load(s, state, repo, journal, research)
     pairs = LL.predict(raw, s, var, journal)
     acc: dict[tuple[str, str], dict[str, Any]] = {}
-    LL.drill_groups(s, pairs, acc)
+    LL.drill_groups(s, LL.diag_pairs(state, s, pairs), acc)           # h58: select part only - never the held-out tail or frozen items
     ws = [w for w in LL.rank(acc) if w.get("significant")]
     out: dict[str, Any] = {"source": s, "at": LL._iso(now), "trigger": "new_best" if new_best else "rows", "weaknesses": len(ws), "queued": 0}
     if ws:

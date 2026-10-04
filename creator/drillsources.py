@@ -124,9 +124,61 @@ def walk_forward_reference(items: Sequence[BItem], topic: str, decay: float = 0.
     return out
 
 
-def split_score(preds: Sequence[T.Pred]) -> dict[str, Any]:
+def split_score(preds: Sequence[T.Pred], frozen: Iterable[str] = ()) -> dict[str, Any]:
+    """select = the first SELECT_SPLIT of the time order WITHOUT the frozen benchmark's items (h58: as the data grew, the moving cut swept
+    frozen part-a items into the part variants are chosen on); held-out = the rest, unchanged."""
     cut = int(len(preds) * SELECT_SPLIT)
-    return {"select": T.score(preds[:cut]), "heldout": T.score(preds[cut:]), "all": T.score(preds)}
+    fz = frozenset(frozen)
+    return {"select": T.score([p for p in preds[:cut] if p.subject not in fz]), "heldout": T.score(preds[cut:]), "all": T.score(preds)}
+
+
+def select_part(preds: Sequence[Any], frozen: Iterable[str] = (), made_at: Callable[[Any], float] = lambda p: float(p.made_at),
+                subject: Callable[[Any], str] = lambda p: str(p.subject)) -> list[Any]:
+    """What a learner may LOOK AT to decide what to try next (learnloop diagnosis, trialerror.react): exactly the select part of
+    split_score - the first SELECT_SPLIT of the time order, frozen benchmark items removed. Never the held-out tail."""
+    ps = sorted(preds, key=made_at)
+    fz = frozenset(frozen)
+    return [p for p in ps[:int(len(ps) * SELECT_SPLIT)] if subject(p) not in fz]
+
+
+PINNED_BENCH_HASH = "1f520b202ac4"   # creator.thinkbench items.json content hash, pinned HERE (outside the file that stores its own hash)
+
+
+def frozen_subjects(state: Path, source: str) -> frozenset[str]:
+    """The frozen benchmark's part-a subjects of this source (never selected on). The file's content hash is recomputed and compared with
+    PINNED_BENCH_HASH; an edited or refrozen file still has its subjects excluded (excluding more is harmless) and frozen_hash_ok says so."""
+    return _frozen(Path(state))[0].get(source, frozenset())
+
+
+def frozen_hash_ok(state: Path) -> Optional[bool]:
+    """True: items.json is the pinned frozen set; False: edited/refrozen/unreadable; None: no frozen set."""
+    return _frozen(Path(state))[1]
+
+
+_FROZEN_MEMO: dict[tuple[str, int, int], tuple[dict[str, frozenset[str]], Optional[bool]]] = {}
+
+
+def _frozen(state: Path) -> tuple[dict[str, frozenset[str]], Optional[bool]]:
+    p = state / "thinkbench" / "items.json"
+    try:
+        st = p.stat()
+    except OSError:
+        return {}, None
+    key = (str(p), st.st_size, st.st_mtime_ns)
+    if key not in _FROZEN_MEMO:
+        try:
+            body = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}, False
+        h = hashlib.sha256(json.dumps({k: v for k, v in body.items() if k not in ("hash", "frozen_at")}, sort_keys=True, default=str)
+                           .encode("utf-8")).hexdigest()
+        by: dict[str, set[str]] = {}
+        for x in body.get("a") or []:
+            if isinstance(x, dict) and x.get("source") and x.get("subject") is not None:
+                by.setdefault(str(x["source"]), set()).add(str(x["subject"]))
+        _FROZEN_MEMO.clear()
+        _FROZEN_MEMO[key] = ({s: frozenset(v) for s, v in by.items()}, h.startswith(PINNED_BENCH_HASH) and body.get("hash") == h)
+    return _FROZEN_MEMO[key]
 
 
 # ------------------------------------------------------------------------------------------------ sources
@@ -590,10 +642,13 @@ def runs_path(state: Path) -> Path:
 
 def compute_row(source: str, variant: dict[str, Any], state: Path, repo: Path, journal: Path, research: Path) -> dict[str, Any]:
     """One drill batch's result (no write): load the whole dataset, walk forward with this variant, score. Module-level so a worker process runs it."""
+    c0, w0 = time.thread_time(), time.perf_counter()                 # COST (h58 self-teach gate f): this thread's CPU, so gain per CPU-hour
     items = apply_variant(load(source, state, repo, journal, research), variant, journal)
     preds = walk_forward(items, source, float(variant["decay"]), float(variant["k"]), str(variant.get("agg", "mean")), float(variant.get("cap", 0.02)))
-    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds)}
+    row = {"source": source, "variant": variant, "search": bool(variant.get("search")), "digest": source_digest(source, state, repo, journal, research), "items": len(items), "resolved": len(preds), **split_score(preds, frozen_subjects(state, source))}
     row["at"] = T.dt.datetime.now(T.dt.timezone.utc).isoformat(timespec="seconds")
+    row["cpu_s"], row["wall_s"] = round(time.thread_time() - c0, 3), round(time.perf_counter() - w0, 3)   # additive: no score changes
+    row["frozen_excluded"], row["frozen_hash_ok"] = len(frozen_subjects(state, source)), frozen_hash_ok(state)
     return row
 
 

@@ -690,12 +690,19 @@ def limits(state: Path, data: Data, sources: Sequence[str], now: float) -> dict[
     return out
 
 
+def diag_pairs(state: Path, source: str, pairs: Sequence[tuple[Any, T.Pred]]) -> list[tuple[Any, T.Pred]]:
+    """What the diagnosis may look at (h58): only the SELECT part of the walk-forward (drillsources.select_part) - never the held-out tail the
+    trust gate scores, never a frozen benchmark item. Diagnosing on them chose the next variants by the very data that judges them."""
+    from creator import drillsources as D
+    return list(D.select_part(pairs, D.frozen_subjects(Path(state), source), made_at=lambda x: float(x[1].made_at), subject=lambda x: str(x[0].subject)))
+
+
 def diagnose(state: Path, repo: Path, data: Data, tj: dict[str, Any], cur: dict[str, Any], sources: Sequence[str], now: float) -> dict[str, Any]:
     acc: dict[tuple[str, str], dict[str, Any]] = {}
     for s in sources:
         d = data.get(s)
         if d is not None:
-            drill_groups(s, d["preds"], acc)
+            drill_groups(s, diag_pairs(state, s, d["preds"]), acc)
     judgment_groups(state, repo, tj, acc)
     live_groups(state, acc)
     ranked = rank(acc)
@@ -703,7 +710,8 @@ def diagnose(state: Path, repo: Path, data: Data, tj: dict[str, Any], cur: dict[
     lim = limits(state, data, sources, now)
     rep = {"at": _iso(now), "measure": "excess Brier over the running base rate (judgment: over the statistical predictor), summed over the group; "
            "ranked by n x 95% lower bound", "weaknesses": ranked[:40], "n_groups": len(ranked), "limits": lim,
-           "note": "benchmark items are never diagnosed (they only measure); this report only reads the predictions"}
+           "note": "drill groups use the select part only: benchmark items and the held-out tail are never diagnosed (they only measure); "
+                   "this report only reads the predictions"}
     _write(state, "diagnosis", rep)
     return rep
 
