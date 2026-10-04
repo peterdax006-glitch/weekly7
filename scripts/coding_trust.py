@@ -44,6 +44,8 @@ def _tasks(a: argparse.Namespace) -> list[CT.Task]:
         for c in CT.CLASSES:
             first += [t for t in ts if t.cls == c][:1]
         ts = first + [t for t in ts if t not in first]
+    if not a.spread:
+        ts = sorted(ts, key=lambda t: (t.ts, t.id))                   # classes interleaved in time order (futility needs early samples)
     return ts[: a.limit] if a.limit else ts
 
 
@@ -90,6 +92,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--workers", type=int, default=0, help="local xdist workers (0 = free cores, max 8; 1 = serial)")
     ap.add_argument("--pod-cores", type=int, default=4)
     ap.add_argument("--pod-ssh", default="", help="ssh command for the pod, e.g. 'ssh -i ~/.ssh/nupen_vast -p 35735 root@ssh9.vast.ai'")
+    ap.add_argument("--futility", type=int, default=10,
+                    help="stop attempting a class once it has this many scored tasks and its Wilson UPPER bound is below the gate (0 = off)")
     ap.add_argument("--tasks-parallel", type=int, default=1, help="tasks attempted at the same time")
     ap.add_argument("--affected-only", action="store_true", help="skip the full protected suite on passing attempts (dry runs only)")
     ap.add_argument("--n-recent", type=int, default=300)
@@ -158,7 +162,8 @@ def main(argv: list[str]) -> int:
     out = Path(a.out).expanduser() if a.out else RUNTIME / CT.slug(agent.name)
     run = CT.Runner(repo, out, suite=tuple(a.suite) if a.suite is not None else CT.PROTECTED_SUITE, test_timeout=a.test_timeout,
                     full_suite=not a.affected_only, cache=RUNTIME / "validation" / checker.name, checker=checker)
-    run.run(tasks, agent, parallel=a.tasks_parallel)
+    run.gate_lower = a.min_lower
+    run.run(tasks, agent, parallel=a.tasks_parallel, futility=a.futility)
     recs = CT._jsonl(out / f"results-{CT.slug(agent.name)}.jsonl")
     rep = _write_report(out, recs, agent.describe(), g)
     print(CT.markdown(rep))

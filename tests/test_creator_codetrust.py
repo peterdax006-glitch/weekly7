@@ -2,6 +2,7 @@
 end on a TEMPORARY git repository (reference passes, do-nothing fails, a breaking change is a regression, external command + HTTP agents)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 import sys
@@ -336,3 +337,11 @@ def test_agent_recipe_self_rates_and_cleans(tmp_path: Path) -> None:
     assert "--auto-test" in argv and argv[-2:] == ["--message", "Files:\n- tests/test_a.py\n"]
     oc = A.build("opencode", ws, "http://127.0.0.1:1/v1", "t", tmp_path)
     assert oc[1] == "run" and json.loads((tmp_path / "opencode.json").read_text())["permission"]["external_directory"] == "deny"
+
+
+def test_futility_stops_a_class_that_cannot_open(repo: Path, tmp_path: Path) -> None:
+    run, tasks = _runner(repo, tmp_path)
+    fix = [t for t in tasks if t.cls == "bugfix"]
+    twins = [dataclasses.replace(fix[0], id=f"ct-twin{i}") for i in range(3)]
+    recs = run.run(twins, CT.StubAgent("null"), futility=2)
+    assert [r.get("skipped") for r in recs] == [None, None, "futility"]

@@ -813,6 +813,7 @@ class Runner:
         self.repo, self.out, self.suite, self.test_timeout, self.log = Path(repo), Path(out), tuple(suite), test_timeout, log
         self.full_suite = full_suite
         self.checker = checker or LocalChecker()
+        self.gate_lower = MIN_LOWER
         import threading
         self._git_lock = threading.RLock()
         self._out_lock = threading.Lock()
@@ -1019,7 +1020,7 @@ class Runner:
         out.pop("_new", None)
         return out
 
-    def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "", parallel: int = 1) -> list[dict[str, Any]]:
+    def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "", parallel: int = 1, futility: int = 0) -> list[dict[str, Any]]:
         """Validate and attempt every task (`parallel` at a time); results append to <out>/results-<agent>.jsonl (a re-run skips tasks
         already attempted)."""
         name = results_name or slug(agent.name)
@@ -1027,7 +1028,16 @@ class Runner:
         done = {r.get("task") for r in _jsonl(path)}
         todo = [(i, t) for i, t in enumerate(tasks) if t.id not in done]
 
+        tally: dict[str, list[int]] = {}
+        for r in _jsonl(path):
+            if not r.get("unusable") and not r.get("infra_error"):
+                tally.setdefault(str(r.get("cls")), []).append(int(bool(r.get("passed"))))
+
         def one(i: int, t: Task) -> dict[str, Any]:
+            got = tally.get(t.cls, [])
+            if futility and len(got) >= futility and (wilson(sum(got), len(got))[1] or 0) < self.gate_lower:
+                self.log(f"[{i + 1}/{len(tasks)}] {t.id} {t.cls}: skipped (futility: {sum(got)}/{len(got)} passed, the class cannot open)")
+                return {"task": t.id, "cls": t.cls, "skipped": "futility"}
             self.log(f"[{i + 1}/{len(tasks)}] {t.id} {t.cls}: validating")
             try:
                 val = self.validate(t)
@@ -1041,6 +1051,8 @@ class Runner:
             rec["setup"] = agent.describe()
             with self._out_lock, path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(rec) + "\n")
+                if not rec.get("unusable") and not rec.get("infra_error"):
+                    tally.setdefault(t.cls, []).append(int(bool(rec.get("passed"))))
             verdict = "PASS" if rec.get("passed") else f"unusable: {rec.get('unusable')}" if rec.get("unusable") else "FAIL"
             self.log(f"   {t.id} -> {verdict} {str(rec.get('why') or rec.get('infra_error') or '')[:160]}")
             return rec
