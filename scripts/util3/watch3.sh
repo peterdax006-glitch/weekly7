@@ -12,6 +12,7 @@
 D=/root/util3; cd $D; touch watch.on
 M4=/workspace/nupen/models/Qwen3-4B-Q4_K_M.gguf
 M14=/workspace/nupen/models/Qwen3-14B-Q4_K_M.gguf
+M17=/workspace/nupen/models/Qwen3-1.7B-Q4_K_M.gguf          # the small-gap filler: ~2.4 GB where a 4B no longer fits
 BASE=18350; IDLE_S=${IDLE_S:-240}; STABLE_S=${STABLE_S:-10}; MINFREE=${MINFREE:-2000}
 pids=(); mode=off; idle_since=$(date +%s); stable_since=$(date +%s); lastsig=""; last_start=0
 log(){ echo "$(date +%T) $*" >> watch.log; }
@@ -20,10 +21,10 @@ killone(){ local p=${pids[-1]}; kill $p 2>/dev/null; for i in $(seq 1 20); do ki
 killall_(){ [ ${#pids[@]} -gt 0 ] || return; while [ ${#pids[@]} -gt 0 ]; do killone "$1"; done; mode=off; writemode; }
 start(){ # $1 = 4b|14b
   local i=${#pids[@]} port=$((BASE+${#pids[@]})) m a
-  if [ "$1" = 14b ]; then m=$M14; else m=$M4; fi; a="-np 16 -c 16384"
+  if [ "$1" = 14b ]; then m=$M14; elif [ "$1" = 17b ]; then m=$M17; else m=$M4; fi; a="-np 16 -c 16384"
   [ -f "$m" ] || { log "missing $m"; return; }
   nohup /opt/llama.cpp/llama-server -m $m --host 127.0.0.1 --port $port -ngl 99 -fa on -ctk q8_0 -ctv q8_0 $a -t ${THREADS:-4} --no-webui --metrics > srv_$port.log 2>&1 &
-  local p=$!; pids+=($p); mode=$1; last_start=$(date +%s)
+  local p=$!; pids+=($p); mode=$1; [ "$1" = 17b ] && mode=4b; last_start=$(date +%s)
   for k in $(seq 1 120); do
     curl -sf -o /dev/null localhost:$port/health && { log "instance $i ($1) up on $port pid $p"; writemode; return; }
     kill -0 $p 2>/dev/null || { log "instance $i ($1) died at start"; unset 'pids[-1]'; writemode; return; }
@@ -61,6 +62,7 @@ while [ ! -f STOP ]; do
     want=4b; [ "$sig" = "|" ] && [ $((now-idle_since)) -ge $IDLE_S ] && want=14b
     if [ "$mode" != off ] && [ "$mode" != "$want" ]; then killall_ "switch to $want"
     elif [ "$want" = 4b ] && { [ ${#pids[@]} -lt 3 ] || { [ "$sig" = "|" ] && [ ${#pids[@]} -lt 4 ]; }; } && [ "${free:-0}" -ge $need4 ]; then start 4b
+    elif [ "$want" = 4b ] && [ ${#pids[@]} -lt 4 ] && [ "${free:-0}" -ge $((2400 + mf + 400)) ]; then start 17b
     elif [ "$want" = 14b ] && [ ${#pids[@]} -lt 2 ] && [ "${free:-0}" -ge 14000 ]; then start 14b
     fi
   fi
