@@ -23,16 +23,21 @@ declare -A ftpeak ftkey
 [ -s $D/queue.txt ] || printf "8 Qwen3-4B-Q4_K_M.gguf traces
 9 Qwen3-1.7B-Q4_K_M.gguf traces
 " > $D/queue.txt   # traces fallback without a PC
-pids=(); kinds=(); mode=off; now=$(date +%s); idle_since=$now; stable_since=$now; lastsig=""; last_start=0; utils=(); lastmin=0; lastdisk=0
+pids=(); kinds=(); ports=(); mode=off; now=$(date +%s); idle_since=$now; stable_since=$now; lastsig=""; last_start=0; utils=(); lastmin=0; lastdisk=0
 log(){ echo "$(date '+%F %T') $*" >> $D/events.log; }
 # a restarted guardian adopts nothing: clear filler servers a dead predecessor left (only ports 18350-18353, only llama-server)
 for p in $(pgrep -f "llama-server .*--port 1835[0-3] "); do kill $p 2>/dev/null; done; sleep 1
 killone(){ local p=${pids[-1]}; kill $p 2>/dev/null; for i in $(seq 1 20); do kill -0 $p 2>/dev/null || break; sleep 0.1; done; kill -9 $p 2>/dev/null
-  unset 'pids[-1]'; unset 'kinds[-1]'; log "instance ${#pids[@]} off ($1)"; [ ${#pids[@]} -eq 0 ] && mode=off; }
+  unset 'pids[-1]'; unset 'kinds[-1]'; unset 'ports[-1]'; log "instance ${#pids[@]} off ($1)"; [ ${#pids[@]} -eq 0 ] && mode=off; }
+killidx(){ # stop instance $1 only (a finished job), the others keep serving
+  local i=$1 p=${pids[$1]}; kill $p 2>/dev/null; for k in $(seq 1 20); do kill -0 $p 2>/dev/null || break; sleep 0.1; done; kill -9 $p 2>/dev/null
+  log "instance on ${ports[$i]} off ($2)"
+  pids=("${pids[@]:0:$i}" "${pids[@]:$((i+1))}"); kinds=("${kinds[@]:0:$i}" "${kinds[@]:$((i+1))}"); ports=("${ports[@]:0:$i}" "${ports[@]:$((i+1))}")
+  [ ${#pids[@]} -eq 0 ] && mode=off; }
 killall_(){ # all at once: TERM every instance, 1 s grace, then KILL (a runner server loading must not wait on us)
   [ ${#pids[@]} -gt 0 ] || return 0; kill ${pids[@]} 2>/dev/null
   for i in $(seq 1 10); do local alive=0; for p in ${pids[@]}; do kill -0 $p 2>/dev/null && alive=1; done; [ $alive -eq 0 ] && break; sleep 0.1; done
-  kill -9 ${pids[@]} 2>/dev/null; log "all ${#pids[@]} instances off ($1)"; pids=(); kinds=(); mode=off; }
+  kill -9 ${pids[@]} 2>/dev/null; log "all ${#pids[@]} instances off ($1)"; pids=(); kinds=(); ports=(); mode=off; }
 # ---- the work queue (owner 3 Oct: run the unfinished work by priority, 1 efficiency, 2 coding, 3 language; traces last)
 # queue.txt lines: '<prio> <model file> <tag> [<bytes> <sha256> <url>]'. A non-'traces' line is one job: served by at most one instance, driven
 # from the PC (guardian_queue.py), removed from the file when done (its instance is then stopped). 'traces' lines may fill any number of
@@ -65,15 +70,16 @@ prio(){ awk -v f="${1%%|*}" -v t="${1##*|}" '$2==f && $3==t {print $1; exit}' $D
 pcalive(){ [ -n "$(find $D/pc_heartbeat -mmin -5 2>/dev/null)" ]; }   # queued JOBS are driven from the PC: serve them only while it is alive
 
 start(){ # $1 = queue entry 'file|tag'; the port's tag file tells the pod drivers (feed.py: traces, coder.py: coding) which ports are theirs
-  local port=$((BASE+${#pids[@]})) m=$MODELS/${1%%|*}
+  local port m=$MODELS/${1%%|*}
+  for port in $BASE $((BASE+1)) $((BASE+2)) $((BASE+3)); do [[ " ${ports[*]} " == *" $port "* ]] || break; done
   echo "${1##*|}" > $D/port_$port.tag
   [ -f "$m" ] || { log "missing $m"; return; }
   nohup /opt/llama.cpp/llama-server -m $m --host 127.0.0.1 --port $port -ngl 99 -fa on $(srvargs ${1##*|}) -t 2 -tb 2 \
     --no-webui --metrics > $D/srv_$port.log 2>&1 &
-  local p=$!; pids+=($p); kinds+=($1); mode=on; last_start=$(date +%s)
+  local p=$!; pids+=($p); kinds+=($1); ports+=($port); mode=on; last_start=$(date +%s)
   for k in $(seq 1 120); do
     curl -sf -o /dev/null localhost:$port/health && { log "instance $((${#pids[@]}-1)) ($1) up on $port"; return; }
-    kill -0 $p 2>/dev/null || { log "instance ($1) died at start: $(tail -2 $D/srv_$port.log | tr '\n' ' ' | cut -c1-200)"; unset 'pids[-1]'; unset 'kinds[-1]'; return; }
+    kill -0 $p 2>/dev/null || { log "instance ($1) died at start: $(tail -2 $D/srv_$port.log | tr '\n' ' ' | cut -c1-200)"; unset 'pids[-1]'; unset 'kinds[-1]'; unset 'ports[-1]'; return; }
     sleep 0.5
   done
 }
@@ -141,7 +147,7 @@ while [ ! -f $D/STOP ]; do
   elif [ ${#pids[@]} -gt 0 ] && [ "${free:-0}" -lt $mf ]; then killone "free ${free} MiB"
   else
     # an instance whose queue job is finished (line removed) makes room for the next job
-    for i in "${!kinds[@]}"; do { inqueue "${kinds[$i]}" && { [ "${kinds[$i]##*|}" != effladder ] || pcalive; }; } || { if [ $i -eq $((${#pids[@]}-1)) ]; then killone "job ${kinds[$i]} done"; else killall_ "job ${kinds[$i]} done"; fi; break; }; done
+    for i in "${!kinds[@]}"; do { inqueue "${kinds[$i]}" && { [ "${kinds[$i]##*|}" != effladder ] || pcalive; }; } || { killidx $i "job ${kinds[$i]} done"; break; }; done
     # a job that outranks a running traces instance takes its place when it would fit in that instance's VRAM
     # a higher-priority item that would fit in the newest instance's VRAM takes its place (efficiency > coding > traces)
     if [ ${#pids[@]} -gt 0 ] && [ $((now-last_start)) -ge 4 ]; then
