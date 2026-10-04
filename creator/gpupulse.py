@@ -1139,21 +1139,61 @@ class PodLLM:
 
     def __init__(self, port: int, model: str, pulse: str) -> None:
         self.port, self.model, self.pulse = int(port), model, pulse
+        self._tls = threading.local()                     # one kept-alive connection per thread (h52: a new connection per request cost
+                                                          # ~1 s through the SSH tunnel; the pod answers a tiny chat in 0.27 s)
 
     def __enter__(self) -> "PodLLM":
         return self
 
     def __exit__(self, *exc: Any) -> None:
-        return None
+        self._drop()
+
+    def _drop(self) -> None:
+        c = getattr(self._tls, "conn", None)
+        self._tls.conn = None
+        if c is not None:
+            c.close()
+
+    def _post(self, path: str, body: bytes, timeout: float) -> bytes:
+        """POST on this thread's kept-alive connection; a connection the server closed while idle is reopened once (only a REUSED connection
+        is retried: a fresh one's error is the server's answer). HTTP errors raise urllib.error.HTTPError as urlopen did."""
+        import http.client
+        import io
+        for attempt in (0, 1):
+            conn = getattr(self._tls, "conn", None)
+            fresh = conn is None
+            if conn is None:
+                conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=timeout)
+                self._tls.conn = conn
+            conn.timeout = timeout
+            if conn.sock is not None:
+                conn.sock.settimeout(timeout)
+            try:
+                conn.request("POST", path, body=body, headers={"Content-Type": "application/json"})
+                r = conn.getresponse()
+                data = r.read()
+            except (http.client.RemoteDisconnected, http.client.CannotSendRequest, http.client.BadStatusLine, ConnectionResetError,
+                    ConnectionAbortedError, BrokenPipeError):
+                self._drop()
+                if fresh or attempt:
+                    raise
+                continue
+            except BaseException:
+                self._drop()
+                raise
+            if r.will_close:
+                self._drop()
+            if r.status >= 400:
+                raise urllib.error.HTTPError(f"http://127.0.0.1:{self.port}{path}", r.status, r.reason, r.headers, io.BytesIO(data))
+            return data
+        raise PulseError("unreachable")
 
     def request(self, messages: Sequence[Mapping[str, str]], max_tokens: int = 400, temperature: float = 0.2, seed: int = 0,
                 timeout: float = 300.0) -> dict[str, Any]:
         outbound_ok(messages)
         body = json.dumps({"messages": [dict(m) for m in messages], "max_tokens": max_tokens, "temperature": temperature, "seed": seed}).encode()
-        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            d = json.loads(r.read())
+        d = json.loads(self._post("/v1/chat/completions", body, timeout))
         return {"text": str(d["choices"][0]["message"].get("content") or ""), "tokens": int((d.get("usage") or {}).get("completion_tokens") or 0),
                 "seconds": time.monotonic() - t0}
 

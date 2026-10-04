@@ -625,3 +625,52 @@ def test_generate_stream_is_generate_in_pieces(tmp_path: Path) -> None:
     assert dump(parts[0]) == dump(whole) and R.order(parts[0]) == R.order(whole)
     cold = list(R.generate_stream(src, st, cache=tmp_path / "qc2"))
     assert cold[0] == [] and dump([q for p in cold for q in p]) == dump(whole)
+
+
+# ------------------------------------------------------------------------------------------------ kept-alive connections (h52, 3 Oct 2026)
+def test_podllm_keeps_one_connection_per_thread_and_reconnects(fake_server: int) -> None:
+    import http.server
+    import urllib.error
+    conns: list[Any] = []
+
+    class KeepAlive(FAKE.Handler):
+        protocol_version = "HTTP/1.1"
+
+        def setup(self) -> None:
+            super().setup()
+            conns.append(self.connection)
+
+        def do_POST(self) -> None:
+            if "boom" in self.headers.get("X-Test", "") or self.headers.get("Content-Length") == "0":
+                self._send(500, b"{}")
+                return
+            super().do_POST()
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), KeepAlive)
+    srv.daemon_threads = True
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        llm = GP.PodLLM(srv.server_address[1], GP.M8, "P6")
+        q = [{"role": "user", "content": "What is 17 + 25? Reply with only the number."}]
+        for _ in range(5):
+            r = llm.request(q, max_tokens=8)
+            assert r["text"] == "42" and r["tokens"] == 8 and r["seconds"] >= 0
+        assert len(conns) == 1                                                    # five requests, one connection
+        conns[0].shutdown(2)                                                      # the server drops the idle connection
+        assert llm.chat(q, max_tokens=8) == "42" and len(conns) == 2               # reopened once, same answer
+        out: list[str] = []
+        ts = [threading.Thread(target=lambda: out.append(llm.chat(q, max_tokens=8))) for _ in range(3)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        assert out == ["42"] * 3 and len(conns) == 5                              # one connection per thread
+        n = len(FAKE.STATE["requests"])
+        with pytest.raises(GP.PulseError):                                        # the private-marker guard still runs before any send
+            llm.request([{"role": "user", "content": "Masterstock notes"}])
+        assert len(FAKE.STATE["requests"]) == n and len(conns) == 5
+        with pytest.raises(urllib.error.HTTPError) as e:                          # an HTTP error is still an HTTPError (as with urlopen)
+            llm._post("/v1/chat/completions", b"", 10.0)
+        assert e.value.code == 500
+        assert llm.chat(q, max_tokens=8) == "42"                                  # and the connection still works afterwards
+    finally:
+        srv.shutdown()
