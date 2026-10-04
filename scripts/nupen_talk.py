@@ -38,12 +38,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--eval", action="store_true", help="run the held-out conversation eval and exit")
     ap.add_argument("--eval-layers", default="", help="comma list for --eval, e.g. 1,1.7b,4b (default: 1 and --model)")
     ap.add_argument("--eval-limit", type=int, default=0, help="--eval: only the first N questions")
+    ap.add_argument("--eval-every", type=int, default=1, help="--eval: every k-th question (a spread sample for a slow voice)")
     a = ap.parse_args(argv)
     root = Path(a.root)
     if a.eval:
         from creator import talkeval as TE
         layers = [x.strip() for x in (a.eval_layers or f"1,{a.model}").split(",") if x.strip()]
-        rep = TE.run(root, layers, limit=a.eval_limit, ctx=a.ctx, servers=a.servers or None, route=a.route)
+        rep = TE.run(root, layers, limit=a.eval_limit, every=a.eval_every, ctx=a.ctx, servers=a.servers or None, route=a.route)
         print(TE.table(rep))
         print(f"report: {rep['file']}")
         return 0

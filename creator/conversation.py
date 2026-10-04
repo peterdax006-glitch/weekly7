@@ -14,6 +14,7 @@ Owner-affecting actions (pause, resume, approve) always need a confirmation turn
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import dataclasses
 import datetime as dt
 import json
@@ -271,13 +272,46 @@ def h_lessons(c: Ctx, s: dict[str, Any]) -> Facts:
     try:
         from creator import shadow as SH
         pol = SH.read_policy(c.state)
-        st = SH.stats(c.state, les)
-        lines.append(f"Chooser shadow: policy {'chooser' if pol else 'default'}, {st['n']} real decisions (rule needs 30), "
-                     f"chooser accuracy {st['chooser_acc']} vs default {st['default_acc']}.")
+        st, age = _shadow_stats(c, les, re.search(r"chooser|shadow", str(s.get("question", "")), re.I) is not None)
+        if st is None:
+            lines.append(f"Chooser shadow: policy {'chooser' if pol else 'default'}; its accuracy is not measured yet "
+                         "(ask about the chooser to measure it - about a minute).")
+        else:
+            lines.append(f"Chooser shadow: policy {'chooser' if pol else 'default'}, {st['n']} real decisions (rule needs 30), "
+                         f"chooser accuracy {st['chooser_acc']} vs default {st['default_acc']}" + (f" (measured {_ago(age)}, before the newest lessons)."
+                                                                                                 if age is not None else "."))
         ev.append("state/creator/chooser.json")
     except Exception as e:  # noqa: BLE001 - an optional section never kills the answer
         lines.append(f"Chooser shadow status unavailable ({type(e).__name__}).")
     return Facts("lessons", lines, ev)
+
+
+def _shadow_stats(c: Ctx, les: list[CUR.Lesson], measure: bool) -> tuple[Optional[dict[str, Any]], Optional[float]]:
+    """shadow.stats is a leave-one-out refit over every adopted decision (measured 3 Oct: 75-125 s on the busy home PC - the slowest answer
+    in the talk eval). Cached under the runtime dir by the lessons + shadow files' signature: (stats, None) when fresh; (stats, age in s)
+    when only an older measurement exists and `measure` is off; (None, None) when nothing was measured and `measure` is off."""
+    from creator import device as DEV
+    from creator import shadow as SH
+    sig = []
+    for f in ("lessons.jsonl", "shadow_choices.jsonl"):
+        try:
+            stt = (c.state / f).stat()
+            sig.append(f"{stt.st_size}:{stt.st_mtime_ns}")
+        except OSError:
+            sig.append("-")
+    cf = Path(DEV.runtime_dir()) / "talk" / f"shadow_stats_{hashlib.sha1(str(c.state.resolve()).encode()).hexdigest()[:10]}.json"
+    old = _json(cf)
+    if old.get("sig") == sig and isinstance(old.get("stats"), dict):
+        return old["stats"], None
+    if not measure:
+        return (old["stats"], _age_s(cf, c.now)) if isinstance(old.get("stats"), dict) else (None, None)
+    st = SH.stats(c.state, les)
+    try:
+        cf.parent.mkdir(parents=True, exist_ok=True)
+        cf.write_text(json.dumps({"sig": sig, "stats": st}, default=str), encoding="utf-8")
+    except OSError:
+        pass
+    return st, None
 
 
 def h_goals(c: Ctx, s: dict[str, Any]) -> Facts:
@@ -558,6 +592,7 @@ class Conversation:
             if self.waiting is not None:
                 self.waiting = None
             parsed = self.understand.parse(text)
+            parsed.slots.setdefault("question", text)
             handler = self.handlers.get(parsed.intent) or (INTENT_BY_NAME[parsed.intent].handler if parsed.intent in INTENT_BY_NAME else h_unknown)
             try:
                 facts = handler(c, parsed.slots)
