@@ -82,6 +82,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--out", default="")
     ap.add_argument("--suite", nargs="*", default=None, help="protected suite override (default: codetrust.PROTECTED_SUITE)")
     ap.add_argument("--test-timeout", type=float, default=1800.0)
+    ap.add_argument("--affected-only", action="store_true", help="skip the full protected suite on passing attempts (dry runs only)")
     ap.add_argument("--n-recent", type=int, default=300)
     ap.add_argument("--min-n", type=int, default=CT.MIN_N)
     ap.add_argument("--min-lower", type=float, default=CT.MIN_LOWER)
@@ -115,7 +116,7 @@ def main(argv: list[str]) -> int:
         return 0
     from creator import gpuday as GD
     GD._idle_priority()
-    repo = GD.harness_clone(Path(a.repo).expanduser(), Path(a.source).expanduser())
+    repo = CT.eval_clone(Path(a.repo).expanduser(), Path(a.source).expanduser())
     tasks = _tasks(a)
     agent: CT.Agent
     url = tunnel_url(a.tunnel) if a.tunnel else a.url
@@ -134,7 +135,8 @@ def main(argv: list[str]) -> int:
     if a.name:
         agent.name = a.name
     out = Path(a.out).expanduser() if a.out else RUNTIME / CT.slug(agent.name)
-    run = CT.Runner(repo, out, suite=tuple(a.suite) if a.suite is not None else CT.PROTECTED_SUITE, test_timeout=a.test_timeout)
+    run = CT.Runner(repo, out, suite=tuple(a.suite) if a.suite is not None else CT.PROTECTED_SUITE, test_timeout=a.test_timeout,
+                    full_suite=not a.affected_only, cache=RUNTIME / "validation")
     run.run(tasks, agent)
     recs = CT._jsonl(out / f"results-{CT.slug(agent.name)}.jsonl")
     rep = _write_report(out, recs, agent.describe(), g)

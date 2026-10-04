@@ -201,7 +201,10 @@ def test_reference_passes_and_doing_nothing_fails(repo: Path, tmp_path: Path) ->
     assert all(ref[c]["passed"] for c in ("bugfix", "tests_only", "docs")), ref
     assert ref["bugfix"]["confidence"] == 0.9 and not ref["bugfix"]["regressions"]
     val = run.validate(next(t for t in tasks if t.cls == "bugfix"))
-    assert val["fail_to_pass"] == ["tests/test_mathx.py::test_mul"] and "tests/test_guard.py::test_guard_add" in val["protected_ok"]
+    assert val["fail_to_pass"] == ["tests/test_mathx.py::test_mul"]
+    fix = next(t for t in tasks if t.cls == "bugfix")
+    assert run.reference_protected(fix, ["tests/test_guard.py"]) == {"tests/test_guard.py": ["tests/test_guard.py::test_guard_add"]}
+    assert ref["bugfix"]["protected_tier"] == "full" and ref["bugfix"]["protected_files"] == ["tests/test_guard.py"]
     null = {r["cls"]: r for r in run.run(tasks, CT.StubAgent("null"))}
     assert not any(r["passed"] for r in null.values()), null
     rep = CT.report(CT._jsonl(tmp_path / "out" / "results-stub-reference.jsonl"))

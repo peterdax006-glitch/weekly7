@@ -1,0 +1,4228 @@
+{
+ "version": 1,
+ "frozen_utc": "2026-10-04T00:23:53+00:00",
+ "head": "543d9315493c7b6511358de4aadca5fd54133080",
+ "cut_ts": 1790891910.0,
+ "cut_utc": "2026-10-01T21:58:30+00:00",
+ "rule": "TRAINING DATA EXCLUSION (coding trust gate v1): no training row may derive from anything at or after 2026-10-01T21:58:30+00:00 (unix 1790891910): no commit with committer time >= the cut (its message, diff or resulting files), no work package / handoff / lesson created or resolved at or after it, no file content read from a tree at or after it, and no commit listed in held_out_commits. A training export's train side must have max(ts) < the cut (time_split cut <= this cut).",
+ "held_out_commits": [
+  "034a4126317e979e28022844bc8109fc954a6af6",
+  "04376ba3086e18e40777075d23c0fc86a7562c7d",
+  "0597b3ba92daeb4a5e8a32e9c64c5d538f9dd456",
+  "05ef257f92deacc1475cd45cb6a8d0cd40e2d24b",
+  "073133cecf1a242c691362ca0c516bcc2eeafc0b",
+  "07924e83d7feee02ce450d2a025ae665c9e6f623",
+  "079a1320e887925d403e132af2272a133ee00533",
+  "07d2ce1bed69a72b655eedbb507f6853950e516f",
+  "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+  "0bcc3d8991819b8559744ab3f33a1d5423a92af5",
+  "0c1c2ad16e8cbd5979297d90c34523258d65600b",
+  "0da3c8f12c1559feb5a973f883fe5a0caa9ebe9a",
+  "0e2c3d2cc150c15fba9f5b3854fa3f2269ccd9fd",
+  "0e4b9c23602b284932992d350d13a71a6201bd29",
+  "0f37ec0070dba596fe5f574431bb73e326c7054f",
+  "1160986a6db547a5860bcbdfeabf6c0f39340b7a",
+  "12b9040baec2a6cc9bb9dacd00aa3baa8e0cacbe",
+  "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+  "178e22c700e5aa2d997d3dd43ed4803ce923e3ef",
+  "17ca2842d88ae4777d2ecac9a1976e380efdfd35",
+  "17e99a188405f9b12d4bd32f212186faaee962e2",
+  "1ba1822b4198f019f2d7a63da243c0b1f12273eb",
+  "1be10895d811ae8d161a4323c174ee0d868594be",
+  "1c50d3afa45e4f60d6a7717867a34a0b9db937ad",
+  "1dc25b8bdf57a43ef9185b6d25ba2b8de8ff9b85",
+  "1ddc37fd703512e2f0caaf983738c167d04d6c14",
+  "20a826b4eb086a67da7f3bc277e942d0d25add6f",
+  "21563a17d535ded372d517f5be6b5eaf42341507",
+  "22b675fe4a2e759632e3a3e94374e4a3cb48592f",
+  "22bb2f7d4a7c63562280a39a6777f5d488f0300c",
+  "230796130f3afc21358638a8e7579ca8b223b884",
+  "233bd2e93263aaf0cb13caa1cf39370e5fd3d7e1",
+  "2458567d585672a2dc4a2656c72653e7c702b80d",
+  "247edba3c3c55802d1afccfe2bc587e9c13b69cf",
+  "24e4b91e66397e06d8017531a0d686dd7c6b78a0",
+  "29d3395d0b4d0af73531d6be5c7b2055772899ef",
+  "29e4461a0b3a53a712ca1e544cd7d39c1f57d5fb",
+  "29f8d3c37f054e46da60414fd60e9aa1eda45bfe",
+  "2a69dd10cbebc8d284859a6d0ded5d4d32f0f01a",
+  "2aca129e205f44796f503c8cb8006e543df17b9a",
+  "2be1fe5aee156859f5860722e992d4c50c3e73d1",
+  "2fc4701776d5595fe3a82cbbeb6ab67f09483f85",
+  "343582429f1f249a0c2160b89e40c53d3136bc4c",
+  "3522f87220fba4474b4949507a3dfc78948c3162",
+  "3769abffeb84084df5df5257eb8fc4a6a47cf374",
+  "37c85581ddbd0330baa62ad155403b5dfd00641c",
+  "38c89b9a46e79b6dba1f787f6150566249eec245",
+  "3a8f4ab0ca64066c7eded66547dc6ddbc082a55f",
+  "3b26f18294afe50d05da8faf5dadefe5595cb8f1",
+  "3b563b5fe17c65e16987fe0d27db41e893da28b3",
+  "3e661ca1d429303edbc2edd95c739bc3acbde2e8",
+  "3e8ebe36a8c98023c119bf1676b06d994b20c179",
+  "41decd5069deb8174db8bfbedc871b616d1b67cb",
+  "44e6f5edb5620c07b4ce88680837f7ed06ea8cf4",
+  "456385c9cc11031aed607f4c3f15f1543b6ec8c6",
+  "45ff04779a031ad0b8374ecca82d1546a2d2be48",
+  "48e00e866a3983023c8ec3aa7c665a86a8b66717",
+  "48e9e016873d1386c3252988e93499df45c0ca1f",
+  "4a06cb27f99c8386a80b342b59aa3191746b3e59",
+  "4cec15868208718297fd31db13e1185f69cb190e",
+  "4d64e89f2aac31475d3f13a5689c9c7a71a0d526",
+  "4df30f1edb60012e65c6cb049678b0cad9d1336d",
+  "4e358026bae18ce4b204e3b7914277ba1506a78b",
+  "4e87aa26a46df9dc93f0b2603e0fa4c279a406e6",
+  "4e956b8cd6934e6521599821aece6174eff63dbd",
+  "5042356fc76a54af7a67003ea47fa636e02218b1",
+  "5114bdcecfea5413eb089d3e7abc6bd3eee413d3",
+  "51631a86ee6c81e8e99e387eb45c5751c5fead30",
+  "52b219333791f18c7b9397ec74e37c3891ef3716",
+  "53d7e63e4c536f251e5d8e74ecd923f2977f225f",
+  "53e19ac42fafcedbb804a8ae9ed0f2ea8eb78662",
+  "543d9315493c7b6511358de4aadca5fd54133080",
+  "5472a7ba22d36ae5d954b1aca0776b12d6e3968f",
+  "5514e5bac1893044d4168909cd06a01d17ca1224",
+  "554f9e8a4299ac20e3af429fbccf177c6079e53b",
+  "56f0b0e94d6a79c850468a352947bd74b25760f3",
+  "57d9803e3389273710f02b321f32473e572647cb",
+  "58c31cdcc96e87a082e7b1258f1ac8b7e410a0e9",
+  "599664c8da8f954df1b4c5db28674c988c064791",
+  "59d0ec5dc57769c71aa22c37c898b00953d95cb8",
+  "59d66cfa7df2078a5168a29fc82e30af74955d3e",
+  "5b2eece6e6c111662a26659c48ac74e82e461285",
+  "5bb0e1095815009bbaa937d6374a72f6305d3880",
+  "5c2f69d928f692cfe98dcfb182c3772d72e1dad9",
+  "5c4e29704d6480a80fb477be1ce46b75556452ee",
+  "5c9efcae6ed0bb66070fdebbc33cf6f8d105754a",
+  "5ce2d0e1509b3ece7142639cb5ed8d1327ad212a",
+  "5d6a257aa68cba2d65e176c775b2c2d3ebe84434",
+  "5d6a9239ef53c88413ba61452731ee89d3ad1c4a",
+  "5dd55c2e1581953017a9bcc9c019a7b30de454d4",
+  "5fe7e57e245ea390fad7bb25da80742e943aadb3",
+  "609566c20cdb909f6db09f24c296dc39069d7287",
+  "61b9c8d2b30ccddea8bf296aa11f87bd55870ca7",
+  "61e6eebf067321c8ae2fda527c8c7a1ecbbec1d7",
+  "638eb381f54d766609fa9e9aa1b4853bcd463870",
+  "6625248fa5653754e4d22a33138445991a2dca79",
+  "66d0ef93c15622254fad5229dda0e45ef7dcf0fd",
+  "6b54017c4f77541dcd0f91011311828d4bcabc89",
+  "6cb26f8b81cf4a7672a90fcf19c507d9e27f5aa2",
+  "702b9f2afc32eeddb0fd06030a276203dbe4bc79",
+  "706a261bdeb76f8c56caa9ee10a3037b91403085",
+  "7073147c122c25ef99b64b0ae7a363ebe5cae8bf",
+  "7176f2063379612f99c809863b5d12909ffc219d",
+  "71c18e7362e9e9f0484aad606431320e978261c7",
+  "726e56f6206339c798fba1a2b3e285458f2afa54",
+  "73402a48bf44c057b2ef00e4d9db2c5ed3acb063",
+  "7365a5e4d36d946ff2ec012e93c984bbe979f5a6",
+  "7490562866e181c6a1a482b1a715e92a7e22d704",
+  "75a030f9125aab1cf0e1834e7126829356cdf457",
+  "774ebb16782a843dbcef054fb50e3121e7244055",
+  "77563e5e71776e6e996bcd6c5d689ca307c9fbd6",
+  "7ba8e7e94c2c7841f1cce071bd292db7a42d8760",
+  "7be67da2ee50523465ac3270d1b9e3844e4293cd",
+  "7cf4528569d626ac29eeffb974b9ca8e2f560ffa",
+  "7e31a4add61fbe9d405d7a8311ccb65ced484b24",
+  "7eac657ec0522398bbf9f2febd89c9f8d0a0b74f",
+  "7ef0a408e40b60fdbe451467eb032677ee1d33f8",
+  "806769a145f23fdf1972f04044e9d451a93e7278",
+  "8098cce030f6020013d8fe738f31833ebdd5b50d",
+  "81e244e5415e13b5e6c0ad1692598444d4c29a18",
+  "832dd7facf311367026b02952ffa8e32fc2a07f4",
+  "83c33dc234e438e5159b1e5009282c2e447e7b09",
+  "845e515c43f9db3f2037ce7b9fe7d91d011f5f3e",
+  "84bd3ec214e4928d28c0571169f529c7b9f89bb8",
+  "86708ad3befb431a0ae7b8e599a52d27633b0d91",
+  "86b0e15ad8fab7315cde06fa33a5f45c79a82e58",
+  "89a594892c0f3ced932e521df9e6890790cc0f82",
+  "8c1ea02ab4f855f2f88289536d28e4f55f451c68",
+  "900d2cea100cfb68690716a98366a510f0722ecf",
+  "9203bb86529727bccf6612284bf16b77ed5fcd83",
+  "92beba0ecb11434a19fdc81f389c119811404cef",
+  "92d6df2b373374435d4cb8bf606ca18025cef73e",
+  "93663439eebbe98a55146beaf3c8e65445913052",
+  "941ccd618354137968c00082d899430fd792a69f",
+  "95ddb791fef806cf0c7768fecd166d9eddabb17c",
+  "9675477ff4f94f9400fba2c67e37c6e797acc8c4",
+  "96d7d23beac85ccc0ab3628b922a2dac5bd94991",
+  "996d0bf50de225871ec60324487c96a44dfefbd8",
+  "9994d458535e323118c8d334dd6cd068f3655bc7",
+  "9a085b89eb60c1767c54d4f60df18e2c82339de4",
+  "9a38a48b2416781d85c8f8a3a2906eb9bce3d60d",
+  "9a725c72d89160e82bf47ca29f0e0d83e05fca9a",
+  "9ce7f7051c6df3a247a340db12c4994fb06e01d8",
+  "9e53f96474a8c3e10dc8e2f889221cd94844a989",
+  "9e97f90edf2fbb17f7a5627c6a14779b59354966",
+  "9e9efb484f174673708e8483dd7138bf954e2fff",
+  "9eca17f640aadd0f535220c774754b7c34d1dcef",
+  "9ee2064989bf280d888781b7024a906e130f260b",
+  "9f65377280b89f12090fcbd21833c3fa1d00a46b",
+  "9fc72fc90d993972240bb22b60805997d4b313a3",
+  "a1d288b58d3a4f7f164ae6cc35da47b3edadb179",
+  "a22077ea3adfb4aece0fe02e6ee8ddf55c158901",
+  "a2bdd7a2e659fe62f5f97f1a6e2b697c3602ccf3",
+  "a411669422ab69f6ac10cf1ebe168bb372ec763f",
+  "a949c02ae6cdff72f379e78d64670098f89e0829",
+  "abbc5b6ed4971437ee866cd93f99e6e84b6cbb13",
+  "adaf78c09b743832f59f8d4d424b53b11a216bf5",
+  "add11809408a8ff06decc91d4539c846f5008c51",
+  "ae20663b2512215379858d12605038af67ccfdb1",
+  "ae4e5289d3df9367bc6e4154e547089d8c34448d",
+  "ae54d1feb10216d9d1a5a78fcd50809b9b8448cd",
+  "aea95da4d047c5b765662f9d470db2cc63771e7e",
+  "af79a0e429f3438ea5f3d166bbca507fb19d3467",
+  "b093ad2f00cd71d41d8ca424c637bb2c08bf0140",
+  "b137a54c017ffb6102b24b7e40bdfe12171db614",
+  "b17febe64cbbef8137b740c4dd35462bbdd75c0e",
+  "b1df87913ed3a69ce0b24809a5a065f47885f079",
+  "b3e055d4ca993e8b6df7ccf4728907930b6ce89c",
+  "b43fa706919ecb3580c0ce3f07e6e3a6679fb933",
+  "b4f584e0f8071da671d1def911108091ab0f1809",
+  "b7621e672d96f3f661c5953bf385ee4c7c68d9ba",
+  "b7bf7dc80bddd866bfff06a5e9f70628bf1ff7c4",
+  "b888b807a0689f8a12a158eeb720fed239b82130",
+  "b8fd0415c2fdeb9dac6c5e89a4a86e9c671d7718",
+  "b91bca568c74f8af84941164b36123d62351c761",
+  "ba05a67c0de20305154e2d4179b4e14540ca10b9",
+  "ba87c315b5f321ea2f065c73ccebb5bb44f4c347",
+  "bac9957d95d05201aecfa3928b5f198d5e0b3514",
+  "bb961eb078ad708ad6a662bf11793f9578ee49fc",
+  "bbe58a3f32461b4872d4f79861359973367ea2f5",
+  "bc68b352792d3dbeac2bc4dfaf813f1ed1252a20",
+  "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+  "bd26ec63973c7f718f2523a035b11b6094ef34fd",
+  "befdff8127364c64e3f95ad0e5b58aec80f0e4b3",
+  "c1fc2a71bff0214086b6743e2fd182d390ae5c36",
+  "c2b225306b530ddabb7475d08f8321eda528d9d8",
+  "c3f6da884c90ea0d4d336091a134a3196d4f3bfe",
+  "c46ad9e3df464a57f7833e6a013793b2cc668daa",
+  "c4a3bce426a919ec0eb98e4b09f1a0a017ffe138",
+  "c4f95eae5623d0ef71cd175a429eca14fcea469e",
+  "c53f82c001b66273821471d6818351e4b3513ee4",
+  "c92196a9e41f21d5413528b1fdf8805079629baa",
+  "cc18052033fa79ec65559e19b49673730f4c7a84",
+  "ce7e933d9d23b202b7ad6afd0b6b65cc523ab06e",
+  "cec38f401868cfceb551189005ca90d7d5459d62",
+  "cfa94fa03a9f37228d416171788f2dde04434e1a",
+  "d046bee991b86c95d059f14acd33e13e96280547",
+  "d053fdf5d6ee5d2c7ebec35422904721e83177a4",
+  "d068c5d07c85974fbffa58618eb576ca8cece289",
+  "d279e64c509e39ec8ec855fa3dad83c74e6165f4",
+  "d66e4586326d49fd1550bf44c9d186d50a00161e",
+  "d79bf1547a68db5c35702ce5bad454cb19e3fac8",
+  "d8135e43c8f8a58a25c045b8d92e99586d955918",
+  "d89c76fd2af76b696dc9c2bbec4013fe54107eeb",
+  "da094204861b9f0c2b38f8da9e5c42487a65ece0",
+  "db2e41032353310c8cdcd9c3dc6e745f198dcfcd",
+  "dc40a76e19b80641da9362dae1819eae9695f30f",
+  "dc895514e5641517b54e5d1bd3b28d8a1ca42d60",
+  "dd590897f5b8a29c3feef0a38e4ae57871590262",
+  "dd939e678704befda28050663c24eb904056a14a",
+  "ddda49a487b572ffc1567a6d81857507a50989a5",
+  "de28fe3092f7218c4af886f5dba743905311f2d1",
+  "deaefa2d03f7fb60b3fb9d2397058e4efd44de2b",
+  "dee8af7e6d1e51f4436e2658a5e4abbedb8c28ee",
+  "df1c07439e5dd5dd7a2b957608f62a8296e3e9ff",
+  "df49040391bcd5afe544da3311b5d149fafc0466",
+  "e004299beca49aa4935d216d42dd5d01dfdb066a",
+  "e16d9cbb8913e949e619da1086005aff4f39424c",
+  "e1916e7a0aac41e661090675976a5bda72950feb",
+  "e253c8570acf5e43599142b7816735dfce410622",
+  "e38327825d4e269cd0061cb43f4510be04407404",
+  "e3d8b1150fb865cbd7fd42229c7b361e6f753186",
+  "e605bd13de38881a72f9a809c5f97580e3eaa89c",
+  "e84f154fd483ce2365320df4d2c2cbcd1c193a94",
+  "e850bf9481226ccc56100a095d6810af4f719715",
+  "e943e45e04e08ae4dfb12ae75d0e0cc4f41a05ba",
+  "e99941f8457082ba23fb5fd846e228c2b7ad45d5",
+  "ea3819b61eca063f62bd2c99941eed99b76a402d",
+  "ebd5d0666ddbb81585a5718796550b59fb9de45e",
+  "ebf2ede6363a18507ee7917573c4eb1ed0cb1e47",
+  "ec6f387809a48f380367f763359867e5677eff25",
+  "edaca3fd3c743114ab2aa06da6c6bd0c40d7491f",
+  "edd2e9aff9a719106d182b392426c670a5f29ba8",
+  "edf4f6abbb0198366fbf894a114f885511585b18",
+  "ee6baf0b275f3e5367484d69fdec9dadb1df1006",
+  "eef4e8b158889660f1f6a5e71950ed68c05d2bb6",
+  "ef1c511c33df80eb8a35c8e7b58c30a3fffc7a0d",
+  "f005cea91b9a4b77a8545b7ada5b37f012771db0",
+  "f12cb76d30b7b841ae18acae5bb908c5744ec634",
+  "f22cb9510940c2982dd8004f6a3fbfe4cc652f71",
+  "f2e4f8c99ad0498e712933fdc533f40105e1ba81",
+  "f2e51654811c2a694ba0621f2a57d7e9f20ed93f",
+  "f808c8efd4237d254620fe990f68e393eeed872e",
+  "f834562fbe6657df467e01b096ef3e8683ef0925",
+  "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+  "fc23731b9841d2fcb971bbe5eb19aad809455f4f",
+  "fcf01953f605ca123cee69859924d8303301ad73",
+  "fd2fda387bb24f28d36c74d01b44bb3510e06708",
+  "fd657c25ab5f9332c2723a71a596ca65b7e36f48",
+  "fea1b086c4384f378e0361bd36a5d236e1c0afda"
+ ],
+ "skipped": {
+  "private text": 3,
+  "work in progress (no finished specification)": 5,
+  "no code or docs change": 30,
+  "too large for one task": 15,
+  "automated commit": 20
+ },
+ "by_class": {
+  "tests_only": 9,
+  "docs": 0,
+  "refactor": 0,
+  "bugfix": 10,
+  "feature": 106,
+  "measuring": 52
+ },
+ "tasks": [
+  {
+   "id": "ct-230796130f3a",
+   "sha": "230796130f3afc21358638a8e7579ca8b223b884",
+   "base": "01d8df83bd51f08f31b8ccee598118949dba3e53",
+   "ts": 1790891910.0,
+   "cls": "feature",
+   "task": "scripts/self_search_holdout.py: measure the own search worker on the sealed holdout (frozen config; targeted vs generic mutations)",
+   "files": {
+    "scripts/self_search_holdout.py": 53
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/self_search_holdout.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-07d2ce1bed69",
+   "sha": "07d2ce1bed69a72b655eedbb507f6853950e516f",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790892769.0,
+   "cls": "feature",
+   "task": "Search worker: rank visible-passing mutants by behavioural divergence from the original (anti-overfitting), flag rank=",
+   "files": {
+    "creator/generator.py": 85,
+    "scripts/self_search_bench.py": 78,
+    "tests/test_creator_generator.py": 33
+   },
+   "test_files": [
+    "tests/test_creator_generator.py"
+   ],
+   "code_files": [
+    "creator/generator.py",
+    "scripts/self_search_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-554f9e8a4299",
+   "sha": "554f9e8a4299ac20e3af429fbccf177c6079e53b",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790892860.0,
+   "cls": "feature",
+   "task": "Creator K20b: recursion on real levers (search budget, breadth, pair width, retries), dev-only workload, process read by swarm make_worker, creator_recurse.py",
+   "files": {
+    "creator/generator.py": 9,
+    "creator/process_levers.py": 144,
+    "creator/recursion.py": 6,
+    "scripts/creator_recurse.py": 63,
+    "scripts/creator_swarm.py": 11,
+    "tests/test_creator_process_levers.py": 108
+   },
+   "test_files": [
+    "tests/test_creator_process_levers.py"
+   ],
+   "code_files": [
+    "creator/generator.py",
+    "creator/process_levers.py",
+    "creator/recursion.py",
+    "scripts/creator_recurse.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-58c31cdcc96e",
+   "sha": "58c31cdcc96e87a082e7b1258f1ac8b7e410a0e9",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790893320.0,
+   "cls": "measuring",
+   "task": "Wire flaky re-runs into Sandbox.evaluate; kernel affected_tests_pass guard excludes FLAKY cases",
+   "files": {
+    "creator/kernel.py": 19,
+    "creator/sandbox.py": 13,
+    "tests/test_creator_flaky_rerun.py": 89
+   },
+   "test_files": [
+    "tests/test_creator_flaky_rerun.py"
+   ],
+   "code_files": [
+    "creator/kernel.py",
+    "creator/sandbox.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-fea1b086c438",
+   "sha": "fea1b086c4384f378e0361bd36a5d236e1c0afda",
+   "base": "07d2ce1bed69a72b655eedbb507f6853950e516f",
+   "ts": 1790893568.0,
+   "cls": "feature",
+   "task": "Search ranking: probe inputs harvested from the visible tests and their perturbations",
+   "files": {
+    "creator/generator.py": 38,
+    "scripts/self_search_bench.py": 78
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/generator.py",
+    "scripts/self_search_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b43fa706919e",
+   "sha": "b43fa706919ecb3580c0ce3f07e6e3a6679fb933",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790893737.0,
+   "cls": "measuring",
+   "task": "Creator throughput: cached provenance (tree hash + git state), content-keyed import-graph and component caches\n\nLedger append provenance 1.17 s -> 0.19 s under load; values byte-identical to the uncached computation (tests added).",
+   "files": {
+    "creator/ledger.py": 131,
+    "creator/selfmodel.py": 12,
+    "creator/testrun.py": 24,
+    "tests/test_creator_ledger.py": 85,
+    "tests/test_creator_speed.py": 42
+   },
+   "test_files": [
+    "tests/test_creator_ledger.py",
+    "tests/test_creator_speed.py"
+   ],
+   "code_files": [
+    "creator/ledger.py",
+    "creator/selfmodel.py",
+    "creator/testrun.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0e2c3d2cc150",
+   "sha": "0e2c3d2cc150c15fba9f5b3854fa3f2269ccd9fd",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790893751.0,
+   "cls": "measuring",
+   "task": "Creator K19: deterministic program-synthesis solver (self-synth): docstring-gated idioms + bottom-up enumeration",
+   "files": {
+    "creator/synth.py": 358,
+    "pyproject.toml": 2,
+    "tests/test_synth.py": 52
+   },
+   "test_files": [
+    "tests/test_synth.py"
+   ],
+   "code_files": [
+    "creator/synth.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-996d0bf50de2",
+   "sha": "996d0bf50de225871ec60324487c96a44dfefbd8",
+   "base": "4f6ded9fe93e981beb74f3ff8604011cfe97bf9c",
+   "ts": 1790894192.0,
+   "cls": "feature",
+   "task": "generator: ranking never exceeds the search budget (test_search_repairs_an_off_by_one caught 63 > 60); holdout script gains a synth mode\n\nSynth holdout (feature, 11 tasks): 1 SOLVED, 4 FALSE_COMPLETION - the dev 20/22 was overfit to the dev docstrings.",
+   "files": {
+    "creator/generator.py": 5,
+    "scripts/self_search_holdout.py": 17
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/generator.py",
+    "scripts/self_search_holdout.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-1c50d3afa45e",
+   "sha": "1c50d3afa45e4f60d6a7717867a34a0b9db937ad",
+   "base": "230796130f3afc21358638a8e7579ca8b223b884",
+   "ts": 1790894585.0,
+   "cls": "bugfix",
+   "task": "Independent validation report (K01-K26) plus two fixes with regression tests\n\nagents.run_agent: non-object JSON CLI output no longer crashes.\nobjective.compile_capabilities: build-order dependency K10->K15 no longer dropped.",
+   "files": {
+    "creator/agents.py": 2,
+    "creator/objective.py": 22,
+    "tests/test_creator_validator_regressions.py": 36
+   },
+   "test_files": [
+    "tests/test_creator_validator_regressions.py"
+   ],
+   "code_files": [
+    "creator/agents.py",
+    "creator/objective.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-df1c07439e5d",
+   "sha": "df1c07439e5dd5dd7a2b957608f62a8296e3e9ff",
+   "base": "19a06898293ed2c2111937d5c862600bab12b219",
+   "ts": 1790895228.0,
+   "cls": "measuring",
+   "task": "Creator student: LessonStudent learns AST rewrite templates from adopted lessons (no model)",
+   "files": {
+    "creator/student.py": 412,
+    "pyproject.toml": 2,
+    "tests/test_creator_student.py": 75
+   },
+   "test_files": [
+    "tests/test_creator_student.py"
+   ],
+   "code_files": [
+    "creator/student.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-38c89b9a46e7",
+   "sha": "38c89b9a46e79b6dba1f787f6150566249eec245",
+   "base": "19a06898293ed2c2111937d5c862600bab12b219",
+   "ts": 1790895493.0,
+   "cls": "measuring",
+   "task": "Curriculum: handoffs become lessons; students try before Claude; scoring and handover routing",
+   "files": {
+    "creator/curriculum.py": 277,
+    "creator/kernel.py": 6,
+    "pyproject.toml": 2,
+    "scripts/creator_status.py": 12,
+    "scripts/creator_swarm.py": 25,
+    "tests/test_creator_curriculum.py": 188
+   },
+   "test_files": [
+    "tests/test_creator_curriculum.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/kernel.py",
+    "pyproject.toml",
+    "scripts/creator_status.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f005cea91b9a",
+   "sha": "f005cea91b9a4b77a8545b7ada5b37f012771db0",
+   "base": "19a06898293ed2c2111937d5c862600bab12b219",
+   "ts": 1790895648.0,
+   "cls": "feature",
+   "task": "synth: abstain unless evidence is strong (>=2 examples or cues, no probe-ambiguity); bench script; tests",
+   "files": {
+    "creator/synth.py": 780,
+    "scripts/synth_bench.py": 79,
+    "tests/test_synth.py": 31
+   },
+   "test_files": [
+    "tests/test_synth.py"
+   ],
+   "code_files": [
+    "creator/synth.py",
+    "scripts/synth_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5514e5bac189",
+   "sha": "5514e5bac1893044d4168909cd06a01d17ca1224",
+   "base": "562adfa4616e4e7f4633e1cb0d25101056812dc7",
+   "ts": 1790895707.0,
+   "cls": "measuring",
+   "task": "ledger: racily-clean rule for the provenance caches - a file touched within 2 s is always re-read and git is re-asked\n\ntest_tree_hash_cache_sees_edit_add_remove_rename_and_crlf failed intermittently: a same-size rewrite inside one filesystem\ntimestamp tick kept (mtime_ns, size), so the cached digest went stale. A commit inside one tick had the same hole (ref files\nhave a fixed size). Two deterministic regression tests (failed before the fix).",
+   "files": {
+    "creator/ledger.py": 26,
+    "tests/test_creator_ledger.py": 19
+   },
+   "test_files": [
+    "tests/test_creator_ledger.py"
+   ],
+   "code_files": [
+    "creator/ledger.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-92d6df2b3733",
+   "sha": "92d6df2b373374435d4cb8bf606ca18025cef73e",
+   "base": "19a06898293ed2c2111937d5c862600bab12b219",
+   "ts": 1790895891.0,
+   "cls": "bugfix",
+   "task": "Validation round 2 fixes: goal_drift metric stall, run_tests timeout, corrupt autotune history, docstring/budget text, select dup names, research importance, memory seq, K17-K26 deps",
+   "files": {
+    "creator/agents.py": 4,
+    "creator/autotune.py": 28,
+    "creator/design.py": 14,
+    "creator/localworker.py": 7,
+    "creator/memory.py": 6,
+    "creator/objective.py": 7,
+    "creator/oversight.py": 29,
+    "creator/recursion.py": 2,
+    "creator/research.py": 8,
+    "tests/test_creator_oversight.py": 20,
+    "tests/test_creator_validator2_regressions.py": 96
+   },
+   "test_files": [
+    "tests/test_creator_oversight.py",
+    "tests/test_creator_validator2_regressions.py"
+   ],
+   "code_files": [
+    "creator/agents.py",
+    "creator/autotune.py",
+    "creator/design.py",
+    "creator/localworker.py",
+    "creator/memory.py",
+    "creator/objective.py",
+    "creator/oversight.py",
+    "creator/recursion.py",
+    "creator/research.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-fc23731b9841",
+   "sha": "fc23731b9841d2fcb971bbe5eb19aad809455f4f",
+   "base": "5514e5bac1893044d4168909cd06a01d17ca1224",
+   "ts": 1790896444.0,
+   "cls": "measuring",
+   "task": "ModelStudent: local-model student behind the Student protocol, SFT exporter, swarm wiring",
+   "files": {
+    "creator/model_student.py": 228,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 21,
+    "tests/test_creator_model_student.py": 161
+   },
+   "test_files": [
+    "tests/test_creator_model_student.py"
+   ],
+   "code_files": [
+    "creator/model_student.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-eef4e8b15888",
+   "sha": "eef4e8b158889660f1f6a5e71950ed68c05d2bb6",
+   "base": "5514e5bac1893044d4168909cd06a01d17ca1224",
+   "ts": 1790896461.0,
+   "cls": "feature",
+   "task": "Backfill curriculum lessons from pre-capture work packages (patches + ledger + git history)",
+   "files": {
+    "scripts/backfill_lessons.py": 324,
+    "tests/test_backfill_lessons.py": 84
+   },
+   "test_files": [
+    "tests/test_backfill_lessons.py"
+   ],
+   "code_files": [
+    "scripts/backfill_lessons.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5d6a9239ef53",
+   "sha": "5d6a9239ef53c88413ba61452731ee89d3ad1c4a",
+   "base": "5514e5bac1893044d4168909cd06a01d17ca1224",
+   "ts": 1790896870.0,
+   "cls": "measuring",
+   "task": "Disk-persisted content-keyed caches for import graph and component scan; reach_digest read memo",
+   "files": {
+    "creator/diskcache.py": 87,
+    "creator/selfmodel.py": 36,
+    "creator/testrun.py": 23,
+    "tests/test_creator_diskcache.py": 109
+   },
+   "test_files": [
+    "tests/test_creator_diskcache.py"
+   ],
+   "code_files": [
+    "creator/diskcache.py",
+    "creator/selfmodel.py",
+    "creator/testrun.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e16d9cbb8913",
+   "sha": "e16d9cbb8913e949e619da1086005aff4f39424c",
+   "base": "beb90ee973ca8387929ea597dcfbabfdf5996ec1",
+   "ts": 1790897530.0,
+   "cls": "measuring",
+   "task": "Validator round 3: K14/K18/K22 + curriculum/student/process_levers/synth; fix dropped deferrals, lesson-log races, student log format, lever wiring, process bounds, swarm job crash",
+   "files": {
+    "creator/curriculum.py": 25,
+    "creator/kernel.py": 8,
+    "creator/planner.py": 8,
+    "creator/process_levers.py": 10,
+    "creator/selfworkers.py": 2,
+    "creator/student.py": 11,
+    "creator/swarm.py": 14,
+    "scripts/creator_swarm.py": 9,
+    "tests/test_creator_curriculum.py": 25,
+    "tests/test_creator_kernel.py": 21,
+    "tests/test_creator_process_levers.py": 27,
+    "tests/test_creator_student.py": 17,
+    "tests/test_creator_swarm.py": 12
+   },
+   "test_files": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_process_levers.py",
+    "tests/test_creator_student.py",
+    "tests/test_creator_swarm.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/kernel.py",
+    "creator/planner.py",
+    "creator/process_levers.py",
+    "creator/selfworkers.py",
+    "creator/student.py",
+    "creator/swarm.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-deaefa2d03f7",
+   "sha": "deaefa2d03f7fb60b3fb9d2397058e4efd44de2b",
+   "base": "b0913cada6cd6c1f5d424317a194b8f4985e46ff",
+   "ts": 1790897631.0,
+   "cls": "feature",
+   "task": "student: derive the task kind from the plan (kernel packages carry none) and keep the file's line endings\n\nBoth found by validator 3. Regression test fails before the fix (kind '' instead of 'activation').",
+   "files": {
+    "creator/student.py": 6,
+    "tests/test_creator_student.py": 17
+   },
+   "test_files": [
+    "tests/test_creator_student.py"
+   ],
+   "code_files": [
+    "creator/student.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7ef0a408e40b",
+   "sha": "7ef0a408e40b60fdbe451467eb032677ee1d33f8",
+   "base": "fe3b426da6ef09d9a22f3587f0da23cf32e49ff0",
+   "ts": 1790897848.0,
+   "cls": "measuring",
+   "task": "Local model server cannot outlive its owner (Job Object, finally-stop, pidfile reaper); import graph skips root state/",
+   "files": {
+    "creator/generator.py": 212,
+    "creator/testrun.py": 11,
+    "tests/test_creator_leak.py": 157
+   },
+   "test_files": [
+    "tests/test_creator_leak.py"
+   ],
+   "code_files": [
+    "creator/generator.py",
+    "creator/testrun.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-75a030f9125a",
+   "sha": "75a030f9125aab1cf0e1834e7126829356cdf457",
+   "base": "fe3b426da6ef09d9a22f3587f0da23cf32e49ff0",
+   "ts": 1790898198.0,
+   "cls": "measuring",
+   "task": "Nupen model student v2: model chooses among deterministic AST actions (action_student.py), lesson->action export, swarm wiring",
+   "files": {
+    "creator/action_student.py": 369,
+    "creator/student.py": 10,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 5,
+    "tests/test_creator_action_student.py": 106,
+    "tests/test_creator_model_student.py": 3
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py",
+    "tests/test_creator_model_student.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/student.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ba87c315b5f3",
+   "sha": "ba87c315b5f321ea2f065c73ccebb5bb44f4c347",
+   "base": "75a030f9125aab1cf0e1834e7126829356cdf457",
+   "ts": 1790898638.0,
+   "cls": "feature",
+   "task": "Add action choice bench: shuffled synthetic tasks, position-aware scoring, baselines",
+   "files": {
+    "scripts/action_choice_bench.py": 191,
+    "tests/test_action_choice_bench.py": 26
+   },
+   "test_files": [
+    "tests/test_action_choice_bench.py"
+   ],
+   "code_files": [
+    "scripts/action_choice_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-53d7e63e4c53",
+   "sha": "53d7e63e4c536f251e5d8e74ecd923f2977f225f",
+   "base": "526b285591268b9a1dd4ceb38ceafde81ab9ca8a",
+   "ts": 1790899135.0,
+   "cls": "measuring",
+   "task": "Fix six open validator issues: locked appends (kernel log, experience memory), search restores file on error, synth evaluation guards, terminal signal-free outcomes for cancelled/error lessons, DevWorkload size check",
+   "files": {
+    "creator/curriculum.py": 15,
+    "creator/generator.py": 76,
+    "creator/kernel.py": 16,
+    "creator/process_levers.py": 5,
+    "creator/synth.py": 118,
+    "tests/test_creator_curriculum.py": 19,
+    "tests/test_creator_generator.py": 65,
+    "tests/test_creator_kernel.py": 27,
+    "tests/test_creator_process_levers.py": 6,
+    "tests/test_synth.py": 33
+   },
+   "test_files": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_generator.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_process_levers.py",
+    "tests/test_synth.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/generator.py",
+    "creator/kernel.py",
+    "creator/process_levers.py",
+    "creator/synth.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b7bf7dc80bdd",
+   "sha": "b7bf7dc80bddd866bfff06a5e9f70628bf1ff7c4",
+   "base": "526b285591268b9a1dd4ceb38ceafde81ab9ca8a",
+   "ts": 1790899274.0,
+   "cls": "measuring",
+   "task": "kernel: the sandbox comparison's pytest timeout follows the suite timeout unless set explicitly\n\nCP0047 (lazy audit import in kernel.py) came back INCONCLUSIVE: base and candidate pytest runs both hit the 600 s PytestConfig\ndefault under swarm load, while main's own assessment allows test_timeout (3600 s) for the same tests.",
+   "files": {
+    "creator/kernel.py": 11,
+    "tests/test_creator_kernel.py": 10
+   },
+   "test_files": [
+    "tests/test_creator_kernel.py"
+   ],
+   "code_files": [
+    "creator/kernel.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ec6f387809a4",
+   "sha": "ec6f387809a48f380367f763359867e5677eff25",
+   "base": "ba87c315b5f321ea2f065c73ccebb5bb44f4c347",
+   "ts": 1790900915.0,
+   "cls": "feature",
+   "task": "action_student: rich labels, lexical baseline, lexical-prior+model and vote policies (flags); bench variants, --hard",
+   "files": {
+    "creator/action_student.py": 75,
+    "scripts/action_choice_bench.py": 97,
+    "tests/test_creator_action_student.py": 34
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "scripts/action_choice_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e605bd13de38",
+   "sha": "e605bd13de38881a72f9a809c5f97580e3eaa89c",
+   "base": "42bdf8eb95018e1eb611bcc64366baf5b4ff7b4a",
+   "ts": 1790900928.0,
+   "cls": "feature",
+   "task": "swarm: finished work from ANY worker is pulled back last (protect_finished), not only the teacher's\n\nRun8: nupen-model-v2 finished CP0049 and CP0050 and both were pulled back before measurement (RAM tight at 42 parallel).",
+   "files": {
+    "creator/swarm.py": 21,
+    "tests/test_creator_swarm.py": 14
+   },
+   "test_files": [
+    "tests/test_creator_swarm.py"
+   ],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7e31a4add61f",
+   "sha": "7e31a4add61fbe9d405d7a8311ccb65ced484b24",
+   "base": "c85b07f96d6a92e07c81c1eb364cc234b2c8e8e2",
+   "ts": 1790906358.0,
+   "cls": "measuring",
+   "task": "You are working in a git worktree of a Python project (the Creator). Package .\nObjective: \nWhy: \n\nDo:\n\nTests:\n\nKnown interfaces:\n\nWays this commonly goes wrong (avoid them):\n\nDone means (computed by the system, not by you):\n\nRules:\n- Python 3.11.\n- Never weaken, skip or delete tests to make them pass.\n- Keep changes small and focused on this package.",
+   "files": {
+    "creator/kernel.py": 3
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/kernel.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9a725c72d891",
+   "sha": "9a725c72d89160e82bf47ca29f0e0d83e05fca9a",
+   "base": "4d3884154db2ae4ba1cd5e7908a88b0ededef7ae",
+   "ts": 1790917056.0,
+   "cls": "feature",
+   "task": "swarm: fillers count toward the cap, every start waits a ramp, finished work is pulled back only at critical RAM\n\nRun9: 40 self-bench fillers were invisible to the governor (peak 42 > max 32) and started back to back, so free RAM hit 9 MB;\nwith both real packages protected, the 'or pool' fallback pulled Nupen's finished CP0051/CP0052 back unmeasured.",
+   "files": {
+    "creator/swarm.py": 22,
+    "tests/test_creator_swarm.py": 82
+   },
+   "test_files": [
+    "tests/test_creator_swarm.py"
+   ],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-2aca129e205f",
+   "sha": "2aca129e205f44796f503c8cb8006e543df17b9a",
+   "base": "9a725c72d89160e82bf47ca29f0e0d83e05fca9a",
+   "ts": 1790917324.0,
+   "cls": "feature",
+   "task": "scripts/lowprio.py: run helper commands at below-normal CPU priority (children inherit), so Nupen wins the CPU\n\nMeasured 1 Oct 23:00: CPU 100% on 8 cores, 4 GB RAM free - CPU is what helpers take from Nupen. Verified via Win32_Process:\nchild and grandchild at base priority 6 (normal 8). The first draft's ctypes HANDLE restype bug silently did nothing.",
+   "files": {
+    "scripts/lowprio.py": 41
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/lowprio.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-900d2cea100c",
+   "sha": "900d2cea100cfb68690716a98366a510f0722ecf",
+   "base": "2aca129e205f44796f503c8cb8006e543df17b9a",
+   "ts": 1790917759.0,
+   "cls": "feature",
+   "task": "Nupen runs whenever the computer is on: supervisor + logon task, a bigger RAM reserve while the owner is active, no waiting for an absent teacher\n\nOwner, 1 Oct: 'the second I turn my computer on it all starts running and then when i start doing things it adjusts how much RAM\nit can use based on how much RAM im using but i shouldnt need to go to you to get it to start working as long as its capable of\ndoing something more good than bad on its own'.\n- scripts/nupen_service.py: supervisor, swarm at BELOW_NORMAL priority, restart with backoff, one instance, NUPEN_STOP off switch.\n- scripts/nupen_autostart.py: install/uninstall/status of the 'Nupen' logon task (limited rights, no window).\n- Governor.user_active_floor_fraction: 25% of RAM kept free while the owner has used keyboard/mouse in the last 5 min.\n- SerialSession --teacher-presence: hand off only while the teacher heartbeat is fresh, else DEFERRED (no attempt used).",
+   "files": {
+    "creator/swarm.py": 27,
+    "scripts/creator_swarm.py": 25,
+    "scripts/nupen_autostart.py": 42,
+    "scripts/nupen_service.py": 117,
+    "tests/test_nupen_service.py": 79
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/swarm.py",
+    "scripts/creator_swarm.py",
+    "scripts/nupen_autostart.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0da3c8f12c15",
+   "sha": "0da3c8f12c1559feb5a973f883fe5a0caa9ebe9a",
+   "base": "900d2cea100cfb68690716a98366a510f0722ecf",
+   "ts": 1790918656.0,
+   "cls": "measuring",
+   "task": "Nupen dialogue curriculum: format, 5 stages with held-out tests and gating, 60 seed lessons, chat and stage scripts",
+   "files": {
+    "creator/lm/__init__.py": 0,
+    "creator/lm/dialogue.py": 390,
+    "creator/lm/dialogue_seed.py": 87,
+    "pyproject.toml": 2,
+    "scripts/nupen_chat.py": 70,
+    "scripts/nupen_lm_stages.py": 43,
+    "tests/test_lm_dialogue.py": 113
+   },
+   "test_files": [
+    "tests/test_lm_dialogue.py"
+   ],
+   "code_files": [
+    "creator/lm/__init__.py",
+    "creator/lm/dialogue.py",
+    "creator/lm/dialogue_seed.py",
+    "pyproject.toml",
+    "scripts/nupen_chat.py",
+    "scripts/nupen_lm_stages.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0f37ec0070db",
+   "sha": "0f37ec0070dba596fe5f574431bb73e326c7054f",
+   "base": "0da3c8f12c1559feb5a973f883fe5a0caa9ebe9a",
+   "ts": 1790919874.0,
+   "cls": "feature",
+   "task": "Scheduling: dependency graph, learned costs, critical path, parallel-safe batches with recorded reasons (CR082/CR083)",
+   "files": {
+    "creator/planner.py": 8,
+    "creator/schedule.py": 276,
+    "tests/test_creator_schedule.py": 135
+   },
+   "test_files": [
+    "tests/test_creator_schedule.py"
+   ],
+   "code_files": [
+    "creator/planner.py",
+    "creator/schedule.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-bbe58a3f3246",
+   "sha": "bbe58a3f32461b4872d4f79861359973367ea2f5",
+   "base": "900d2cea100cfb68690716a98366a510f0722ecf",
+   "ts": 1790920272.0,
+   "cls": "measuring",
+   "task": "Nupen LM core: from-scratch byte-BPE tokenizer, small transformer, resumable CPU trainer, bits/byte eval with computed promotion, idle priority flag",
+   "files": {
+    "creator/lm/__init__.py": 1,
+    "creator/lm/api.py": 51,
+    "creator/lm/data.py": 58,
+    "creator/lm/evaluate.py": 97,
+    "creator/lm/model.py": 94,
+    "creator/lm/paths.py": 21,
+    "creator/lm/tokenizer.py": 139,
+    "creator/lm/train.py": 95,
+    "pyproject.toml": 2,
+    "scripts/lowprio.py": 91,
+    "scripts/nupen_lm.py": 81,
+    "tests/test_lm_core.py": 65
+   },
+   "test_files": [
+    "tests/test_lm_core.py"
+   ],
+   "code_files": [
+    "creator/lm/__init__.py",
+    "creator/lm/api.py",
+    "creator/lm/data.py",
+    "creator/lm/evaluate.py",
+    "creator/lm/model.py",
+    "creator/lm/paths.py",
+    "creator/lm/tokenizer.py",
+    "creator/lm/train.py",
+    "pyproject.toml",
+    "scripts/lowprio.py",
+    "scripts/nupen_lm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-a1d288b58d3a",
+   "sha": "a1d288b58d3a4f7f164ae6cc35da47b3edadb179",
+   "base": "2aca129e205f44796f503c8cb8006e543df17b9a",
+   "ts": 1790920392.0,
+   "cls": "measuring",
+   "task": "Work supply: stops no longer count as attempts, efficiency kinds fall back, swarm waits instead of ending, same-file exclusion, measured test-gap (coverage) work source",
+   "files": {
+    "creator/curriculum.py": 6,
+    "creator/efficiency.py": 33,
+    "creator/kernel.py": 32,
+    "creator/planner.py": 113,
+    "creator/swarm.py": 16,
+    "creator/testgen.py": 45,
+    "tests/test_creator_efficiency.py": 15,
+    "tests/test_creator_kernel.py": 15,
+    "tests/test_creator_planner.py": 89,
+    "tests/test_creator_swarm.py": 65,
+    "tests/test_creator_testgen.py": 2
+   },
+   "test_files": [
+    "tests/test_creator_efficiency.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_planner.py",
+    "tests/test_creator_swarm.py",
+    "tests/test_creator_testgen.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/efficiency.py",
+    "creator/kernel.py",
+    "creator/planner.py",
+    "creator/swarm.py",
+    "creator/testgen.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-cec38f401868",
+   "sha": "cec38f401868cfceb551189005ca90d7d5459d62",
+   "base": "0f37ec0070dba596fe5f574431bb73e326c7054f",
+   "ts": 1790920445.0,
+   "cls": "feature",
+   "task": "scripts/record_validation.py: reconcile Capability records with computed evidence in the independent validator's role\n\nAll 26 Capabilities were NOT_STARTED although code exists and tests pass, and validator verdicts were never recorded, so every\n'.validated' gap stayed open. Advances only as far as fresh evidence justifies; VALIDATED needs the independent verdict, code\nunchanged since that verdict, and integrated met.",
+   "files": {
+    "scripts/record_validation.py": 141
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-2a69dd10cbeb",
+   "sha": "2a69dd10cbebc8d284859a6d0ded5d4d32f0f01a",
+   "base": "2aca129e205f44796f503c8cb8006e543df17b9a",
+   "ts": 1790920470.0,
+   "cls": "measuring",
+   "task": "creator: serve unchanged-tree test results instead of re-running them (tree-hash cache)\n\nMain's round assessment and the sandbox BASE run re-tested trees whose passing results were already in hand. Passing per-file\nresults are now stored under the hash of the clean git tree (state/ excluded) and served to (a) the main assessment of the next\nround and (b) the sandbox base run of the same tree. Candidate replicates, the post-merge check, dirty trees, failing files, other\npythons and entries older than 6 h always run fresh. Decisions are identical (tests/test_creator_treecache.py compares verdict,\nclasses, blocking and reasons with and without serving for clean/regressing/fixing/broken changes).",
+   "files": {
+    "creator/kernel.py": 16,
+    "creator/sandbox.py": 12,
+    "creator/selfmodel.py": 12,
+    "creator/testrun.py": 28,
+    "creator/treecache.py": 92,
+    "tests/test_creator_kernel.py": 51,
+    "tests/test_creator_treecache.py": 160
+   },
+   "test_files": [
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_treecache.py"
+   ],
+   "code_files": [
+    "creator/kernel.py",
+    "creator/sandbox.py",
+    "creator/selfmodel.py",
+    "creator/testrun.py",
+    "creator/treecache.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-1160986a6db5",
+   "sha": "1160986a6db547a5860bcbdfeabf6c0f39340b7a",
+   "base": "9efb6faeb8bb9eb94562d7af45b6773b60234f88",
+   "ts": 1790920472.0,
+   "cls": "feature",
+   "task": "record_validation: typing",
+   "files": {
+    "scripts/record_validation.py": 2
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-4a06cb27f99c",
+   "sha": "4a06cb27f99c8386a80b342b59aa3191746b3e59",
+   "base": "7eac657ec0522398bbf9f2febd89c9f8d0a0b74f",
+   "ts": 1790921499.0,
+   "cls": "feature",
+   "task": "nupen_autostart: per-user Run entry instead of a Task Scheduler task (ONLOGON task creation was refused: Access is denied); add 'start'",
+   "files": {
+    "scripts/nupen_autostart.py": 39
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/nupen_autostart.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-22b675fe4a2e",
+   "sha": "22b675fe4a2e759632e3a3e94374e4a3cb48592f",
+   "base": "0f37ec0070dba596fe5f574431bb73e326c7054f",
+   "ts": 1790921724.0,
+   "cls": "feature",
+   "task": "Integrate K07 research, K08 design, K12 memory into the planner\n\nDesign picks and records the work approach (DesignOption + REJECT decisions), memory puts earlier failures/root causes/findings into the package, research turns a BLOCKED gap into a ResearchQuestion + Finding that the next package carries.",
+   "files": {
+    "creator/planner.py": 111,
+    "tests/test_creator_planner.py": 75
+   },
+   "test_files": [
+    "tests/test_creator_planner.py"
+   ],
+   "code_files": [
+    "creator/planner.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9e53f96474a8",
+   "sha": "9e53f96474a8c3e10dc8e2f889221cd94844a989",
+   "base": "22b675fe4a2e759632e3a3e94374e4a3cb48592f",
+   "ts": 1790921725.0,
+   "cls": "feature",
+   "task": "Integrate K19 autotune: adopted worker config sets the swarm worker's search budget; creator_recurse --tune runs trials",
+   "files": {
+    "creator/process_levers.py": 18,
+    "scripts/creator_recurse.py": 19,
+    "tests/test_creator_process_levers.py": 16
+   },
+   "test_files": [
+    "tests/test_creator_process_levers.py"
+   ],
+   "code_files": [
+    "creator/process_levers.py",
+    "scripts/creator_recurse.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-add11809408a",
+   "sha": "add11809408a8ff06decc91d4539c846f5008c51",
+   "base": "0da3c8f12c1559feb5a973f883fe5a0caa9ebe9a",
+   "ts": 1790922125.0,
+   "cls": "feature",
+   "task": "Checklist evidence pass: map oversight/testgen/recursion/reproduce/audit boxes with citations, compute SECTION roll-ups, add CHECKLIST_REMAINING.md\n\nStatuses 36/150/118 -> IMPLEMENTED 101 / TESTING 164 / NOT_STARTED 39 (nothing VALIDATED).",
+   "files": {
+    "scripts/checklist_remaining.py": 102,
+    "scripts/creator_checklist_status.py": 330
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/checklist_remaining.py",
+    "scripts/creator_checklist_status.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-77563e5e7177",
+   "sha": "77563e5e71776e6e996bcd6c5d689ca307c9fbd6",
+   "base": "2522fe3d401cb2300f8b11006b445f38b0ed5d2c",
+   "ts": 1790923836.0,
+   "cls": "measuring",
+   "task": "Validator round 4: fix open issues with regression tests (budget lock, per-guard evidence, holdout learner refusal, timeout stderr, assert regex, NaN cost, dead param, self-recursive dead private, forced change bounds, plan_batch orphan, damaged worker_config, CRLF in action student, stale pidfile after reboot, record_validation explicit commit); mypy clean debug.py",
+   "files": {
+    "creator/action_student.py": 3,
+    "creator/agents.py": 17,
+    "creator/debug.py": 11,
+    "creator/evaluate.py": 5,
+    "creator/localworker.py": 4,
+    "creator/meta.py": 4,
+    "creator/process_levers.py": 6,
+    "creator/recursion.py": 6,
+    "creator/schedule.py": 4,
+    "creator/selfworkers.py": 3,
+    "scripts/nupen_service.py": 15,
+    "scripts/record_validation.py": 11,
+    "tests/test_creator_action_student.py": 12,
+    "tests/test_creator_process_levers.py": 10,
+    "tests/test_creator_schedule.py": 29,
+    "tests/test_creator_validator4_regressions.py": 120,
+    "tests/test_nupen_service.py": 16
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py",
+    "tests/test_creator_process_levers.py",
+    "tests/test_creator_schedule.py",
+    "tests/test_creator_validator4_regressions.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/agents.py",
+    "creator/debug.py",
+    "creator/evaluate.py",
+    "creator/localworker.py",
+    "creator/meta.py",
+    "creator/process_levers.py",
+    "creator/recursion.py",
+    "creator/schedule.py",
+    "creator/selfworkers.py",
+    "scripts/nupen_service.py",
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9994d458535e",
+   "sha": "9994d458535e323118c8d334dd6cd068f3655bc7",
+   "base": "77563e5e71776e6e996bcd6c5d689ca307c9fbd6",
+   "ts": 1790923909.0,
+   "cls": "feature",
+   "task": "action_student: walk the work tree pruning state/.git/venv instead of rglob over run artefacts",
+   "files": {
+    "creator/action_student.py": 21,
+    "tests/test_creator_action_student.py": 8
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py"
+   ],
+   "code_files": [
+    "creator/action_student.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-c2b225306b53",
+   "sha": "c2b225306b530ddabb7475d08f8321eda528d9d8",
+   "base": "9994d458535e323118c8d334dd6cd068f3655bc7",
+   "ts": 1790924020.0,
+   "cls": "measuring",
+   "task": "efficiency.uncovered_public counts names USED in test code (AST), not mentioned in comments or strings; testgen emits attribute use so generated tests still count",
+   "files": {
+    "creator/efficiency.py": 25,
+    "creator/testgen.py": 4,
+    "tests/test_creator_efficiency.py": 12
+   },
+   "test_files": [
+    "tests/test_creator_efficiency.py"
+   ],
+   "code_files": [
+    "creator/efficiency.py",
+    "creator/testgen.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-17e99a188405",
+   "sha": "17e99a188405f9b12d4bd32f212186faaee962e2",
+   "base": "c92196a9e41f21d5413528b1fdf8805079629baa",
+   "ts": 1790924055.0,
+   "cls": "tests_only",
+   "task": "synth test: faster",
+   "files": {
+    "tests/test_creator_synth_tasks.py": 5
+   },
+   "test_files": [
+    "tests/test_creator_synth_tasks.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-fd2fda387bb2",
+   "sha": "fd2fda387bb24f28d36c74d01b44bb3510e06708",
+   "base": "c2b225306b530ddabb7475d08f8321eda528d9d8",
+   "ts": 1790924115.0,
+   "cls": "feature",
+   "task": "nupen_service: exclusive pidfile claim; action_student: parse_choice accepts only numbers and separators",
+   "files": {
+    "creator/action_student.py": 2,
+    "scripts/nupen_service.py": 12,
+    "tests/test_creator_action_student.py": 8,
+    "tests/test_nupen_service.py": 13
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-3b26f18294af",
+   "sha": "3b26f18294afe50d05da8faf5dadefe5595cb8f1",
+   "base": "2ea6ec4e51cb16557d32a3a9fc60d94c61076469",
+   "ts": 1790924236.0,
+   "cls": "measuring",
+   "task": "sandbox: omit state/research from every sandbox (never checked out, not even after reveal)\n\nLive service 2 Oct 00:52-00:54: CP0061/CP0062 died with 'git checkout ... timed out after 120 s' - each sandbox checked out all\n47k tracked files, 44k of them past research data under state/research that nothing in the Creator uses. Omitted paths stay in\nthe index (skip-worktree): not reported as deleted, not dropped by a merge (test).",
+   "files": {
+    "creator/kernel.py": 7,
+    "creator/sandbox.py": 23,
+    "tests/test_creator_sandbox.py": 20
+   },
+   "test_files": [
+    "tests/test_creator_sandbox.py"
+   ],
+   "code_files": [
+    "creator/kernel.py",
+    "creator/sandbox.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b17febe64cbb",
+   "sha": "b17febe64cbbef8137b740c4dd35462bbdd75c0e",
+   "base": "9dfdd2bdbf97a4f7d2001500e5d9fc40871ca645",
+   "ts": 1790924375.0,
+   "cls": "feature",
+   "task": "Hard-bench held-out harness (per-call timeouts, progress, CIs); ActionStudent defaults to rich labels + lexical prior\n\nHeld-out hard seeds 201-203 n=90: combined 0.811 [0.718,0.879] vs lexical 0.589 [0.486,0.685].",
+   "files": {
+    "creator/action_student.py": 2,
+    "creator/generator.py": 4,
+    "scripts/action_choice_bench.py": 80,
+    "tests/test_action_choice_bench.py": 9,
+    "tests/test_creator_action_student.py": 9
+   },
+   "test_files": [
+    "tests/test_action_choice_bench.py",
+    "tests/test_creator_action_student.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/generator.py",
+    "scripts/action_choice_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-56f0b0e94d6a",
+   "sha": "56f0b0e94d6a79c850468a352947bd74b25760f3",
+   "base": "17e99a188405f9b12d4bd32f212186faaee962e2",
+   "ts": 1790924539.0,
+   "cls": "feature",
+   "task": "creator_recurse: --initial operating point, verdict-SE power in report",
+   "files": {
+    "scripts/creator_recurse.py": 14
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/creator_recurse.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5c4e29704d64",
+   "sha": "5c4e29704d6480a80fb477be1ce46b75556452ee",
+   "base": "56f0b0e94d6a79c850468a352947bd74b25760f3",
+   "ts": 1790924862.0,
+   "cls": "feature",
+   "task": "recursion: fallback to untried parameters when a weakness's remedies are exhausted; synth size window; tests",
+   "files": {
+    "creator/recursion.py": 8,
+    "creator/synth_tasks.py": 9,
+    "scripts/creator_recurse.py": 3,
+    "tests/test_creator_power.py": 14
+   },
+   "test_files": [
+    "tests/test_creator_power.py"
+   ],
+   "code_files": [
+    "creator/recursion.py",
+    "creator/synth_tasks.py",
+    "scripts/creator_recurse.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-92beba0ecb11",
+   "sha": "92beba0ecb11434a19fdc81f389c119811404cef",
+   "base": "597f6827ffc5e0860407390d9a3f51353934f573",
+   "ts": 1790925226.0,
+   "cls": "tests_only",
+   "task": "integration test: count decisions about the CHANGE (subject = Experiment); since K08 design was integrated the planner also REJECTs unchosen design options",
+   "files": {
+    "tests/test_creator_integration.py": 67
+   },
+   "test_files": [
+    "tests/test_creator_integration.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-48e00e866a39",
+   "sha": "48e00e866a3983023c8ec3aa7c665a86a8b66717",
+   "base": "fd2fda387bb24f28d36c74d01b44bb3510e06708",
+   "ts": 1790925352.0,
+   "cls": "feature",
+   "task": "testgen: existence check via getattr(M, name) (skipped names are never called); selfworkers._used_names without id() so testgen can characterise it",
+   "files": {
+    "creator/selfworkers.py": 4,
+    "creator/testgen.py": 2
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/selfworkers.py",
+    "creator/testgen.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7365a5e4d36d",
+   "sha": "7365a5e4d36d946ff2ec012e93c984bbe979f5a6",
+   "base": "597f6827ffc5e0860407390d9a3f51353934f573",
+   "ts": 1790925427.0,
+   "cls": "feature",
+   "task": "Contrastive lessons for confusable actions (34, exec-verified) + with/without-lessons held-out bench",
+   "files": {
+    "scripts/action_choice_bench.py": 64,
+    "scripts/make_contrast_lessons.py": 200
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/action_choice_bench.py",
+    "scripts/make_contrast_lessons.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-c3f6da884c90",
+   "sha": "c3f6da884c90ea0d4d336091a134a3196d4f3bfe",
+   "base": "2522fe3d401cb2300f8b11006b445f38b0ed5d2c",
+   "ts": 1790925872.0,
+   "cls": "tests_only",
+   "task": "Speed up the slowest Creator tests without weakening them\n\nautotune: smaller synthetic bench, one-attempt start config; generator: smaller bounded-families input, in-process oracle in the search loop; kernel/swarm: provenance of the unchanged checkout computed once per module.",
+   "files": {
+    "tests/test_creator_autotune.py": 4,
+    "tests/test_creator_generator.py": 18,
+    "tests/test_creator_kernel.py": 23,
+    "tests/test_creator_swarm.py": 24
+   },
+   "test_files": [
+    "tests/test_creator_autotune.py",
+    "tests/test_creator_generator.py",
+    "tests/test_creator_kernel.py",
+    "tests/test_creator_swarm.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-83c33dc234e4",
+   "sha": "83c33dc234e438e5159b1e5009282c2e447e7b09",
+   "base": "b4f584e0f8071da671d1def911108091ab0f1809",
+   "ts": 1790928026.0,
+   "cls": "feature",
+   "task": "record_validation: a validated_commit must be an ancestor of HEAD; staged and untracked changes under a component make its verdict stale\n\nValidator round 4 review findings; regression test fails on the old script.",
+   "files": {
+    "scripts/record_validation.py": 9,
+    "tests/test_creator_validator4_regressions.py": 35
+   },
+   "test_files": [
+    "tests/test_creator_validator4_regressions.py"
+   ],
+   "code_files": [
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-71c18e7362e9",
+   "sha": "71c18e7362e9e9f0484aad606431320e978261c7",
+   "base": "83c33dc234e438e5159b1e5009282c2e447e7b09",
+   "ts": 1790929022.0,
+   "cls": "measuring",
+   "task": "audit: evidence superseded in place but preserved byte-for-byte in git history is verifiable, not drift; record_validation cites an immutable report snapshot\n\nValidation round 4 rewrote VALIDATION_REPORT.json and 10 TestRuns from the first reconciliation went CRITICAL (evidence_drift)\nalthough commit 53d7e63e4 holds exactly the cited bytes. Never-committed or tampered content is still CRITICAL (test); the\nadversary's evidence_swap is still caught. Root cause fixed: the recorder now cites a content-named snapshot.",
+   "files": {
+    "creator/audit/checks.py": 24,
+    "scripts/record_validation.py": 14,
+    "tests/test_creator_audit.py": 27
+   },
+   "test_files": [
+    "tests/test_creator_audit.py"
+   ],
+   "code_files": [
+    "creator/audit/checks.py",
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-bc68b352792d",
+   "sha": "bc68b352792d3dbeac2bc4dfaf813f1ed1252a20",
+   "base": "638eb381f54d766609fa9e9aa1b4853bcd463870",
+   "ts": 1790932036.0,
+   "cls": "feature",
+   "task": "nupen_service: the off switch stops the swarm's whole process tree, not just the swarm\n\n2 Oct 03:05: NUPEN_STOP at 160 MB free left six pytest runs (and their model servers) running in Nupen's sandboxes. Regression\ntest: a grandchild of the swarm is gone after the stop (fails on the old supervisor).",
+   "files": {
+    "scripts/nupen_service.py": 26,
+    "tests/test_nupen_service.py": 24
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0b4837620698",
+   "sha": "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+   "base": "5dae3c690cd3740c51db3f088b285fa7a5bc4df0",
+   "ts": 1790948716.0,
+   "cls": "measuring",
+   "task": "Replay student: an unmeasured teacher solution is re-applied for measurement instead of re-solved; counted as the teacher's work\n\n2 Oct: the owner's pause cancelled CP0065/CP0076/CP0079 after the teacher had solved them; the lesson log still held the solutions.\nReplayStudent (first in line) re-applies one only when its cycle never got a verdict (none / cancelled / error) and the files it\nchanged are byte-identical to the teacher's starting point. A measured solution (adopted or rejected) is never replayed.\ncurriculum.TEACHER = {claude, claude-replay}: teacher_share counts replays, and a replay can never own a task kind.",
+   "files": {
+    "creator/curriculum.py": 6,
+    "creator/replay_student.py": 69,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 5,
+    "tests/test_creator_replay_student.py": 65
+   },
+   "test_files": [
+    "tests/test_creator_replay_student.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/replay_student.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-247edba3c3c5",
+   "sha": "247edba3c3c55802d1afccfe2bc587e9c13b69cf",
+   "base": "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+   "ts": 1790949881.0,
+   "cls": "feature",
+   "task": "Integration: entry-point components (K22,K26) and retired K05 per owner ruling 2 Oct",
+   "files": {
+    "creator/objective.py": 46,
+    "scripts/creator_status.py": 5,
+    "tests/test_creator_objective.py": 44
+   },
+   "test_files": [
+    "tests/test_creator_objective.py"
+   ],
+   "code_files": [
+    "creator/objective.py",
+    "scripts/creator_status.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f9861fb7a521",
+   "sha": "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+   "base": "dc895514e5641517b54e5d1bd3b28d8a1ca42d60",
+   "ts": 1790949882.0,
+   "cls": "feature",
+   "task": "nupen_service: idle-priority LM trainer loop",
+   "files": {
+    "scripts/nupen_service.py": 114,
+    "tests/test_nupen_service.py": 113
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-dc895514e564",
+   "sha": "dc895514e5641517b54e5d1bd3b28d8a1ca42d60",
+   "base": "247edba3c3c55802d1afccfe2bc587e9c13b69cf",
+   "ts": 1790949882.0,
+   "cls": "feature",
+   "task": "ActionStudent: show the teacher's reasoning (Why:) in few-shot examples",
+   "files": {
+    "creator/action_student.py": 6,
+    "tests/test_creator_action_student.py": 15
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py"
+   ],
+   "code_files": [
+    "creator/action_student.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-59d0ec5dc577",
+   "sha": "59d0ec5dc57769c71aa22c37c898b00953d95cb8",
+   "base": "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+   "ts": 1790950090.0,
+   "cls": "feature",
+   "task": "curriculum: the 'no adopted tests example yet' gate does not block a replay of the teacher's own example (CP0091 came back to the teacher)",
+   "files": {
+    "creator/curriculum.py": 3,
+    "tests/test_creator_replay_student.py": 14
+   },
+   "test_files": [
+    "tests/test_creator_replay_student.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-24e4b91e6639",
+   "sha": "24e4b91e66397e06d8017531a0d686dd7c6b78a0",
+   "base": "59d0ec5dc57769c71aa22c37c898b00953d95cb8",
+   "ts": 1790950447.0,
+   "cls": "measuring",
+   "task": "sandbox: the evaluation base tree omits the same paths as the sandbox (CP0091 timed out checking out 47k files)",
+   "files": {
+    "creator/sandbox.py": 7,
+    "tests/test_creator_sandbox.py": 13
+   },
+   "test_files": [
+    "tests/test_creator_sandbox.py"
+   ],
+   "code_files": [
+    "creator/sandbox.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-db2e41032353",
+   "sha": "db2e41032353310c8cdcd9c3dc6e745f198dcfcd",
+   "base": "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+   "ts": 1790950511.0,
+   "cls": "measuring",
+   "task": "Add goal generation: evidence-based capability proposals approved by owner/teacher (K27)",
+   "files": {
+    "creator/capabilities.json": 11,
+    "creator/goals.py": 327,
+    "creator/objective.py": 2,
+    "creator/selfmodel.py": 12,
+    "creator/swarm.py": 3,
+    "pyproject.toml": 2,
+    "scripts/creator_status.py": 12,
+    "scripts/nupen_goals.py": 66,
+    "tests/test_creator_goals.py": 188
+   },
+   "test_files": [
+    "tests/test_creator_goals.py"
+   ],
+   "code_files": [
+    "creator/capabilities.json",
+    "creator/goals.py",
+    "creator/objective.py",
+    "creator/selfmodel.py",
+    "creator/swarm.py",
+    "pyproject.toml",
+    "scripts/creator_status.py",
+    "scripts/nupen_goals.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b888b807a068",
+   "sha": "b888b807a0689f8a12a158eeb720fed239b82130",
+   "base": "db2e41032353310c8cdcd9c3dc6e745f198dcfcd",
+   "ts": 1790950560.0,
+   "cls": "feature",
+   "task": "goals: section source ignores SECTION REQUIREMENT doctrine meta items",
+   "files": {
+    "creator/goals.py": 4,
+    "tests/test_creator_goals.py": 7
+   },
+   "test_files": [
+    "tests/test_creator_goals.py"
+   ],
+   "code_files": [
+    "creator/goals.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ce7e933d9d23",
+   "sha": "ce7e933d9d23b202b7ad6afd0b6b65cc523ab06e",
+   "base": "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+   "ts": 1790951472.0,
+   "cls": "feature",
+   "task": "Trainable chooser: a numpy listwise policy trained on lessons, measured outcomes and contrastive lessons; ActionStudent flag (default off: not significantly better on held-out seeds)",
+   "files": {
+    "creator/action_student.py": 22,
+    "creator/chooser.py": 261,
+    "scripts/chooser_bench.py": 89,
+    "scripts/make_contrast_lessons.py": 4,
+    "scripts/train_chooser.py": 82,
+    "tests/test_creator_chooser.py": 80
+   },
+   "test_files": [
+    "tests/test_creator_chooser.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/chooser.py",
+    "scripts/chooser_bench.py",
+    "scripts/make_contrast_lessons.py",
+    "scripts/train_chooser.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f22cb9510940",
+   "sha": "f22cb9510940c2982dd8004f6a3fbfe4cc652f71",
+   "base": "7994896fae704c837bb5b2876de56565f0180416",
+   "ts": 1790951720.0,
+   "cls": "feature",
+   "task": "Shadow-evaluate the trained chooser against the default on real outcomes, with a pre-registered switch rule and policy.json",
+   "files": {
+    "creator/action_student.py": 39,
+    "creator/shadow.py": 184,
+    "scripts/creator_status.py": 41,
+    "tests/test_creator_shadow.py": 105
+   },
+   "test_files": [
+    "tests/test_creator_shadow.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/shadow.py",
+    "scripts/creator_status.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-edd2e9aff9a7",
+   "sha": "edd2e9aff9a719106d182b392426c670a5f29ba8",
+   "base": "0b48376206983bace81c3a1b4fc5c236674fb4ec",
+   "ts": 1790951948.0,
+   "cls": "measuring",
+   "task": "Validator round 5: history evidence ignores deleted-path empty blob; LocalModel releases the machine lock on any start-up failure; replay refuses paths outside the work dir (3 regression tests, each failing before the fix)",
+   "files": {
+    "creator/audit/checks.py": 6,
+    "creator/generator.py": 10,
+    "creator/replay_student.py": 4,
+    "tests/test_creator_audit.py": 20,
+    "tests/test_creator_leak.py": 15,
+    "tests/test_creator_replay_student.py": 10
+   },
+   "test_files": [
+    "tests/test_creator_audit.py",
+    "tests/test_creator_leak.py",
+    "tests/test_creator_replay_student.py"
+   ],
+   "code_files": [
+    "creator/audit/checks.py",
+    "creator/generator.py",
+    "creator/replay_student.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-12b9040baec2",
+   "sha": "12b9040baec2a6cc9bb9dacd00aa3baa8e0cacbe",
+   "base": "f9861fb7a521d65f5208686d8e33fff6926d32fa",
+   "ts": 1790952009.0,
+   "cls": "feature",
+   "task": "action_choice_bench: --why-ab flag (Why line on/off) and fresh-seed 501-503 result: within noise",
+   "files": {
+    "scripts/action_choice_bench.py": 17,
+    "tests/test_creator_action_student.py": 12
+   },
+   "test_files": [
+    "tests/test_creator_action_student.py"
+   ],
+   "code_files": [
+    "scripts/action_choice_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7073147c122c",
+   "sha": "7073147c122c25ef99b64b0ae7a363ebe5cae8bf",
+   "base": "7994896fae704c837bb5b2876de56565f0180416",
+   "ts": 1790952272.0,
+   "cls": "measuring",
+   "task": "Constraint loop: measure Nupen's limiting factors (meta improvement rate first), rank by loss, act via goal proposals/recursion, detect shifts",
+   "files": {
+    "creator/constraints.py": 630,
+    "creator/goals.py": 4,
+    "creator/swarm.py": 2,
+    "pyproject.toml": 2,
+    "scripts/creator_status.py": 3,
+    "scripts/nupen_constraints.py": 37,
+    "tests/test_creator_constraints.py": 151
+   },
+   "test_files": [
+    "tests/test_creator_constraints.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/goals.py",
+    "creator/swarm.py",
+    "pyproject.toml",
+    "scripts/creator_status.py",
+    "scripts/nupen_constraints.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-51631a86ee6c",
+   "sha": "51631a86ee6c81e8e99e387eb45c5751c5fead30",
+   "base": "edd2e9aff9a719106d182b392426c670a5f29ba8",
+   "ts": 1790952288.0,
+   "cls": "tests_only",
+   "task": "K24: test that min_effect tightens adoption and is recorded on the claim",
+   "files": {
+    "tests/test_creator_recursion.py": 13
+   },
+   "test_files": [
+    "tests/test_creator_recursion.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-22bb2f7d4a7c",
+   "sha": "22bb2f7d4a7c63562280a39a6777f5d488f0300c",
+   "base": "f22cb9510940c2982dd8004f6a3fbfe4cc652f71",
+   "ts": 1790952632.0,
+   "cls": "measuring",
+   "task": "Student pre-screen (metric, import, direct tests) rejects non-improving candidates before the kernel; offline practice rows as a separate weighted chooser source",
+   "files": {
+    "creator/action_student.py": 83,
+    "creator/chooser.py": 65,
+    "creator/prescreen.py": 242,
+    "creator/student.py": 17,
+    "pyproject.toml": 2,
+    "scripts/practice.py": 157,
+    "scripts/prescreen_report.py": 60,
+    "tests/test_creator_prescreen.py": 106
+   },
+   "test_files": [
+    "tests/test_creator_prescreen.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/chooser.py",
+    "creator/prescreen.py",
+    "creator/student.py",
+    "pyproject.toml",
+    "scripts/practice.py",
+    "scripts/prescreen_report.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f2e4f8c99ad0",
+   "sha": "f2e4f8c99ad0498e712933fdc533f40105e1ba81",
+   "base": "ae4e5289d3df9367bc6e4154e547089d8c34448d",
+   "ts": 1790953369.0,
+   "cls": "feature",
+   "task": "nupen_service: put the repo root on sys.path - launched as a script the LM trainer's 'from creator import swarm' killed the supervisor right after 'up'\n\nNupen sat idle 08:28-09:01: the supervisor (pythonw, no console) died with ModuleNotFoundError before starting the swarm.\nTests run from the repo root and missed it; the regression test loads the script from another cwd (fails before the fix).",
+   "files": {
+    "scripts/nupen_service.py": 2,
+    "tests/test_nupen_service.py": 13
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9a38a48b2416",
+   "sha": "9a38a48b2416781d85c8f8a3a2906eb9bce3d60d",
+   "base": "8e96c85af041214838f717c58de3b6098c1db8a0",
+   "ts": 1790953677.0,
+   "cls": "measuring",
+   "task": "Fundamentals catalogue: 15 burned-in engineering principles, 12 computed advisory checks, kernel report, constraint metric, principles_for",
+   "files": {
+    "creator/constraints.py": 31,
+    "creator/fundamentals.py": 634,
+    "creator/kernel.py": 7,
+    "pyproject.toml": 2,
+    "tests/test_creator_fundamentals.py": 183
+   },
+   "test_files": [
+    "tests/test_creator_fundamentals.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/fundamentals.py",
+    "creator/kernel.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-6625248fa565",
+   "sha": "6625248fa5653754e4d22a33138445991a2dca79",
+   "base": "de28fe3092f7218c4af886f5dba743905311f2d1",
+   "ts": 1790953707.0,
+   "cls": "bugfix",
+   "task": "Nupen keeps itself running: supervisor never dies on an error (logged, retried), heartbeat + crash log, and a paired watchdog\n\nOwner, 2 Oct: 'create a patch to ensure whenever Nupen is supposed to be running it is running'. The supervisor wraps supervision\nin a retry loop (full traceback in the log), isolates optional parts (LM trainer, watchdog), writes a heartbeat every poll and\nenables faulthandler to nupen_service.crash.log. scripts/nupen_watchdog.py restarts a dead supervisor and ends+restarts a hung one\n(stale heartbeat); the supervisor restarts a dead watchdog. NUPEN_STOP is always respected. 23 tests.",
+   "files": {
+    "scripts/nupen_service.py": 91,
+    "scripts/nupen_watchdog.py": 150,
+    "tests/test_nupen_watchdog.py": 97
+   },
+   "test_files": [
+    "tests/test_nupen_watchdog.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py",
+    "scripts/nupen_watchdog.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-233bd2e93263",
+   "sha": "233bd2e93263aaf0cb13caa1cf39370e5fd3d7e1",
+   "base": "8e96c85af041214838f717c58de3b6098c1db8a0",
+   "ts": 1790953759.0,
+   "cls": "measuring",
+   "task": "Reasoning procedure: fixed 9-step thinking procedure wired into work packages, predictions and calibration, stop rules\n\ncreator/reasoning.py: versioned procedure + heuristics; planner.build_package opens with 'How to approach this' (procedure, recalled\nworked/failed lessons, optional principles_for/sparse_rule_text); WorkResult.predicted + Lesson.predicted/measured + per-student\ncalibration metric in constraints; planner stops a gap after 2 identical failures without new evidence and escalates; curriculum\nrefuses to re-evaluate a student change identical to a rejected one.",
+   "files": {
+    "creator/constraints.py": 8,
+    "creator/curriculum.py": 22,
+    "creator/kernel.py": 1,
+    "creator/model_student.py": 4,
+    "creator/planner.py": 16,
+    "creator/reasoning.py": 253,
+    "pyproject.toml": 2,
+    "tests/test_creator_reasoning.py": 157
+   },
+   "test_files": [
+    "tests/test_creator_reasoning.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/curriculum.py",
+    "creator/kernel.py",
+    "creator/model_student.py",
+    "creator/planner.py",
+    "creator/reasoning.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9ee2064989bf",
+   "sha": "9ee2064989bf280d888781b7024a906e130f260b",
+   "base": "bfbae94e0b5be91d22693a8b184e186edf484d9e",
+   "ts": 1790954231.0,
+   "cls": "measuring",
+   "task": "Nupen terminal layer 1: rule-based conversation (intents, Understand/Speak interfaces, logging, export)",
+   "files": {
+    "creator/conversation.py": 594,
+    "pyproject.toml": 2,
+    "scripts/nupen.py": 54,
+    "tests/test_creator_conversation.py": 168
+   },
+   "test_files": [
+    "tests/test_creator_conversation.py"
+   ],
+   "code_files": [
+    "creator/conversation.py",
+    "pyproject.toml",
+    "scripts/nupen.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ae20663b2512",
+   "sha": "ae20663b2512215379858d12605038af67ccfdb1",
+   "base": "8e96c85af041214838f717c58de3b6098c1db8a0",
+   "ts": 1790954558.0,
+   "cls": "measuring",
+   "task": "Sparse activation as an architecture rule: creator.registry (load on demand), start-load guard in the kernel claim path, entry points converted\n\n- creator/registry.py: name -> module table, get/optional/register/loaded, sparse_rule_text() (also in every worker prompt via render_package)\n- efficiency.start_load/start_load_regression: kernel.py + scripts/creator_swarm.py eager closure; kernel.execute rejects growth beyond 0.5% / 25 nodes unless creator/EAGER.md records a justification for the package key\n- eager_graph now counts guarded module-level imports (try/if), not TYPE_CHECKING\n- creator_swarm.py and swarm.py fetch students, curriculum, process_levers, goals, constraints through the registry\n- swarm start: 27 -> 21 Creator modules, eager load 94642 -> 73422 AST nodes",
+   "files": {
+    "creator/efficiency.py": 77,
+    "creator/kernel.py": 8,
+    "creator/registry.py": 88,
+    "creator/swarm.py": 7,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 48,
+    "tests/test_creator_registry.py": 189
+   },
+   "test_files": [
+    "tests/test_creator_registry.py"
+   ],
+   "code_files": [
+    "creator/efficiency.py",
+    "creator/kernel.py",
+    "creator/registry.py",
+    "creator/swarm.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d79bf1547a68",
+   "sha": "d79bf1547a68db5c35702ce5bad454cb19e3fac8",
+   "base": "bfbae94e0b5be91d22693a8b184e186edf484d9e",
+   "ts": 1790954669.0,
+   "cls": "feature",
+   "task": "Reconcile pending lessons from kernel records, skip hopeless student/kind pairs, per-student learning-signal table",
+   "files": {
+    "creator/constraints.py": 10,
+    "creator/curriculum.py": 134,
+    "scripts/creator_swarm.py": 6,
+    "tests/test_creator_reconcile.py": 106
+   },
+   "test_files": [
+    "tests/test_creator_reconcile.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/curriculum.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d046bee991b8",
+   "sha": "d046bee991b86c95d059f14acd33e13e96280547",
+   "base": "a45e3e4477fb5c0f93ea0f2f93f64ea5ab32d85a",
+   "ts": 1790954682.0,
+   "cls": "feature",
+   "task": "watchdog: exclusive-create claim (two starters in the same second both claimed) and the supervisor waits 120 s before re-spawning",
+   "files": {
+    "scripts/nupen_service.py": 7,
+    "scripts/nupen_watchdog.py": 18,
+    "tests/test_nupen_watchdog.py": 25
+   },
+   "test_files": [
+    "tests/test_nupen_watchdog.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py",
+    "scripts/nupen_watchdog.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-6cb26f8b81cf",
+   "sha": "6cb26f8b81cf4a7672a90fcf19c507d9e27f5aa2",
+   "base": "bfbae94e0b5be91d22693a8b184e186edf484d9e",
+   "ts": 1790954718.0,
+   "cls": "feature",
+   "task": "Practice runner in the supervisor (idle/RAM-gated, one background job with the LM trainer), chooser retrain on new practice rows with before/after holdout log, predictions with every claimed change, practice_signal metric",
+   "files": {
+    "creator/action_student.py": 27,
+    "creator/constraints.py": 19,
+    "scripts/nupen_service.py": 120,
+    "scripts/train_chooser.py": 47,
+    "tests/test_nupen_practice_runner.py": 186,
+    "tests/test_nupen_service.py": 1
+   },
+   "test_files": [
+    "tests/test_nupen_practice_runner.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/action_student.py",
+    "creator/constraints.py",
+    "scripts/nupen_service.py",
+    "scripts/train_chooser.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e99941f84570",
+   "sha": "e99941f8457082ba23fb5fd846e228c2b7ad45d5",
+   "base": "bfbae94e0b5be91d22693a8b184e186edf484d9e",
+   "ts": 1790955182.0,
+   "cls": "measuring",
+   "task": "Resume path: nupen-resume-v1 re-applies pending diffs and unmeasured lessons (exact, then function-level)\n\nCredit goes to the original solver; items retire on a kernel verdict or after 3 failed re-applications. Adds scripts/pending_report.py (read-only).",
+   "files": {
+    "creator/curriculum.py": 6,
+    "creator/pending.py": 521,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 6,
+    "scripts/pending_report.py": 41,
+    "tests/test_creator_pending.py": 134
+   },
+   "test_files": [
+    "tests/test_creator_pending.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/pending.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py",
+    "scripts/pending_report.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-dd939e678704",
+   "sha": "dd939e678704befda28050663c24eb904056a14a",
+   "base": "601176634ba2785cf68d517a58aed73123d3a750",
+   "ts": 1790955420.0,
+   "cls": "measuring",
+   "task": "validator6: shadow rows joined per attempt, approved-capabilities file protected, watchdog/supervisor pidfile boot check, heartbeat pid check, no orphaned swarm, tests no longer start a real watchdog",
+   "files": {
+    "creator/sandbox.py": 4,
+    "creator/shadow.py": 19,
+    "scripts/nupen_service.py": 37,
+    "scripts/nupen_watchdog.py": 38,
+    "tests/test_creator_sandbox.py": 2,
+    "tests/test_creator_shadow.py": 14,
+    "tests/test_nupen_service.py": 63,
+    "tests/test_nupen_watchdog.py": 28
+   },
+   "test_files": [
+    "tests/test_creator_sandbox.py",
+    "tests/test_creator_shadow.py",
+    "tests/test_nupen_service.py",
+    "tests/test_nupen_watchdog.py"
+   ],
+   "code_files": [
+    "creator/sandbox.py",
+    "creator/shadow.py",
+    "scripts/nupen_service.py",
+    "scripts/nupen_watchdog.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-343582429f1f",
+   "sha": "343582429f1f249a0c2160b89e40c53d3136bc4c",
+   "base": "dd939e678704befda28050663c24eb904056a14a",
+   "ts": 1790955577.0,
+   "cls": "feature",
+   "task": "validator6: reconcile never credits an orphan lesson with another worker's cycle; git show timeout in fundamentals",
+   "files": {
+    "creator/curriculum.py": 41,
+    "creator/fundamentals.py": 4,
+    "tests/test_creator_fundamentals.py": 14,
+    "tests/test_creator_reconcile.py": 15
+   },
+   "test_files": [
+    "tests/test_creator_fundamentals.py",
+    "tests/test_creator_reconcile.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/fundamentals.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-bac9957d95d0",
+   "sha": "bac9957d95d05201aecfa3928b5f198d5e0b3514",
+   "base": "24cb3e6e65626e1f6694f0c1e91d0d06d2bad390",
+   "ts": 1790955608.0,
+   "cls": "feature",
+   "task": "ActionStudent fills WorkResult.predicted from prescreen deltas",
+   "files": {
+    "creator/action_student.py": 4,
+    "tests/test_creator_reasoning.py": 8
+   },
+   "test_files": [
+    "tests/test_creator_reasoning.py"
+   ],
+   "code_files": [
+    "creator/action_student.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5c2f69d928f6",
+   "sha": "5c2f69d928f692cfe98dcfb182c3772d72e1dad9",
+   "base": "343582429f1f249a0c2160b89e40c53d3136bc4c",
+   "ts": 1790955672.0,
+   "cls": "feature",
+   "task": "validator6: a failed goal approval leaves no capability behind",
+   "files": {
+    "creator/goals.py": 10,
+    "tests/test_creator_goals.py": 16
+   },
+   "test_files": [
+    "tests/test_creator_goals.py"
+   ],
+   "code_files": [
+    "creator/goals.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5b2eece6e6c1",
+   "sha": "5b2eece6e6c111662a26659c48ac74e82e461285",
+   "base": "5c2f69d928f692cfe98dcfb182c3772d72e1dad9",
+   "ts": 1790955743.0,
+   "cls": "feature",
+   "task": "validator6: practice rows from a run without tests are inconclusive",
+   "files": {
+    "scripts/practice.py": 2,
+    "tests/test_creator_prescreen.py": 11
+   },
+   "test_files": [
+    "tests/test_creator_prescreen.py"
+   ],
+   "code_files": [
+    "scripts/practice.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-86b0e15ad8fa",
+   "sha": "86b0e15ad8fab7315cde06fa33a5f45c79a82e58",
+   "base": "bfbae94e0b5be91d22693a8b184e186edf484d9e",
+   "ts": 1790955840.0,
+   "cls": "measuring",
+   "task": "Cycle time: per-stage timing in every CycleReport; cand1 and post-merge check serve cand0's PASS test files (digest-verified)",
+   "files": {
+    "creator/constraints.py": 24,
+    "creator/kernel.py": 109,
+    "tests/test_creator_constraints.py": 12,
+    "tests/test_creator_integration.py": 4,
+    "tests/test_creator_kernel.py": 41
+   },
+   "test_files": [
+    "tests/test_creator_constraints.py",
+    "tests/test_creator_integration.py",
+    "tests/test_creator_kernel.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/kernel.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-4df30f1edb60",
+   "sha": "4df30f1edb60012e65c6cb049678b0cad9d1336d",
+   "base": "601176634ba2785cf68d517a58aed73123d3a750",
+   "ts": 1790956537.0,
+   "cls": "tests_only",
+   "task": "Tests: make timing-dependent swarm/leak/curriculum/service tests deterministic\n\nBarrier-gated workers for the parallel-adoption and scheduled-batch tests (peak == N guaranteed when allowed, barrier breaks when serialised);\nevent-based lock-handoff test instead of elapsed-time check; poll-with-deadline instead of fixed sleeps in process-table tests.",
+   "files": {
+    "tests/test_creator_curriculum.py": 5,
+    "tests/test_creator_leak.py": 46,
+    "tests/test_creator_swarm.py": 18,
+    "tests/test_creator_swarm_scheduled.py": 19,
+    "tests/test_nupen_service.py": 9
+   },
+   "test_files": [
+    "tests/test_creator_curriculum.py",
+    "tests/test_creator_leak.py",
+    "tests/test_creator_swarm.py",
+    "tests/test_creator_swarm_scheduled.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-2458567d5856",
+   "sha": "2458567d585672a2dc4a2656c72653e7c702b80d",
+   "base": "d8135e43c8f8a58a25c045b8d92e99586d955918",
+   "ts": 1790956823.0,
+   "cls": "feature",
+   "task": "Close round-6 open items: shadow rule B on attempt rates (pre-data correction), swarm pidfile + orphan reap, practice run lock, source-bound junit evidence",
+   "files": {
+    "creator/doctrine.py": 42,
+    "creator/shadow.py": 28,
+    "scripts/nupen_service.py": 62,
+    "scripts/practice.py": 19,
+    "tests/test_creator_doctrine.py": 28,
+    "tests/test_creator_prescreen.py": 19,
+    "tests/test_creator_shadow.py": 38,
+    "tests/test_nupen_service.py": 66
+   },
+   "test_files": [
+    "tests/test_creator_doctrine.py",
+    "tests/test_creator_prescreen.py",
+    "tests/test_creator_shadow.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/doctrine.py",
+    "creator/shadow.py",
+    "scripts/nupen_service.py",
+    "scripts/practice.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-41decd5069de",
+   "sha": "41decd5069deb8174db8bfbedc871b616d1b67cb",
+   "base": "601176634ba2785cf68d517a58aed73123d3a750",
+   "ts": 1790957792.0,
+   "cls": "tests_only",
+   "task": "RAM: the real-local-model test is opt-in (NUPEN_REAL_MODEL_TEST=1); it started a 1.3 GB llama-server inside every kernel evaluation that touched generator.py",
+   "files": {
+    "tests/test_creator_generator.py": 4
+   },
+   "test_files": [
+    "tests/test_creator_generator.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-05ef257f92de",
+   "sha": "05ef257f92deacc1475cd45cb6a8d0cd40e2d24b",
+   "base": "601176634ba2785cf68d517a58aed73123d3a750",
+   "ts": 1790958042.0,
+   "cls": "feature",
+   "task": "Nupen LM: mixed story+dialogue training stream (train --mix dialogue), supervisor default on",
+   "files": {
+    "creator/lm/mix.py": 86,
+    "creator/lm/train.py": 24,
+    "scripts/nupen_lm.py": 8,
+    "scripts/nupen_service.py": 7,
+    "tests/test_lm_mix.py": 55,
+    "tests/test_nupen_service.py": 2
+   },
+   "test_files": [
+    "tests/test_lm_mix.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/lm/mix.py",
+    "creator/lm/train.py",
+    "scripts/nupen_lm.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-3769abffeb84",
+   "sha": "3769abffeb84084df5df5257eb8fc4a6a47cf374",
+   "base": "41decd5069deb8174db8bfbedc871b616d1b67cb",
+   "ts": 1790960438.0,
+   "cls": "measuring",
+   "task": "RAM: machine-wide test-process budget (N OS-released slots, memory-gated by measured per-test MB), Governor reserves the evaluation's test memory, swarm default test-parallel 6 -> 4",
+   "files": {
+    "creator/build.py": 14,
+    "creator/devbench.py": 6,
+    "creator/generator.py": 5,
+    "creator/localworker.py": 5,
+    "creator/reproduce.py": 5,
+    "creator/swarm.py": 13,
+    "creator/testrun.py": 2,
+    "creator/testslots.py": 247,
+    "scripts/creator_swarm.py": 4,
+    "tests/test_creator_testslots.py": 139
+   },
+   "test_files": [
+    "tests/test_creator_testslots.py"
+   ],
+   "code_files": [
+    "creator/build.py",
+    "creator/devbench.py",
+    "creator/generator.py",
+    "creator/localworker.py",
+    "creator/reproduce.py",
+    "creator/swarm.py",
+    "creator/testrun.py",
+    "creator/testslots.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-44e6f5edb562",
+   "sha": "44e6f5edb5620c07b4ce88680837f7ed06ea8cf4",
+   "base": "a45e3e4477fb5c0f93ea0f2f93f64ea5ab32d85a",
+   "ts": 1790960806.0,
+   "cls": "tests_only",
+   "task": "RAM: the real-local-model test is opt-in (NUPEN_REAL_MODEL_TEST=1); it started a 1.3 GB llama-server inside every kernel evaluation that touched generator.py",
+   "files": {
+    "tests/test_creator_generator.py": 4
+   },
+   "test_files": [
+    "tests/test_creator_generator.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-034a4126317e",
+   "sha": "034a4126317e979e28022844bc8109fc954a6af6",
+   "base": "740854c8f321d00bebfbae792f5556e19172e193",
+   "ts": 1790964003.0,
+   "cls": "measuring",
+   "task": "cycletime join: cand1 never reuses test results (reproducibility check); main_after may",
+   "files": {
+    "creator/kernel.py": 8,
+    "tests/test_creator_kernel.py": 19
+   },
+   "test_files": [
+    "tests/test_creator_kernel.py"
+   ],
+   "code_files": [
+    "creator/kernel.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-df49040391bc",
+   "sha": "df49040391bcd5afe544da3311b5d149fafc0466",
+   "base": "034a4126317e979e28022844bc8109fc954a6af6",
+   "ts": 1790965721.0,
+   "cls": "feature",
+   "task": "Deploy joins: lazy device/reasoning (start load), registry capabilities, tests adapted to merged behaviour",
+   "files": {
+    "creator/planner.py": 8,
+    "creator/registry.py": 2,
+    "creator/swarm.py": 7,
+    "creator/testslots.py": 18,
+    "scripts/creator_swarm.py": 2,
+    "tests/test_creator_reasoning.py": 2,
+    "tests/test_creator_schedule.py": 7,
+    "tests/test_creator_validator2_regressions.py": 3
+   },
+   "test_files": [
+    "tests/test_creator_reasoning.py",
+    "tests/test_creator_schedule.py",
+    "tests/test_creator_validator2_regressions.py"
+   ],
+   "code_files": [
+    "creator/planner.py",
+    "creator/registry.py",
+    "creator/swarm.py",
+    "creator/testslots.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-57d9803e3389",
+   "sha": "57d9803e3389273710f02b321f32473e572647cb",
+   "base": "f12cb76d30b7b841ae18acae5bb908c5744ec634",
+   "ts": 1790981269.0,
+   "cls": "feature",
+   "task": "Owner (2 Oct): RAM reserve and user-aware yielding come from device settings, so device_overrides.json can set 'all but 1 GB, never yield'",
+   "files": {
+    "creator/device.py": 1,
+    "scripts/creator_swarm.py": 5,
+    "scripts/nupen_service.py": 2,
+    "tests/test_device_portability.py": 4,
+    "tests/test_nupen_service.py": 12
+   },
+   "test_files": [
+    "tests/test_device_portability.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/device.py",
+    "scripts/creator_swarm.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-66d0ef93c156",
+   "sha": "66d0ef93c15622254fad5229dda0e45ef7dcf0fd",
+   "base": "57d9803e3389273710f02b321f32473e572647cb",
+   "ts": 1790983116.0,
+   "cls": "bugfix",
+   "task": "Test slots: nested launches run under their ancestor's slot (fixes a cold-start deadlock)\n\n2 Oct 2026, new PC: the swarm's 8 test runs held all 8 machine slots while the test runs they started internally waited\nfor a slot - nothing moved for 30 minutes. A slotted launch marks its children (NUPEN_TEST_SLOT_HELD=1); a marked launch\non the machine pool takes nothing; private pools (explicit directory) stay budgeted. Fix and regression test written by\nthe parallel session peter-b0; deployed by peter-cd.",
+   "files": {
+    "creator/testslots.py": 10,
+    "tests/test_creator_testslots.py": 30
+   },
+   "test_files": [
+    "tests/test_creator_testslots.py"
+   ],
+   "code_files": [
+    "creator/testslots.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-832dd7facf31",
+   "sha": "832dd7facf311367026b02952ffa8e32fc2a07f4",
+   "base": "e23bd32765a70571861333bc5e3ab13ea935efb5",
+   "ts": 1790989203.0,
+   "cls": "feature",
+   "task": "Use the machine: 29 GiB target, every CPU thread for tests, training without waiting for idle, 1 GB disk floor\n\nOwner, 2 Oct 2026 (new PC): 'make sure Nupen is set up to use all of it except a single GB' and 'we want to use 29 GB 24/7\nyou as claude get to use what you need then Nupen uses the rest'. device setting ram_use_target_gib sets the free floor to\nwhat remains of this machine; testslots keeps the SAME reserve as the Governor (it kept a separate 7% = 2.4 GB); with\nuser_aware off test slots go up to the logical cores and the LM trainer/practice no longer wait for the owner to be idle;\nthe Governor starts no work below disk_floor_gb (1 GB) of free disk. Tests: tests/test_use_all_but_one_gb.py.",
+   "files": {
+    "creator/device.py": 12,
+    "creator/swarm.py": 16,
+    "creator/testslots.py": 12,
+    "scripts/creator_swarm.py": 3,
+    "scripts/nupen_service.py": 13,
+    "tests/test_use_all_but_one_gb.py": 65
+   },
+   "test_files": [
+    "tests/test_use_all_but_one_gb.py"
+   ],
+   "code_files": [
+    "creator/device.py",
+    "creator/swarm.py",
+    "creator/testslots.py",
+    "scripts/creator_swarm.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5c9efcae6ed0",
+   "sha": "5c9efcae6ed0bb66070fdebbc33cf6f8d105754a",
+   "base": "832dd7facf311367026b02952ffa8e32fc2a07f4",
+   "ts": 1790991042.0,
+   "cls": "measuring",
+   "task": "Fill the machine: plan up to the worker cap, unlimited filler, ledger takes over a dead writer's lock\n\nOwner, 2 Oct 2026: 'this is really bad its still not using all the memory we have a lot to do it should add tasks until it\nuses 97% of memory'. Measured: 14 GiB used / 17 free - the swarm planned at most 24 packages and 40 fillers per round.\nswarm_cmd now passes --packages = max_workers and --filler 100000; the Governor (free RAM vs the floor) decides how many run.\nThe ledger lock now takes over a lock whose holder is DEAD (re-read before removing; unknown = alive): a pause killed the\nswarm mid-append at 18:58 and it crash-looped on 'held for > 30s by another writer'.",
+   "files": {
+    "creator/ledger.py": 26,
+    "scripts/nupen_service.py": 5,
+    "tests/test_use_all_but_one_gb.py": 20
+   },
+   "test_files": [
+    "tests/test_use_all_but_one_gb.py"
+   ],
+   "code_files": [
+    "creator/ledger.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7cf4528569d6",
+   "sha": "7cf4528569d626ac29eeffb974b9ca8e2f560ffa",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1790998011.0,
+   "cls": "feature",
+   "task": "Skip rule counts only judged attempts; lifts on new student version or cool-down probe",
+   "files": {
+    "creator/curriculum.py": 68,
+    "tests/test_creator_skip_rule.py": 59
+   },
+   "test_files": [
+    "tests/test_creator_skip_rule.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-29f8d3c37f05",
+   "sha": "29f8d3c37f054e46da60414fd60e9aa1eda45bfe",
+   "base": "7cf4528569d626ac29eeffb974b9ca8e2f560ffa",
+   "ts": 1790998113.0,
+   "cls": "feature",
+   "task": "LM trainer and practice take fair turns: trainer yields after each finished session",
+   "files": {
+    "scripts/nupen_service.py": 22,
+    "tests/test_nupen_service.py": 85
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-4d64e89f2aac",
+   "sha": "4d64e89f2aac31475d3f13a5689c9c7a71a0d526",
+   "base": "29f8d3c37f054e46da60414fd60e9aa1eda45bfe",
+   "ts": 1790998385.0,
+   "cls": "feature",
+   "task": "LM training: annealing cycles resume across sessions; promote only at a completed cycle",
+   "files": {
+    "creator/lm/train.py": 35,
+    "scripts/nupen_lm.py": 13,
+    "scripts/nupen_service.py": 4,
+    "tests/test_lm_core.py": 15,
+    "tests/test_nupen_service.py": 2
+   },
+   "test_files": [
+    "tests/test_lm_core.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/lm/train.py",
+    "scripts/nupen_lm.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-1ddc37fd7035",
+   "sha": "1ddc37fd703512e2f0caaf983738c167d04d6c14",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1790998934.0,
+   "cls": "feature",
+   "task": "Model servers: RAM-budgeted extra slots, measured thread cap and server count, start-up timeout scales with servers loading; opt-in real-model fresh-attempt check",
+   "files": {
+    "creator/device.py": 7,
+    "creator/generator.py": 57,
+    "tests/test_real_model_fresh_attempt.py": 49,
+    "tests/test_use_all_but_one_gb.py": 61
+   },
+   "test_files": [
+    "tests/test_real_model_fresh_attempt.py",
+    "tests/test_use_all_but_one_gb.py"
+   ],
+   "code_files": [
+    "creator/device.py",
+    "creator/generator.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-1ba1822b4198",
+   "sha": "1ba1822b4198f019f2d7a63da243c0b1f12273eb",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1790999449.0,
+   "cls": "measuring",
+   "task": "Planner: rotate efficiency targets and skip unjudged ones (ledger-based), gap work before efficiency with capacity-raising gaps first, wasted_work/repeat_rate metrics, focus hook",
+   "files": {
+    "creator/constraints.py": 36,
+    "creator/efficiency.py": 10,
+    "creator/planner.py": 59,
+    "creator/schedule.py": 23,
+    "creator/swarm.py": 32,
+    "tests/test_creator_schedule.py": 384,
+    "tests/test_creator_swarm_scheduled.py": 35,
+    "tests/test_f2_targets.py": 127
+   },
+   "test_files": [
+    "tests/test_creator_schedule.py",
+    "tests/test_creator_swarm_scheduled.py",
+    "tests/test_f2_targets.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/efficiency.py",
+    "creator/planner.py",
+    "creator/schedule.py",
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9e97f90edf2f",
+   "sha": "9e97f90edf2fbb17f7a5627c6a14779b59354966",
+   "base": "4d64e89f2aac31475d3f13a5689c9c7a71a0d526",
+   "ts": 1790999661.0,
+   "cls": "bugfix",
+   "task": "Review fixes: settle a completed cycle's pending promotion first; infra failures match note prefixes; a crashed trainer yields to practice",
+   "files": {
+    "creator/curriculum.py": 7,
+    "creator/lm/train.py": 25,
+    "scripts/nupen_lm.py": 15,
+    "scripts/nupen_service.py": 4,
+    "tests/test_creator_skip_rule.py": 8,
+    "tests/test_lm_core.py": 23,
+    "tests/test_nupen_service.py": 9
+   },
+   "test_files": [
+    "tests/test_creator_skip_rule.py",
+    "tests/test_lm_core.py",
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "creator/curriculum.py",
+    "creator/lm/train.py",
+    "scripts/nupen_lm.py",
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-bb961eb078ad",
+   "sha": "bb961eb078ad708ad6a662bf11793f9578ee49fc",
+   "base": "1ddc37fd703512e2f0caaf983738c167d04d6c14",
+   "ts": 1790999738.0,
+   "cls": "feature",
+   "task": "Model-server slots: charge loading servers against free RAM, refresh start markers, never leak a marker, unknown RAM denies extra slots",
+   "files": {
+    "creator/generator.py": 63,
+    "tests/test_use_all_but_one_gb.py": 96
+   },
+   "test_files": [
+    "tests/test_use_all_but_one_gb.py"
+   ],
+   "code_files": [
+    "creator/generator.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b3e055d4ca99",
+   "sha": "b3e055d4ca993e8b6df7ccf4728907930b6ce89c",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1790999879.0,
+   "cls": "measuring",
+   "task": "Resource-governed admission: profiles, CPU/RAM admission, RAM work, resource_balance constraint\n\ncreator/resources.py (on demand): measured per-kind CPU/RAM profiles, Admitter (2x oversubscription under priority classes,\nsaturated CPU defers CPU-heavy work, RAM floor defers RAM-heavy work, next_kind fills the freer resource), warm_model_cache RAM work,\nsamples + resource_balance metric. Governor cap becomes a 10x-cores safety valve on the real machine.",
+   "files": {
+    "creator/constraints.py": 18,
+    "creator/registry.py": 1,
+    "creator/resources.py": 514,
+    "creator/swarm.py": 18,
+    "pyproject.toml": 2,
+    "tests/test_creator_resources.py": 165,
+    "x/resource_samples.jsonl": 2
+   },
+   "test_files": [
+    "tests/test_creator_resources.py"
+   ],
+   "code_files": [
+    "creator/constraints.py",
+    "creator/registry.py",
+    "creator/resources.py",
+    "creator/swarm.py",
+    "pyproject.toml",
+    "x/resource_samples.jsonl"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b91bca568c74",
+   "sha": "b91bca568c74f8af84941164b36123d62351c761",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1790999993.0,
+   "cls": "measuring",
+   "task": "F7 focus mode: focus.json thinking focus + allowed() hook for the planner/schedule; protect focus/trust/thinking state paths",
+   "files": {
+    "creator/focus.py": 73,
+    "creator/registry.py": 2,
+    "creator/sandbox.py": 2,
+    "pyproject.toml": 2,
+    "tests/test_creator_focus.py": 45
+   },
+   "test_files": [
+    "tests/test_creator_focus.py"
+   ],
+   "code_files": [
+    "creator/focus.py",
+    "creator/registry.py",
+    "creator/sandbox.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-609566c20cdb",
+   "sha": "609566c20cdb909f6db09f24c296dc39069d7287",
+   "base": "b91bca568c74f8af84941164b36123d62351c761",
+   "ts": 1791000000.0,
+   "cls": "measuring",
+   "task": "F7 thinking drills, trust gate, blueprint: before-the-fact predictions scored vs baselines, per-topic trust, BLUEPRINT.md generator",
+   "files": {
+    "creator/thinking.py": 431,
+    "scripts/nupen_blueprint.py": 209,
+    "tests/test_creator_thinking.py": 199
+   },
+   "test_files": [
+    "tests/test_creator_thinking.py"
+   ],
+   "code_files": [
+    "creator/thinking.py",
+    "scripts/nupen_blueprint.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-07924e83d7fe",
+   "sha": "07924e83d7feee02ce450d2a025ae665c9e6f623",
+   "base": "15ccb33b74efe3b59114785fb4cdc75743f52ea8",
+   "ts": 1791000007.0,
+   "cls": "feature",
+   "task": "Release never-started packages of orphaned gaps, ignore interrupted packages in samples and failure memory, guard swarmops call, load schedule on demand (start load 85125 -> 81839)",
+   "files": {
+    "creator/planner.py": 2,
+    "creator/schedule.py": 3,
+    "creator/swarm.py": 15,
+    "creator/swarmops.py": 50,
+    "tests/test_creator_schedule.py": 72
+   },
+   "test_files": [
+    "tests/test_creator_schedule.py"
+   ],
+   "code_files": [
+    "creator/planner.py",
+    "creator/schedule.py",
+    "creator/swarm.py",
+    "creator/swarmops.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ee6baf0b275f",
+   "sha": "ee6baf0b275f3e5367484d69fdec9dadb1df1006",
+   "base": "07924e83d7feee02ce450d2a025ae665c9e6f623",
+   "ts": 1791000008.0,
+   "cls": "feature",
+   "task": "Swarm start runs record_validation --due-only: current independent verdicts reach the ledger (no verdict created, no rule relaxed)",
+   "files": {
+    "scripts/creator_swarm.py": 4,
+    "scripts/record_validation.py": 14
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/creator_swarm.py",
+    "scripts/record_validation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d66e4586326d",
+   "sha": "d66e4586326d49fd1550bf44c9d186d50a00161e",
+   "base": "6cb05fff62357f6b0e43f5dc3d7b5a323108be9b",
+   "ts": 1791000633.0,
+   "cls": "feature",
+   "task": "Start-load guard back under 85,000 (swarm loads schedule on demand); warm model-server pool: idle loaded servers leased by LocalModel\n\ncreator/swarm.py: schedule via registry. creator/modelpool.py (on demand): pool grows while free RAM - server - headroom stays above\nthe floor, shrinks idle servers when RAM tightens, holds slot locks + kill-on-close job, closes at exit/idle round. LocalModel leases\na warm server (one lessee per server) instead of starting one.",
+   "files": {
+    "creator/generator.py": 26,
+    "creator/modelpool.py": 306,
+    "creator/registry.py": 1,
+    "creator/swarm.py": 9,
+    "tests/test_creator_modelpool.py": 171
+   },
+   "test_files": [
+    "tests/test_creator_modelpool.py"
+   ],
+   "code_files": [
+    "creator/generator.py",
+    "creator/modelpool.py",
+    "creator/registry.py",
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0e4b9c23602b",
+   "sha": "0e4b9c23602b284932992d350d13a71a6201bd29",
+   "base": "609566c20cdb909f6db09f24c296dc39069d7287",
+   "ts": 1791000671.0,
+   "cls": "measuring",
+   "task": "F7 drill sources (git history, journal, plan choices, research booleans) as independent parallel jobs with a swarm filler factory",
+   "files": {
+    "creator/drillsources.py": 345,
+    "creator/registry.py": 1,
+    "pyproject.toml": 2,
+    "tests/test_creator_drillsources.py": 108
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/registry.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-c53f82c001b6",
+   "sha": "c53f82c001b66273821471d6818351e4b3513ee4",
+   "base": "0e4b9c23602b284932992d350d13a71a6201bd29",
+   "ts": 1791000695.0,
+   "cls": "bugfix",
+   "task": "F7 fix drillsources test syntax and typing",
+   "files": {
+    "creator/drillsources.py": 5
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d053fdf5d6ee",
+   "sha": "d053fdf5d6ee5d2c7ebec35422904721e83177a4",
+   "base": "c53f82c001b66273821471d6818351e4b3513ee4",
+   "ts": 1791000718.0,
+   "cls": "tests_only",
+   "task": "F7 fix drillsources test and typing",
+   "files": {
+    "tests/test_creator_drillsources.py": 3
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-81e244e5415e",
+   "sha": "81e244e5415e13b5e6c0ad1692598444d4c29a18",
+   "base": "d66e4586326d49fd1550bf44c9d186d50a00161e",
+   "ts": 1791000859.0,
+   "cls": "feature",
+   "task": "RAM job: warm_git_objects keeps the git pack files in the OS file cache (sandbox/assess reads)",
+   "files": {
+    "creator/resources.py": 49,
+    "tests/test_creator_resources.py": 17
+   },
+   "test_files": [
+    "tests/test_creator_resources.py"
+   ],
+   "code_files": [
+    "creator/resources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ebf2ede6363a",
+   "sha": "ebf2ede6363a18507ee7917573c4eb1ed0cb1e47",
+   "base": "d053fdf5d6ee5d2c7ebec35422904721e83177a4",
+   "ts": 1791000884.0,
+   "cls": "measuring",
+   "task": "F7 anticipation rate: top-level trust metric (owner directives vs earlier Nupen proposals), echo-safe matching, backlog, drill; first in trust.json and BLUEPRINT.md; dated blueprint snapshots",
+   "files": {
+    "creator/anticipation.py": 278,
+    "creator/registry.py": 1,
+    "creator/thinking.py": 9,
+    "pyproject.toml": 2,
+    "scripts/nupen_blueprint.py": 21,
+    "tests/test_creator_anticipation.py": 104,
+    "tests/test_creator_thinking.py": 7
+   },
+   "test_files": [
+    "tests/test_creator_anticipation.py",
+    "tests/test_creator_thinking.py"
+   ],
+   "code_files": [
+    "creator/anticipation.py",
+    "creator/registry.py",
+    "creator/thinking.py",
+    "pyproject.toml",
+    "scripts/nupen_blueprint.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-befdff812736",
+   "sha": "befdff8127364c64e3f95ad0e5b58aec80f0e4b3",
+   "base": "ebf2ede6363a18507ee7917573c4eb1ed0cb1e47",
+   "ts": 1791000894.0,
+   "cls": "feature",
+   "task": "F7 anticipation typing",
+   "files": {
+    "creator/anticipation.py": 5
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/anticipation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-c46ad9e3df46",
+   "sha": "c46ad9e3df464a57f7833e6a013793b2cc668daa",
+   "base": "583e52bc0ca8f32058554a408db9ec65a40dc5a1",
+   "ts": 1791000945.0,
+   "cls": "feature",
+   "task": "Swarm: import creator.schedule lazily in plan_scheduled so the start load stays under the guard",
+   "files": {
+    "creator/swarm.py": 1008
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-1dc25b8bdf57",
+   "sha": "1dc25b8bdf57a43ef9185b6d25ba2b8de8ff9b85",
+   "base": "740eee6cf9de2cc18afd7697120402ae036bd24b",
+   "ts": 1791002092.0,
+   "cls": "feature",
+   "task": "Wire thinking focus: swarm hook really filters (one-arg allowed, requirement_key), K29 counts as thinking, filler = drills + live predictions + hourly blueprint\n\nThe focus hook called focus.allowed(plan) with one argument while allowed() required two; the TypeError was swallowed and\nnothing was filtered. Kernel plans carry requirement_key, which the efficiency check did not read. Tests go through the real\nswarm hook and the real make_filler.",
+   "files": {
+    "creator/focus.py": 13,
+    "scripts/creator_swarm.py": 34,
+    "tests/test_thinking_wiring.py": 62
+   },
+   "test_files": [
+    "tests/test_thinking_wiring.py"
+   ],
+   "code_files": [
+    "creator/focus.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9a085b89eb60",
+   "sha": "9a085b89eb60c1767c54d4f60df18e2c82339de4",
+   "base": "1dc25b8bdf57a43ef9185b6d25ba2b8de8ff9b85",
+   "ts": 1791002532.0,
+   "cls": "feature",
+   "task": "Swarm liveness: a round never waits forever on a queued plan under tight RAM\n\nrun_round looped with no exit when a planned package was queued, nothing ran, and RAM was too tight to start anything; the\nround now ends RAM_TIGHT and releases the queued plans as interrupted (not counted as attempts). The STATUS line now waits a\nminute before its first reading so it never perturbs a round's start. Regression test fails on the old loop (never returns).",
+   "files": {
+    "creator/swarm.py": 14,
+    "tests/test_swarm_liveness.py": 40
+   },
+   "test_files": [
+    "tests/test_swarm_liveness.py"
+   ],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-93663439eebb",
+   "sha": "93663439eebbe98a55146beaf3c8e65445913052",
+   "base": "9a085b89eb60c1767c54d4f60df18e2c82339de4",
+   "ts": 1791003260.0,
+   "cls": "feature",
+   "task": "Anticipation: owner dir from Path.home() (no hard-coded user path; device portability test)",
+   "files": {
+    "creator/anticipation.py": 2
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/anticipation.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-8098cce030f6",
+   "sha": "8098cce030f6020013d8fe738f31833ebdd5b50d",
+   "base": "ea3819b61eca063f62bd2c99941eed99b76a402d",
+   "ts": 1791005163.0,
+   "cls": "measuring",
+   "task": "Drill supply is open-ended: after the fixed grid, new variants per source (random + hill-climb over hyperparameters, key subsets, cross-source context) until 12 in a row fail to beat the best on the select part; best held-out per source in trust.json",
+   "files": {
+    "creator/drillsources.py": 188,
+    "creator/thinking.py": 6,
+    "tests/test_creator_drillsources.py": 55
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/thinking.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e253c8570acf",
+   "sha": "e253c8570acf5e43599142b7816735dfce410622",
+   "base": "8098cce030f6020013d8fe738f31833ebdd5b50d",
+   "ts": 1791005393.0,
+   "cls": "feature",
+   "task": "Judgment drills with the local model (creator/judgment.py: no-future prompts, Platt on earlier records, successive halving, filler, trust.json topic) and fillers running while K.prepare runs\n\nNot yet measured against the real model (small-n run unfinished at hand-off).",
+   "files": {
+    "creator/judgment.py": 334,
+    "creator/registry.py": 1,
+    "creator/swarm.py": 65,
+    "scripts/creator_swarm.py": 12,
+    "tests/test_creator_judgment.py": 75,
+    "tests/test_swarm_liveness.py": 30
+   },
+   "test_files": [
+    "tests/test_creator_judgment.py",
+    "tests/test_swarm_liveness.py"
+   ],
+   "code_files": [
+    "creator/judgment.py",
+    "creator/registry.py",
+    "creator/swarm.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-bc93a13cdd20",
+   "sha": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "base": "e253c8570acf5e43599142b7816735dfce410622",
+   "ts": 1791005965.0,
+   "cls": "feature",
+   "task": "Focus hook asks with the run's own state directory (tests no longer read the live repo's focus.json); accepts one- or two-argument allowed()",
+   "files": {
+    "creator/swarm.py": 18
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-073133cecf1a",
+   "sha": "073133cecf1a242c691362ca0c516bcc2eeafc0b",
+   "base": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "ts": 1791006723.0,
+   "cls": "feature",
+   "task": "Judgment few-shot answers no longer say 'Resolved case.' (the model echoed the wording; not a leak) + test that a rendered prompt carries no outcome or post-creation field",
+   "files": {
+    "creator/judgment.py": 2,
+    "creator/reasonmethods.py": 245,
+    "tests/test_creator_judgment.py": 12
+   },
+   "test_files": [
+    "tests/test_creator_judgment.py"
+   ],
+   "code_files": [
+    "creator/judgment.py",
+    "creator/reasonmethods.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ddda49a487b5",
+   "sha": "ddda49a487b572ffc1567a6d81857507a50989a5",
+   "base": "073133cecf1a242c691362ca0c516bcc2eeafc0b",
+   "ts": 1791006829.0,
+   "cls": "feature",
+   "task": "Reasoning methods as judgment strategies: BM25 time-ordered retrieval memory, structured template, self-consistency, teacher traces, kNN control; strategy search over the wider pool; cost, accuracy, paired gain vs default in scoring",
+   "files": {
+    "creator/judgment.py": 84,
+    "creator/registry.py": 1,
+    "tests/test_creator_reasonmethods.py": 99
+   },
+   "test_files": [
+    "tests/test_creator_reasonmethods.py"
+   ],
+   "code_files": [
+    "creator/judgment.py",
+    "creator/registry.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-edf4f6abbb01",
+   "sha": "edf4f6abbb0198366fbf894a114f885511585b18",
+   "base": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "ts": 1791006852.0,
+   "cls": "feature",
+   "task": "drillsources: persistent incremental git history cache, idle-priority one-time full read in its own job, timeouts retry instead of disabling the source",
+   "files": {
+    "creator/drillsources.py": 170,
+    "creator/judgment.py": 4,
+    "tests/test_creator_drillsources.py": 67
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/judgment.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ae54d1feb102",
+   "sha": "ae54d1feb10216d9d1a5a78fcd50809b9b8448cd",
+   "base": "774ebb16782a843dbcef054fb50e3121e7244055",
+   "ts": 1791006941.0,
+   "cls": "feature",
+   "task": "Judgment few-shot answers no longer say 'Resolved case.' (the model echoed the wording; not a leak) + test that a rendered prompt carries no outcome or post-creation field",
+   "files": {
+    "creator/judgment.py": 2,
+    "creator/reasonmethods.py": 245,
+    "tests/test_creator_judgment.py": 12
+   },
+   "test_files": [
+    "tests/test_creator_judgment.py"
+   ],
+   "code_files": [
+    "creator/judgment.py",
+    "creator/reasonmethods.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-774ebb16782a",
+   "sha": "774ebb16782a843dbcef054fb50e3121e7244055",
+   "base": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "ts": 1791006941.0,
+   "cls": "feature",
+   "task": "drillsources: persistent incremental git history cache, idle-priority one-time full read in its own job, timeouts retry instead of disabling the source",
+   "files": {
+    "creator/drillsources.py": 170,
+    "creator/judgment.py": 4,
+    "tests/test_creator_drillsources.py": 67
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/judgment.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b093ad2f00cd",
+   "sha": "b093ad2f00cd71d41d8ca424c637bb2c08bf0140",
+   "base": "edf4f6abbb0198366fbf894a114f885511585b18",
+   "ts": 1791006993.0,
+   "cls": "feature",
+   "task": "drillsources: BELOW_NORMAL instead of IDLE priority for the git read (IDLE starves on the busy machine)",
+   "files": {
+    "creator/drillsources.py": 2
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-c1fc2a71bff0",
+   "sha": "c1fc2a71bff0214086b6743e2fd182d390ae5c36",
+   "base": "ae54d1feb10216d9d1a5a78fcd50809b9b8448cd",
+   "ts": 1791007035.0,
+   "cls": "feature",
+   "task": "Git history cache read at BELOW_NORMAL priority: IDLE starved on the always-busy machine",
+   "files": {
+    "creator/drillsources.py": 2
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-73402a48bf44",
+   "sha": "73402a48bf44c057b2ef00e4d9db2c5ed3acb063",
+   "base": "ddda49a487b572ffc1567a6d81857507a50989a5",
+   "ts": 1791007073.0,
+   "cls": "feature",
+   "task": "Teacher-trace examples no longer carry the outcome wording (the model echoed it)",
+   "files": {
+    "creator/reasonmethods.py": 2,
+    "tests/test_creator_reasonmethods.py": 2
+   },
+   "test_files": [
+    "tests/test_creator_reasonmethods.py"
+   ],
+   "code_files": [
+    "creator/reasonmethods.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f808c8efd423",
+   "sha": "f808c8efd4237d254620fe990f68e393eeed872e",
+   "base": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "ts": 1791007488.0,
+   "cls": "feature",
+   "task": "Frozen thinking benchmark (creator/thinkbench.py, scripts/nupen_thinkbench.py): prediction, local-model judgment, mined reasoning questions, planning; baseline and morning comparison",
+   "files": {
+    "creator/registry.py": 1,
+    "creator/thinkbench.py": 668,
+    "scripts/nupen_thinkbench.py": 160,
+    "tests/test_creator_thinkbench.py": 144
+   },
+   "test_files": [
+    "tests/test_creator_thinkbench.py"
+   ],
+   "code_files": [
+    "creator/registry.py",
+    "creator/thinkbench.py",
+    "scripts/nupen_thinkbench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-45ff04779a03",
+   "sha": "45ff04779a031ad0b8374ecca82d1546a2d2be48",
+   "base": "b093ad2f00cd71d41d8ca424c637bb2c08bf0140",
+   "ts": 1791008048.0,
+   "cls": "feature",
+   "task": "predictors: time-ordered git/package features, walk-forward logistic and lightgbm learners, Platt calibration, honest select/report; leakage and calibration tests",
+   "files": {
+    "creator/predictors.py": 251,
+    "tests/test_creator_predictors.py": 87
+   },
+   "test_files": [
+    "tests/test_creator_predictors.py"
+   ],
+   "code_files": [
+    "creator/predictors.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5042356fc76a",
+   "sha": "5042356fc76a54af7a67003ea47fa636e02218b1",
+   "base": "45ff04779a031ad0b8374ecca82d1546a2d2be48",
+   "ts": 1791010308.0,
+   "cls": "feature",
+   "task": "git cache: --no-renames (rename detection made the full log take 25+ minutes)",
+   "files": {
+    "creator/drillsources.py": 4
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5472a7ba22d3",
+   "sha": "5472a7ba22d36ae5d954b1aca0776b12d6e3968f",
+   "base": "bc93a13cdd207e8a65b905beedd2b2e9f8270439",
+   "ts": 1791010313.0,
+   "cls": "feature",
+   "task": "Thinker role: think_model device setting, generator.thinker() RAM-gated, judgment uses it and tags records by model; think_model_bench",
+   "files": {
+    "creator/device.py": 28,
+    "creator/generator.py": 28,
+    "creator/judgment.py": 48,
+    "scripts/think_model_bench.py": 265,
+    "tests/test_creator_thinker.py": 111
+   },
+   "test_files": [
+    "tests/test_creator_thinker.py"
+   ],
+   "code_files": [
+    "creator/device.py",
+    "creator/generator.py",
+    "creator/judgment.py",
+    "scripts/think_model_bench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-5bb0e1095815",
+   "sha": "5bb0e1095815009bbaa937d6374a72f6305d3880",
+   "base": "d8be9dfa163bc38936a562201aaf188b8df41ae6",
+   "ts": 1791010619.0,
+   "cls": "feature",
+   "task": "predictors: live prospective predictions, trust.json 'features' section and per-topic feature_model, registry entry, tests",
+   "files": {
+    "creator/predictors.py": 112,
+    "creator/registry.py": 1,
+    "tests/test_creator_predictors.py": 16
+   },
+   "test_files": [
+    "tests/test_creator_predictors.py"
+   ],
+   "code_files": [
+    "creator/predictors.py",
+    "creator/registry.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-806769a145f2",
+   "sha": "806769a145f23fdf1972f04044e9d451a93e7278",
+   "base": "c1fc2a71bff0214086b6743e2fd182d390ae5c36",
+   "ts": 1791010681.0,
+   "cls": "bugfix",
+   "task": "alive(): ERROR_ACCESS_DENIED means the process EXISTS (another session) - fixes duplicate Nupen after a reboot\n\n3 Oct 2026: the boot task's supervisor ran in session 0; the logon copy (HKCU Run) read OpenProcess 'access denied' as dead,\ntook the pidfile and started a duplicate whose swarm crash-looped on the kernel lock; then the watchdog chain started more.\nRegression test (PID 4 = System, never openable) fails on the old code.",
+   "files": {
+    "scripts/nupen_service.py": 5,
+    "tests/test_nupen_service.py": 12
+   },
+   "test_files": [
+    "tests/test_nupen_service.py"
+   ],
+   "code_files": [
+    "scripts/nupen_service.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e850bf948122",
+   "sha": "e850bf9481226ccc56100a095d6810af4f719715",
+   "base": "301482f918e603e25ad6610d0a72430c11df981b",
+   "ts": 1791012619.0,
+   "cls": "measuring",
+   "task": "fastpred: fast-resolving prospective topics (drill, test file, stage, judgment, plan race) through the same trust gate",
+   "files": {
+    "creator/drillsources.py": 20,
+    "creator/fastpred.py": 336,
+    "creator/judgment.py": 19,
+    "creator/kernel.py": 28,
+    "creator/planner.py": 8,
+    "creator/registry.py": 1,
+    "creator/swarm.py": 9,
+    "creator/testrun.py": 13,
+    "creator/thinking.py": 6,
+    "tests/test_creator_fastpred.py": 149
+   },
+   "test_files": [
+    "tests/test_creator_fastpred.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/fastpred.py",
+    "creator/judgment.py",
+    "creator/kernel.py",
+    "creator/planner.py",
+    "creator/registry.py",
+    "creator/swarm.py",
+    "creator/testrun.py",
+    "creator/thinking.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-e1916e7a0aac",
+   "sha": "e1916e7a0aac41e661090675976a5bda72950feb",
+   "base": "0e7630fc38b577010fcf42f991d4be879dae2783",
+   "ts": 1791014073.0,
+   "cls": "bugfix",
+   "task": "Batch fixes: git_fixed has no judgment cases until the git_cache job built the history (was GitCacheMissing in the benchmark); thinkbench reads the LM checkpoint via device.runtime_dir()",
+   "files": {
+    "creator/judgment.py": 5,
+    "scripts/nupen_thinkbench.py": 3,
+    "tests/test_creator_judgment.py": 6
+   },
+   "test_files": [
+    "tests/test_creator_judgment.py"
+   ],
+   "code_files": [
+    "creator/judgment.py",
+    "scripts/nupen_thinkbench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-702b9f2afc32",
+   "sha": "702b9f2afc32eeddb0fd06030a276203dbe4bc79",
+   "base": "e1916e7a0aac41e661090675976a5bda72950feb",
+   "ts": 1791014220.0,
+   "cls": "feature",
+   "task": "Fillers burst while RAM is plentiful: a filler may start inside the ramp window when free RAM above the floor covers every start of that window (fillers, workers, RAM jobs) plus this one at >= 1 GB each; tight RAM keeps the plain spacing\n\n3 Oct: the 15 s spacing let one short thinking drill run at a time (CPU 29-65%, 19 GB free).",
+   "files": {
+    "creator/swarm.py": 23,
+    "tests/test_swarm_filler_burst.py": 61
+   },
+   "test_files": [
+    "tests/test_swarm_filler_burst.py"
+   ],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-079a1320e887",
+   "sha": "079a1320e887925d403e132af2272a133ee00533",
+   "base": "702b9f2afc32eeddb0fd06030a276203dbe4bc79",
+   "ts": 1791014700.0,
+   "cls": "feature",
+   "task": "Filler burst is opt-in (Governor.burst_gb, default None = plain spacing); the live swarm turns it on only in thinking focus at 3 GB per start; the run9 spacing test is unchanged",
+   "files": {
+    "creator/swarm.py": 4,
+    "scripts/creator_swarm.py": 13,
+    "tests/test_swarm_filler_burst.py": 24
+   },
+   "test_files": [
+    "tests/test_swarm_filler_burst.py"
+   ],
+   "code_files": [
+    "creator/swarm.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-48e9e016873d",
+   "sha": "48e9e016873d1386c3252988e93499df45c0ca1f",
+   "base": "301482f918e603e25ad6610d0a72430c11df981b",
+   "ts": 1791015230.0,
+   "cls": "feature",
+   "task": "CP0210 K29.exists",
+   "files": {
+    "creator/goal_constraint_learning_signal.py": 165,
+    "tests/test_creator_goal_constraint_learning_signal.py": 65
+   },
+   "test_files": [
+    "tests/test_creator_goal_constraint_learning_signal.py"
+   ],
+   "code_files": [
+    "creator/goal_constraint_learning_signal.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-3e8ebe36a8c9",
+   "sha": "3e8ebe36a8c98023c119bf1676b06d994b20c179",
+   "base": "1e1c88598887aeb5cff4d61d91a565975212874b",
+   "ts": 1791015641.0,
+   "cls": "feature",
+   "task": "thinkbench --model thinker: the frozen benchmark on device think_model (answers via judgment.chat_text), labelled in versions; never falls back to the fast model; 'model same' compares file + size",
+   "files": {
+    "creator/thinkbench.py": 58,
+    "scripts/nupen_thinkbench.py": 13,
+    "tests/test_creator_thinkbench.py": 33
+   },
+   "test_files": [
+    "tests/test_creator_thinkbench.py"
+   ],
+   "code_files": [
+    "creator/thinkbench.py",
+    "scripts/nupen_thinkbench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9675477ff4f9",
+   "sha": "9675477ff4f94f9400fba2c67e37c6e797acc8c4",
+   "base": "1e1c88598887aeb5cff4d61d91a565975212874b",
+   "ts": 1791016699.0,
+   "cls": "feature",
+   "task": "Prospective drill predictions: live_pass records the best variant's P for every commit whose window is open, resolves it when the window closes; trust counts those as prospective and refuses trust when they do worse than the baseline\n\n3 Oct: git_fixed/git_churn beat their baselines on held-out history (gain CI > 0, ECE ~0.02) but could never be trusted - n_live was always 0.",
+   "files": {
+    "creator/drillsources.py": 92,
+    "scripts/creator_swarm.py": 11,
+    "tests/test_drill_live.py": 88
+   },
+   "test_files": [
+    "tests/test_drill_live.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f834562fbe66",
+   "sha": "f834562fbe6657df467e01b096ef3e8683ef0925",
+   "base": "13b1ae4c33b6487aaf11b587cffe639ae162d495",
+   "ts": 1791017000.0,
+   "cls": "feature",
+   "task": "Drill jobs compute in a worker-process pool (one per core, below-normal priority) instead of swarm threads: pure-Python walk-forwards held the GIL, so admitted fillers used ~1 core; the parent still does every write; tests keep the thread path",
+   "files": {
+    "creator/drillsources.py": 54,
+    "scripts/creator_swarm.py": 2,
+    "tests/test_drill_live.py": 17
+   },
+   "test_files": [
+    "tests/test_drill_live.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-21563a17d535",
+   "sha": "21563a17d535ded372d517f5be6b5eaf42341507",
+   "base": "f834562fbe6657df467e01b096ef3e8683ef0925",
+   "ts": 1791017881.0,
+   "cls": "feature",
+   "task": "Drill trust and search report use the LATEST data digest (file order), not max(): git digests are commit hashes, so max() could report an old run after any commit",
+   "files": {
+    "creator/drillsources.py": 4,
+    "tests/test_drill_live.py": 15
+   },
+   "test_files": [
+    "tests/test_drill_live.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-9203bb865297",
+   "sha": "9203bb86529727bccf6612284bf16b77ed5fcd83",
+   "base": "21563a17d535ded372d517f5be6b5eaf42341507",
+   "ts": 1791019658.0,
+   "cls": "feature",
+   "task": "Warm pool keeps the THINKING model in thinking focus (up to think_servers, its real size): the pool held 6 of 7 slots with the unused fast code model while judgment batches queued for one slot and cold-started the thinker each time",
+   "files": {
+    "creator/modelpool.py": 18,
+    "tests/test_creator_modelpool.py": 15
+   },
+   "test_files": [
+    "tests/test_creator_modelpool.py"
+   ],
+   "code_files": [
+    "creator/modelpool.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-3e661ca1d429",
+   "sha": "3e661ca1d429303edbc2edd95c739bc3acbde2e8",
+   "base": "9203bb86529727bccf6612284bf16b77ed5fcd83",
+   "ts": 1791032813.0,
+   "cls": "feature",
+   "task": "Focus filter BEFORE planning: components none of whose gaps the focus allows are passed to the scheduler as held (no pick, no plan_next fall-through); in thinking focus every empty round had planned packages the focus then released (6 plans/h, one target 15x in 24 h)",
+   "files": {
+    "creator/swarm.py": 19,
+    "tests/test_thinking_wiring.py": 14
+   },
+   "test_files": [
+    "tests/test_thinking_wiring.py"
+   ],
+   "code_files": [
+    "creator/swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-fcf01953f605",
+   "sha": "fcf01953f605ca123cee69859924d8303301ad73",
+   "base": "3a8f4ab0ca64066c7eded66547dc6ddbc082a55f",
+   "ts": 1791039834.0,
+   "cls": "feature",
+   "task": "h24: live predictions on active public upstreams + autonomous public-data acquisition\n\n- drillsources: public clones read up to origin/HEAD, shallow boundary commits dropped, incremental\n  refresh_extra_cache (<tip>..origin/HEAD, privacy-stripped), live_pass_x (drill_live_x.jsonl) counted\n  as n_live by trust_section with the same 'live worse than baseline' veto; gitx digest quantized;\n  drill_filler(public=True) hands out fetch and acquisition jobs (errors logged, retried)\n- publicdata: git fetch per public clone every 40 min (BELOW_NORMAL, unauthenticated), acquisition of\n  one more public repo (curated list, then GitHub search API with rate-limit handling) when the git\n  drills ran dry or hourly; disk budget, size cap, staging, jsonl log\n- swarm: live_pass_x after live_pass; drills filler with public=True\n- tests: synthetic upstream/bare repos, fake discovery, no network",
+   "files": {
+    "creator/drillsources.py": 230,
+    "creator/publicdata.py": 356,
+    "creator/registry.py": 1,
+    "scripts/creator_swarm.py": 7,
+    "tests/test_drill_public_live.py": 304
+   },
+   "test_files": [
+    "tests/test_drill_public_live.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/publicdata.py",
+    "creator/registry.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-941ccd618354",
+   "sha": "941ccd618354137968c00082d899430fd792a69f",
+   "base": "2be1fe5aee156859f5860722e992d4c50c3e73d1",
+   "ts": 1791040159.0,
+   "cls": "feature",
+   "task": "Public topics: the walk-forward statistical baseline (~23,000 items) is computed once per change of the public caches",
+   "files": {
+    "creator/judgment.py": 13,
+    "tests/test_creator_publicjudgment.py": 1
+   },
+   "test_files": [
+    "tests/test_creator_publicjudgment.py"
+   ],
+   "code_files": [
+    "creator/judgment.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-dc40a76e19b8",
+   "sha": "dc40a76e19b80641da9362dae1819eae9695f30f",
+   "base": "3a8f4ab0ca64066c7eded66547dc6ddbc082a55f",
+   "ts": 1791040249.0,
+   "cls": "feature",
+   "task": "A bigger thinker (Qwen3-4B/8B) is handled correctly: sizes, threads, timeouts, measurement override\n\n- device.server_threads(): threads per server from the servers that REALLY run at once (a 2-4 server\n  thinking pool gets 4 threads each, not the 3 of 7 machine slots); LocalModel, ModelPool and a cold\n  thinker() use it\n- derive(): think_servers sized by the thinking model's own file (an 8B = 5.4 GB server), not the fast model's\n- device.call_timeout_s(): per-call and start-up timeouts grow with the model's resident size (fast model\n  values unchanged): LocalModel.chat default, judgment calls (reasonmethods.sample timeout), thinkbench\n  calls, pool start-up, cold thinker start-up\n- a loading big thinker is counted at its own size in the extra-server RAM gate (was 1.8 GB)\n- THINK_BLOCK strips an unclosed <think> block (max_tokens hit mid-thought)\n- thinkbench THINK_MODEL_OVERRIDE + scripts/nupen_thinkbench.py --think-model/--repo: measure a candidate\n  thinker on a state copy without touching the live device setting",
+   "files": {
+    "creator/device.py": 20,
+    "creator/generator.py": 18,
+    "creator/judgment.py": 5,
+    "creator/modelpool.py": 7,
+    "creator/reasonmethods.py": 4,
+    "creator/thinkbench.py": 13,
+    "scripts/nupen_thinkbench.py": 13,
+    "tests/test_creator_thinkbench.py": 26,
+    "tests/test_creator_thinker.py": 86
+   },
+   "test_files": [
+    "tests/test_creator_thinkbench.py",
+    "tests/test_creator_thinker.py"
+   ],
+   "code_files": [
+    "creator/device.py",
+    "creator/generator.py",
+    "creator/judgment.py",
+    "creator/modelpool.py",
+    "creator/reasonmethods.py",
+    "creator/thinkbench.py",
+    "scripts/nupen_thinkbench.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-61e6eebf0673",
+   "sha": "61e6eebf067321c8ae2fda527c8c7a1ecbbec1d7",
+   "base": "3a8f4ab0ca64066c7eded66547dc6ddbc082a55f",
+   "ts": 1791040560.0,
+   "cls": "feature",
+   "task": "Extra-project drills use every project already cached; a missing cache is built in the background without blocking the rest; clones in progress (*.tmp) are skipped\n\n3 Oct: cpython's first read and in-progress clones held back all 6 cached projects' drills (digest '-' until every repo was cached).",
+   "files": {
+    "creator/drillsources.py": 20,
+    "tests/test_drill_extra_repos.py": 20
+   },
+   "test_files": [
+    "tests/test_drill_extra_repos.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-ef1c511c33df",
+   "sha": "ef1c511c33df80eb8a35c8e7b58c30a3fffc7a0d",
+   "base": "3a8f4ab0ca64066c7eded66547dc6ddbc082a55f",
+   "ts": 1791040730.0,
+   "cls": "measuring",
+   "task": "Trusted predictions wired into decisions (owner 3 Oct: 'none of this changes what Nupen does unless trusted predictions get wired into its decisions'): creator/decide.py (registry 'decide')\n\n- use(state, topic, fn): the prediction ONLY when the topic is trusted right now (fresh trust.json says trusted AND thinking.trust_of passes again on its score; NUPEN_DECIDE_OFF kill switch); else None and fn is never called\n- REORDER: schedule.next_batch(state=...) orders ready gaps WITHIN their priority class (capacity first, critical path first: unchanged) by trusted P(adopted) x importance / trusted expected seconds; dependencies, exclusions, slots applied after as before; schedule(pred=None) is the old order\n- STRICTER: kernel.execute asks decide.risk_gate before the sandbox evaluation; a candidate whose files carry a trusted high git_fixed risk (top band chosen from the model's own last 300 predictions to flag 20-30%) runs the FULL suite (sandbox.widen_selection: a superset; an empty selection is never widened). Any failure = today's testing\n- MEASUREMENT: deterministic hash holdout (30%) keeps the old rule; every decision -> state/creator/thinking/decisions.jsonl with the counterfactual; decide.summary (arms, Wilson CIs, treated-holdout diffs for adoption, regressions caught, rollbacks, seconds) -> trust.json['decisions']\n- untrusted topics: no reorder, no widening, nothing written",
+   "files": {
+    "creator/decide.py": 294,
+    "creator/kernel.py": 20,
+    "creator/registry.py": 1,
+    "creator/sandbox.py": 20,
+    "creator/schedule.py": 63,
+    "creator/thinking.py": 5,
+    "tests/test_creator_decide.py": 335
+   },
+   "test_files": [
+    "tests/test_creator_decide.py"
+   ],
+   "code_files": [
+    "creator/decide.py",
+    "creator/kernel.py",
+    "creator/registry.py",
+    "creator/sandbox.py",
+    "creator/schedule.py",
+    "creator/thinking.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-b8fd0415c2fd",
+   "sha": "b8fd0415c2fdeb9dac6c5e89a4a86e9c671d7718",
+   "base": "e38327825d4e269cd0061cb43f4510be04407404",
+   "ts": 1791041104.0,
+   "cls": "feature",
+   "task": "Reasoning drills: the expensive 'think' strategy enters as a challenger after the first epoch (measured 3 Oct: ~490 s per answer under load vs 16 s plain); elimination gets 480 tokens (360 truncated before the ANSWER line)",
+   "files": {
+    "creator/reasondrills.py": 13,
+    "tests/test_creator_reasondrills.py": 3
+   },
+   "test_files": [
+    "tests/test_creator_reasondrills.py"
+   ],
+   "code_files": [
+    "creator/reasondrills.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-726e56f62063",
+   "sha": "726e56f6206339c798fba1a2b3e285458f2afa54",
+   "base": "dee8af7e6d1e51f4436e2658a5e4abbedb8c28ee",
+   "ts": 1791041220.0,
+   "cls": "feature",
+   "task": "Learning loop: re-score a probe only when the predictor changed (or daily), map prospective weaknesses to their progress skill",
+   "files": {
+    "creator/learnloop.py": 10,
+    "tests/test_creator_learnloop.py": 9
+   },
+   "test_files": [
+    "tests/test_creator_learnloop.py"
+   ],
+   "code_files": [
+    "creator/learnloop.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d279e64c509e",
+   "sha": "d279e64c509e39ec8ec855fa3dad83c74e6165f4",
+   "base": "ef1c511c33df80eb8a35c8e7b58c30a3fffc7a0d",
+   "ts": 1791041658.0,
+   "cls": "measuring",
+   "task": "decide: keep the kernel/swarm start load lazy (widen_selection and kernel_gate live in creator.decide, reached through the registry; +83 AST nodes eager, under the 85,000 regression line); git_fixed risk band taken among commits of the candidate's size class (all-commit band flagged 0 of 17 real kernel candidates); plan_batch tolerates a cfg without state",
+   "files": {
+    "creator/decide.py": 36,
+    "creator/kernel.py": 22,
+    "creator/sandbox.py": 17,
+    "creator/schedule.py": 3,
+    "tests/test_creator_decide.py": 10
+   },
+   "test_files": [
+    "tests/test_creator_decide.py"
+   ],
+   "code_files": [
+    "creator/decide.py",
+    "creator/kernel.py",
+    "creator/sandbox.py",
+    "creator/schedule.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-f2e51654811c",
+   "sha": "f2e51654811c2a694ba0621f2a57d7e9f20ed93f",
+   "base": "61e6eebf067321c8ae2fda527c8c7a1ecbbec1d7",
+   "ts": 1791042523.0,
+   "cls": "measuring",
+   "task": "Compiled drill walk-forward (numba, creator/fastwalk.py): same predictions as the reference (max |dp| 0 on 27,628 real items; parity tests incl. renormalisation, ties, logit), 19x faster; NUPEN_FASTWALK=0 or no numba keeps the reference",
+   "files": {
+    "creator/drillsources.py": 12,
+    "creator/fastwalk.py": 137,
+    "pyproject.toml": 2,
+    "requirements.txt": 1,
+    "tests/test_fastwalk.py": 55
+   },
+   "test_files": [
+    "tests/test_fastwalk.py"
+   ],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/fastwalk.py",
+    "pyproject.toml"
+   ],
+   "doc_files": [
+    "requirements.txt"
+   ]
+  },
+  {
+   "id": "ct-9ce7f7051c6d",
+   "sha": "9ce7f7051c6df3a247a340db12c4994fb06e01d8",
+   "base": "b8fd0415c2fdeb9dac6c5e89a4a86e9c671d7718",
+   "ts": 1791042679.0,
+   "cls": "bugfix",
+   "task": "Reasoning drills revisit their data when every question is used (owner 08:45: 'revisit its data and repeat, collect new data when it runs out'): a second pass over the questions the control got wrong, reported apart from fresh accuracy, while the status keeps asking for acquisition",
+   "files": {
+    "creator/reasondrills.py": 20,
+    "tests/test_creator_reasondrills.py": 14
+   },
+   "test_files": [
+    "tests/test_creator_reasondrills.py"
+   ],
+   "code_files": [
+    "creator/reasondrills.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-4cec15868208",
+   "sha": "4cec15868208718297fd31db13e1185f69cb190e",
+   "base": "91a899966fe24d41f14536753dbe66c1b4d3ee11",
+   "ts": 1791044217.0,
+   "cls": "bugfix",
+   "task": "Batch fixes: recover answers cut off before the PROBABILITY line with one short follow-up (6% of Qwen3 answers, 36% zero-shot); focus.burst_gb holds the burst rule (keeps the swarm's eager start load under the 85,000 guard after the batch merges); drill git test isolated from the DEFAULT_STATE global",
+   "files": {
+    "creator/focus.py": 9,
+    "creator/reasonmethods.py": 9,
+    "scripts/creator_swarm.py": 9,
+    "tests/test_creator_drillsources.py": 3,
+    "tests/test_creator_reasonmethods.py": 16
+   },
+   "test_files": [
+    "tests/test_creator_drillsources.py",
+    "tests/test_creator_reasonmethods.py"
+   ],
+   "code_files": [
+    "creator/focus.py",
+    "creator/reasonmethods.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-d89c76fd2af7",
+   "sha": "d89c76fd2af76b696dc9c2bbec4013fe54107eeb",
+   "base": "9ce7f7051c6df3a247a340db12c4994fb06e01d8",
+   "ts": 1791044617.0,
+   "cls": "feature",
+   "task": "Reasoning drills: kinds take turns in the fresh-question order (the first real run's first halving cut would have been judged on co_change questions only)",
+   "files": {
+    "creator/reasondrills.py": 32,
+    "tests/test_creator_reasondrills.py": 9
+   },
+   "test_files": [
+    "tests/test_creator_reasondrills.py"
+   ],
+   "code_files": [
+    "creator/reasondrills.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-04376ba3086e",
+   "sha": "04376ba3086e18e40777075d23c0fc86a7562c7d",
+   "base": "718e2a68a4eef07cd03ff71afd2a6651a8b6f2ac",
+   "ts": 1791048335.0,
+   "cls": "measuring",
+   "task": "Thinking filler moved to creator/thinkfill.py (loaded on demand: the merged batch had pushed the swarm's eager start load to 85,100 > 85,000; now 84,730); drill process pool shut down at exit (no weakref traceback)",
+   "files": {
+    "creator/drillsources.py": 2,
+    "creator/thinkfill.py": 54,
+    "pyproject.toml": 2,
+    "scripts/creator_swarm.py": 39
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/drillsources.py",
+    "creator/thinkfill.py",
+    "pyproject.toml",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-0bcc3d899181",
+   "sha": "0bcc3d8991819b8559744ab3f33a1d5423a92af5",
+   "base": "04376ba3086e18e40777075d23c0fc86a7562c7d",
+   "ts": 1791049408.0,
+   "cls": "measuring",
+   "task": "Speed (audit 3 Oct): shared cached-provenance test fixture in tests/conftest.py (planner 299->19 s, oversight 158->3.5 s; test_creator_ledger keeps the real computation); ledger computes provenance before taking its lock; start-up test files dispatched longest-first; a drain starts no fillers during prepare; thinking focus re-checks an empty round after 60 s, not 600 s",
+   "files": {
+    "creator/ledger.py": 4,
+    "creator/selfmodel.py": 17,
+    "creator/swarm.py": 2,
+    "scripts/creator_swarm.py": 3,
+    "tests/conftest.py": 34,
+    "tests/test_creator_ledger.py": 1
+   },
+   "test_files": [
+    "tests/test_creator_ledger.py"
+   ],
+   "code_files": [
+    "creator/ledger.py",
+    "creator/selfmodel.py",
+    "creator/swarm.py",
+    "scripts/creator_swarm.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-af79a0e429f3",
+   "sha": "af79a0e429f3438ea5f3d166bbca507fb19d3467",
+   "base": "dc40a76e19b80641da9362dae1819eae9695f30f",
+   "ts": 1791050064.0,
+   "cls": "feature",
+   "task": "Thinking-server size recalibrated to measured working sets (1.7B 2.61, 4B 5.17, 8B 8.78 GB = ~1.9x file + 0.7)\n\nMapped file pages and llama.cpp's repacked weight copy are both resident, so the old 'file + 0.7' undercounted\na thinker by 30-40%; derive() keeps at least one thinking server on a >= 12 GB machine (the RAM gate decides).\nMeasured '-lm none' (no mmap): 1.98 / 3.53 GB for 1.7B / 4B - not switched on here (its speed was not measured cleanly).",
+   "files": {
+    "creator/device.py": 8,
+    "tests/test_creator_thinker.py": 17
+   },
+   "test_files": [
+    "tests/test_creator_thinker.py"
+   ],
+   "code_files": [
+    "creator/device.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-7490562866e1",
+   "sha": "7490562866e181c6a1a482b1a715e92a7e22d704",
+   "base": "37c2108472ad70b901efc5a33d662fd830b08922",
+   "ts": 1791052875.0,
+   "cls": "feature",
+   "task": "trialerror: the online simulation stops when every arm is raced out (a free control never spins)",
+   "files": {
+    "creator/trialerror.py": 2,
+    "tests/test_trialerror.py": 5
+   },
+   "test_files": [
+    "tests/test_trialerror.py"
+   ],
+   "code_files": [
+    "creator/trialerror.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-61b9c8d2b30c",
+   "sha": "61b9c8d2b30ccddea8bf296aa11f87bd55870ca7",
+   "base": "7baccf921b4d597cb2804b3dc2504c2a5e5e4389",
+   "ts": 1791054653.0,
+   "cls": "tests_only",
+   "task": "test_main_once: plant plans relative to the real clock (main() reads time.time(); the fixed NOW aged out of the 24 h window on 3 Oct 12:00)",
+   "files": {
+    "tests/test_nupen_monitor.py": 6
+   },
+   "test_files": [
+    "tests/test_nupen_monitor.py"
+   ],
+   "code_files": [],
+   "doc_files": []
+  },
+  {
+   "id": "ct-a949c02ae6cd",
+   "sha": "a949c02ae6cdff72f379e78d64670098f89e0829",
+   "base": "2fc4701776d5595fe3a82cbbeb6ab67f09483f85",
+   "ts": 1791060818.0,
+   "cls": "feature",
+   "task": "GPU day prep: provider/GPU-agnostic (gpu_profile from @@gpu, scaled plan minutes, driver-matched torch wheels in pod_setup.sh, bf16/fp16 auto), neutral manifest drop labels, selftest_cpu.py",
+   "files": {
+    "creator/gpuday.py": 165,
+    "docs/GPU_DAY_PREP.md": 85,
+    "scripts/gpuday/finetune.py": 8,
+    "scripts/gpuday/jobs.py": 14,
+    "scripts/gpuday/pod_setup.sh": 52,
+    "scripts/gpuday/rl_grpo.py": 19,
+    "scripts/gpuday/selftest_cpu.py": 69,
+    "tests/test_gpuday.py": 34
+   },
+   "test_files": [
+    "tests/test_gpuday.py"
+   ],
+   "code_files": [
+    "creator/gpuday.py",
+    "scripts/gpuday/finetune.py",
+    "scripts/gpuday/jobs.py",
+    "scripts/gpuday/pod_setup.sh",
+    "scripts/gpuday/rl_grpo.py",
+    "scripts/gpuday/selftest_cpu.py"
+   ],
+   "doc_files": [
+    "docs/GPU_DAY_PREP.md"
+   ]
+  },
+  {
+   "id": "ct-1be10895d811",
+   "sha": "1be10895d811ae8d161a4323c174ee0d868594be",
+   "base": "9ea769c8b2e22ed499d21b43d0fc58c02d9302ed",
+   "ts": 1791061007.0,
+   "cls": "feature",
+   "task": "reasondrills.run_batch: traces stays the 5th parameter (as the pulse runner calls it), extra after it; the filler passes both by keyword",
+   "files": {
+    "creator/reasondrills.py": 4
+   },
+   "test_files": [],
+   "code_files": [
+    "creator/reasondrills.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-178e22c700e5",
+   "sha": "178e22c700e5aa2d997d3dd43ed4803ce923e3ef",
+   "base": "a949c02ae6cdff72f379e78d64670098f89e0829",
+   "ts": 1791061299.0,
+   "cls": "measuring",
+   "task": "GPU day prep: export audit on decoded text, neutral manifest labels, gpuday in mypy files, pod script + finetune format tests (19 tests pass)",
+   "files": {
+    "creator/gpuday.py": 19,
+    "pyproject.toml": 2,
+    "tests/test_gpuday.py": 16
+   },
+   "test_files": [
+    "tests/test_gpuday.py"
+   ],
+   "code_files": [
+    "creator/gpuday.py",
+    "pyproject.toml"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-4e87aa26a46d",
+   "sha": "4e87aa26a46df9dc93f0b2603e0fa4c279a406e6",
+   "base": "178e22c700e5aa2d997d3dd43ed4803ce923e3ef",
+   "ts": 1791061475.0,
+   "cls": "feature",
+   "task": "GPU day prep: finetune drops over-long rows explicitly (TRL silently masked them away; counted in result.json); selftest uses the shortest rows. Embedding index proven on CPU (bge-small, 653 docs, 102 s at IDLE)",
+   "files": {
+    "scripts/gpuday/finetune.py": 32,
+    "scripts/gpuday/selftest_cpu.py": 4
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/gpuday/finetune.py",
+    "scripts/gpuday/selftest_cpu.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-96d7d23beac8",
+   "sha": "96d7d23beac85ccc0ab3628b922a2dac5bd94991",
+   "base": "4e87aa26a46df9dc93f0b2603e0fa4c279a406e6",
+   "ts": 1791062125.0,
+   "cls": "feature",
+   "task": "GPU day prep: fine-tune pipeline proven on CPU (tiny Qwen3: SFT -> DPO -> merge -> GGUF f16 -> Q4_K_M -> adapter GGUF); GRPO eval uses the BatchEncoding of transformers 5",
+   "files": {
+    "scripts/gpuday/finetune.py": 3,
+    "scripts/gpuday/rl_grpo.py": 5
+   },
+   "test_files": [],
+   "code_files": [
+    "scripts/gpuday/finetune.py",
+    "scripts/gpuday/rl_grpo.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-cfa94fa03a9f",
+   "sha": "cfa94fa03a9f37228d416171788f2dde04434e1a",
+   "base": "845e515c43f9db3f2037ce7b9fe7d91d011f5f3e",
+   "ts": 1791064333.0,
+   "cls": "feature",
+   "task": "pulseroute: home thinking/judgment calls overflow to a healthy GPU pulse tunnel (pulse_route=auto), tests, never-raise hardening",
+   "files": {
+    "creator/pulseroute.py": 13,
+    "tests/test_pulseroute.py": 209
+   },
+   "test_files": [
+    "tests/test_pulseroute.py"
+   ],
+   "code_files": [
+    "creator/pulseroute.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-edaca3fd3c74",
+   "sha": "edaca3fd3c743114ab2aa06da6c6bd0c40d7491f",
+   "base": "20a826b4eb086a67da7f3bc277e942d0d25add6f",
+   "ts": 1791065472.0,
+   "cls": "feature",
+   "task": "GPU day: torch pinned on the pod after the kernel check; second run of the day (gpuday_start_at) re-uploads the grown export\n\npod_setup.sh writes torch==<working version> to gpuday/constraints.txt and exports PIP_CONSTRAINT, and the Unsloth\ninstall uses it (-c), so neither Unsloth nor gguf-py can swap the torch that runs on the card. day_jobs with\ncfg gpuday_start_at=<job> returns a fresh gpuday_upload followed by the day from that job on (the bundle is built\nwhen the list is made, so FINE-TUNE 1's worked rows reach the pod only this way). Test added.",
+   "files": {
+    "creator/gpuday.py": 6,
+    "docs/GPU_DAY_PREP.md": 5,
+    "scripts/gpuday/pod_setup.sh": 6,
+    "tests/test_gpuday.py": 11
+   },
+   "test_files": [
+    "tests/test_gpuday.py"
+   ],
+   "code_files": [
+    "creator/gpuday.py",
+    "scripts/gpuday/pod_setup.sh"
+   ],
+   "doc_files": [
+    "docs/GPU_DAY_PREP.md"
+   ]
+  },
+  {
+   "id": "ct-a2bdd7a2e659",
+   "sha": "a2bdd7a2e659fe62f5f97f1a6e2b697c3602ccf3",
+   "base": "e792e63edf023ec339e0a409ab2d0dc49d86ef65",
+   "ts": 1791069578.0,
+   "cls": "feature",
+   "task": "h51 util: feed the rented GPU, route home thinking to a pod backfill server\n\n- pulseroute: merge backfill tunnel files (<gpu>/tunnel.*.json, same schema as\n  write_tunnel) with the runner's tunnel.json; per-port pulse ids; capacity sums\n  across files. Lets home 1.7B thinking calls use an extra pod server the runner\n  does not own (still off unless pulse_route=auto; stale/silent files ignored).\n- gpuday harness: keep ctx workers (= server slots) generations in flight instead\n  of a fixed 4 (14B had 4 of 16 slots busy); BelowNormal (not IDLE) priority for\n  GPU-feeding work; sandboxes omit state/research like the kernel (the 120 s\n  `git worktree add` timeout killed coder_trial_base rc=1); a sandbox failure is a\n  failed candidate, not a dead job; evaluations run in parallel sized to idle cores.\n- gpupulse: optional config 'server_flags' passed to llama-server (validated, part\n  of the keep-signature); default none = unchanged.",
+   "files": {
+    "creator/gpuday.py": 73,
+    "creator/gpupulse.py": 25,
+    "creator/pulseroute.py": 80,
+    "tests/test_gpuday.py": 63,
+    "tests/test_gpupulse.py": 15,
+    "tests/test_pulseroute.py": 49
+   },
+   "test_files": [
+    "tests/test_gpuday.py",
+    "tests/test_gpupulse.py",
+    "tests/test_pulseroute.py"
+   ],
+   "code_files": [
+    "creator/gpuday.py",
+    "creator/gpupulse.py",
+    "creator/pulseroute.py"
+   ],
+   "doc_files": []
+  },
+  {
+   "id": "ct-543d9315493c",
+   "sha": "543d9315493c7b6511358de4aadca5fd54133080",
+   "base": "a2bdd7a2e659fe62f5f97f1a6e2b697c3602ccf3",
+   "ts": 1791070151.0,
+   "cls": "feature",
+   "task": "gpupulse: stop_servers never kills deadman.pid (only numeric <port>.pid server files)\n\nEvery free_gpu job and server switch silently disarmed the pod's budget guard. Found live on 3 Oct 2026; guard re-armed by hand.",
+   "files": {
+    "creator/gpupulse.py": 1,
+    "tests/test_gpupulse.py": 18
+   },
+   "test_files": [
+    "tests/test_gpupulse.py"
+   ],
+   "code_files": [
+    "creator/gpupulse.py"
+   ],
+   "doc_files": []
+  }
+ ]
+}

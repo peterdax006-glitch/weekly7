@@ -250,7 +250,8 @@ def build_tasks(repo: Path, cut_ts: float, head: str = "HEAD", with_ledger: bool
         if not c["parent"]:
             skip("root commit")
             continue
-        size = len(_git(repo, "show", "--format=", "--no-color", c["sha"], "--", *files))
+        size = MAX_PATCH_CHARS + 1 if len(files) > 60 else len(_git(repo, "show", "--format=", "--no-color", c["sha"], "--", ".",
+                                                                    ":(exclude)state"))
         if size > MAX_PATCH_CHARS:
             skip("too large for one task")
             continue
@@ -575,6 +576,17 @@ class CommandAgent(Agent):
 OMIT = ("state/research",)          # = creator.kernel.OMIT (44k of the repository's files; never needed to test the Creator)
 
 
+def eval_clone(path: Path, source: Path) -> Path:
+    """A SEPARATE clone for the gate's sandboxes (their branches never touch the source repository's refs). No working tree is checked
+    out (sandboxes are worktrees at each task's start); refreshed with a fetch on each use."""
+    if not (Path(path) / ".git").exists():
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "clone", "-q", "--no-checkout", str(source), str(path)], check=True, timeout=3600)
+    else:
+        subprocess.run(["git", "-C", str(path), "fetch", "-q", "origin"], check=False, timeout=900)
+    return Path(path)
+
+
 def _omitted(rel: str) -> bool:
     return any(rel == o or rel.startswith(o + "/") for o in OMIT)
 
@@ -640,43 +652,76 @@ class Runner:
     """Runs tasks for one agent setup in sandboxes of a SEPARATE clone (`repo`); every sandbox is discarded, nothing is merged."""
 
     def __init__(self, repo: Path, out: Path, suite: Sequence[str] = PROTECTED_SUITE, test_timeout: float = 1800.0,
-                 log: Callable[[str], None] = print) -> None:
+                 log: Callable[[str], None] = print, full_suite: bool = True, cache: Optional[Path] = None) -> None:
+        """full_suite: an attempt that PASSES its task check also runs the whole protected suite (the attempts that could be adopted);
+        every attempt runs the protected test files that mention a module it changed (tier 1). `cache`: validation + reference runs,
+        shareable between setups (they depend on the task only)."""
         self.repo, self.out, self.suite, self.test_timeout, self.log = Path(repo), Path(out), tuple(suite), test_timeout, log
+        self.full_suite = full_suite
         self.out.mkdir(parents=True, exist_ok=True)
-        (self.out / "validation").mkdir(exist_ok=True)
+        self.cache = Path(cache) if cache else self.out / "validation"
+        self.cache.mkdir(parents=True, exist_ok=True)
 
-    def _open(self, task: Task, label: str) -> Any:
+    def _open(self, task: Task, label: str, rev: str = "") -> Any:
         from creator import sandbox as S
-        return S.Sandbox.open(self.repo, task.base, scratch=self.out / "sandboxes", label=label, omit=OMIT)
+        return S.Sandbox.open(self.repo, rev or task.base, scratch=self.out / "sandboxes", label=label, omit=OMIT)
 
-    def _suite_key(self) -> str:
-        return hashlib.sha256(json.dumps(self.suite).encode()).hexdigest()[:10]
+    def affected(self, root: Path, changed: Iterable[str], exclude: Iterable[str] = ()) -> list[str]:
+        """Tier 1: the protected test files that name a changed module (dotted import or its registry key) - cheap and static."""
+        names: list[str] = []
+        reg = (root / "creator" / "registry.py")
+        table = dict((v, k) for k, v in re.findall(r'"(\w+)":\s*"(creator\.[\w.]+)"', reg.read_text(encoding="utf-8"))) if reg.is_file() else {}
+        for p in changed:
+            if p.endswith(".py") and not is_test(p):
+                dotted = p[:-3].replace("/", ".")
+                names.append(dotted)
+                if dotted in table:
+                    names += [f'"{table[dotted]}"', f"'{table[dotted]}'"]
+        out = []
+        for t in self.suite:
+            f = root / t
+            if t in set(exclude) or not f.is_file():
+                continue
+            body = f.read_text(encoding="utf-8", errors="replace")
+            if any(n in body for n in names):
+                out.append(t)
+        return out
 
-    def _check_targets(self, task: Task, sb_path: Path, attempt_tests: Sequence[str]) -> list[str]:
-        own = list(attempt_tests) if task.cls == "tests_only" else list(task.test_files)
-        return sorted(set(own) | {t for t in self.suite if (sb_path / t).is_file()})
+    def reference_protected(self, task: Task, files: Sequence[str]) -> dict[str, list[str]]:
+        """Passing protected cases on the REFERENCE tree, per test file (cached per task; only missing files are run)."""
+        from creator import sandbox as S
+        cf = self.cache / f"{task.id}-protected.json"
+        have: dict[str, list[str]] = dict(json.loads(cf.read_text(encoding="utf-8"))) if cf.is_file() else {}
+        need = [f for f in files if f not in have]
+        if need:
+            sb = self._open(task, f"ct-ref-{task.id}", rev=task.sha)
+            try:
+                r = run_tests(sb.path, need, self.out / "sandboxes" / f"{sb.id}-refprot.xml", "reference", self.test_timeout)
+            finally:
+                S.discard(sb)
+            for f in need:
+                have[f] = sorted(c for c, o in r["cases"].items() if o == "pass" and _file_of(c) == f)
+            cf.write_text(json.dumps(have, indent=1), encoding="utf-8")
+        return {f: have.get(f, []) for f in files}
 
     def validate(self, task: Task) -> dict[str, Any]:
-        """Once per task (cached): the reference's own tests and the protected suite at the start (with the reference's test files
-        overlaid) and on the reference. -> required cases, fail-to-pass cases, protected cases that pass on both sides."""
+        """Once per task (cached): the reference's own test files at the start (overlaid) and on the reference -> required cases
+        (passing on the reference) and fail-to-pass cases (failing at the start)."""
         from creator import sandbox as S
-        cache = self.out / "validation" / f"{task.id}-{self._suite_key()}.json"
+        cache = self.cache / f"{task.id}.json"
         if cache.is_file():
             return dict(json.loads(cache.read_text(encoding="utf-8")))
         sb = self._open(task, f"ct-val-{task.id}")
         try:
             checkout_reference(sb.path, task, task.test_files)
-            tg = sorted(set(task.test_files) | {t for t in self.suite if (sb.path / t).is_file()})
-            base = run_tests(sb.path, tg, self.out / "sandboxes" / f"{sb.id}-base.xml", "start", self.test_timeout)
+            base = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-base.xml", "start", self.test_timeout)
             checkout_reference(sb.path, task, [p for p in task.files if not _omitted(p)])
-            tg_ref = sorted(set(tg) | {t for t in self.suite if (sb.path / t).is_file()})
-            ref = run_tests(sb.path, tg_ref, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout)
+            ref = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout)
         finally:
             S.discard(sb)
         own = set(task.test_files)
         req = sorted(c for c, o in ref["cases"].items() if o == "pass" and _file_of(c) in own)
         f2p = sorted(c for c in req if base["cases"].get(c) != "pass")
-        prot = sorted(c for c, o in ref["cases"].items() if o == "pass" and base["cases"].get(c) == "pass" and _file_of(c) not in own)
         usable, why = True, ""
         if base["status"] in ("CRASHED", "TIMEOUT") or ref["status"] in ("CRASHED", "TIMEOUT"):
             usable, why = False, f"test run broken (start {base['status']}, reference {ref['status']})"
@@ -686,7 +731,7 @@ class Runner:
             usable, why = False, "no test fails at the start and passes on the reference (a do-nothing attempt would pass)"
         elif task.cls == "tests_only" and not req:
             usable, why = False, "the reference's tests do not pass"
-        v = {"task": task.id, "usable": usable, "why": why, "required": req, "fail_to_pass": f2p, "protected_ok": prot,
+        v = {"task": task.id, "usable": usable, "why": why, "required": req, "fail_to_pass": f2p,
              "start": {"status": base["status"], "seconds": base["seconds"]}, "reference": {"status": ref["status"], "seconds": ref["seconds"]}}
         cache.write_text(json.dumps(v, indent=1), encoding="utf-8")
         return v
@@ -743,32 +788,43 @@ class Runner:
         else:
             touched_code = []
             checkout_reference(root, task, task.test_files)                  # the hidden tests: the reference's own test files
-        tg = self._check_targets(task, root, attempt_tests)
-        cand = run_tests(root, tg, self.out / "sandboxes" / f"{task.id}-{time.time_ns()}.xml", "candidate", self.test_timeout)
-        cases = cand["cases"]
-        bad_prot = [c for c in val.get("protected_ok", []) if cases.get(c) != "pass" and _file_of(c) not in set(attempt_tests)]
-        if bad_prot:                                                     # flaky guard: re-run the failing protected cases twice
-            again = [run_tests(root, sorted({_file_of(c) for c in bad_prot}), self.out / "sandboxes" / f"{task.id}-r{i}.xml", "rerun",
-                               self.test_timeout)["cases"] for i in range(2)]
-            bad_prot = [c for c in bad_prot if all(a.get(c) != "pass" for a in again)]
-        out["regressions"] = bad_prot[:50]
-        out["n_regressions"] = len(bad_prot)
+        own = sorted(attempt_tests) if task.cls == "tests_only" else sorted(task.test_files)
+        tier1 = self.affected(root, ch, exclude=own)
+        cand = run_tests(root, sorted(set(own) | set(tier1)), self.out / "sandboxes" / f"{task.id}-{time.time_ns()}.xml", "candidate",
+                         self.test_timeout)
+        cases = dict(cand["cases"])
         if task.cls == "tests_only":
             mine = [c for c in cases if _file_of(c) in set(attempt_tests)]
             fails = [c for c in mine if cases[c] == "fail"]
             base_src = {f: _git(root, "show", f"{task.base}:{f}") for f in attempt_tests}
-            new = [c for c in mine if f"def {c.rsplit('::', 1)[-1].split('[', 1)[0]}(" not in base_src.get(_file_of(c), "")]
+            cand_src = {f: (root / f).read_text(encoding="utf-8", errors="replace") for f in attempt_tests if (root / f).is_file()}
+            new = [c for c in mine if _func_src(cand_src.get(_file_of(c), ""), c) != _func_src(base_src.get(_file_of(c), ""), c)]
             ok = bool(attempt_tests) and bool(mine) and not fails and not touched_code and bool(new)
             out.update(check="the attempt's own new tests pass on the unchanged code; code untouched; nothing weakened", check_passed=ok,
                        why="" if ok else f"tests {len(mine)}, failing {len(fails)}, new {len(new)}, code touched {touched_code[:5]}")
-            return out
-        req = val.get("required", [])
-        miss = [c for c in req if cases.get(c) != "pass"]
-        code_hit = [p for p in task.code_files if p in ch]
-        ok = not miss and bool(code_hit) and cand["status"] not in ("CRASHED", "TIMEOUT")
-        out.update(check="the reference's own tests (overlaid) pass where they pass on the reference; a reference code file changed",
-                   check_passed=ok, missing=miss[:20],
-                   why="" if ok else f"{len(miss)} of {len(req)} required cases not passing; reference code files changed: {code_hit[:5]}")
+        else:
+            req = val.get("required", [])
+            miss = [c for c in req if cases.get(c) != "pass"]
+            code_hit = [p for p in task.code_files if p in ch]
+            ok = not miss and bool(code_hit) and cand["status"] not in ("CRASHED", "TIMEOUT")
+            out.update(check="the reference's own tests (overlaid) pass where they pass on the reference; a reference code file changed",
+                       check_passed=ok, missing=miss[:20],
+                       why="" if ok else f"{len(miss)} of {len(req)} required cases not passing; reference code files changed: {code_hit[:5]}")
+        prot_files = list(tier1)
+        if ok and self.full_suite:                                       # tier 2: an attempt that could be adopted meets the whole suite
+            rest = [t for t in self.suite if t not in set(own) | set(tier1) and (root / t).is_file()]
+            if rest:
+                cases.update(run_tests(root, rest, self.out / "sandboxes" / f"{task.id}-{time.time_ns()}-full.xml", "candidate",
+                                       self.test_timeout)["cases"])
+                prot_files += rest
+        ref_ok = self.reference_protected(task, prot_files) if prot_files else {}
+        bad_prot = [c for f in prot_files for c in ref_ok.get(f, []) if cases.get(c) != "pass"]
+        if bad_prot:                                                     # flaky guard: re-run the failing protected cases twice
+            again = [run_tests(root, sorted({_file_of(c) for c in bad_prot}), self.out / "sandboxes" / f"{task.id}-r{i}.xml", "rerun",
+                               self.test_timeout)["cases"] for i in range(2)]
+            bad_prot = [c for c in bad_prot if all(a.get(c) != "pass" for a in again)]
+        out.update(regressions=bad_prot[:50], n_regressions=len(bad_prot), protected_files=prot_files,
+                   protected_tier="full" if ok and self.full_suite else "affected")
         return out
 
     def run(self, tasks: Sequence[Task], agent: Agent, results_name: str = "") -> list[dict[str, Any]]:
@@ -797,6 +853,20 @@ class Runner:
             verdict = "PASS" if rec.get("passed") else f"unusable: {rec.get('unusable')}" if rec.get("unusable") else "FAIL"
             self.log(f"   -> {verdict} {str(rec.get('why') or rec.get('infra_error') or '')[:160]}")
         return recs
+
+
+def _func_src(text: str, case_id: str) -> Optional[str]:
+    """Source of the test function a case id names (None when absent): a NEW or CHANGED test function is the tests-only deliverable."""
+    import ast
+    name = case_id.rsplit("::", 1)[-1].split("[", 1)[0]
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return ast.dump(node)
+    return None
 
 
 def slug(name: str) -> str:
