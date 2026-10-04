@@ -78,3 +78,31 @@ def test_flag_off_is_the_old_behaviour_and_on_changes_the_pick(tmp_path: Path) -
     assert off == old and "drop_unused_import" not in old[1]
     assert on[0] and "drop_unused_import" in on[1]
     assert A.CHOOSER_DEFAULT in (True, False)
+
+
+TRICKY = ('import os\nimport sys as system\nfrom json import dumps\n\nVALUE = os.sep\n\n\ndef helper(a):\n    """doc"""\n    t = a + 1\n'
+          '    u = t * t\n    return u + t\n\n\ndef outer(x):\n    def helper(y):\n        return y\n    tmp = dumps(x)\n    return helper(tmp)\n\n\n'
+          'async def run(items):\n    for i in items:\n        return 1\n    return 0\n\n\nclass K:\n    def m(self):\n        v = system.argv\n        return v\n')
+
+
+def test_indexed_structure_equals_the_reference_on_every_candidate() -> None:
+    # h62: structure() reads one cached index per source instead of re-walking the AST per candidate; it must answer exactly as before
+    for src in (SRC, TRICKY, "def broken(:\n", ""):
+        cands = A.enumerate_actions(src, "m.py") + [A._act(k, "m.py", **kw) for k, kw in (
+            ("inline_temp", {"function": "helper", "variable": "t"}), ("inline_temp", {"function": "nope"}),
+            ("remove_unused", {"name": "helper"}), ("lazy_import", {"alias": "system"}), ("drop_unused_import", {"name": ""}),
+            ("add_empty_guard", {"function": "run", "param": "items", "return_value": "0"}))]
+        for a in cands:
+            assert C.structure(src, a) == C._structure_ref(src, a), (src[:20], a)
+
+
+def test_lesson_file_choices_are_cached_on_disk_and_identical(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("WEEKLY7_CREATOR_CACHE", str(tmp_path / "cache"))
+    after = SRC.replace("\n\ndef g_helper():\n    return 1\n", "")
+    first = C._file_choice(SRC, after, "mod.py")
+    calls: list[int] = []
+    monkeypatch.setattr(A, "explain", lambda *a, **k: calls.append(1) or ([], False))
+    assert C._file_choice(SRC, after, "mod.py") == first and calls == []                  # served from disk, same candidates and indices
+    assert first[1] and first[0][first[1][0]].kind == "remove_unused"
+    C._file_choice(SRC, after + "\n", "mod.py")
+    assert calls == [1]                                                                # a different lesson text is computed afresh

@@ -50,8 +50,8 @@ def _mask(objective: str, own: set[str], others: set[str]) -> list[str]:
     return _tokens(text.replace("OWN", " ownx ").replace("OTH", " othx "))
 
 
-def structure(src: str, a: A.Action) -> list[str]:
-    """Structural facts about the target of `a` (computed from the AST of `src`; never from the objective)."""
+def _structure_ref(src: str, a: A.Action) -> list[str]:
+    """The reference definition of `structure` (re-walks the AST per call; kept so a test proves the indexed version equal on real rows)."""
     tree = ST._parse(src)
     out: list[str] = []
     if tree is None:
@@ -78,6 +78,83 @@ def structure(src: str, a: A.Action) -> list[str]:
         fn = funcs.get(p.get("function", ""))
         reads = sum(1 for x in ast.walk(fn) if isinstance(x, ast.Name) and x.id == p.get("variable") and isinstance(x.ctx, ast.Load)) if fn else 0
         out += [f"reads={min(reads, 3)}", f"callers={min(refs(p.get('function', '')), 2)}"]
+    else:
+        out += ["guard"]
+    return out
+
+
+class _SrcIndex:
+    """Everything `structure` reads from one source, from ONE parse (h62, 3 Oct 2026: the chooser retrain spent 1,184 of 1,515 s
+    re-parsing and re-walking the same file's AST for every candidate in every one of its 7 fits). Only plain facts are kept (no AST), so
+    many files fit in memory. Same answers as _structure_ref by construction: Name counts over ast.walk(tree), the last-wins funcs dict of
+    ast.walk order, per-function size / docstring / Load-context Name counts, the same top-level user and module-use sets."""
+    __slots__ = ("ok", "funcs", "refs", "body_users", "top_names")
+
+    def __init__(self, src: str) -> None:
+        tree = ST._parse(src)
+        self.ok = tree is not None
+        self.funcs: dict[str, tuple[int, bool, dict[str, int]]] = {}  # name -> (size in lines, has docstring, Load Name id counts)
+        self.refs: dict[str, int] = {}
+        self.body_users: list[tuple[str, set[str]]] = []           # top-level functions in body order: (name, Name ids inside)
+        self.top_names: set[str] = set()                            # Name ids in top-level statements that are not defs or imports
+        if tree is None:
+            return
+        fnodes: dict[str, Any] = {}
+        for x in ast.walk(tree):
+            if isinstance(x, ST.FuncT):
+                fnodes[x.name] = x
+            elif isinstance(x, ast.Name):
+                self.refs[x.id] = self.refs.get(x.id, 0) + 1
+        for name, fn in fnodes.items():
+            loads: dict[str, int] = {}
+            for x in ast.walk(fn):
+                if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load):
+                    loads[x.id] = loads.get(x.id, 0) + 1
+            size = (getattr(fn, "end_lineno", 0) or 0) - (getattr(fn, "lineno", 0) or 0) + 1
+            self.funcs[name] = (size, bool(ast.get_docstring(fn)), loads)
+        for st in tree.body:
+            if isinstance(st, ST.FuncT):
+                self.body_users.append((st.name, {x.id for x in ast.walk(st) if isinstance(x, ast.Name)}))
+            elif not isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Import, ast.ImportFrom)):
+                self.top_names.update(x.id for x in ast.walk(st) if isinstance(x, ast.Name))
+
+
+_INDEX: dict[str, _SrcIndex] = {}
+_INDEX_MAX = 4096                                   # sources kept per process (a retrain sees ~1,400 distinct texts)
+
+
+def _index(src: str) -> _SrcIndex:
+    ix = _INDEX.get(src)
+    if ix is None:
+        if len(_INDEX) >= _INDEX_MAX:
+            _INDEX.clear()
+        ix = _INDEX[src] = _SrcIndex(src)
+    return ix
+
+
+def structure(src: str, a: A.Action) -> list[str]:
+    """Structural facts about the target of `a` (computed from the AST of `src`; never from the objective). Identical to _structure_ref."""
+    ix = _index(src)
+    out: list[str] = []
+    if not ix.ok:
+        return out
+    p = a.p
+    if a.kind in ("lazy_import", "drop_unused_import"):
+        nm = p.get("alias") or p.get("name") or ""
+        users = [n for n, names in ix.body_users if nm in names]
+        top = nm in ix.top_names
+        out += [f"users={min(len(users), 3)}", f"module_use={int(top)}", f"used={int(bool(users) or top)}"]
+    elif a.kind == "remove_unused":
+        f = ix.funcs.get(p.get("name", ""))
+        calls = ix.refs.get(p.get("name", ""), 0)
+        size = f[0] if f else 0
+        out += [f"refs={min(calls, 3)}", f"size={'small' if size <= 3 else 'mid' if size <= 8 else 'big'}",
+                f"doc={int(bool(f and f[1]))}"] + [f"nm:{t}" for t in _tokens(p.get("name", "").replace("_", " "))[:3]]
+    elif a.kind == "inline_temp":
+        f = ix.funcs.get(p.get("function", ""))
+        var = p.get("variable")
+        reads = f[2].get(var, 0) if f and isinstance(var, str) else 0
+        out += [f"reads={min(reads, 3)}", f"callers={min(ix.refs.get(p.get('function', ''), 0), 2)}"]
     else:
         out += ["guard"]
     return out
@@ -132,6 +209,40 @@ class Row:
     source: str = ""
 
 
+_CHOICE_SALT: Optional[str] = None
+
+
+def _choice_salt() -> str:
+    """Hash of the code that maps a lesson's file change onto the action space (h62: a retrain re-derived every lesson's candidates and its
+    greedy explanation from scratch - 233 s of 1,515 - although they change only when a lesson or this code changes)."""
+    global _CHOICE_SALT
+    if _CHOICE_SALT is None:
+        import hashlib
+        h = hashlib.sha256()
+        for f in (A.__file__, ST.__file__):
+            try:
+                h.update(Path(f).read_bytes())
+            except OSError:
+                h.update(b"?")
+        h.update(b"|file_choice-v1")
+        _CHOICE_SALT = h.hexdigest()[:24]
+    return _CHOICE_SALT
+
+
+def _file_choice(before: str, after: str, path: str) -> tuple[list[A.Action], list[int]]:
+    """(candidates of `before`, indices of the actions that explain before -> after): disk-cached on (before, after, path) + the code hash."""
+    from creator import diskcache as DC
+    key = DC.key_of(path, before, after)
+    hit = DC.get("chooser_choice", _choice_salt(), key)
+    if isinstance(hit, tuple) and len(hit) == 2:
+        return list(hit[0]), list(hit[1])
+    cands = A.enumerate_actions(before, path)
+    chosen, _ = A.explain(before, after, path)
+    idx = [cands.index(a) for a in chosen if a in cands]
+    DC.put("chooser_choice", _choice_salt(), key, (tuple(cands), tuple(idx)))
+    return cands, idx
+
+
 def lesson_rows(lessons: Iterable[Lesson], neg_weight: float = 0.5, teacher_negatives: bool = False) -> list[Row]:
     """Lessons -> rows. Adopted lessons (teacher or student) map their change onto the action space (positive rows); a MEASURED
     rejection of a student's attempt gives a negative row for the actions it took. adopted=None and cancelled/errored verdicts
@@ -146,9 +257,7 @@ def lesson_rows(lessons: Iterable[Lesson], neg_weight: float = 0.5, teacher_nega
             before = les.files_before.get(p)
             if not p.endswith(".py") or not before or len(before.splitlines()) > MAX_LINES:
                 continue
-            cands = A.enumerate_actions(before, p)
-            chosen, _ = A.explain(before, after, p)
-            idx = [cands.index(a) for a in chosen if a in cands]
+            cands, idx = _file_choice(before, after, p)
             if cands and idx:
                 rows.append(Row(les.objective, before, cands, idx, 1 if les.adopted else -1, 1.0 if les.adopted else neg_weight,
                                 f"{'adopted' if les.adopted else 'rejected'}:{les.solver}"))

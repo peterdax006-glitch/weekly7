@@ -84,7 +84,7 @@ def retrain_with_practice(state: Path, epochs: int = 200, contrast_scale: int = 
         return None
     if not p_rows:
         return None
-    t0 = time.monotonic()
+    t0, c0 = time.monotonic(), time.process_time()
     assert_disjoint(l_rows + p_rows, [401, 402, 403])
     base = C.Chooser().fit(l_rows, epochs=epochs) if l_rows else C.Chooser()
     pos = [r for r in p_rows if r.sign > 0 and len(r.chosen) < len(r.cands)]
@@ -98,6 +98,8 @@ def retrain_with_practice(state: Path, epochs: int = 200, contrast_scale: int = 
            "before": before, "after": after, "seconds": round(time.monotonic() - t0, 1)}
     with log.open("a", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(rec, sort_keys=True) + "\n")
+    from creator import slowpath as SP                  # the slow-path detector sees every retrain (it was the 44-minute thought)
+    SP.record(state, "chooser.retrain", time.monotonic() - t0, time.process_time() - c0, rows=len(l_rows) + len(p_rows))
     return rec
 
 
