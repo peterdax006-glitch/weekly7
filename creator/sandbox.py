@@ -51,6 +51,8 @@ PROTECTED: tuple[str, ...] = (
     "creator/thinking.py", "creator/thinkbench.py", "creator/learnloop.py", "creator/drillsources.py", "creator/fastwalk.py",
     "creator/judgment.py", "creator/fastpred.py", "creator/decide.py", "creator/trialerror.py", "creator/selfteach.py", "creator/gpuselfteach.py",
     "state/creator/thinkbench/*", "state/creator/thinkbench/**",
+    # the coding trust gate (3 Oct, h56): its yardstick, held-out set and records decide what Nupen may change unsupervised
+    "creator/codetrust.py", "creator/codetrust_heldout.json", "state/creator/codetrust/*", "state/creator/codetrust/**",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"
