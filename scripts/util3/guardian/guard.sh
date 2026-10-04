@@ -85,7 +85,7 @@ diskguard(){
 \
            $(ls /root/pubembed*/chunks.jsonl 2>/dev/null); do
     case "$f" in $M4|$M17|$M14) continue;; esac
-    infile "$(basename "$f" .part)" && continue                        # a queued job's model (or its download) stays
+    b=$(basename "$f"); b=${b%.part}; b=${b%.ok}; infile "$b" && continue                        # a queued job's model (or its download) stays
     echo "$open" | grep -q -F "$f" && continue
     log "disk guard: ${free} MiB free, deleting $f ($(du -sm "$f" | cut -f1) MiB)"; rm -rf -- "$f"
     free=$(df --output=avail -m / | tail -1 | tr -d ' '); [ "$free" -ge 6144 ] && break
