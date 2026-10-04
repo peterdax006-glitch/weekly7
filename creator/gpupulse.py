@@ -69,6 +69,7 @@ DEFAULTS: dict[str, Any] = {
     "remote_dir": "/workspace/nupen", "models": ["Qwen3-1.7B-Q4_K_M.gguf", "Qwen3-4B-Q4_K_M.gguf", "Qwen3-8B-Q4_K_M.gguf", "Qwen3-14B-Q4_K_M.gguf"],
     "slots": "auto", "ctx_per_slot": 8192, "best_model": "Qwen3-8B-Q4_K_M.gguf", "monitor_s": 60.0, "low_util_pct": 70.0, "low_util_abort_minutes": 8, "instances": 1, "remote_port_base": 18100, "local_port_base": 18100,
     "allow_build": False, "deadman": "stop", "hf_base": HF_BASE,
+    "inflight_factor": 3,
 }
 
 
@@ -232,6 +233,17 @@ def auto_slots(name: str, ctx_per_slot: int = 8192, vram_gb: float = VRAM_GB, co
     while n > 1 and not fits([name] * copies, n, ctx, vram_gb):
         n -= 1
     return n, ctx
+
+
+def inflight(cfg: Mapping[str, Any], slots: int) -> int:
+    """Requests a job keeps in flight by default: inflight_factor x the served slots. Measured 3 Oct 2026 (14B, 16 slots, SSH tunnel): each
+    request loses ~1 s in the tunnel, so with in-flight == slots only 3.7-5 of 16 slots were busy; with 48 in flight all 16 were busy (207 tok/s,
+    GPU 69%). An explicit --workers still wins."""
+    try:
+        f = float(cfg.get("inflight_factor", DEFAULTS["inflight_factor"]))
+    except (TypeError, ValueError):
+        f = float(DEFAULTS["inflight_factor"])
+    return max(1, int(round(max(1, int(slots)) * max(1.0, f))))
 
 
 def served_slots(cfg: Mapping[str, Any], models: Sequence[str]) -> dict[str, tuple[int, int]]:
@@ -1354,7 +1366,7 @@ def run_jobs(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Pat
              shell: Optional[Shell] = None, tunnel: Optional[Callable[[Mapping[str, Sequence[int]]], Path]] = None,
              say: Callable[[str], None] = print, clock: Callable[[], float] = time.time, poll_s: float = 2.0) -> list[dict[str, Any]]:
     """Each job in order: its model served (others stopped), the tunnel opened, the job run in a child process with the pulse switched on and
-    as many requests in flight as the server has slots (`workers` > 0 overrides). The budget is checked before every job and every `poll_s`
+    inflight_factor x the server's slots requests in flight (`workers` > 0 overrides). The budget is checked before every job and every `poll_s`
     while one runs (at the cap the child is stopped and the run ends); every `monitor_s` the pod's GPU utilisation and tok/s are logged, and a
     job that keeps the GPU under `low_util_pct` for `low_util_abort_minutes` in a row is stopped with the reason (the next job still runs)."""
     budget = budget_for(cfg, clock)
@@ -1392,7 +1404,7 @@ def run_jobs(cfg: Mapping[str, Any], jobs: Sequence[Any], state: Path, repo: Pat
             pf = (tunnel or (lambda pl: open_tunnel(cfg, pl, pulse["id"])))(plan_)
             served = j["model"]
         slots = served_slots(cfg, [j["model"]])[j["model"]][0] * max(1, int(cfg.get("instances", 1))) if j["model"] else 1
-        w = workers or slots
+        w = workers or inflight(cfg, slots)
         env = dict(os.environ, NUPEN_PULSE_MODEL=j["model"], NUPEN_PULSE_SLOTS=str(slots), NUPEN_PULSE_ID=str(pulse["id"]))
         if pf is not None:
             env["NUPEN_GPU_PULSE"] = str(pf)

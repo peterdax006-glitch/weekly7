@@ -455,7 +455,7 @@ def test_external_jobs_run_from_a_job_list_and_bring_outputs_home(tmp_path: Path
     assert out[0]["rc"] == 0 and out[0]["result"] == {"loss": 0.5}
     home = Path(out[0]["outputs_home"])
     assert (home / "out" / "lora.gguf").read_text(encoding="utf-8").strip() == "weights" and rt in home.parents
-    assert out[1]["rc"] == 0 and out[1]["result"]["models"] == [FAKE_MODEL] and out[1]["result"]["workers"] == 2
+    assert out[1]["rc"] == 0 and out[1]["result"]["models"] == [FAKE_MODEL] and out[1]["result"]["workers"] == GP.inflight(cfg, 2) == 6
     p = GP.plan(cfg, [remote, call], include_setup=False)
     assert [r["minutes"] for r in p["jobs"][:2]] == [30.0, 10.6]
     for bad in ({"name": "a", "minutes": 1}, {"name": "a", "call": "nomodule", "minutes": 1}, {"call": "m:f", "minutes": 1},
@@ -552,6 +552,29 @@ def test_prepare_counts_a_model_registered_mid_run_as_pinned(tmp_path: Path, rt:
     with pytest.raises(GP.PulseError, match="args must be a dict"):
         GP.parse_job({"name": "x", "call": "m:f", "args": ["no"], "minutes": 1})
 
+
+# ------------------------------------------------------------------------------------------------ requests in flight (h52, 3 Oct 2026)
+def test_inflight_default_is_factor_times_slots() -> None:
+    assert GP.DEFAULTS["inflight_factor"] == 3
+    assert GP.inflight(GP.DEFAULTS, 16) == 48 and GP.inflight({}, 16) == 48            # the measured fix: 48 in flight kept all 16 slots busy
+    assert GP.inflight({"inflight_factor": 1}, 16) == 16 and GP.inflight({"inflight_factor": 2.5}, 4) == 10
+    assert GP.inflight({"inflight_factor": "x"}, 2) == 6 and GP.inflight({"inflight_factor": 0}, 2) == 2 and GP.inflight({}, 0) == 3
+
+
+def test_run_jobs_keeps_factor_x_slots_in_flight_and_explicit_workers_win(tmp_path: Path, rt: Path, monkeypatch: pytest.MonkeyPatch,
+                                                                           fake_server: int) -> None:
+    cfg = GP.load_config(rt / "gpu" / "pulse.json")
+    cfg.update(budget_usd=100.0, monitor_s=0.0, shell_argv=["unused"], slots=4)
+    monkeypatch.setattr(GP, "serve", lambda c, models, sh=None, exe="", say=print: {models[0]: [fake_server]})
+    job = {"name": "noop", "command": [sys.executable, "-c", "print('@@result={}')"], "model": FAKE_MODEL, "minutes": 1}
+    said: list[str] = []
+    tunnel = lambda plan: GP.write_tunnel(plan, "P", path=rt / "gpu" / "tunnel.json")  # noqa: E731
+    out = GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", tunnel=tunnel, say=said.append, poll_s=0.02)
+    assert out[0]["rc"] == 0 and out[0]["workers"] == 12 and any("(12 requests in flight)" in s for s in said)
+    cfg["inflight_factor"] = 1
+    assert GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", tunnel=tunnel, say=said.append, poll_s=0.02)[0]["workers"] == 4
+    out = GP.run_jobs(cfg, [job], tmp_path / "state", ROOT, tmp_path / "owner", workers=5, tunnel=tunnel, say=said.append, poll_s=0.02)
+    assert out[0]["workers"] == 5                                                     # an explicit --workers still wins
 
 
 def test_traces_start_on_the_first_questions_while_the_rest_are_generated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fake_server: int) -> None:

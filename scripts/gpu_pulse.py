@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jobs-from", default="", help="'package.module:function' returning such a list (e.g. another module's GPU-day list)")
     ap.add_argument("--serve", action="append", default=None, help="model(s) to serve (default: the first configured)")
     ap.add_argument("--destroy", action="store_true")
-    ap.add_argument("--workers", type=int, default=0, help="requests in flight (default: the served model's slots)")
+    ap.add_argument("--workers", type=int, default=0, help="requests in flight (default: inflight_factor (config, 3) x the served model's slots)")
     ap.add_argument("--state", default=str(ROOT / "state" / "creator"))
     ap.add_argument("--owner-dir", default=str(Path.home() / "Masterstock"))
     a = ap.parse_args(argv)
