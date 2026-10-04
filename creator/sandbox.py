@@ -53,6 +53,8 @@ PROTECTED: tuple[str, ...] = (
     "state/creator/thinkbench/*", "state/creator/thinkbench/**",
     # the coding trust gate (3 Oct, h56): its yardstick, held-out set and records decide what Nupen may change unsupervised
     "creator/codetrust.py", "creator/codetrust_heldout.json", "state/creator/codetrust/*", "state/creator/codetrust/**",
+    # the checker / safety loop (4 Oct, h70): the adoption gate, its policy, its event log and suite cache (the rate limit's memory)
+    "creator/safety.py", "state/creator/safety.json", "state/creator/safety/*", "state/creator/safety/**",
     "state/livesim/*", "state/livesim/**",
 )
 SANDBOX_PREFIX = "creator/sbx-"

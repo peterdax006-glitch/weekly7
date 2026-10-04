@@ -51,6 +51,7 @@ MEASURING = ("creator/kernel.py", "creator/sandbox.py", "creator/evaluate.py", "
              "creator/build.py", "creator/selfmodel.py", "creator/model.py", "creator/ledger.py", "creator/devbench.py",
              "creator/devbench/*", "creator/devbench/**", "creator/audit/*", "creator/audit/**", "creator/thinking.py",
              "creator/decide.py", "creator/treecache.py", "creator/efficiency.py", "creator/codetrust.py", "creator/codetrust_heldout.json",
+             "creator/safety.py",
              "creator/capabilities.json", "creator/capabilities_approved.json", "tests/conftest.py", "pyproject.toml", "pytest.ini",
              ".github/*", ".github/**", "canon/*", "canon/**", "state/creator/*", "state/creator/**")
 PROTECTED_SUITE = ("tests/test_creator_audit.py", "tests/test_creator_audit_recursion_failures.py", "tests/test_creator_decide.py",
@@ -58,7 +59,7 @@ PROTECTED_SUITE = ("tests/test_creator_audit.py", "tests/test_creator_audit_recu
                    "tests/test_creator_flaky_rerun.py", "tests/test_creator_kernel.py", "tests/test_creator_ledger.py",
                    "tests/test_creator_registry.py", "tests/test_creator_sandbox.py", "tests/test_creator_selfmodel.py",
                    "tests/test_creator_thinking.py", "tests/test_creator_treecache.py", "tests/test_creator_leak.py",
-                   "tests/test_creator_codetrust.py")
+                   "tests/test_creator_codetrust.py", "tests/test_creator_safety.py")
 MEASURING_TESTS = tuple(PROTECTED_SUITE)
 DOC_EXT = (".md", ".txt", ".rst")
 BUGFIX_RE = re.compile(r"(?i)\b(fix|fixes|fixed|bug|bugs|regression|broke|broken|crash|crashed|wrong|repair|repaired|off-by-one)\b")
@@ -1212,9 +1213,10 @@ def estimate_gpu_minutes(tasks: Sequence[Task], prompt_chars: Mapping[str, int],
 def safe_loop_check(root: Path = ROOT) -> list[dict[str, Any]]:
     """Does the kernel ALREADY enforce what unsupervised self-change needs? Each row: requirement, status (ok / partial / gap),
     evidence (code facts read from the tree), and the gap for the teacher. A reader: it changes nothing."""
-    src = {n: (root / "creator" / n).read_text(encoding="utf-8") for n in ("kernel.py", "sandbox.py")}
+    src = {n: ((root / "creator" / n).read_text(encoding="utf-8") if (root / "creator" / n).is_file() else "")
+           for n in ("kernel.py", "sandbox.py", "safety.py")}
     from creator import sandbox as S
-    k, s = src["kernel.py"], src["sandbox.py"]
+    k, s = src["kernel.py"] + src["safety.py"], src["sandbox.py"]
     rows = []
     sbx = "S.Sandbox.open(cfg.repo" in k and "def adopt(sb: Sandbox, decision" in s and "needs an ADOPT decision" in s
     rows.append({"requirement": "changes are made and tested in a sandbox, adopted only by a recorded decision",
@@ -1231,31 +1233,36 @@ def safe_loop_check(root: Path = ROOT) -> list[dict[str, Any]]:
                          f"{unprot_tests[:3]}). Proposal: add them to sandbox.PROTECTED once the kernel no longer has open packages on "
                          "them (kernel.py/testrun.py/build.py are efficiency targets today), or give the class 'measuring' a separate "
                          "owner-adopt path") if unprot or unprot_tests else ""})
-    rb = "S.rollback(cfg.repo, res.merge_commit" in k and "DecisionVerdict.ROLLBACK" in k
+    rb = ("S.rollback(cfg.repo, res.merge_commit" in k or "S.rollback(cfg.repo, merge_commit" in k) and "DecisionVerdict.ROLLBACK" in k
+    full = "SF.suite_failure(cfg, res.merge_commit" in k
     rows.append({"requirement": "automatic revert when the adopted change fails after adoption",
                  "status": "ok" if rb else "gap",
                  "evidence": "kernel.execute 7 VERIFY re-assesses main after the merge; audit red, adopted requirement unmet or any "
                              "requirement lost -> sandbox.rollback (a revert commit) + ROLLBACK decision + Failure/Diagnosis/Repair",
-                 "gap": "the post-merge check re-runs the requirement checks and the audit, not the whole protected suite; a later "
-                        "(non-immediate) failure is not traced back to the adoption that caused it"})
+                 "gap": ("" if full else "the post-merge check re-runs the requirement checks and the audit, not the whole protected suite; ")
+                        + "a later (non-immediate) failure is not traced back to the adoption that caused it"})
     rate = re.search(r"(?i)(max_adopt|adoptions?_per|adopt\w*_rate|rate_limit\w*adopt)", k + s)
+    log_digest = (root / "scripts" / "nupen_digest.py").is_file()
+    wired = "SF.gate(cfg, plan, wp, sb, rep, by, change.paths)" in k and "CT.may_change(paths" in k
     rows.append({"requirement": "rate limit on self-changes",
                  "status": "partial" if not rate else "ok",
                  "evidence": "agents.Budget caps paid LLM calls/USD per day; the kernel_lock serialises cycles; adoptions themselves have "
                              "no count limit" if not rate else f"found: {rate.group(0)}",
                  "gap": "" if rate else "no cap on ADOPTIONS per hour/day. Proposal: kernel refuses an ADOPT when kernel_log.jsonl has >= N "
                         "ADOPTED in the last hour (N=4 for open classes, 0 for classes not open), with a cool-down after any ROLLBACK"})
-    log = "kernel_log.jsonl" in k and "creator adopt" in s
+    log = "kernel_log.jsonl" in k and "creator adopt" in s and log_digest
     rows.append({"requirement": "a readable change log",
                  "status": "ok" if log else "gap",
                  "evidence": "every cycle -> state/creator/kernel_log.jsonl (outcome, reason, merge commit) + cycles/<pkg>/ evidence "
                              "(diff.patch, evaluation.json); merges are 'creator adopt <sandbox>: <package> <requirement>', rollbacks "
                              "'creator rollback <commit>: <why>'; the ledger links decision -> claim -> evidence",
-                 "gap": "no single human-readable digest (date, class, files, why, tests, revert command); markdown() of this module "
-                        "covers the gate only"})
+                 "gap": "" if log else "no single human-readable digest (date, class, files, why, tests, revert command); markdown() of "
+                                       "this module covers the gate only"})
     rows.append({"requirement": "the trust gate is consulted before an unsupervised adoption",
-                 "status": "gap",
-                 "evidence": "codetrust.may_change(paths, records) exists and recomputes from attempt records; nothing calls it yet",
-                 "gap": "wire it into kernel.execute 6 DECIDE (refuse ADOPT when the change's class is not open for the worker's setup) "
+                 "status": "ok" if wired else "gap",
+                 "evidence": ("kernel.execute calls safety.gate (codetrust.may_change on the worker's measured setup; no setup = closed) "
+                              "before evaluation and again under the adoption lock" if wired else
+                              "codetrust.may_change(paths, records) exists and recomputes from attempt records; nothing calls it yet"),
+                 "gap": "" if wired else "wire it into kernel.execute 6 DECIDE (refuse ADOPT when the change's class is not open for the worker's setup) "
                         "once a setup has been measured; no autonomy is auto-enabled by this module"})
     return rows
