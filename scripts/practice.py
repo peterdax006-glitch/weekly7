@@ -64,6 +64,44 @@ def done_groups(out: Path) -> set[tuple[str, str]]:
     return seen
 
 
+OVERRUN_MIN = 2              # timeouts of one direct-test set (never a conclusive run) before practice stops spending its budget on it
+OVERRUN_DAYS = 7.0           # ... counted over this window, so a set that got faster is tried again after a week
+
+
+def overrun_sets(out: Path, timeout: float, now: Optional[float] = None) -> dict[frozenset[str], int]:
+    """Direct-test sets that timed out at least OVERRUN_MIN times at this timeout and never finished (h62, 3 Oct 2026: 90 of 152 tested
+    candidates - 59% of practice's test time - ran the same over-long test files to the 45 s timeout for an inconclusive row each:
+    tests/test_gpupulse.py alone takes 85 s uncontended and 260 s beside the swarm, so every candidate of creator/gpupulse.py, gpuday.py,
+    ... was a guaranteed timeout). One row per candidate (the 'size' row) is counted; a set that ever concluded is never skipped."""
+    now = time.time() if now is None else now
+    to: dict[frozenset[str], int] = {}
+    done: set[frozenset[str]] = set()
+    try:
+        lines = out.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("metric") != "size" or not r.get("tests") or r.get("stage") == "metric":
+            continue
+        try:
+            t = time.mktime(time.strptime(str(r.get("at")), "%Y-%m-%dT%H:%M:%S"))
+        except (ValueError, OverflowError):
+            continue
+        if now - t > OVERRUN_DAYS * 86400:
+            continue
+        key = frozenset(r["tests"])
+        reason = str(r.get("reason") or "")
+        if reason.startswith("inconclusive: TIMEOUT") and float(r.get("seconds") or 0) >= timeout:
+            to[key] = to.get(key, 0) + 1
+        elif not reason.startswith("inconclusive"):
+            done.add(key)
+    return {k: n for k, n in to.items() if n >= OVERRUN_MIN and k not in done}
+
+
 def practice(root: Path, out: Path, src_dir: Path, minutes: float = 20.0, run_tests: bool = True, max_targets: int = 0,
              python: str = sys.executable, files: Optional[list[str]] = None,
              test_timeout: float = 45.0, lock_wait_s: float = 0.0) -> dict[str, Any]:
@@ -91,7 +129,10 @@ def _practice(root: Path, out: Path, src_dir: Path, minutes: float, run_tests: b
     seen = done_groups(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     src_dir.mkdir(parents=True, exist_ok=True)
-    st = {"targets": 0, "candidates": 0, "rows": 0, "tested": 0, "good": 0, "metric_rejected": 0, "test_failed": 0, "import_failed": 0}
+    st = {"targets": 0, "candidates": 0, "rows": 0, "tested": 0, "good": 0, "metric_rejected": 0, "test_failed": 0, "import_failed": 0,
+          "skipped_overrun": 0}
+    overrun = overrun_sets(out, test_timeout) if run_tests else {}
+    timeouts: dict[frozenset[str], int] = {}
     with out.open("a", encoding="utf-8", newline="\n") as fh:
         for rel in targets:
             if time.monotonic() - t0 > minutes * 60:
@@ -118,7 +159,20 @@ def _practice(root: Path, out: Path, src_dir: Path, minutes: float, run_tests: b
                 v = PS.Verdict(True, "", "metric")
                 if any(imp.values()):
                     st["tested"] += 1
-                    v = PS.check_in_tree(root, rel, new, graph, run_tests, python, test_timeout)
+                    tset = frozenset(PS.direct_tests(graph, rel)[:PS.MAX_TEST_FILES]) if graph is not None else frozenset()
+                    if tset and tset in overrun:                # known to outlast the budget: import check only, no 45 s spent for nothing
+                        st["skipped_overrun"] += 1
+                        v = PS.check_in_tree(root, rel, new, graph, False, python, test_timeout)
+                        if v.ok:
+                            v = PS.Verdict(True, f"inconclusive: skipped - these direct tests timed out {overrun[tset]}x at {test_timeout:.0f} s "
+                                                 f"and never finished", "ok", tests=tuple(sorted(tset)), seconds=v.seconds)
+                    else:
+                        v = PS.check_in_tree(root, rel, new, graph, run_tests, python, test_timeout)
+                        if tset and v.reason.startswith("inconclusive: TIMEOUT"):
+                            n = timeouts.get(tset, 0) + 1
+                            timeouts[tset] = n
+                            if n >= OVERRUN_MIN:                # this run learns it too
+                                overrun[tset] = n
                     st["import_failed"] += v.stage == "import"
                     st["test_failed"] += v.stage == "tests"
                 else:
