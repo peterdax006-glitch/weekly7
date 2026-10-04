@@ -862,7 +862,6 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
     """Pod script of one fine-tune: row/VRAM/disk checks (skip with the reason, exit 0) -> finetune.py pipeline with dev early stopping,
     merge + f16 + Q4 GGUF on /dev/shm -> the Q4 GGUF moved into models/ (served after register) -> adapter + result.json kept under
     gpuday/runs/<job>/ (they come home) -> /dev/shm scratch removed."""
-    from creator import gpuday as GD
     name, data = f"ft_{t.name}", f"{POD_DIR}/trainmix/{t.name}"
     w, keep = f"{shm}/{name}", f"{POD_DIR}/runs/{name}"
     ws_gb = math.ceil(BF16_GB[t.size] + Q4_GB[t.size] + 0.5)                 # HF base cache + the served GGUF
@@ -874,8 +873,21 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
             + (f" --pref {data}/pref.jsonl --method dpo" if pref else ""))
     skip = lambda why: f"printf '@@result={{\"skipped\": \"%s\"}}\\n' \"{why}\"; exit 0"  # noqa: E731
     sv = serve_name(t)
+    # The pod's Python / llama.cpp: gpuday/python (pod_setup.sh) when present, else the image's venv /venv/main (Unsloth stack), else python3
+    # (h61 first run: gpuday/python and gpuday/quantize_path were missing - the setup had run with $HOME as its cwd - and the system python3
+    # has no 'datasets'). Converter: gpuday/llama.cpp or $HOME/gpuday/llama.cpp; quantizer: the recorded path, PATH, /opt/llama.cpp.
+    find_py = ("PY=\"$(cat gpuday/python 2>/dev/null || cat \"$HOME/gpuday/python\" 2>/dev/null || true)\"; "
+               "[ -n \"$PY\" ] && [ -x \"$PY\" ] || PY=/venv/main/bin/python; [ -x \"$PY\" ] || PY=$(command -v python3 || command -v python)")
+    find_llama = ("LC=gpuday/llama.cpp; [ -f $LC/convert_hf_to_gguf.py ] || LC=\"$HOME/gpuday/llama.cpp\"; "
+                  "[ -f \"$LC/convert_hf_to_gguf.py\" ] || { printf '@@result={\"skipped\": \"no llama.cpp convert_hf_to_gguf.py\"}\\n'; exit 0; }; "
+                  "Q=\"$(cat gpuday/quantize_path 2>/dev/null || cat \"$HOME/gpuday/quantize_path\" 2>/dev/null || true)\"; "
+                  "[ -n \"$Q\" ] && [ -x \"$Q\" ] || Q=$(command -v llama-quantize || true); [ -n \"$Q\" ] && [ -x \"$Q\" ] || Q=/opt/llama.cpp/llama-quantize; "
+                  "[ -x \"$Q\" ] || { printf '@@result={\"skipped\": \"no llama-quantize\"}\\n'; exit 0; }")
+    opts = opts.replace(f"--llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\"", "--llama-cpp \"$LC\" --quantize \"$Q\"")
     return "\n".join([
-        "set -e", GD.POD_PY,
+        "set -e", find_py,
+        "\"$PY\" -c 'import datasets, trl, peft' 2>/dev/null || { printf '@@result={\"skipped\": \"%s has no datasets/trl/peft\"}\\n' \"$PY\"; exit 0; }",
+        find_llama,
         f"n=$(wc -l < {data}/train.jsonl 2>/dev/null || echo 0)",
         f"if [ \"$n\" -lt {t.min_rows} ]; then {skip(f'$n training rows, needs {t.min_rows}')}; fi",
         "vfree=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc 0-9); vfree=${vfree:-0}",

@@ -190,8 +190,13 @@ def test_the_fine_tune_script_runs_end_to_end_against_stubs(tmp_path: Path) -> N
     pod = tmp_path / "pod"
     (pod / "gpuday" / "trainmix" / t.name).mkdir(parents=True)
     (pod / "gpuday" / "trainmix" / t.name / "train.jsonl").write_text("{}\n" * 300, encoding="utf-8")
-    (pod / "gpuday" / "python").write_text(Path(sys.executable).as_posix(), encoding="utf-8")
-    (pod / "gpuday" / "quantize_path").write_text("q", encoding="utf-8")
+    real = Path(sys.executable).as_posix()
+    (pod / "py").write_text(f"#!/bin/sh\n[ \"$1\" = -c ] && exit 0\nexec \"{real}\" \"$@\"\n", encoding="utf-8")   # the stack check passes
+    (pod / "q").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (pod / "gpuday" / "python").write_text((pod / "py").as_posix(), encoding="utf-8")
+    (pod / "gpuday" / "quantize_path").write_text((pod / "q").as_posix(), encoding="utf-8")
+    (pod / "gpuday" / "llama.cpp").mkdir()
+    (pod / "gpuday" / "llama.cpp" / "convert_hf_to_gguf.py").write_text("", encoding="utf-8")
     (pod / "gpuday" / "finetune.py").write_text(
         "import json, sys, pathlib, hashlib\n"
         "a = sys.argv; out = pathlib.Path(a[a.index('--out') + 1]); out.mkdir(parents=True, exist_ok=True)\n"
@@ -207,7 +212,7 @@ def test_the_fine_tune_script_runs_end_to_end_against_stubs(tmp_path: Path) -> N
     if len(bp) > 1 and bp[1] == ":":                                              # Git bash on Windows: C:/x -> /c/x (a ':' would split PATH)
         bp = "/" + bp[0].lower() + bp[2:]
     env = {"PATH": bp + ":/usr/bin:/bin"}
-    r = subprocess.run([BASH, "-c", f"chmod +x {bp}/nvidia-smi; export PATH={env['PATH']}:$PATH; {script}"], cwd=pod,
+    r = subprocess.run([BASH, "-c", f"chmod +x {bp}/nvidia-smi py q; export PATH={env['PATH']}:$PATH; {script}"], cwd=pod,
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     sv = TM.serve_name(t)
