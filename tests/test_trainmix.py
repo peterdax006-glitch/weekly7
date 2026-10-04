@@ -299,3 +299,8 @@ def test_epochs_and_caps_scale_with_the_data() -> None:
     assert TM.epochs_for(t, small) == 2.0 and TM.epochs_for(TM.BY_NAME["thinker_17b"], big) == 1.0     # a big mix gets one pass
     m = TM.minutes(t, small)
     assert m["steps"] == 540 and 20 < m["train"] < 45 and TM.cap_minutes(m["train"]) > 2 * m["train"]
+
+
+def test_cleanup_keeps_the_base_download_cache() -> None:
+    s = TM.cleanup_remote()
+    assert "hf_cache" not in s.split("echo")[0] and f"{TM.SHM}/ft_*" in s and "-nupen-" in s

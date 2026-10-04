@@ -994,6 +994,14 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
         f"cat {keep}/result.json | tr -d '\\r\\n' | sed 's/^/@@result=/'", "echo", ""])
 
 
+def cleanup_remote() -> str:
+    """End of a training list: remove the merge/f16 scratch (/dev/shm/nupen_train/ft_*) and any tuned GGUF left in models/ (its delete job
+    normally did that). The base-model download caches ({HF_CACHE}, {SHM}/hf_cache) are KEPT: deleting them made every later run download
+    the base again while the GPU idled (teacher, 4 Oct); the guardian's disk guard protects them."""
+    return (f"rm -rf {SHM}/ft_*; rm -f models/*-nupen-*.gguf models/*-nupen-*.gguf.ok; "
+            "echo '@@result={\"cleaned\": true, \"kept\": \"hf_cache\"}'\n")
+
+
 def delete_remote(t: Target) -> str:
     sv = serve_name(t)
     return f"rm -f models/{sv} models/{sv}.ok; echo '@@result={{\"deleted\": \"{sv}\"}}'\n"
@@ -1044,7 +1052,7 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
                         "low_util_abort_minutes": 0, "args": {"n": 400, "home_model": t.base_gguf, "tuned": sv,
                                                               "train_qids": str(root / t.name / "train_qids.json")}})
         out.append({"name": f"delete_{t.name}", "remote": delete_remote(t), "minutes": 0.1, "low_util_abort_minutes": 0})
-    out.append({"name": "trainmix_cleanup", "remote": f"rm -rf {HF_CACHE} {SHM}; echo '@@result={{\"cleaned\": true}}'\n", "minutes": 0.1,
+    out.append({"name": "trainmix_cleanup", "remote": cleanup_remote(), "minutes": 0.1,
                 "low_util_abort_minutes": 0})
     return out
 
