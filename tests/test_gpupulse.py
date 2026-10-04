@@ -717,3 +717,18 @@ def test_short_ctx_slots_proposal_doubles_slots_for_short_requests_at_the_same_k
     assert GP.short_ctx_slots(GP.M14, 1400, 260, 24.0) == (16, 4096)                           # a 24 GB card: 16 (today 8 x 8192)
     assert GP.short_ctx_slots(GP.M14, 3500, 400, 32.0) == (16, 8192)                           # long prompts keep 8k
     assert GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[1] == 2048 and GP.short_ctx_slots(GP.M17, 100, 50, 32.0)[0] == 32
+
+
+def test_setup_step_script_file_strips_crlf(tmp_path):
+    """A setup script checked out with CRLF line endings must reach the pod with LF only (bash fails on '\r')."""
+    f = tmp_path / "step.sh"
+    f.write_bytes(b"echo a\r\nfor i in 1; do echo b; done\r\n")
+    sent: list[str] = []
+
+    class Sh:
+        def run(self, script, timeout=600.0, check=True):
+            sent.append(script)
+            return 0, "@@ok=1"
+    cfg = {"remote_dir": "/workspace/nupen", "setup_steps": [{"name": "s", "script_file": str(f)}]}
+    GP.run_setup_steps(cfg, Sh(), say=lambda m: None)
+    assert sent and all("\r" not in s for s in sent)

@@ -640,7 +640,7 @@ def run_setup_steps(cfg: Mapping[str, Any], sh: "Shell", say: Callable[[str], No
         name = str(st["name"])
         body = str(st.get("script") or "")
         if st.get("script_file"):
-            body = Path(str(st["script_file"])).expanduser().read_text(encoding="utf-8")
+            body = Path(str(st["script_file"])).expanduser().read_text(encoding="utf-8").replace("\r\n", "\n")  # CRLF breaks bash on the pod
         outbound_ok([{"content": body}])                  # a step script is sent to the pod: the private-marker guard applies
         rc, o = sh.run(setup_step_script(str(cfg["remote_dir"]), name, body, bool(st.get("always"))), timeout=float(st.get("timeout_s", 3600)),
                        check=False)
