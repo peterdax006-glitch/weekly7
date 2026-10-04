@@ -160,7 +160,7 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
                      per_device_eval_batch_size=a.batch)
         from transformers import EarlyStoppingCallback
         callbacks.append(EarlyStoppingCallback(early_stopping_patience=max(1, a.patience)))
-    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=False, **extra)
+    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=bool(getattr(a, "packing", False)), **extra)
     tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, eval_dataset=Dataset.from_list(ev_rows) if ev_rows else None,
                     processing_class=tok, callbacks=callbacks or None)
     st = tr.train()
@@ -296,7 +296,7 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
         pa.data, pa.adapter, pa.out, pa.eval_data = a.pref, adapter, str(out / a.method), ""
         res[a.method] = cmd_pref(pa)
         adapter = str(Path(pa.out) / "adapter")
-    if a.llama_cpp:
+    if a.llama_cpp and not getattr(a, "no_merge", False):
         ma = argparse.Namespace(**vars(a))
         ma.adapter, ma.out = adapter, str(out / "merged")
         ma.base = a.merge_base or a.base                  # QLoRA trains on a 4-bit repo; the merge always goes into the 16-bit weights
@@ -341,6 +341,7 @@ def main(argv: list[str]) -> int:
         p.add_argument("--eval-data", default="", help="held-out dev split (same format): early stopping on its loss, best adapter kept")
         p.add_argument("--eval-steps", type=int, default=0, help="optimizer steps between dev evaluations (0 = ~4 per epoch)")
         p.add_argument("--patience", type=int, default=2, help="dev evaluations without improvement before training stops")
+        p.add_argument("--packing", action="store_true", help="pack short rows into max-seq sequences (fewer steps; loss on the answers only)")
     p = sub.add_parser("sft")
     train_opts(p)
     p = sub.add_parser("pref")
@@ -374,6 +375,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--keep-merged", action="store_true")
     p.add_argument("--merge-base", default="", help="16-bit base for the merge (QLoRA runs train on a pre-quantised repo)")
     p.add_argument("--adapter-gguf", action="store_true", help="also write the adapter alone as GGUF (llama-server --lora)")
+    p.add_argument("--no-merge", action="store_true", help="no merge / f16 / quantised GGUF: the adapter (and its GGUF) only - served as base + --lora")
     p.add_argument("--bf16", action="store_true")
     a = ap.parse_args(argv)
     a.backend = "hf"

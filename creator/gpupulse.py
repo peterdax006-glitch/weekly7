@@ -165,7 +165,16 @@ def extra_models(cfg: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
         if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha) or size <= 0 or bad_name:
             raise PulseError(f"extra_models entry {name!r} needs a plain *.gguf name, 'bytes' > 0 and a 64-hex 'sha256'")
         out[name] = {"bytes": size, "sha256": sha, "pod_local": True}
+        if e.get("lora") or e.get("base"):       # h61: a LoRA adapter served on a base GGUF (llama-server -m <base> --lora <adapter>)
+            lora, base = str(e.get("lora") or ""), str(e.get("base") or "")
+            if any("/" in x or "\\" in x or x.startswith(".") or not x.endswith(".gguf") for x in (lora, base)):
+                raise PulseError(f"extra_models entry {name!r}: 'lora' and 'base' must both be plain *.gguf names (files in models/)")
+            out[name].update(lora=lora, base=base)     # bytes / sha256 are the ADAPTER file's (what is verified before serving)
     _POD_LOCAL.update(out)
+    for name, e in out.items():                  # the VRAM fit counts the base weights for an adapter entry
+        if e.get("base"):
+            b = CATALOG.get(e["base"]) or _POD_LOCAL.get(e["base"]) or {"bytes": 0}
+            _POD_LOCAL[name] = dict(e, bytes=int(b.get("bytes") or 0) + int(e["bytes"]))
     return out
 
 
@@ -190,7 +199,8 @@ def verify_pod_models(cfg: Mapping[str, Any], models: Sequence[str], sh: "Shell"
     done = []
     for m in models:
         if m in extra:
-            r = _kv(sh.run(pod_model_script(str(cfg["remote_dir"]), m, int(extra[m]["bytes"]), str(extra[m]["sha256"])), timeout=1800,
+            f = str(extra[m].get("lora") or m)          # an adapter entry: the adapter file is what is verified (the base is a catalog model)
+            r = _kv(sh.run(pod_model_script(str(cfg["remote_dir"]), f, int(extra[m]["bytes"]), str(extra[m]["sha256"])), timeout=1800,
                            check=False)[1])
             if not r.get("verified"):
                 raise PulseError(f"pod-local model {m}: {r.get('error', 'not verified')} - refusing to serve it")
@@ -409,12 +419,16 @@ def server_flags(cfg: Mapping[str, Any]) -> tuple[str, ...]:
     return toks
 
 
-def server_script(rdir: str, exe: str, name: str, port: int, slots: int, ctx: int, flags: Sequence[str] = ()) -> str:
+def server_script(rdir: str, exe: str, name: str, port: int, slots: int, ctx: int, flags: Sequence[str] = (), base: str = "",
+                  lora: str = "") -> str:
     """Start (or keep) one llama-server on 127.0.0.1:port with every layer on the GPU. Kept when its recorded arguments are the same and
-    /health answers; otherwise the old process is stopped and a new one started (nohup, survives the SSH session)."""
+    /health answers; otherwise the old process is stopped and a new one started (nohup, survives the SSH session). `base` + `lora`: the served
+    name is an adapter entry - the base GGUF with the adapter applied at load time (no merged model needed)."""
     q = shlex.quote(rdir)
     extra = "".join(f" {shlex.quote(f)}" for f in flags)
-    args = f"-m {q}/models/{shlex.quote(name)} --host 127.0.0.1 --port {port} -ngl 99 -np {slots} -c {slots * ctx} --metrics --no-webui{extra}"
+    if lora:
+        extra += f" --lora {q}/models/{shlex.quote(lora)}"
+    args = f"-m {q}/models/{shlex.quote(base or name)} --host 127.0.0.1 --port {port} -ngl 99 -np {slots} -c {slots * ctx} --metrics --no-webui{extra}"
     sig = f"{name}|{slots}|{ctx}" + (f"|{' '.join(flags)}" if flags else "")
     return f"""set -u
 cd {q}/run
@@ -674,7 +688,9 @@ def serve(cfg: Mapping[str, Any], models: Sequence[str], shell: Optional[Shell] 
     sh.run(stop_servers_script(rdir, keep), timeout=60)
     for m, ports in plan.items():
         for p in ports:
-            r = _kv(sh.run(server_script(rdir, exe, m, p, *sl[m], flags=server_flags(cfg)), timeout=60)[1])
+            ex = extra_models(cfg).get(m) or {}
+            r = _kv(sh.run(server_script(rdir, exe, m, p, *sl[m], flags=server_flags(cfg), base=str(ex.get("base") or ""),
+                                         lora=str(ex.get("lora") or "")), timeout=60)[1])
             say(f"server {m} on pod port {p} (-np {sl[m][0]}, {sl[m][1]} tokens per slot): {'kept (healthy, same arguments)' if r.get('kept') else 'started'}")
     h = _kv(sh.run(health_script(rdir, keep, int(cfg.get("health_timeout_s", 300))), timeout=float(cfg.get("health_timeout_s", 300)) + 30)[1])
     for p in keep:

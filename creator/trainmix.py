@@ -455,6 +455,11 @@ def _pm() -> Any:
     return PM
 
 
+def _mods() -> Any:
+    from creator import trainmods as MODS
+    return MODS
+
+
 SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
     "trace_bank": src_trace_bank,
     "ladder_reasoning": src_ladder_reasoning,
@@ -476,11 +481,17 @@ SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
     "locate": lambda c, d: _pm().src_locate(c, d),
     "aider_sft": lambda c, d: _pm().src_aider(c, d, "sft"),
     "aider_pref": lambda c, d: _pm().src_aider(c, d, "pref"),
+    "roles_code": lambda c, d: [r for r in _pm().src_roles(c, d) if r.meta.get("role") in ("CODE", "DEBUG")],
+    "calib": lambda c, d: _mods().src_calib(c, d),
+    "brevity_sft": lambda c, d: _mods().src_brevity(c, d),
+    "brevity_pref": lambda c, d: _mods().src_brevity(c, d, pref=True),
+    "judge": lambda c, d: _mods().src_judge(c, d),
 }
 
 # Training rates on the RTX 5090 (Unsloth LoRA bf16, no packing; conservative): tokens/s. Overheads: base download + load, merge + GGUF.
 TRAIN_TOK_S = {"0.6b": 13000.0, "1.7b": 6500.0, "4b": 3500.0}      # 1.7B measured on the 5090 (3 Oct); 0.6B / 4B scaled from it
 STEP_OVERHEAD_S = 0.1
+PACKING_SPEEDUP = 1.5                                # packed short rows: ~1.5x fewer padded tokens (CPU check: 4x fewer steps on role rows)
 TOKEN_BUDGET = {"0.6b": 12e6, "1.7b": 8e6, "4b": 6e6}                # trained tokens per fine-tune (all epochs) before epochs are cut
 OVERHEAD_MIN = {"0.6b": 3.0, "1.7b": 5.0, "4b": 9.0}
 HF_BASE = {"0.6b": "Qwen/Qwen3-0.6B", "1.7b": "Qwen/Qwen3-1.7B", "4b": "Qwen/Qwen3-4B"}
@@ -517,6 +528,13 @@ class Target:
     voice_only: bool = False
     roles: bool = False                              # multi-role pipeline adapter (creator.pipelinemix): role balance + per-role held-out
     hf_on_shm: bool = False                          # base download on /dev/shm (the 4B bf16 base does not fit the workspace disk)
+    module: str = ""                                 # a training module of creator.trainmods (own held-out files and eval jobs)
+    priority: int = 0                                # queue order of a module (lower first)
+    filter: Optional[tuple[tuple[str, tuple[str, ...]], ...]] = None   # spec {'role': [...]}: keep only rows whose meta matches
+    packing: bool = False                            # pack short rows into max_seq sequences (fewer optimizer steps)
+    lora_serve: bool = False                         # no merge: the adapter GGUF is served on the cached base GGUF (llama-server --lora)
+    target_minutes: Optional[tuple[int, int]] = None  # size the run to this GPU-minute window (epochs 1-2, train rows sampled down)
+    requires: tuple[str, ...] = ()                   # autogen gates: 'adopted:<target>', 'rows:<source>>=N'
 
     @property
     def base_gguf(self) -> str:
@@ -556,6 +574,47 @@ TARGETS: tuple[Target, ...] = (
     Target("voice_17b", "1.7b", ("talk_understand", "talk_speak"), "the terminal voice (creator.talk): understand + grounded speak rows",
            "small CPU saving; language quality", max_seq=2048, epochs=2, batch=8, accum=2, min_rows=60, vram_mib=12000, voice_only=True),
 )
+
+
+def spec_dirs() -> list[Path]:
+    return [ROOT / "creator" / "train_modules.json", mix_dir() / "specs"]
+
+
+def target_from_spec(d: Mapping[str, Any]) -> Target:
+    """One module spec (creator/train_modules.json or <runtime>/gpuday/trainmix/specs/*.json) -> a Target. Unknown keys are refused."""
+    fields = {f.name for f in dataclasses.fields(Target)}
+    bad = set(d) - fields - {"_doc"}
+    if bad:
+        raise ValueError(f"module spec {d.get('name')!r}: unknown keys {sorted(bad)}")
+    kw: dict[str, Any] = {}
+    for k, v in d.items():
+        if k == "_doc":
+            continue
+        kw[k] = tuple(v) if isinstance(v, list) else v
+    if kw.get("filter") is not None:
+        kw["filter"] = tuple(sorted((str(a), tuple(b)) for a, b in dict(d["filter"]).items()))
+    for k in ("sources", "why", "value"):
+        kw.setdefault(k, () if k == "sources" else "")
+    return Target(**kw)
+
+
+def load_specs() -> list[Target]:
+    """Module specs: the repository's train_modules.json, then the runtime specs folder (autogen); a later spec of the same name wins."""
+    out: dict[str, Target] = {}
+    for src in spec_dirs():
+        files = sorted(src.glob("*.json")) if src.is_dir() else ([src] if src.is_file() else [])
+        for f in files:
+            try:
+                body = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for d in ((body.get("modules") or []) if isinstance(body, dict) and "modules" in body else [body]):
+                if isinstance(d, dict) and d.get("name"):
+                    out[str(d["name"])] = target_from_spec(d)
+    return sorted(out.values(), key=lambda t: (t.priority, t.name))
+
+
+TARGETS = tuple(t for t in TARGETS if t.name not in {m.name for m in load_specs()}) + tuple(load_specs())
 BY_NAME = {t.name: t for t in TARGETS}
 
 
@@ -678,6 +737,11 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
         by_src[s] = len(rows)
         for r in rows:
             (pref_raw if r.kind == "pref" else raw).append(r)
+    if t.filter:                                    # spec filter, e.g. {'role': ['DEBUG']}: only the matching rows
+        flt = dict(t.filter)
+        keep_f = lambda r: all(str(r.meta.get(k)) in vs for k, vs in flt.items())  # noqa: E731
+        drops["spec filter"] += sum(1 for r in raw + pref_raw if not keep_f(r))
+        raw, pref_raw = [r for r in raw if keep_f(r)], [r for r in pref_raw if keep_f(r)]
     sd: collections.Counter[str] = collections.Counter()
     sft = screen(raw, evals, fz, t.max_seq, sd)
     pd: collections.Counter[str] = collections.Counter()
@@ -685,7 +749,11 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
     drops.update({f"screen: {k}": v for k, v in sd.items()})
     drops.update({f"screen pref: {k}": v for k, v in pd.items()})
     role_counts: dict[str, Any] = {}
-    if t.roles:
+    if t.module and t.module != "roles":
+        sft, pref, role_counts = _mods().prepare(t, d, sft, pref, drops)
+        train = [r for r in sft if not _dev(r.group)]
+        dev = [r for r in sft if _dev(r.group)]
+    elif t.roles or t.module == "roles":
         sft, role_counts = _role_mix(t, d, sft, drops)
         PM = _pm()
         pref = [r for r in pref if PM.split(r.group) != "heldout"]        # a held-out task never trains, in any form
@@ -694,6 +762,15 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
     else:
         train = [r for r in sft if not _dev(r.group)]
         dev = [r for r in sft if _dev(r.group)]
+    if t.target_minutes:                             # one epoch over the window's upper bound: a deterministic sample of the training rows
+        long_f = 1.3 if t.max_seq > 2048 else 1.0
+        tok_all = sum(tokens(r.body) for r in train)
+        budget = (t.target_minutes[1] - OVERHEAD_MIN[t.size] - t.eval_minutes) * 60.0 * TRAIN_TOK_S[t.size] / long_f * (PACKING_SPEEDUP if t.packing else 1.0)
+        if tok_all > budget > 0:
+            frac = budget / tok_all
+            kept = [r for r in train if (int(hashlib.sha256(("fit" + r.id).encode()).hexdigest()[:8], 16) % 10000) < frac * 10000]
+            drops[f"sized to {t.target_minutes[1]} GPU min (sampled)"] += len(train) - len(kept)
+            train = kept
     files = {"train.jsonl": train, "dev.jsonl": dev, "pref.jsonl": pref}
     for n, rows in files.items():
         with (d / n).open("w", encoding="utf-8") as f:
@@ -729,6 +806,9 @@ def epochs_for(t: Target, man: Mapping[str, Any]) -> float:
     """Epochs sized to the data: at most t.epochs, and no more than TOKEN_BUDGET trained tokens in total (at least one epoch). A large
     mix (e.g. the grown trace bank: 87k rows, 19.5M tokens) gets one pass; a small one its full epochs. Dev early stopping only shortens it."""
     tok = max(1, int(man.get("tokens_train") or 0))
+    if t.target_minutes:                            # sized to the GPU window instead: 2 epochs when they fit the upper bound, else 1
+        per_epoch = tok * (1.3 if t.max_seq > 2048 else 1.0) / TRAIN_TOK_S[t.size] / 60.0 / (PACKING_SPEEDUP if t.packing else 1.0)
+        return 2.0 if t.epochs >= 2 and 2 * per_epoch + OVERHEAD_MIN[t.size] <= t.target_minutes[1] else 1.0
     return float(max(1, min(t.epochs, math.floor(TOKEN_BUDGET[t.size] / tok))))
 
 
@@ -743,7 +823,7 @@ def minutes(t: Target, man: Mapping[str, Any]) -> dict[str, float]:
     ep = epochs_for(t, man)
     tok = float(man["tokens_train"]) * ep
     long_f = 1.3 if t.max_seq > 2048 else 1.0
-    train_s = tok / TRAIN_TOK_S[t.size] * long_f + steps_for(t, man) * STEP_OVERHEAD_S
+    train_s = tok / TRAIN_TOK_S[t.size] * long_f / (PACKING_SPEEDUP if t.packing else 1.0) + steps_for(t, man) * STEP_OVERHEAD_S
     dev_tok = float(man.get("tokens_dev") or man["tokens_train"] * man["rows"]["dev"] / max(1, man["rows"]["train"]))
     dev_s = dev_tok * 4 * math.ceil(ep) / (3 * TRAIN_TOK_S[t.size])
     pref_s = float(man["rows"]["pref"]) * 3 * t.max_seq / 4 / TRAIN_TOK_S[t.size] * 2 if man["rows"]["pref"] >= 20 else 0.0
@@ -930,7 +1010,7 @@ def upload_bundle(root: Path, names: Sequence[str]) -> tuple[bytes, dict[str, An
         bad = audit_mix(d, h)
         if bad:
             raise ValueError(f"mix {n} failed the audit, nothing is uploaded: {bad[:5]}")
-        for f in ("train.jsonl", "dev.jsonl", "pref.jsonl", "MANIFEST.json"):
+        for f in ("train.jsonl", "dev.jsonl", "pref.jsonl", "MANIFEST.json", "spec_prompts.jsonl"):
             if (d / f).is_file():
                 members.append((f"trainmix/{n}/{f}", (d / f).read_bytes()))
     buf = io.BytesIO()
@@ -954,11 +1034,14 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
     hf_home = f"$PWD/{HF_CACHE}"
     if t.hf_on_shm:                                  # the base download moves to the RAM disk too: only the served GGUF stays on the workspace
         ws_gb, shm_gb, hf_home = math.ceil(Q4_GB[t.size] + 0.5), math.ceil(3 * BF16_GB[t.size] + Q4_GB[t.size] + 0.5), f"{shm}/hf_cache"
+    if t.lora_serve:                                 # no merge / f16 / Q4: only the base download (cached) and the adapter
+        ws_gb, shm_gb = (1 if t.hf_on_shm else math.ceil(BF16_GB[t.size] + 0.5)), (math.ceil(BF16_GB[t.size] + 1) if t.hf_on_shm else 2)
     pref = man["rows"]["pref"] >= 20
     opts = (f"--base {HF_BASE[t.size]} --data {data}/train.jsonl --eval-data {data}/dev.jsonl --out {w} --max-seq {t.max_seq} "
             f"--epochs {epochs_for(t, man)} --batch {t.batch} --accum {t.accum} --lr {t.lr} --patience 2 "
             f"--llama-cpp {POD_DIR}/llama.cpp --quantize \"$(cat {POD_DIR}/quantize_path)\" --quant Q4_K_M --adapter-gguf"
-            + (f" --pref {data}/pref.jsonl --method dpo" if pref else ""))
+            + (f" --pref {data}/pref.jsonl --method dpo" if pref else "") + (" --packing" if t.packing else "")
+            + (" --no-merge" if t.lora_serve else ""))
     skip = lambda why: f"printf '@@result={{\"skipped\": \"%s\"}}\\n' \"{why}\"; exit 0"  # noqa: E731
     sv = serve_name(t)
     # The pod's Python / llama.cpp: gpuday/python (pod_setup.sh) when present, else the image's venv /venv/main (Unsloth stack), else python3
@@ -984,12 +1067,15 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
         f"if [ \"$wsf\" -lt {ws_gb} ]; then {skip(f'disk: $wsf GB free on the workspace, needs {ws_gb}')}; fi",
         f"if [ \"$shf\" -lt {shm_gb} ]; then {skip(f'disk: $shf GB free on {posixpath.dirname(shm)}, needs {shm_gb}')}; fi",
         f"export HF_HOME=\"{hf_home}\" PIP_NO_CACHE_DIR=1 TOKENIZERS_PARALLELISM=false",
+        f"for i in $(seq 1 360); do ls \"$HF_HOME\"/.prestage_*.lock >/dev/null 2>&1 || break; sleep 5; done   # a base pre-staged in the background: wait",
         f"rm -rf {w}; mkdir -p {w} {keep} models",
         f"\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {keep}/train.log 2>&1 || {{ tail -40 {keep}/train.log; rm -rf {w}; exit 5; }}",
         f"g={w}/model-Q4_K_M.gguf; if [ -f \"$g\" ]; then mv -f \"$g\" models/{sv}; sha256sum models/{sv} | cut -d' ' -f1 > models/{sv}.ok; "
         f"echo \"@@served_as={sv}\"; fi",
         f"ad={w}/adapter; [ -d {w}/dpo/adapter ] && ad={w}/dpo/adapter; cp -r \"$ad\" {keep}/adapter; cp -f {w}/result.json {keep}/; "
         f"[ -f {w}/adapter.gguf ] && cp -f {w}/adapter.gguf {keep}/ || true",
+        *([f"if [ -f {w}/adapter.gguf ]; then cp -f {w}/adapter.gguf models/{lora_name(t)}; echo \"@@lora={lora_name(t)}\"; fi"]
+          if t.lora_serve else []),
         f"rm -rf {w}",
         f"cat {keep}/result.json | tr -d '\\r\\n' | sed 's/^/@@result=/'", "echo", ""])
 
@@ -1004,10 +1090,93 @@ def cleanup_remote() -> str:
 
 def delete_remote(t: Target) -> str:
     sv = serve_name(t)
-    return f"rm -f models/{sv} models/{sv}.ok; echo '@@result={{\"deleted\": \"{sv}\"}}'\n"
+    lf = lora_name(t)
+    return f"rm -f models/{sv} models/{sv}.ok models/{lf} models/{lf}.ok; echo '@@result={{\"deleted\": \"{sv}\"}}'\n"
 
 
-def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, targets: Sequence[str] = ()) -> list[dict[str, Any]]:
+def _keep_on_pod() -> tuple[str, ...]:
+    from creator import effladder as EL
+    return tuple(EL.KEEP_ON_POD)
+
+
+def lora_name(t: Target) -> str:
+    return serve_name(t).replace("-Q4_K_M.gguf", "-lora.gguf")
+
+
+def register_lora_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """gpupulse 'call' job after a lora_serve fine-tune: the adapter GGUF's bytes + sha256 (from the ft job's result) go into the extra_models
+    file as an ADAPTER entry {bytes, sha256, base, lora}: the runner serves `serve_as` as llama-server -m <base> --lora <adapter> (no merged
+    model). The runner re-hashes the adapter on the pod before serving."""
+    from creator import gpuday as GD
+    from creator import gpupulse as GP
+    a = dict(ctx.get("args") or {})
+    src, name, base, lora = (str(a.get(k) or "") for k in ("source", "serve_as", "base", "lora"))
+    pulse = str(ctx.get("pulse") or "")
+    row = None
+    for r in jsonl(Path(str(ctx["state"])) / "thinking" / "gpu_pulse_runs.jsonl"):
+        if r.get("job") == f"ext:{src}" and (not pulse or str(r.get("gpu_pulse") or "") == pulse):
+            row = r
+    res = (row or {}).get("result") if isinstance((row or {}).get("result"), Mapping) else {}
+    f = (((res or {}).get("lora_gguf") or {}).get("files") or {}).get("adapter.gguf") if isinstance(res, Mapping) else None
+    if row is None or row.get("rc") not in (0, None) or not isinstance(f, Mapping) or not f.get("sha256"):
+        return {"registered": False, "reason": f"{src} made no adapter.gguf" + (f" (rc {row.get('rc')})" if row else " (no run)")}
+    path = Path(str(a.get("extra_models_file") or ctx.get("extra_models_file") or GP.extra_models_file()))
+    try:
+        cur = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cur = {}
+    cur = cur if isinstance(cur, dict) else {}
+    cur[name] = {"bytes": int(f["bytes"]), "sha256": str(f["sha256"]).lower(), "base": base, "lora": lora}
+    GP.extra_models({"extra_models": cur, "extra_models_file": str(path.with_name(path.name + ".absent"))})      # validate before writing
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(cur, indent=1, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+    del GD
+    return {"registered": True, "model": name, "base": base, "lora": lora, "bytes": int(f["bytes"]), "file": str(path)}
+
+
+UNSLOTH_REPO = {"0.6b": "unsloth/Qwen3-0.6B", "1.7b": "unsloth/Qwen3-1.7B", "4b": "unsloth/Qwen3-4B"}   # what Unsloth fetches for Qwen/Qwen3-*
+
+
+def prestage_remote(t: Target, shm: str = SHM) -> str:
+    """Background pre-download of a module's base weights into the HF cache it trains from (parallel ranged curl, the /root/pdl.sh pattern:
+    HF throttles single connections from the pod). Holds $HF_HOME/.prestage_<size>.lock while running; ft_remote waits for it. Returns at once."""
+    hf_home = f"{shm}/hf_cache" if t.hf_on_shm else f"$PWD/{HF_CACHE}"
+    repo = UNSLOTH_REPO[t.size]
+    py = ("import os,sys,subprocess,json\n"
+          "from huggingface_hub import HfApi, snapshot_download\n"
+          "repo=sys.argv[1]\n"
+          "d=snapshot_download(repo, allow_patterns=['*.json','*.txt','*.jinja','*.model'])\n"
+          "info=HfApi().model_info(repo, files_metadata=True)\n"
+          "for s in info.siblings:\n"
+          "    if not s.rfilename.endswith('.safetensors') or not s.size: continue\n"
+          "    f=os.path.join(d,s.rfilename)\n"
+          "    if os.path.isfile(f) and os.path.getsize(f)==s.size: continue\n"
+          "    url=f'https://huggingface.co/{repo}/resolve/main/{s.rfilename}'\n"
+          "    n=8; ch=(s.size+n-1)//n; ps=[]\n"
+          "    for i in range(n):\n"
+          "        a=i*ch; b=min(s.size,(i+1)*ch)-1\n"
+          "        ps.append(subprocess.Popen(['bash','-c',f'until curl -fL -s -r {a}-{b} -o {f}.p{i} --speed-limit 50000 --speed-time 60 {url} "
+          "&& [ $(stat -c %s {f}.p{i}) = {b-a+1} ]; do sleep 3; done']))\n"
+          "    [p.wait() for p in ps]\n"
+          "    with open(f+'.tmp','wb') as o:\n"
+          "        for i in range(n):\n"
+          "            o.write(open(f'{f}.p{i}','rb').read()); os.remove(f'{f}.p{i}')\n"
+          "    if os.path.getsize(f+'.tmp')==s.size: os.replace(f+'.tmp',f)\n"
+          "print('prestaged',repo)\n")
+    lock = f"\"$HF_HOME\"/.prestage_{t.size}.lock"
+    return "\n".join([
+        f"export HF_HOME=\"{hf_home}\"; mkdir -p \"$HF_HOME\"",
+        "PY=\"$(cat gpuday/python 2>/dev/null || true)\"; [ -n \"$PY\" ] && [ -x \"$PY\" ] || PY=/venv/main/bin/python",
+        f"cat > /tmp/prestage_{t.size}.py <<'PRESTAGE_PY'\n{py}PRESTAGE_PY",
+        f"if [ -f {lock} ]; then echo '@@result={{\"prestage\": \"already running\"}}'; exit 0; fi",
+        f"touch {lock}; nohup bash -c \"\\\"$PY\\\" /tmp/prestage_{t.size}.py {repo} > /tmp/prestage_{t.size}.log 2>&1; rm -f {lock}\" >/dev/null 2>&1 &",
+        f"echo '@@result={{\"prestage\": \"{repo}\", \"background\": true}}'", ""])
+
+
+def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, targets: Sequence[str] = (),
+         cleanup: bool = True, prestage: Optional[Target] = None) -> list[dict[str, Any]]:
     """The GPU-runner job list (gpu_pulse.py run --jobs-from creator.trainmix:jobs). Reads the built mixes (build first)."""
     c = dict(cfg or {})
     root = Path(root or c.get("trainmix_root") or mix_dir())
@@ -1030,8 +1199,16 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
                     "max_minutes": cap_minutes(mins["train"]), "low_util_abort_minutes": 0,
                     "outputs": [f"{POD_DIR}/runs/ft_{t.name}/result.json", f"{POD_DIR}/runs/ft_{t.name}/adapter",
                                 f"{POD_DIR}/runs/ft_{t.name}/adapter.gguf", f"{POD_DIR}/runs/ft_{t.name}/train.log"]})
-        out.append({"name": f"register_{t.name}", "call": "creator.gpuday:register_tuned_job", "args": {"source": f"ft_{t.name}", "serve_as": sv},
-                    "minutes": 1, "low_util_abort_minutes": 0})
+        fetched = t.lora_serve and t.base_gguf not in _keep_on_pod()
+        if fetched:                                  # the adapter is served on the base GGUF: fetch it when the pod does not keep it
+            from creator import effladder as EL
+            out.append({"name": f"fetch_{t.name}_basegguf", "remote": EL.fetch_script(".", t.base_gguf), "minutes": 0.5, "low_util_abort_minutes": 0})
+        if t.lora_serve:
+            out.append({"name": f"register_{t.name}", "call": "creator.trainmix:register_lora_job", "minutes": 1, "low_util_abort_minutes": 0,
+                        "args": {"source": f"ft_{t.name}", "serve_as": sv, "base": t.base_gguf, "lora": lora_name(t)}})
+        else:
+            out.append({"name": f"register_{t.name}", "call": "creator.gpuday:register_tuned_job", "args": {"source": f"ft_{t.name}", "serve_as": sv},
+                        "minutes": 1, "low_util_abort_minutes": 0})
         if t.eval_suites:
             out.append({"name": f"eval_{t.name}", "call": "creator.trainmix:eval_job", "model": sv, "minutes": t.eval_minutes,
                         "max_minutes": round(t.eval_minutes * 2.5, 1), "low_util_abort_minutes": 0,
@@ -1042,6 +1219,8 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
                 out.append({"name": f"roleeval_{t.name}_{role}", "call": "creator.pipelinemix:pipeline_eval_job", "model": m,
                             "minutes": t.eval_minutes, "max_minutes": round(t.eval_minutes * 2.5, 1), "low_util_abort_minutes": 0,
                             "args": {"target": t.name, "role": role, "dir": str(root / t.name)}})
+        if t.module:                                 # a training module's own held-out eval (creator.trainmods)
+            out += _mods().eval_jobs(t, root, sv)
         if t.voice_only:                             # talk eval: the base voice, then the adapter (same questions, same pulse)
             for m, role in ((t.base_gguf, "base"), (sv, "tuned")):
                 out.append({"name": f"talkeval_{t.name}_{role}", "call": "creator.trainmix:talk_eval_job", "model": m, "minutes": 6,
@@ -1051,9 +1230,14 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
             out.append({"name": f"gate_{t.name}", "call": "creator.gpuselfteach:heldout_gate_job", "model": sv, "minutes": 12, "max_minutes": 25,
                         "low_util_abort_minutes": 0, "args": {"n": 400, "home_model": t.base_gguf, "tuned": sv,
                                                               "train_qids": str(root / t.name / "train_qids.json")}})
+        if fetched:
+            from creator import effladder as EL
+            out.append({"name": f"delete_{t.name}_basegguf", "remote": EL.delete_script(".", t.base_gguf), "minutes": 0.1, "low_util_abort_minutes": 0})
         out.append({"name": f"delete_{t.name}", "remote": delete_remote(t), "minutes": 0.1, "low_util_abort_minutes": 0})
-    out.append({"name": "trainmix_cleanup", "remote": cleanup_remote(), "minutes": 0.1,
-                "low_util_abort_minutes": 0})
+    if prestage is not None:                         # the NEXT module's base, downloaded in the background while this file's evals run
+        out.append({"name": f"prestage_{prestage.name}", "remote": prestage_remote(prestage), "minutes": 0.1, "low_util_abort_minutes": 0})
+    if cleanup:
+        out.append({"name": "trainmix_cleanup", "remote": cleanup_remote(), "minutes": 0.1, "low_util_abort_minutes": 0})
     return out
 
 
@@ -1186,13 +1370,34 @@ def talk_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
 # ------------------------------------------------------------------------------------------------ CLI
 def main(argv: Optional[Sequence[str]] = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m creator.trainmix", description=(__doc__ or "").split("\n\n")[0])
-    ap.add_argument("cmd", choices=("build", "inventory", "jobs", "check"))
+    ap.add_argument("cmd", choices=("build", "inventory", "jobs", "check", "autogen"))
     ap.add_argument("--state", default=str(ROOT / "state" / "creator"))
     ap.add_argument("--repo", default=str(ROOT))
     ap.add_argument("--targets", default="")
     ap.add_argument("--out", default="")
+    ap.add_argument("--loop", action="store_true", help="autogen: keep the queue filled every --interval seconds (IDLE priority)")
+    ap.add_argument("--interval", type=float, default=300.0)
+    ap.add_argument("--dry", action="store_true", help="autogen: build and validate, write no queue file")
     a = ap.parse_args(argv)
     targets = [t for t in a.targets.split(",") if t]
+    if a.cmd == "autogen":
+        MODS = _mods()
+
+        def say(m: str) -> None:
+            line = f"{dt.datetime.now().strftime('%H:%M:%S')} {m}"
+            print(line, flush=True)
+            try:
+                lg = MODS.queue_dir() / "logs"
+                lg.mkdir(parents=True, exist_ok=True)
+                with (lg / "autogen.log").open("a", encoding="utf-8") as fh:
+                    fh.write(line + "\n")
+            except OSError:
+                pass
+        if a.loop:
+            MODS.autogen_loop(Path(a.state), Path(a.repo), a.interval, say)
+        else:
+            MODS.autogen_once(Path(a.state), Path(a.repo), say, dry=a.dry)
+        return 0
     if a.cmd in ("build", "inventory"):
         mixes = build(Path(a.state), Path(a.repo), targets)
         E = inventory(Path(a.state), mixes)

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 ROLES = ("SPEC", "LOCATE", "PLAN", "CODE", "DEBUG", "REVIEW", "VALIDATE", "LESSON")
+EXTRA_ROLES = ("CALIB",)           # eval-only pseudo-role: the CONFIDENCE of a proposed answer (creator.trainmods calib)
 ROLE_CAP = 1500
 PER_REPO = 30                      # LOCATE rows per public repository (spread over the whole history)
 MAX_CHANGED = 6
@@ -211,14 +212,19 @@ def src_aider(ctx: Any, drops: collections.Counter[str], kind: str = "sft") -> l
             drops["aider: not a public task id"] += 1
             continue
         if kind == "sft":
-            if not r.get("messages"):
+            if not isinstance(r.get("messages"), list) or r.get("kind", "edit") != "edit":
                 continue
+            if r.get("reply") is not None and r["messages"] and r["messages"][-1].get("role") == "user":
+                r = dict(r, messages=list(r["messages"]) + [{"role": "assistant", "content": str(r["reply"])}])   # Aider log: prompt + reply
             role = role_of(r) if role_of(r) in ("CODE", "DEBUG") else "CODE"
             out.append(TM.Row(f"aider:{role}:{tid}:{i}", "aider_sft", tid, {"messages": tagged(role, r["messages"])},
                               licence="public task; 27B reply through Aider's prompts", meta={"role": role, "task": tid, "aider": True},
                               own=False))
-        elif r.get("prompt") and r.get("chosen") and r.get("rejected"):
-            out.append(TM.Row(f"aiderpref:{tid}:{i}", "aider_pref", tid, {"prompt": r["prompt"], "chosen": r["chosen"], "rejected": r["rejected"]},
+        elif (r.get("prompt") or r.get("messages")) and r.get("chosen") and r.get("rejected"):
+            def turn(v: Any) -> list[dict[str, Any]]:
+                return v if isinstance(v, list) else [{"role": "assistant", "content": str(v)}]
+            out.append(TM.Row(f"aiderpref:{tid}:{i}", "aider_pref", tid,
+                              {"prompt": tagged("CODE", r.get("prompt") or r["messages"]), "chosen": turn(r["chosen"]), "rejected": turn(r["rejected"])},
                               licence="public task", kind="pref", meta={"task": tid}, own=False))
     return out
 
@@ -329,6 +335,24 @@ def split(group: str) -> str:
 
 
 # ------------------------------------------------------------------------------------------------ per-role scoring
+CONF_RE = re.compile(r"CONFIDENCE\s*[:=]\s*([01](?:\.\d+)?|\.\d+)", re.I)
+
+
+def brief_sections(path: Optional[Path] = None) -> dict[str, str]:
+    """ROLE -> its long instruction text from TEACHER_BRIEF.md ('### ROLE (...)' up to the next heading): what promptbake replaces."""
+    from creator import trainmix as TM
+    try:
+        text = Path(path or TM.gpuday_dir() / "TEACHER_BRIEF.md").read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    out: dict[str, str] = {}
+    intro = text.split("\n### ", 1)[0].strip()       # the brief's shared part (vision, efficiency, honesty) goes with every role, as the teacher got it
+    for m in re.finditer(r"^### ([A-Z]+)\b[^\n]*\n(.*?)(?=^#{2,3} |\Z)", text, re.S | re.M):
+        if m.group(1) in ROLES:
+            out[m.group(1)] = intro + "\n\n### " + m.group(1) + "\n" + m.group(2).strip()
+    return out
+
+
 VERDICT_RE = re.compile(r"VERDICT\s*:\s*\**\s*(correct|incorrect)", re.I)
 MEETS_RE = re.compile(r"MEETS SPEC\s*:\s*\**\s*(yes|no)", re.I)
 POS = {"APPROVE", "ACCEPT", "LGTM", "PASS", "PASSED", "OK"}
@@ -357,7 +381,13 @@ def score(role: str, meta: Mapping[str, Any], reference: str, reply: str) -> Opt
     if role == "LOCATE":
         want = set(meta.get("changed") or paths_of(reference))
         got = paths_of(reply)
-        return {"correct": bool(want) and got == want, "recall": round(len(got & want) / max(1, len(want)), 3)}
+        return {"correct": bool(want) and got == want, "recall": round(len(got & want) / max(1, len(want)), 3),
+                "precision": round(len(got & want) / len(got), 3) if got else 0.0}
+    if role == "CALIB" and "y" in meta:
+        mc = CONF_RE.search(re.sub(r"<think>.*?(?:</think>|\Z)", "", reply, flags=re.S))
+        p = min(1.0, max(0.0, float(mc.group(1)))) if mc else 0.5            # no number = the uninformative 0.5
+        y = int(bool(meta["y"]))
+        return {"correct": (p >= 0.5) == bool(y), "p": p, "y": y, "brier": round((p - y) ** 2, 4), "parsed": mc is not None}
     if role in ("REVIEW", "VALIDATE") and isinstance(meta.get("label"), bool):
         m = (VERDICT_RE if role == "REVIEW" else MEETS_RE).search(re.sub(r"<think>.*?(?:</think>|\Z)", "", reply, flags=re.S))
         verdict = None if m is None else m.group(1).lower() in ("correct", "yes")
@@ -369,8 +399,8 @@ def score(role: str, meta: Mapping[str, Any], reference: str, reply: str) -> Opt
             return {"correct": False, "applied": False}
         return dict(EL.score({"check": "py", "test": meta["test"]}, f"```python\n{code}\n```"), applied=True)
     if role in ("REVIEW", "VALIDATE"):
-        y = meta.get("label")
-        truth = (y if isinstance(y, bool) else label_of(str(y))) if y is not None else (bool(meta["passed"]) if "passed" in meta else label_of(reference))
+        lab = meta.get("label")
+        truth = (lab if isinstance(lab, bool) else label_of(str(lab))) if lab is not None else (bool(meta["passed"]) if "passed" in meta else label_of(reference))
         if truth is None:
             return None
         return {"correct": label_of(reply) == truth}
@@ -383,7 +413,7 @@ def score(role: str, meta: Mapping[str, Any], reference: str, reply: str) -> Opt
 def heldout_rows(d: Path) -> list[dict[str, Any]]:
     from creator import trainmix as TM
     out: list[dict[str, Any]] = []
-    for role in ROLES:
+    for role in ROLES + EXTRA_ROLES:
         out += [dict(r, role=role) for r in TM.jsonl(Path(d) / f"heldout_{role}.jsonl")]
     return out
 
@@ -396,21 +426,66 @@ def run_rows(ask: Any, rows: Sequence[Mapping[str, Any]], workers: int = 8) -> l
         msgs = list(r["messages"])
         ref = str(msgs[-1].get("content") or "")
         try:
-            reply = str(ask(msgs[:-1], MAX_TOKENS.get(str(r["role"]), 512)))
+            got = ask(msgs[:-1], MAX_TOKENS.get(str(r["role"]), 512))
         except Exception as e:                                # noqa: BLE001 - a failed call is a missing pair, never a guess
             return {"id": r["id"], "role": r["role"], "error": f"{type(e).__name__}: {str(e)[:120]}"}
+        reply = str(got.get("content") or "") if isinstance(got, Mapping) else str(got)
+        cost = {k: got[k] for k in ("tok_in", "tok_out") if k in got} if isinstance(got, Mapping) else {}
         sc = score(str(r["role"]), r.get("meta") or {}, ref, reply)
-        return {"id": r["id"], "role": r["role"], "scored": sc is not None, **(sc or {})}
+        return {"id": r["id"], "role": r["role"], "scored": sc is not None, **cost, **(sc or {})}
     with cf.ThreadPoolExecutor(max(1, workers)) as ex:
         return list(ex.map(one, rows))
 
 
-def compare(base: Sequence[Mapping[str, Any]], tuned: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _ci(xs: Sequence[float]) -> tuple[float, list[Optional[float]]]:
     from creator import gpuselfteach as GS
+    m, lo, hi = GS.mean_ci(xs)
+    return round(m, 4), [None if not math.isfinite(lo) else round(lo, 4), None if not math.isfinite(hi) else round(hi, 4)]
+
+
+def ece(ps: Sequence[float], ys: Sequence[int], bins: int = 10) -> Optional[float]:
+    if not ps:
+        return None
+    tot = 0.0
+    for b in range(bins):
+        idx = [i for i, p in enumerate(ps) if (b / bins <= p < (b + 1) / bins) or (b == bins - 1 and p == 1.0)]
+        if idx:
+            tot += len(idx) * abs(sum(ps[i] for i in idx) / len(idx) - sum(ys[i] for i in idx) / len(idx))
+    return round(tot / len(ps), 4)
+
+
+def compare(base: Sequence[Mapping[str, Any]], tuned: Sequence[Mapping[str, Any]], mode: str = "accuracy") -> dict[str, Any]:
+    """Paired per role. mode 'accuracy': gain in correct (ADOPT: n >= 50, CI > 0). 'calibration': Brier improvement (base - tuned; ADOPT:
+    n >= 50, CI > 0), ECE reported (target <= 0.10). 'brevity': output tokens saved per row (ADOPT: n >= 50, CI of the saving > 0 AND the
+    accuracy change's CI lower bound >= -0.05: equal pass rate within noise)."""
     from creator import trainmix as TM
     b = {r["id"]: r for r in base if r.get("scored")}
+    if mode in ("calibration", "brevity"):
+        per2: dict[str, Any] = {}
+        for role in ROLES + EXTRA_ROLES:
+            pairs = [(r, b[r["id"]]) for r in tuned if r.get("scored") and r["role"] == role and r["id"] in b]
+            if not pairs:
+                continue
+            acc, acc_ci = _ci([float(int(bool(t["correct"])) - int(bool(x["correct"]))) for t, x in pairs])
+            e: dict[str, Any] = {"n": len(pairs), "acc_gain": acc, "acc_gain_ci95": acc_ci}
+            if mode == "calibration":
+                g, ci = _ci([float(x.get("brier", 0.25)) - float(t.get("brier", 0.25)) for t, x in pairs])
+                e.update(brier_gain=g, brier_gain_ci95=ci,
+                         ece_tuned=ece([float(t.get("p", 0.5)) for t, _x in pairs], [int(t.get("y", 0)) for t, _x in pairs]),
+                         ece_base=ece([float(x.get("p", 0.5)) for _t, x in pairs], [int(x.get("y", 0)) for _t, x in pairs]))
+                ok = len(pairs) >= TM.MIN_N and (ci[0] or 0) > 0
+            else:
+                g, ci = _ci([float(x.get("tok_out", 0)) - float(t.get("tok_out", 0)) for t, x in pairs])
+                e.update(tokens_saved=g, tokens_saved_ci95=ci,
+                         tok_out_tuned=round(sum(float(t.get("tok_out", 0)) for t, _x in pairs) / len(pairs), 1),
+                         tok_out_base=round(sum(float(x.get("tok_out", 0)) for _t, x in pairs) / len(pairs), 1))
+                ok = len(pairs) >= TM.MIN_N and (ci[0] or 0) > 0 and (acc_ci[0] if acc_ci[0] is not None else -1) >= -0.05
+            e["verdict"] = "ADOPT" if ok else "KEEP_BASE"
+            per2[role] = e
+        return {"mode": mode, "roles": per2, "adopt_roles": sorted(k for k, v in per2.items() if v["verdict"] == "ADOPT")}
+    from creator import gpuselfteach as GS
     per: dict[str, Any] = {}
-    for role in ROLES:
+    for role in ROLES + EXTRA_ROLES:
         pairs = [(r, b[r["id"]]) for r in tuned if r.get("scored") and r["role"] == role and r["id"] in b]
         unscored = sum(1 for r in tuned if r["role"] == role and not r.get("scored"))
         if not pairs and not unscored:
@@ -438,14 +513,23 @@ def pipeline_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
         return {"verdict": "NOT_RUN", "why": f"the pulse does not serve {model}"}
     ep = EL.Endpoint(got[0], model)
     rows = heldout_rows(Path(str(a.get("dir") or TM.mix_dir() / target)))
-    res = run_rows(lambda msgs, n: ep.call(msgs, n, False)["content"], rows, int(ctx.get("workers") or 8))
+    if a.get("long_system"):                         # promptbake: the base model gets the LONG role instructions (TEACHER_BRIEF section)
+        brief = brief_sections()
+        rows = [dict(r, messages=[{"role": "system", "content": brief.get(str(r["role"]), tag(str(r["role"])))}] + list(r["messages"][1:]))
+                for r in rows]
+    res = run_rows(lambda msgs, n: ep.call(msgs, n, False), rows, int(ctx.get("workers") or 8))
     state, pulse = Path(str(ctx["state"])), str(ctx.get("pulse") or "")
     rec: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "pulse": pulse, "target": target,
                            "kind": "pipeline_eval", "role": which, "model": model, "n": len(res), "rows": res}
     if which == "tuned":
         base = [r for r in TM.jsonl(TM.gate_path(state)) if r.get("kind") == "pipeline_eval" and r.get("role") == "base"
                 and r.get("pulse") == pulse and r.get("target") == target]
-        rec["compare"] = compare(base[-1]["rows"], res) if base else {"verdict": "NOT_RUN", "why": "no base run in this pulse"}
+        rec["compare"] = (compare(base[-1]["rows"], res, str(a.get("mode") or "accuracy")) if base else
+                          {"verdict": "NOT_RUN", "why": "no base run in this pulse"})
+        if base:
+            tin = [float(r.get("tok_in", 0)) for r in res if "tok_in" in r]
+            bin_ = [float(r.get("tok_in", 0)) for r in base[-1]["rows"] if "tok_in" in r]
+            rec["compare"]["prefill_tokens_mean"] = {"base": round(sum(bin_) / max(1, len(bin_)), 1), "tuned": round(sum(tin) / max(1, len(tin)), 1)}
     p = TM.gate_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as f:
