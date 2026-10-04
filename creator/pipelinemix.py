@@ -1,0 +1,453 @@
+"""PIPELINE ADAPTER DATA (h61, owner goal 4 Oct 2026: small home models run the FULL coding pipeline on CPU). On demand only.
+
+One multi-role LoRA adapter (Qwen3-1.7B and Qwen3-4B variants, creator.trainmix targets pipeline_17b / pipeline_4b) trained on ROLE-TAGGED
+rows: the role is named in the system prompt ("[ROLE: LOCATE] ..."), so one adapter serves every step of the pipeline at home.
+
+  roles     SPEC, LOCATE, PLAN, CODE, DEBUG, REVIEW, VALIDATE, LESSON
+  sources   C2 trajectories (27B runs): any <runtime>/gpuday/trajectories/**/*.jsonl row with a 'role' (top level or meta) - expected later;
+            LOCATE now: real commits -> (task = the commit subject, the parent tree's file list) -> the changed files. Public clones under
+            <runtime>/public_repos (no cut: not Nupen's history) and Nupen's own commits BEFORE the trust-gate cut (never a held-out commit).
+  balance   at most ROLE_CAP rows per role (a deterministic hash sample), so one plentiful role cannot drown the others
+  splits    per role: held-out (~10 %, by group) for the per-role eval, dev (~5 %) for early stopping, the rest train - never the same commit /
+            task on two sides; trainmix.screen removes eval/held-out overlap and private/frozen rows as for every mix
+  eval      pipeline_eval_job (gpupulse 'call'): the served model answers each role's held-out rows; scored per role -
+              LOCATE      exact match of the file SET (and recall)
+              REVIEW / VALIDATE   the label (approve/reject, pass/fail) against the test-derived label in the row (meta.label / meta.passed)
+              CODE / DEBUG        pass rate by executing the row's tests when it carries them (effladder item format: meta.check 'py' +
+                                  meta.test); rows without tests are reported as needing the repository harness (creator.gpuday), not scored
+              SPEC / PLAN / LESSON  no automatic metric: dev loss only (reported, never adopted on)
+            base and tuned runs of the same pulse are paired per role: ADOPT only when n >= 50 and the 95% CI of the gain > 0."""
+from __future__ import annotations
+
+import collections
+import datetime as dt
+import hashlib
+import json
+import math
+import re
+import subprocess
+from pathlib import Path
+from typing import Any, Mapping, Optional, Sequence
+
+ROLES = ("SPEC", "LOCATE", "PLAN", "CODE", "DEBUG", "REVIEW", "VALIDATE", "LESSON")
+ROLE_CAP = 1500
+PER_REPO = 30                      # LOCATE rows per public repository (spread over the whole history)
+MAX_CHANGED = 6
+MAX_CANDIDATES = 80
+ROLE_SYSTEM = {
+    "SPEC": "Turn the request into a short, testable specification: inputs, outputs, edge cases, acceptance tests.",
+    "LOCATE": "Given a task and the project's file list, name the files that must change. Reply with one path per line and nothing else.",
+    "PLAN": "Write a short numbered plan of the code changes for the task, file by file.",
+    "CODE": "Write the code change for the task exactly in the requested format.",
+    "DEBUG": "A test failed. Find the cause from the output and write the fix in the requested format.",
+    "REVIEW": "Review the candidate. First line 'VERDICT: correct' or 'VERDICT: incorrect', then ISSUES and CONFIDENCE.",
+    "VALIDATE": "Decide whether the final solution meets the spec. 'MEETS SPEC: yes|no', then GAPS and BROKE ANYTHING ELSE.",
+    "LESSON": "State the reusable lesson of this run in one or two sentences.",
+}
+MAX_TOKENS = {"LOCATE": 256, "REVIEW": 512, "VALIDATE": 384, "CODE": 2048, "DEBUG": 2048, "SPEC": 512, "PLAN": 512, "LESSON": 128}
+
+
+def tag(role: str) -> str:
+    return f"[ROLE: {role}] You are Nupen's {role.lower()} step. {ROLE_SYSTEM[role]}"
+
+
+def tagged(role: str, msgs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The role tag at the start of the system prompt (a system message is added when the row has none)."""
+    out = [dict(m) for m in msgs]
+    if out and out[0].get("role") == "system":
+        if not str(out[0].get("content", "")).startswith("[ROLE:"):
+            out[0]["content"] = tag(role) + "\n" + str(out[0].get("content") or "")
+    else:
+        out.insert(0, {"role": "system", "content": tag(role)})
+    return out
+
+
+def role_of(r: Mapping[str, Any]) -> str:
+    v = str(r.get("role") or (r.get("meta") or {}).get("role") or "").upper()
+    return v if v in ROLES else ""
+
+
+# ------------------------------------------------------------------------------------------------ LOCATE from real commits
+def _git(repo: Path, *args: str) -> str:
+    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+    return r.stdout if r.returncode == 0 else ""
+
+
+def _h(s: str) -> int:
+    return int(hashlib.sha256(s.encode("utf-8")).hexdigest()[:8], 16)
+
+
+def candidates(tree: Sequence[str], changed: Sequence[str], key: str, n: int = MAX_CANDIDATES) -> list[str]:
+    """The changed files plus the files nearest to them (same directory, then same top directory, then a hash sample), sorted: the model
+    must pick, not copy. Deterministic."""
+    ch = set(changed)
+    dirs = {p.rsplit("/", 1)[0] if "/" in p else "" for p in ch}
+    tops = {p.split("/", 1)[0] for p in ch}
+    rest = [p for p in tree if p not in ch]
+    near = sorted(rest, key=lambda p: (0 if (p.rsplit("/", 1)[0] if "/" in p else "") in dirs else 1 if p.split("/", 1)[0] in tops else 2,
+                                       _h(key + p)))
+    return sorted(ch | set(near[: max(0, n - len(ch))]))
+
+
+def locate_row(repo_name: str, subject: str, changed: Sequence[str], tree: Sequence[str], key: str) -> dict[str, Any]:
+    files = candidates(tree, changed, key)
+    user = f"Repository '{repo_name}'. Task: {subject}\n\nFiles:\n" + "\n".join(files)
+    return {"messages": [{"role": "system", "content": tag("LOCATE")}, {"role": "user", "content": user},
+                         {"role": "assistant", "content": "\n".join(sorted(changed))}]}
+
+
+def src_locate(ctx: Any, drops: collections.Counter[str], per_repo: int = PER_REPO) -> list[Any]:
+    from creator import gpuday as GD
+    from creator import reasondrills as R
+    from creator import trainmix as TM
+    out: list[Any] = []
+    for name, path in R.repos(ctx.repo):
+        try:
+            hist = R.history(path)
+        except Exception:                                   # noqa: BLE001 - a broken clone is skipped
+            drops["locate: unreadable clone"] += 1
+            continue
+        own = name == "nupen"
+        pool = [c for c in hist if 1 <= len({p for _s, p in c.changes}) <= MAX_CHANGED and R._ok_subject(c.s)
+                and all(st in "MD" for st, _p in c.changes)]           # modified files only: a new file cannot be picked from a list
+        if own:
+            pool = [c for c in pool if not TM.excluded(float(c.t), c.h, ctx.heldout)]
+        pool.sort(key=lambda c: _h(name + c.h))
+        got = 0
+        for c in pool:
+            if got >= per_repo:
+                break
+            changed = sorted({p for st, p in c.changes if st == "M"})           # files to change (deleted files are not 'located')
+            if not changed:
+                continue
+            tree = [p for p in _git(path, "ls-tree", "-r", "--name-only", f"{c.h}^").splitlines() if p]
+            if not tree or not set(changed) <= set(tree):
+                drops["locate: no parent tree"] += 1
+                continue
+            subj = GD.scrub(c.s)
+            body = locate_row(name, subj, changed, tree, c.h)
+            out.append(TM.Row(f"locate:{name}:{c.h[:12]}", "locate", f"{name}:{c.h[:12]}", body, ts=float(c.t), sha=c.h[:12],
+                              licence="public repository history" if not own else "own (before the cut)",
+                              meta={"role": "LOCATE", "repo": name, "changed": changed}, own=own))
+            got += 1
+    return out
+
+
+MODEL_RANK = ("Qwen3.6-27B-Q4_K_M.gguf", "Qwen3-4B-Q4_K_M.gguf", "Qwen3-1.7B-Q4_K_M.gguf")      # prefer the strongest teacher's row
+
+
+def role_files() -> list[Path]:
+    from creator import trainmix as TM
+    d = TM.gpuday_dir() / "trajectories" / "roles"
+    return sorted(d.glob("*.jsonl")) if d.is_dir() else []
+
+
+def role_rows_raw() -> list[dict[str, Any]]:
+    from creator import trainmix as TM
+    out: list[dict[str, Any]] = []
+    for p in role_files():
+        out += [r for r in TM.jsonl(p) if role_of(r) and r.get("task_id") and r.get("input") and r.get("output") is not None]
+    return out
+
+
+def _rank(r: Mapping[str, Any]) -> int:
+    m = str(r.get("model") or "")
+    return MODEL_RANK.index(m) if m in MODEL_RANK else len(MODEL_RANK)
+
+
+def src_roles(ctx: Any, drops: collections.Counter[str], raw: Optional[Sequence[Mapping[str, Any]]] = None) -> list[Any]:
+    """C2 role rows (<runtime>/gpuday/trajectories/roles/<model>.jsonl, TEACHER_BRIEF formats): VERIFIED rows only; per (task, role) the row
+    of the strongest model (27B, then 4B, then 1.7B). Public tasks only (hf:/pub: ids); a held-out task's rows never reach training (split by
+    task in trainmix). The role tag goes into the system prompt."""
+    from creator import trainmix as TM
+    best: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for r in (role_rows_raw() if raw is None else raw):
+        if r.get("verified") is not True:
+            drops["roles: not verified"] += 1
+            continue
+        tid = str(r["task_id"])
+        if not tid.startswith(("hf:", "pub:")):
+            drops["roles: not a public task"] += 1
+            continue
+        k = (tid, role_of(r))
+        if k not in best or _rank(r) < _rank(best[k]):
+            best[k] = r
+    out: list[Any] = []
+    for (tid, role), r in sorted(best.items()):
+        msgs = [{"role": "system", "content": tag(role)}, {"role": "user", "content": str(r["input"])},
+                {"role": "assistant", "content": str(r["output"]).strip()}]
+        out.append(TM.Row(f"role:{role}:{tid}", f"role_{role.lower()}", tid, {"messages": msgs}, licence="public task; answer by " + str(r.get("model")),
+                          meta={"role": role, "task": tid, "model": r.get("model")}, own=False))
+    return out
+
+
+AIDER_WEIGHT = 2                   # Aider is the home default editor: its exact-prompt rows count twice in training (CODE/DEBUG)
+
+
+def aider_dir() -> Path:
+    from creator import trainmix as TM
+    return TM.gpuday_dir() / "aider_distill"
+
+
+def _aider_task(r: Mapping[str, Any], i: int) -> str:
+    m = r.get("meta") or {}
+    return str(r.get("task_id") or m.get("task_id") or m.get("task") or r.get("task") or f"aider:{i}")
+
+
+def src_aider(ctx: Any, drops: collections.Counter[str], kind: str = "sft") -> list[Any]:
+    """Aider distill (<runtime>/gpuday/aider_distill/{sft,pref}.jsonl, written while the 27B runs): exact Aider prompts -> 27B diff replies
+    from PASSED public tasks. Whatever exists at build time is used (rebuild before a run). SFT rows keep their role (DEBUG when tagged so,
+    else CODE); a row that is not marked passed/verified (when the field exists) is dropped; only public task ids (hf:/pub:)."""
+    from creator import trainmix as TM
+    out: list[Any] = []
+    for i, r in enumerate(TM.jsonl(aider_dir() / f"{kind}.jsonl")):
+        m = dict(r.get("meta") or {})
+        ok = [r.get(k, m.get(k)) for k in ("passed", "verified") if k in r or k in m]
+        if ok and not all(v is True or str(v).lower() == "true" for v in ok):
+            drops["aider: not passed"] += 1
+            continue
+        tid = _aider_task(r, i)
+        if not tid.startswith(("hf:", "pub:")):
+            drops["aider: not a public task id"] += 1
+            continue
+        if kind == "sft":
+            if not r.get("messages"):
+                continue
+            role = role_of(r) if role_of(r) in ("CODE", "DEBUG") else "CODE"
+            out.append(TM.Row(f"aider:{role}:{tid}:{i}", "aider_sft", tid, {"messages": tagged(role, r["messages"])},
+                              licence="public task; 27B reply through Aider's prompts", meta={"role": role, "task": tid, "aider": True},
+                              own=False))
+        elif r.get("prompt") and r.get("chosen") and r.get("rejected"):
+            out.append(TM.Row(f"aiderpref:{tid}:{i}", "aider_pref", tid, {"prompt": r["prompt"], "chosen": r["chosen"], "rejected": r["rejected"]},
+                              licence="public task", kind="pref", meta={"task": tid}, own=False))
+    return out
+
+
+def rl_tests() -> dict[str, dict[str, Any]]:
+    """task id -> {'name', 'cases'} from the export's RL task files (the tests the C2 runs were checked with)."""
+    from creator import trainmix as TM
+    out: dict[str, dict[str, Any]] = {}
+    for d in TM.export_dirs().values():
+        for n in ("rl_tasks_hf", "rl_tasks_more"):
+            for r in TM.jsonl(d / f"{n}.jsonl"):
+                if r.get("id") and r.get("tests"):
+                    out.setdefault(str(r["id"]), {"name": r["name"], "cases": r["tests"]})
+    return out
+
+
+SOL_RE = re.compile(r"(?:Current|Final|Candidate) solution\.py:\s*```(?:python)?\n(.*?)```", re.S)
+
+
+def heldout_eval_rows(raw: Sequence[Mapping[str, Any]], heldout_tasks: set[str], tests: Mapping[str, Mapping[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Per role, the held-out tasks' rows that can be SCORED (any model's prompt; the label/tests come from the record, not the answer):
+    CODE/DEBUG with the task's tests and the starting solution.py; REVIEW with real_pass; VALIDATE with truth. One row per (task, role, prompt)."""
+    out: dict[str, list[dict[str, Any]]] = collections.defaultdict(list)
+    seen: set[tuple[str, str, str]] = set()
+    for r in sorted(raw, key=_rank):
+        role, tid = role_of(r), str(r.get("task_id") or "")
+        if tid not in heldout_tasks:
+            continue
+        k = (tid, role, hashlib.sha256(str(r["input"]).encode("utf-8")).hexdigest()[:16])
+        if k in seen:
+            continue
+        meta: dict[str, Any] = {"task": tid, "prompt_by": r.get("model")}
+        if role in ("CODE", "DEBUG"):
+            m = SOL_RE.search(str(r["input"]))
+            if tid not in tests or m is None:
+                continue
+            meta.update(check="py", test=tests[tid], current=m.group(1))
+        elif role == "REVIEW" and isinstance(r.get("real_pass"), bool):
+            meta["label"] = r["real_pass"]
+        elif role == "VALIDATE" and isinstance(r.get("truth"), bool):
+            meta["label"] = r["truth"]
+        else:
+            continue
+        seen.add(k)
+        out[role].append({"id": f"{role}:{tid}:{k[2][:8]}", "messages": [{"role": "system", "content": tag(role)},
+                                                                       {"role": "user", "content": str(r["input"])},
+                                                                       {"role": "assistant", "content": str(r["output"])}], "meta": meta})
+    return dict(out)
+
+
+EDIT_RE = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", re.S)
+
+
+def apply_edits(current: str, reply: str) -> Optional[str]:
+    """SEARCH/REPLACE blocks applied to the starting solution.py; a ```python block alone is taken as the whole file; None when a SEARCH
+    text is not found (the edit would fail at home too)."""
+    blocks = EDIT_RE.findall(reply)
+    if not blocks:
+        m = re.search(r"```(?:python|py)?\s*\n(.*?)```", reply, re.S)
+        return m.group(1) if m else None
+    text = current
+    for old, new in blocks:
+        if old not in text:
+            return None
+        text = text.replace(old, new, 1)
+    return text
+
+
+def src_c2_roles(ctx: Any, drops: collections.Counter[str]) -> list[Any]:
+    """Every role-tagged C2 row (SFT format); the trust-gate exclusion as in trainmix.src_trajectories."""
+    from creator import trainmix as TM
+    held_tasks = {str(t.get("id")) for t in ctx.heldout.get("tasks") or []}
+    d = TM.gpuday_dir() / "trajectories"
+    out: list[Any] = []
+    for p in sorted(d.rglob("*.jsonl")) if d.is_dir() else []:
+        if p.name.endswith(".ids.jsonl"):
+            continue
+        for i, r in enumerate(TM.jsonl(p)):
+            role = role_of(r)
+            if not role or not r.get("messages"):
+                continue
+            m = dict(r.get("meta") or {})
+            task = str(m.get("task") or m.get("task_id") or r.get("task") or "")
+            sha = str(m.get("sha") or r.get("sha") or "")
+            if task in held_tasks or TM.excluded(float(m.get("ts") or 0.0), sha, ctx.heldout):
+                drops["exclusion rule: trust-gate held-out task / commit"] += 1
+                continue
+            keep = {k: m[k] for k in ("label", "passed", "check", "test", "task", "agent") if k in m}
+            out.append(TM.Row(f"c2:{role}:{p.stem}:{i}", f"c2_{role.lower()}", task or f"{p.stem}:{i}", {"messages": tagged(role, r["messages"])},
+                              sha=sha, licence="own runs (27B)", meta={"role": role, **keep}, own=bool(sha)))
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ balance + per-role splits
+def balance(rows: Sequence[Any], cap: int = ROLE_CAP) -> tuple[list[Any], dict[str, int]]:
+    by: dict[str, list[Any]] = collections.defaultdict(list)
+    for r in rows:
+        by[str(r.meta.get("role") or "")].append(r)
+    out: list[Any] = []
+    for role, rs in sorted(by.items()):
+        out += sorted(rs, key=lambda r: _h("bal" + r.id))[:cap]
+    return out, {k: min(len(v), cap) for k, v in sorted(by.items())}
+
+
+def split(group: str) -> str:
+    v = _h("split" + group) % 1000
+    return "heldout" if v < 100 else "dev" if v < 150 else "train"
+
+
+# ------------------------------------------------------------------------------------------------ per-role scoring
+VERDICT_RE = re.compile(r"VERDICT\s*:\s*\**\s*(correct|incorrect)", re.I)
+MEETS_RE = re.compile(r"MEETS SPEC\s*:\s*\**\s*(yes|no)", re.I)
+POS = {"APPROVE", "ACCEPT", "LGTM", "PASS", "PASSED", "OK"}
+NEG = {"REJECT", "REQUEST_CHANGES", "FAIL", "FAILED"}
+LABEL_RE = re.compile(r"\b(APPROVE|ACCEPT|LGTM|REJECT|REQUEST_CHANGES|PASS(?:ED)?|FAIL(?:ED)?)\b")
+
+
+def label_of(text: str) -> Optional[bool]:
+    found = LABEL_RE.findall(text.upper())
+    if not found:
+        return None
+    return found[-1] in POS                                    # the LAST verdict word decides
+
+
+def paths_of(text: str) -> set[str]:
+    out = set()
+    for ln in re.sub(r"<think>.*?(?:</think>|\Z)", "", text, flags=re.S).splitlines():
+        s = ln.strip().strip("`*-• ").strip()
+        if s and " " not in s and ("/" in s or "." in s):
+            out.add(s)
+    return out
+
+
+def score(role: str, meta: Mapping[str, Any], reference: str, reply: str) -> Optional[dict[str, Any]]:
+    """{'correct': bool, ...} or None when the role has no automatic metric for this row."""
+    if role == "LOCATE":
+        want = set(meta.get("changed") or paths_of(reference))
+        got = paths_of(reply)
+        return {"correct": bool(want) and got == want, "recall": round(len(got & want) / max(1, len(want)), 3)}
+    if role in ("REVIEW", "VALIDATE") and isinstance(meta.get("label"), bool):
+        m = (VERDICT_RE if role == "REVIEW" else MEETS_RE).search(re.sub(r"<think>.*?(?:</think>|\Z)", "", reply, flags=re.S))
+        verdict = None if m is None else m.group(1).lower() in ("correct", "yes")
+        return {"correct": verdict is not None and verdict == meta["label"], "parsed": verdict is not None}
+    if role in ("CODE", "DEBUG") and meta.get("check") == "py" and meta.get("test") and "current" in meta:
+        from creator import effladder as EL
+        code = apply_edits(str(meta["current"]), reply)
+        if code is None:
+            return {"correct": False, "applied": False}
+        return dict(EL.score({"check": "py", "test": meta["test"]}, f"```python\n{code}\n```"), applied=True)
+    if role in ("REVIEW", "VALIDATE"):
+        y = meta.get("label")
+        truth = (y if isinstance(y, bool) else label_of(str(y))) if y is not None else (bool(meta["passed"]) if "passed" in meta else label_of(reference))
+        if truth is None:
+            return None
+        return {"correct": label_of(reply) == truth}
+    if role in ("CODE", "DEBUG") and meta.get("check") == "py" and meta.get("test"):
+        from creator import effladder as EL
+        return EL.score({"check": "py", "test": meta["test"]}, reply)
+    return None
+
+
+def heldout_rows(d: Path) -> list[dict[str, Any]]:
+    from creator import trainmix as TM
+    out: list[dict[str, Any]] = []
+    for role in ROLES:
+        out += [dict(r, role=role) for r in TM.jsonl(Path(d) / f"heldout_{role}.jsonl")]
+    return out
+
+
+def run_rows(ask: Any, rows: Sequence[Mapping[str, Any]], workers: int = 8) -> list[dict[str, Any]]:
+    """Ask every held-out row (prompt = its messages without the reference answer); score it per role."""
+    import concurrent.futures as cf
+
+    def one(r: Mapping[str, Any]) -> dict[str, Any]:
+        msgs = list(r["messages"])
+        ref = str(msgs[-1].get("content") or "")
+        try:
+            reply = str(ask(msgs[:-1], MAX_TOKENS.get(str(r["role"]), 512)))
+        except Exception as e:                                # noqa: BLE001 - a failed call is a missing pair, never a guess
+            return {"id": r["id"], "role": r["role"], "error": f"{type(e).__name__}: {str(e)[:120]}"}
+        sc = score(str(r["role"]), r.get("meta") or {}, ref, reply)
+        return {"id": r["id"], "role": r["role"], "scored": sc is not None, **(sc or {})}
+    with cf.ThreadPoolExecutor(max(1, workers)) as ex:
+        return list(ex.map(one, rows))
+
+
+def compare(base: Sequence[Mapping[str, Any]], tuned: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    from creator import gpuselfteach as GS
+    from creator import trainmix as TM
+    b = {r["id"]: r for r in base if r.get("scored")}
+    per: dict[str, Any] = {}
+    for role in ROLES:
+        pairs = [(r, b[r["id"]]) for r in tuned if r.get("scored") and r["role"] == role and r["id"] in b]
+        unscored = sum(1 for r in tuned if r["role"] == role and not r.get("scored"))
+        if not pairs and not unscored:
+            continue
+        d = [float(int(bool(t["correct"])) - int(bool(x["correct"]))) for t, x in pairs]
+        m, lo, hi = GS.mean_ci(d)
+        per[role] = {"n": len(d), "unscored": unscored, "gain": round(m, 4),
+                     "tuned_acc": round(sum(bool(t["correct"]) for t, _x in pairs) / len(pairs), 4) if pairs else None,
+                     "base_acc": round(sum(bool(x["correct"]) for _t, x in pairs) / len(pairs), 4) if pairs else None,
+                     "gain_ci95": [None if not math.isfinite(lo) else round(lo, 4), None if not math.isfinite(hi) else round(hi, 4)],
+                     "verdict": "ADOPT" if len(d) >= TM.MIN_N and lo > 0 else ("NO_METRIC" if not pairs else "KEEP_BASE")}
+    return {"roles": per, "adopt_roles": sorted(k for k, v in per.items() if v["verdict"] == "ADOPT")}
+
+
+def pipeline_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
+    """gpupulse 'call' job: the served model (args role 'base' or 'tuned') answers the target's held-out rows of every role. Each run is one
+    record in <state>/thinking/train_gate.jsonl; the tuned run carries the per-role paired comparison with this pulse's base run."""
+    from creator import effladder as EL
+    from creator import gpupulse as GP
+    from creator import trainmix as TM
+    a = dict(ctx.get("args") or {})
+    model, which, target = str(ctx.get("model") or ""), str(a.get("role") or "tuned"), str(a.get("target") or "")
+    got = GP.attach(Path(str(ctx["tunnel_file"])), model)
+    if got is None:
+        return {"verdict": "NOT_RUN", "why": f"the pulse does not serve {model}"}
+    ep = EL.Endpoint(got[0], model)
+    rows = heldout_rows(Path(str(a.get("dir") or TM.mix_dir() / target)))
+    res = run_rows(lambda msgs, n: ep.call(msgs, n, False)["content"], rows, int(ctx.get("workers") or 8))
+    state, pulse = Path(str(ctx["state"])), str(ctx.get("pulse") or "")
+    rec: dict[str, Any] = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "pulse": pulse, "target": target,
+                           "kind": "pipeline_eval", "role": which, "model": model, "n": len(res), "rows": res}
+    if which == "tuned":
+        base = [r for r in TM.jsonl(TM.gate_path(state)) if r.get("kind") == "pipeline_eval" and r.get("role") == "base"
+                and r.get("pulse") == pulse and r.get("target") == target]
+        rec["compare"] = compare(base[-1]["rows"], res) if base else {"verdict": "NOT_RUN", "why": "no base run in this pulse"}
+    p = TM.gate_path(state)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
+    return {k: v for k, v in rec.items() if k != "rows"}

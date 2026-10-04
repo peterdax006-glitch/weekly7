@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
+import dataclasses
 import datetime as dt
 import hashlib
 import json
@@ -434,7 +435,7 @@ def eval_sets(ctx: Ctx) -> dict[str, dict[str, Any]]:
             put(f"{d}/{n}", [(str(m.get("id") or i), prompt_text(r)) for i, (r, m) in enumerate(rows)], [str(m.get("sha") or "") for _r, m in rows if m.get("sha")])
     for n in ("rl_tasks_hf", "rl_tasks_more"):
         ev = [r for r in jsonl(export_dirs()["export"] / f"{n}.jsonl") if r.get("split") == "eval"]
-        put(f"export/{n}:eval", [(str(r["id"]), str(r.get("prompt") or "")) for r in ev])
+        put(f"export/{n}:eval", [(str(r["id"]), str(r.get("prompt") or "")) for r in ev], [str(r["id"]) for r in ev])   # ids: role rows of eval tasks
     return out
 
 
@@ -449,6 +450,11 @@ def frozen() -> Any:
 
 
 # ------------------------------------------------------------------------------------------------ the targets (mix plans)
+def _pm() -> Any:
+    from creator import pipelinemix as PM
+    return PM
+
+
 SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
     "trace_bank": src_trace_bank,
     "ladder_reasoning": src_ladder_reasoning,
@@ -466,6 +472,10 @@ SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
     "c2_pairs": lambda c, d: src_trajectories(c, d, "pair"),
     "talk_understand": lambda c, d: src_talk(c, d, "understand"),
     "talk_speak": lambda c, d: src_talk(c, d, "speak"),
+    "roles": lambda c, d: _pm().src_roles(c, d),
+    "locate": lambda c, d: _pm().src_locate(c, d),
+    "aider_sft": lambda c, d: _pm().src_aider(c, d, "sft"),
+    "aider_pref": lambda c, d: _pm().src_aider(c, d, "pref"),
 }
 
 # Training rates on the RTX 5090 (Unsloth LoRA bf16, no packing; conservative): tokens/s. Overheads: base download + load, merge + GGUF.
@@ -505,6 +515,8 @@ class Target:
     # by that gate, so talk rows built from post-cut records are allowed for the voice adapter ONLY: never in a coder/thinker mix, the adapter
     # is tagged "voice-only, not gate-eligible", and it is evaluated with creator.talkeval (talk_eval_job) instead of the ladder.
     voice_only: bool = False
+    roles: bool = False                              # multi-role pipeline adapter (creator.pipelinemix): role balance + per-role held-out
+    hf_on_shm: bool = False                          # base download on /dev/shm (the 4B bf16 base does not fit the workspace disk)
 
     @property
     def base_gguf(self) -> str:
@@ -512,6 +524,7 @@ class Target:
 
 
 THINK_EVAL = {"reasoning": "plain@32,cot@256", "thinkbench": "plain@32,cot@256"}
+CODER_SFT = ("rl_refs_hf", "rl_refs_more", "ladder_coding", "coder_hf", "coder_more", "coder_nupen")
 TARGETS: tuple[Target, ...] = (
     Target("thinker_17b", "1.7b", ("trace_bank", "ladder_reasoning"),
            "Nupen's drills/judgment run constantly on the home 1.7B; a tuned 1.7B answering at plain@32 (5 tokens) or cot@256 replaces "
@@ -524,11 +537,19 @@ TARGETS: tuple[Target, ...] = (
            "large if it reaches the base 1.7B: same task at ~1/3 of the CPU and RAM", max_seq=1024, epochs=3, lr=2e-4, batch=16, accum=1,
            eval_suites=("reasoning", "thinkbench"), eval_configs=THINK_EVAL, eval_minutes=3, gate=False, vram_mib=7000,
            also_vs=("Qwen3-1.7B-Q4_K_M.gguf",)),
-    Target("coder_17b", "1.7b", ("rl_refs_hf", "rl_refs_more", "ladder_coding", "coder_hf", "coder_more", "coder_nupen", "c2_sft", "c2_debug"),
+    Target("coder_17b", "1.7b", ("aider_sft", "rl_refs_hf", "rl_refs_more", "ladder_coding", "coder_hf", "coder_more", "coder_nupen", "c2_sft", "c2_debug"),
            "home coder: base 1.7B 0.56 vs 27B 0.815 on the coding ladder (plain@1024); verified references + 27B distill + public edits",
            "medium: fewer escalations to the teacher / pod per coding task", max_seq=4096, epochs=2, lr=1e-4, batch=4, accum=4, min_rows=300,
-           pref=("pref_coder", "c2_pairs"), eval_suites=("coding",), eval_configs={"coding": "plain@1024"}, eval_n={"coding": 200},
+           pref=("pref_coder", "c2_pairs", "aider_pref"), eval_suites=("coding",), eval_configs={"coding": "plain@1024"}, eval_n={"coding": 200},
            eval_minutes=4, vram_mib=18000),
+    # owner goal 4 Oct: small home models run the full coding pipeline on CPU - one multi-role adapter (role tag in the system prompt)
+    Target("pipeline_17b", "1.7b", ("roles", "aider_sft", *CODER_SFT), "every pipeline role (SPEC/PLAN/CODE/DEBUG/REVIEW/VALIDATE/LESSON) at home on the 1.7B: "
+           "verified C2 role rows (27B first, then 4B, then 1.7B) + the coder SFT, role-balanced",
+           "large: the whole pipeline at home instead of the 27B on the pod", max_seq=4096, epochs=2, lr=1e-4, batch=4, accum=4, min_rows=300,
+           eval_minutes=8, vram_mib=18000, roles=True, pref=("aider_pref",)),
+    Target("pipeline_4b", "4b", ("roles", "aider_sft", *CODER_SFT), "the same pipeline adapter on the 4B (stronger, ~2.3x the home CPU per token)",
+           "large if the 1.7B is not good enough at a role", max_seq=4096, epochs=2, lr=1e-4, batch=2, accum=8, min_rows=300,
+           eval_minutes=12, vram_mib=26000, roles=True, hf_on_shm=True, pref=("aider_pref",)),
     Target("reviewer_17b", "1.7b", ("c2_review",), "a small reviewer for C2 diffs (REVIEW view of the C2 trajectories)",
            "medium once C2 has run: review at home instead of on the 27B", max_seq=4096, epochs=2, batch=4, accum=4, min_rows=100,
            vram_mib=18000),
@@ -605,6 +626,38 @@ def screen(rows: Sequence[Row], evals: Mapping[str, Mapping[str, Any]], fz: Any,
     return out
 
 
+HELDOUT_PER_ROLE = 200
+
+
+def _role_mix(t: Target, d: Path, sft: Sequence[Row], drops: collections.Counter[str]) -> tuple[list[Row], dict[str, Any]]:
+    """Pipeline targets: rows of held-out tasks never train (any source: an rl reference shares its task id); role rows balanced per role;
+    every non-role row (the coder SFT) tagged CODE; per role a held-out eval file (heldout_<ROLE>.jsonl, at most HELDOUT_PER_ROLE rows)."""
+    PM = _pm()
+    kept = [r for r in sft if PM.split(r.group) != "heldout"]
+    drops["pipeline: held-out task (eval side)"] += len(sft) - len(kept)
+    role_rows = [r for r in kept if r.meta.get("role") in PM.ROLES and not r.meta.get("aider")]
+    aider = [r for r in kept if r.meta.get("aider")]
+    other = [r for r in kept if r.meta.get("role") not in PM.ROLES and not r.meta.get("aider")]
+    bal, counts = PM.balance(role_rows)
+    drops["pipeline: over the per-role cap"] += len(role_rows) - len(bal)
+    other = [dataclasses.replace(r, body={"messages": PM.tagged("CODE", r.body["messages"])}) for r in other]   # copies: the source cache is shared
+    raw = PM.role_rows_raw()
+    held = {str(x["task_id"]) for x in raw if PM.split(str(x["task_id"])) == "heldout"}
+    ev = PM.heldout_eval_rows(raw, held, PM.rl_tests())
+    for f in d.glob("heldout_*.jsonl"):
+        f.unlink()
+    nh = {}
+    for role, rows in ev.items():
+        rows = sorted(rows, key=lambda x: PM._h("ev" + x["id"]))[:HELDOUT_PER_ROLE]
+        nh[role] = len(rows)
+        with (d / f"heldout_{role}.jsonl").open("w", encoding="utf-8") as fh:
+            for x in rows:
+                fh.write(json.dumps(x, ensure_ascii=False) + "\n")
+    # Aider rows (home default editor): outside the role cap and weighted up - each train-side row repeated AIDER_WEIGHT times (dev keeps one)
+    up = [dataclasses.replace(r, id=f"{r.id}#w{k}") for r in aider if PM.split(r.group) == "train" for k in range(1, PM.AIDER_WEIGHT)]
+    return bal + other + aider + up, {"train_per_role": counts, "coder_sft_rows": len(other), "aider_rows": len(aider), "aider_weight": PM.AIDER_WEIGHT, "heldout_tasks": len(held), "heldout_rows": nh}
+
+
 def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz: Any, out_root: Optional[Path] = None,
                  cache: Optional[dict[str, tuple[list[Row], collections.Counter[str]]]] = None) -> dict[str, Any]:
     d = Path(out_root or mix_dir()) / t.name
@@ -631,8 +684,16 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
     pref = screen(pref_raw, evals, fz, t.max_seq, pd) if pref_raw else []
     drops.update({f"screen: {k}": v for k, v in sd.items()})
     drops.update({f"screen pref: {k}": v for k, v in pd.items()})
-    train = [r for r in sft if not _dev(r.group)]
-    dev = [r for r in sft if _dev(r.group)]
+    role_counts: dict[str, Any] = {}
+    if t.roles:
+        sft, role_counts = _role_mix(t, d, sft, drops)
+        PM = _pm()
+        pref = [r for r in pref if PM.split(r.group) != "heldout"]        # a held-out task never trains, in any form
+        train = [r for r in sft if PM.split(r.group) == "train"]
+        dev = [r for r in sft if PM.split(r.group) == "dev"]
+    else:
+        train = [r for r in sft if not _dev(r.group)]
+        dev = [r for r in sft if _dev(r.group)]
     files = {"train.jsonl": train, "dev.jsonl": dev, "pref.jsonl": pref}
     for n, rows in files.items():
         with (d / n).open("w", encoding="utf-8") as f:
@@ -656,7 +717,7 @@ def build_target(t: Target, ctx: Ctx, evals: Mapping[str, Mapping[str, Any]], fz
            "by_source_kept": dict(used), "drops": dict(sorted(drops.items())), "epochs": t.epochs, "max_seq": t.max_seq,
            "eval_sets": {k: {"n": len(v["texts"]), "hash": v["hash"]} for k, v in evals.items()},
            "heldout_cut": ctx.heldout.get("cut_utc"), "blocked": t.blocked,
-           "tag": "voice-only, not gate-eligible" if t.voice_only else "gate-eligible (exclusion rule applied)",
+           "tag": "voice-only, not gate-eligible" if t.voice_only else "gate-eligible (exclusion rule applied)", "roles": role_counts,
            "files": {n: {"rows": sum(1 for _ in (d / n).open(encoding="utf-8")), "sha256": hashlib.sha256((d / n).read_bytes()).hexdigest()}
                      for n in ("train.jsonl", "dev.jsonl", "pref.jsonl")}}
     man["gpu_minutes"] = minutes(t, man)
@@ -890,6 +951,9 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
     w, keep = f"{shm}/{name}", f"{POD_DIR}/runs/{name}"
     ws_gb = math.ceil(BF16_GB[t.size] + Q4_GB[t.size] + 0.5)                 # HF base cache + the served GGUF
     shm_gb = math.ceil(2 * BF16_GB[t.size] + Q4_GB[t.size] + 0.5)            # merged + f16 GGUF + Q4 GGUF
+    hf_home = f"$PWD/{HF_CACHE}"
+    if t.hf_on_shm:                                  # the base download moves to the RAM disk too: only the served GGUF stays on the workspace
+        ws_gb, shm_gb, hf_home = math.ceil(Q4_GB[t.size] + 0.5), math.ceil(3 * BF16_GB[t.size] + Q4_GB[t.size] + 0.5), f"{shm}/hf_cache"
     pref = man["rows"]["pref"] >= 20
     opts = (f"--base {HF_BASE[t.size]} --data {data}/train.jsonl --eval-data {data}/dev.jsonl --out {w} --max-seq {t.max_seq} "
             f"--epochs {epochs_for(t, man)} --batch {t.batch} --accum {t.accum} --lr {t.lr} --patience 2 "
@@ -919,7 +983,7 @@ def ft_remote(t: Target, man: Mapping[str, Any], shm: str = SHM) -> str:
         f"wsf=$(df -Pk . | awk 'NR==2 {{print int($4/1048576)}}'); shf=$(df -Pk {posixpath.dirname(shm)} | awk 'NR==2 {{print int($4/1048576)}}')",
         f"if [ \"$wsf\" -lt {ws_gb} ]; then {skip(f'disk: $wsf GB free on the workspace, needs {ws_gb}')}; fi",
         f"if [ \"$shf\" -lt {shm_gb} ]; then {skip(f'disk: $shf GB free on {posixpath.dirname(shm)}, needs {shm_gb}')}; fi",
-        f"export HF_HOME=\"$PWD/{HF_CACHE}\" PIP_NO_CACHE_DIR=1 TOKENIZERS_PARALLELISM=false",
+        f"export HF_HOME=\"{hf_home}\" PIP_NO_CACHE_DIR=1 TOKENIZERS_PARALLELISM=false",
         f"rm -rf {w}; mkdir -p {w} {keep} models",
         f"\"$PY\" {POD_DIR}/finetune.py pipeline {opts} > {keep}/train.log 2>&1 || {{ tail -40 {keep}/train.log; rm -rf {w}; exit 5; }}",
         f"g={w}/model-Q4_K_M.gguf; if [ -f \"$g\" ]; then mv -f \"$g\" models/{sv}; sha256sum models/{sv} | cut -d' ' -f1 > models/{sv}.ok; "
@@ -965,6 +1029,11 @@ def jobs(cfg: Optional[Mapping[str, Any]] = None, root: Optional[Path] = None, t
                         "max_minutes": round(t.eval_minutes * 2.5, 1), "low_util_abort_minutes": 0,
                         "args": {"target": t.name, "suites": list(t.eval_suites), "configs": dict(t.eval_configs), "n": dict(t.eval_n),
                                  "base": ",".join([t.base_gguf, *t.also_vs]), "run": f"train-{t.name}"}})
+        if t.roles:                                  # per-role held-out eval: the base model, then the adapter (same rows, same pulse)
+            for m, role in ((t.base_gguf, "base"), (sv, "tuned")):
+                out.append({"name": f"roleeval_{t.name}_{role}", "call": "creator.pipelinemix:pipeline_eval_job", "model": m,
+                            "minutes": t.eval_minutes, "max_minutes": round(t.eval_minutes * 2.5, 1), "low_util_abort_minutes": 0,
+                            "args": {"target": t.name, "role": role, "dir": str(root / t.name)}})
         if t.voice_only:                             # talk eval: the base voice, then the adapter (same questions, same pulse)
             for m, role in ((t.base_gguf, "base"), (sv, "tuned")):
                 out.append({"name": f"talkeval_{t.name}_{role}", "call": "creator.trainmix:talk_eval_job", "model": m, "minutes": 6,
