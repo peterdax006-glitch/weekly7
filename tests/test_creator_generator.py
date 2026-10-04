@@ -283,3 +283,91 @@ def test_search_restores_the_file_when_visible_tests_raises(tmp_path: Path, monk
     with pytest.raises(RuntimeError):
         G.solve_with_search({"id": "t", "objective": "x"}, tmp_path, budget=20)
     assert calls["n"] == 1 and (tmp_path / "app/x.py").read_text(encoding="utf-8") == before
+
+
+def _counting_server(replies: list[tuple[int, str]]) -> tuple[Any, list[int]]:
+    """A local HTTP/1.1 server that answers chat posts in order and counts the TCP connections it accepted."""
+    import http.server
+    import threading
+
+    conns: list[int] = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def setup(self) -> None:
+            super().setup()
+            conns.append(1)
+
+        def do_POST(self) -> None:  # noqa: N802
+            self.rfile.read(int(self.headers["Content-Length"]))
+            status, text = replies.pop(0)
+            body = json.dumps({"choices": [{"message": {"content": text}}]}).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            if text == "a-then-drop":                          # close without telling the client (an idle-timeout drop)
+                self.close_connection = True
+
+        def log_message(self, *a: Any) -> None:
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, conns
+
+
+def test_chat_keeps_one_connection_alive_and_drops_it_on_stop() -> None:
+    srv, conns = _counting_server([(200, "a"), (200, "b"), (200, "c")])
+    try:
+        lm = G.LocalModel()
+        lm.port, lm.leased = srv.server_address[1], True       # attached to a running server (nothing to start or stop)
+        lm.lock = type("L", (), {"release": lambda self: None})()
+        assert [lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0) for _ in range(3)] == ["a", "b", "c"]
+        assert len(conns) == 1 and lm.calls == 3
+        lm._stop()
+        assert getattr(lm._tls, "conn", None) is None
+    finally:
+        srv.shutdown()
+
+
+def test_chat_reconnects_once_after_the_server_dropped_the_idle_connection_and_keeps_http_errors() -> None:
+    import urllib.error
+    srv, conns = _counting_server([(200, "a-then-drop"), (200, "b"), (500, "boom")])
+    try:
+        lm = G.LocalModel()
+        lm.port = srv.server_address[1]
+        assert lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0) == "a-then-drop"
+        import time
+        time.sleep(0.2)                                        # the server has closed its end
+        assert lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0) == "b"
+        assert len(conns) == 2
+        with pytest.raises(urllib.error.HTTPError):
+            lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0)
+    finally:
+        srv.shutdown()
+
+
+def test_chat_to_a_closed_port_raises_urlerror_like_urlopen() -> None:
+    import urllib.error
+    lm = G.LocalModel()
+    lm.port = G.free_port()
+    with pytest.raises(urllib.error.URLError):
+        lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 5.0)
+
+
+def test_a_new_port_never_reuses_the_old_servers_connection() -> None:
+    s1, c1 = _counting_server([(200, "one")])
+    s2, c2 = _counting_server([(200, "two")])
+    try:
+        lm = G.LocalModel()
+        lm.port = s1.server_address[1]
+        assert lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0) == "one"
+        lm.port = s2.server_address[1]                         # fell back to a local server
+        assert lm._post([{"role": "user", "content": "x"}], 4, 0.2, 0, 10.0) == "two"
+        assert len(c1) == 1 and len(c2) == 1
+    finally:
+        s1.shutdown()
+        s2.shutdown()

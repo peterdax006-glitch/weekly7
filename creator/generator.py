@@ -472,7 +472,8 @@ class LocalModel:
             return False
 
     def _stop(self) -> None:
-        if self.pulse:                                         # the pod's server is not ours to stop
+        self._conn_drop()                                      # this thread's kept-alive connection (other threads' close with their thread)
+        if self.pulse:                                       # the pod's server is not ours to stop
             self.pulse = ""
             self.routed = False
             return
@@ -541,14 +542,64 @@ class LocalModel:
     def _post(self, messages: Sequence[Mapping[str, str]], max_tokens: int, temperature: float, seed: int, timeout: float) -> str:
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
-        req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions", data=body,
-                                     headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read().decode("utf-8"))
+        data = json.loads(self._send("/v1/chat/completions", body, timeout).decode("utf-8"))
         self.calls += 1
         self.seconds += time.monotonic() - t0
         return str(data["choices"][0]["message"]["content"])
+
+    def _conn_drop(self) -> None:
+        tls = self.__dict__.get("_tls")
+        c = getattr(tls, "conn", None) if tls is not None else None
+        if tls is not None:
+            tls.conn = None
+        if c is not None:
+            c.close()
+
+    def _send(self, path: str, body: bytes, timeout: float) -> bytes:
+        """POST on this thread's kept-alive connection to the current port (h59: urllib opened a new connection per request - through the
+        pulse route's SSH tunnel a new channel each time, measured ~0.6 s of a pod call). A REUSED connection the server dropped while idle is
+        reopened once; a fresh connection's failure is the server's answer. Errors as urlopen raised them: a refused/failed send on a fresh
+        connection -> URLError, an HTTP status >= 400 -> HTTPError, a timeout or reset while reading -> the OSError itself."""
+        import http.client
+        import io
+        tls = self.__dict__.setdefault("_tls", threading.local())
+        for attempt in (0, 1):
+            conn = getattr(tls, "conn", None)
+            if conn is not None and getattr(tls, "port", None) != self.port:   # the server moved (fell back local, a new lease): old one is stale
+                self._conn_drop()
+                conn = None
+            fresh = conn is None
+            if conn is None:
+                conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=timeout)
+                tls.conn, tls.port = conn, self.port
+            conn.timeout = timeout
+            if conn.sock is not None:
+                conn.sock.settimeout(timeout)
+            try:
+                try:
+                    conn.request("POST", path, body=body, headers={"Content-Type": "application/json"})
+                except OSError as e:
+                    if fresh:
+                        raise urllib.error.URLError(e) from e
+                    raise
+                r = conn.getresponse()
+                data = r.read()
+            except (http.client.RemoteDisconnected, http.client.CannotSendRequest, http.client.BadStatusLine, ConnectionResetError,
+                    ConnectionAbortedError, BrokenPipeError):
+                self._conn_drop()
+                if fresh or attempt:
+                    raise
+                continue
+            except BaseException:
+                self._conn_drop()
+                raise
+            if r.will_close:
+                self._conn_drop()
+            if r.status >= 400:
+                raise urllib.error.HTTPError(f"http://127.0.0.1:{self.port}{path}", r.status, r.reason, r.headers, io.BytesIO(data))
+            return data
+        raise ConnectionError("unreachable")
 
 
 THINK_BLOCK = re.compile(r"<think>.*?(?:</think>|\Z)", re.S)    # an unclosed block (max_tokens hit mid-thought) is scratch work too
