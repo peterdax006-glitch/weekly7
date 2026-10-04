@@ -148,17 +148,47 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
     if not rows:
         raise SystemExit(f"no training rows in {a.data} fit {a.max_seq} tokens ({too_long} too long)")
     ds = Dataset.from_list(rows)
-    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=False)
-    tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, processing_class=tok)
+    ev_rows: list[dict[str, Any]] = []
+    if getattr(a, "eval_data", "") and Path(a.eval_data).is_file():
+        ev_rows, _ = fit_rows(to_prompt_completion(read_jsonl(Path(a.eval_data))), tok, a.max_seq)
+    extra: dict[str, Any] = {}
+    callbacks: list[Any] = []
+    if ev_rows:                         # early stopping on the held-out dev split: evaluate ~4x per epoch, keep the best adapter
+        es = eval_every(len(rows), a.batch, a.accum, a.eval_steps)
+        extra = dict(eval_strategy="steps", evaluation_strategy="steps", eval_steps=es, save_strategy="steps", save_steps=es,
+                     save_total_limit=2, load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False,
+                     per_device_eval_batch_size=a.batch)
+        from transformers import EarlyStoppingCallback
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=max(1, a.patience)))
+    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=False, **extra)
+    tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, eval_dataset=Dataset.from_list(ev_rows) if ev_rows else None,
+                    processing_class=tok, callbacks=callbacks or None)
     st = tr.train()
     ad = Path(a.out) / "adapter"
     model.save_pretrained(str(ad))
     tok.save_pretrained(str(ad))
     losses = [h["loss"] for h in tr.state.log_history if "loss" in h]
+    evl = [(h.get("step"), h["eval_loss"]) for h in tr.state.log_history if "eval_loss" in h]
+    if ev_rows:
+        import shutil
+        shutil.rmtree(Path(a.out) / "ckpt", ignore_errors=True)       # the best weights are loaded and saved as adapter/; checkpoints go
     return write_result(Path(a.out), "sft", {"backend": a.backend, "base": a.base, "rows": len(rows), "too_long": too_long, "steps": st.global_step,
                                              "loss_first": losses[0] if losses else None, "loss_last": losses[-1] if losses else None,
+                                             "dev_rows": len(ev_rows), "eval_loss": evl,
+                                             "eval_loss_best": min((v for _s, v in evl), default=None),
+                                             "best_step": getattr(tr.state, "best_global_step", None) or (min(evl, key=lambda x: x[1])[0] if evl else None),
+                                             "max_steps_planned": tr.state.max_steps,
+                                             "stopped_early": bool(evl) and st.global_step < tr.state.max_steps,
                                              "seconds": round(time.time() - t0, 1), "adapter": str(ad),
                                              "files": files_info(sorted(ad.glob("adapter_*")))})
+
+
+def eval_every(rows: int, batch: int, accum: int, eval_steps: int = 0) -> int:
+    """Optimizer steps between dev evaluations: `eval_steps` when given, else ~4 per epoch (at least 1)."""
+    if eval_steps > 0:
+        return eval_steps
+    per_epoch = max(1, -(-rows // max(1, batch * accum)))
+    return max(1, per_epoch // 4)
 
 
 def cmd_pref(a: argparse.Namespace) -> dict[str, Any]:
@@ -249,7 +279,11 @@ def cmd_lora_gguf(a: argparse.Namespace) -> dict[str, Any]:
     t0 = time.time()
     out = Path(a.out)
     conv = Path(a.convert_dir or a.llama_cpp) / "convert_lora_to_gguf.py"
-    _run([sys.executable, str(conv), str(a.adapter), "--base", str(a.base), "--outfile", str(out), "--outtype", "f16"])
+    base = str(a.base)
+    if not Path(base).is_dir():                         # an HF repo id: the converter wants a local folder with the base's config files
+        from huggingface_hub import snapshot_download
+        base = snapshot_download(base, allow_patterns=["*.json", "*.txt", "*.model", "*.jinja"])
+    _run([sys.executable, str(conv), str(a.adapter), "--base", base, "--outfile", str(out), "--outtype", "f16"])
     return write_result(out.parent, "lora_gguf", {"seconds": round(time.time() - t0, 1), "files": files_info([out])})
 
 
@@ -259,7 +293,7 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
     adapter = str(out / "adapter")
     if a.pref:
         pa = argparse.Namespace(**vars(a))
-        pa.data, pa.adapter, pa.out = a.pref, adapter, str(out / a.method)
+        pa.data, pa.adapter, pa.out, pa.eval_data = a.pref, adapter, str(out / a.method), ""
         res[a.method] = cmd_pref(pa)
         adapter = str(Path(pa.out) / "adapter")
     if a.llama_cpp:
@@ -273,6 +307,13 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
         if not a.keep_merged:
             import shutil
             shutil.rmtree(out / "merged", ignore_errors=True)
+    if a.llama_cpp and a.adapter_gguf:                    # the adapter alone (tens of MB): what comes home; never fails the pipeline
+        la = argparse.Namespace(**vars(a))
+        la.adapter, la.out = adapter, str(out / "adapter.gguf")
+        try:
+            res["lora_gguf"] = cmd_lora_gguf(la)
+        except (SystemExit, Exception) as e:            # noqa: BLE001 - the merged GGUF and the adapter are the results that matter
+            res["lora_gguf"] = write_result(out, "lora_gguf", {"error": str(e)[-800:]})
     return write_result(out, "pipeline", {"steps": list(res)})
 
 
@@ -297,6 +338,9 @@ def main(argv: list[str]) -> int:
         p.add_argument("--accum", type=int, default=8)
         p.add_argument("--beta", type=float, default=0.1)
         p.add_argument("--method", choices=["dpo", "orpo"], default="dpo")
+        p.add_argument("--eval-data", default="", help="held-out dev split (same format): early stopping on its loss, best adapter kept")
+        p.add_argument("--eval-steps", type=int, default=0, help="optimizer steps between dev evaluations (0 = ~4 per epoch)")
+        p.add_argument("--patience", type=int, default=2, help="dev evaluations without improvement before training stops")
     p = sub.add_parser("sft")
     train_opts(p)
     p = sub.add_parser("pref")
@@ -329,6 +373,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--keep-f16", action="store_true")
     p.add_argument("--keep-merged", action="store_true")
     p.add_argument("--merge-base", default="", help="16-bit base for the merge (QLoRA runs train on a pre-quantised repo)")
+    p.add_argument("--adapter-gguf", action="store_true", help="also write the adapter alone as GGUF (llama-server --lora)")
     p.add_argument("--bf16", action="store_true")
     a = ap.parse_args(argv)
     a.backend = "hf"
