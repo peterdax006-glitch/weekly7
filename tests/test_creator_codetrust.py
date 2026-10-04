@@ -243,3 +243,46 @@ def test_safe_loop_check_reports_each_requirement() -> None:
     assert len(rows) == 6 and all(r["status"] in ("ok", "partial", "gap") for r in rows.values())
     assert rows["changes are made and tested in a sandbox, adopted only by a recorded decision"]["status"] == "ok"
     assert rows["automatic revert when the adopted change fails after adoption"]["status"] == "ok"
+
+
+# ------------------------------------------------------------------------------------------------ check speed: xdist, remote host
+def test_local_checker_runs_xdist_workers_when_available(repo: Path, tmp_path: Path) -> None:
+    lib = tmp_path / "nolib"
+    serial = CT.LocalChecker(workers=4, pylib=lib).run(repo, ["tests/test_guard.py", "tests/test_mathx.py"], tmp_path / "a.xml", "x", 300)
+    assert serial["workers"] == 1 and serial["status"] == "PASSED"                     # no xdist in the private lib: serial
+    if (CT.PYLIB / "xdist").is_dir():
+        par = CT.LocalChecker(workers=2).run(repo, ["tests/test_guard.py", "tests/test_mathx.py"], tmp_path / "b.xml", "x", 300)
+        assert par["workers"] == 2 and par["cases"] == serial["cases"]
+    assert CT.LocalChecker(workers=4).run(repo, ["tests/test_guard.py"], tmp_path / "c.xml", "x", 300, serial=True)["workers"] == 1
+
+
+class FakeSsh:
+    """Records every ssh call; answers the run with RC=1 and the junit 'cat' with a file of one passing and one failing case."""
+    JUNIT = (b'<?xml version="1.0"?><testsuites><testsuite><testcase classname="tests.test_guard" name="test_guard_add"/>'
+             b'<testcase classname="tests.test_mathx" name="test_add"><failure message="x"/></testcase></testsuite></testsuites>')
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, bytes]] = []
+
+    def __call__(self, argv: list[str], input: bytes | None = None, capture_output: bool = True, timeout: float = 0) -> Any:
+        script = argv[-1]
+        self.calls.append((script, input or b""))
+        out = b"RC=1\n" if "pytest" in script else self.JUNIT if script.startswith("cat ") and ".xml" in script else b""
+        return subprocess.CompletedProcess(argv, 0, out, b"")
+
+
+def test_remote_checker_uploads_no_state_caps_cores_and_parses_junit(repo: Path, tmp_path: Path) -> None:
+    put(repo, "pkg/mathx.py", "def add(a, b):\n    return a - b\n")
+    put(repo, "state/secret.json", "{}")
+    fake = FakeSsh()
+    rc = CT.RemoteChecker(ssh=["ssh", "pod"], remote_dir="/w/ct", cores=8, nice=10, runner=fake)
+    r = rc.run(repo, ["tests/test_guard.py", "tests/test_mathx.py"], tmp_path / "j.xml", "cand", 600)
+    assert r["status"] == "FAILED" and r["cases"] == {"tests/test_guard.py::test_guard_add": "pass", "tests/test_mathx.py::test_add": "fail"}
+    upload = next(i for s, i in fake.calls if s.startswith("cat > "))
+    assert b"pkg/mathx.py" in upload and b"state/" not in upload                       # the change goes, state/ never does
+    run = next(s for s, _ in fake.calls if "pytest" in s)
+    assert "-n 8" in run and "nice -n 10" in run and "'!/state/'" in run and "worktree remove" in run
+    serial = FakeSsh()
+    CT.RemoteChecker(ssh=["ssh", "pod"], cores=8, runner=serial).run(repo, ["tests/test_guard.py", "tests/test_mathx.py"],
+                                                                    tmp_path / "k.xml", "r", 600, serial=True)
+    assert "-n 8" not in next(s for s, _ in serial.calls if "pytest" in s)

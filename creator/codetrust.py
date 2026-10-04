@@ -622,19 +622,140 @@ def _python() -> str:
     return sys.executable
 
 
-def run_tests(root: Path, targets: Sequence[str], junit: Path, label: str, timeout: float) -> dict[str, Any]:
-    """{case id: 'pass'|'fail'|'skip'} + status, via creator.testrun (the kernel's runner and junit parser)."""
-    from creator import testrun as T
-    tg = [t for t in targets if (root / t).is_file()]
-    if not tg:
-        return {"status": "NO_TESTS", "cases": {}, "seconds": 0.0}
-    run = T.run_pytest(root, tg, junit, label=label, tree=label, config=T.PytestConfig(python=_python(), timeout=timeout,
-                                                                                    extra_args=["--continue-on-collection-errors"]))
-    cases = {}
-    for cid, c in run.cases.items():
+PYLIB = Path.home() / "creator_runtime" / "codetrust" / "pylib"   # pytest-xdist + execnet (pip --target): the shared venv is left as is
+MAX_WORKERS = 8
+
+
+def free_cores(cap: int = MAX_WORKERS) -> int:
+    """Cores nobody is using right now (Nupen keeps the PC busy: often 1, i.e. no parallel workers)."""
+    try:
+        import psutil
+        busy = float(psutil.cpu_percent(interval=0.5))
+    except Exception:                                                  # noqa: BLE001
+        return 1
+    n = os.cpu_count() or 1
+    return max(1, min(cap, int(n * (1 - busy / 100.0))))
+
+
+def _cases(run_cases: Mapping[str, Any]) -> dict[str, str]:
+    out = {}
+    for cid, c in run_cases.items():
         o = c.outcome.value
-        cases[cid] = "pass" if o == "PASSED" else "skip" if o == "SKIPPED" else "fail"
-    return {"status": run.status.value, "cases": cases, "seconds": round(run.seconds, 1), "problems": list(run.problems)}
+        out[cid] = "pass" if o == "PASSED" else "skip" if o == "SKIPPED" else "fail"
+    return out
+
+
+class LocalChecker:
+    """Tests on this PC through creator.testrun (the kernel's runner and junit parser), with pytest-xdist workers sized to the free
+    cores when the private PYLIB holds xdist (workers=0: auto; 1: serial)."""
+    name = "local"
+
+    def __init__(self, workers: int = 0, pylib: Path = PYLIB) -> None:
+        self.workers, self.pylib = workers, Path(pylib)
+
+    def run(self, root: Path, targets: Sequence[str], junit: Path, label: str, timeout: float, serial: bool = False) -> dict[str, Any]:
+        from creator import testrun as T
+        tg = [t for t in targets if (root / t).is_file()]
+        if not tg:
+            return {"status": "NO_TESTS", "cases": {}, "seconds": 0.0}
+        k = 1 if serial else (self.workers or free_cores())
+        args = ["--continue-on-collection-errors"]
+        env: dict[str, str] = {}
+        if k > 1 and len(tg) > 1 and (self.pylib / "xdist").is_dir():
+            args += ["-p", "xdist", "-n", str(k)]
+            env["PYTHONPATH"] = f"{root}{os.pathsep}{self.pylib}"
+        run = T.run_pytest(root, tg, junit, label=label, tree=label,
+                           config=T.PytestConfig(python=_python(), timeout=timeout, extra_args=args, env=env))
+        return {"status": run.status.value, "cases": _cases(run.cases), "seconds": round(run.seconds, 1), "problems": list(run.problems),
+                "workers": k if "-n" in args else 1}
+
+
+POD_SSH = ("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-i", str(Path.home() / ".ssh" / "nupen_vast"), "-p", "56727",
+           "root@38.49.42.46")
+POD_DIR = "/workspace/nupen/codetrust"
+PUBLIC_URL = "https://github.com/peterdax006-glitch/weekly7.git"
+
+
+class RemoteChecker:
+    """Tests on another host over ssh (the GPU pod's CPUs). The remote holds a blob-less clone of the PUBLIC repository and a venv with
+    pytest + xdist; per run it makes a sparse worktree at the local tree's commit WITHOUT state/, applies the local tree's diff (state/
+    excluded: nothing private is uploaded), runs pytest at `nice` with at most `cores` workers, and brings the junit file back. The remote
+    worktree is always removed."""
+    name = "remote"
+
+    def __init__(self, ssh: Sequence[str] = POD_SSH, remote_dir: str = POD_DIR, cores: int = 8, nice: int = 10,
+                 runner: Optional[Callable[..., subprocess.CompletedProcess]] = None) -> None:
+        self.ssh, self.dir, self.cores, self.nice = list(ssh), remote_dir, max(1, cores), nice
+        self.runner = runner or subprocess.run
+
+    def _ssh(self, script: str, timeout: float, stdin: Optional[bytes] = None) -> subprocess.CompletedProcess:
+        return self.runner([*self.ssh, script], input=stdin, capture_output=True, timeout=timeout)
+
+    def setup(self, url: str = PUBLIC_URL, timeout: float = 1800) -> str:
+        """Idempotent: the clone, the venv (system site packages + pytest/xdist + the test dependencies), folders. Returns the remote log."""
+        d = shlex.quote(self.dir)
+        script = (f"set -e; mkdir -p {d}/patches {d}/junit {d}/wt; cd {d}; "
+                  f"[ -d repo/.git ] || nice -n {self.nice} git clone -q --no-checkout --filter=blob:none {shlex.quote(url)} repo; "
+                  f"nice -n {self.nice} git -C repo fetch -q origin; "
+                  f"[ -x venv/bin/python ] || /venv/main/bin/python -m venv --system-site-packages venv; "
+                  f"venv/bin/python -c 'import pytest, xdist' 2>/dev/null || nice -n {self.nice} venv/bin/pip install -q "
+                  f"--disable-pip-version-check pytest==9.1.1 pytest-xdist scipy scikit-learn lightgbm; df -h {d} | tail -1")
+        p = self._ssh(script, timeout)
+        return (p.stdout or b"").decode("utf-8", "replace") + (p.stderr or b"").decode("utf-8", "replace")[-500:]
+
+    def run(self, root: Path, targets: Sequence[str], junit: Path, label: str, timeout: float, serial: bool = False) -> dict[str, Any]:
+        from creator import testrun as T
+        tg = [t for t in targets if (root / t).is_file()]
+        if not tg:
+            return {"status": "NO_TESTS", "cases": {}, "seconds": 0.0}
+        t0 = time.monotonic()
+        _git_ok(root, "add", "-A")
+        head = _git(root, "rev-parse", "HEAD").strip()
+        patch = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--binary", "HEAD", "--", ".", ":(exclude)state",
+                                ":(exclude).creator_sandbox.json"], capture_output=True, timeout=300).stdout
+        wid = f"{label}-{time.time_ns()}"
+        d = shlex.quote(self.dir)
+        k = 1 if serial else self.cores
+        up = self._ssh(f"cat > {d}/patches/{wid}.patch", 600, stdin=patch)
+        if up.returncode != 0:
+            return {"status": "CRASHED", "cases": {}, "seconds": 0.0, "problems": [f"upload: {(up.stderr or b'')[-300:]!r}"]}
+        xd = f"-n {k}" if k > 1 and len(tg) > 1 else ""
+        tq = " ".join(shlex.quote(t) for t in tg)
+        script = (f"cd {d}; W=wt/{wid}; git -C repo worktree add -q --no-checkout --detach ../$W {head} && "
+                  f"git -C $W sparse-checkout set --no-cone '/*' '!/state/' && git -C $W checkout -q --detach {head} && "
+                  f"( [ ! -s patches/{wid}.patch ] || git -C $W apply --binary --whitespace=nowarn ../../patches/{wid}.patch ) && "
+                  f"cd $W && PYTHONPATH=$PWD PYTHONDONTWRITEBYTECODE=1 timeout {int(timeout)} nice -n {self.nice} ../../venv/bin/python -m pytest "
+                  f"-q -p no:cacheprovider {xd} --continue-on-collection-errors --junitxml=../../junit/{wid}.xml -o junit_family=xunit2 "
+                  f"-- {tq} >/dev/null 2>&1; rc=$?; cd {d}; git -C repo worktree remove --force $W >/dev/null 2>&1; rm -rf $W "
+                  f"patches/{wid}.patch; echo RC=$rc")
+        p = self._ssh(script, timeout + 600)
+        out = (p.stdout or b"").decode("utf-8", "replace")
+        m = re.search(r"RC=(\d+)", out)
+        rc = int(m.group(1)) if m else -1
+        got = self._ssh(f"cat {d}/junit/{wid}.xml && rm -f {d}/junit/{wid}.xml", 600)
+        secs = round(time.monotonic() - t0, 1)
+        if rc == 124:
+            return {"status": "TIMEOUT", "cases": {}, "seconds": secs, "problems": ["remote pytest timeout"]}
+        if rc == 5:
+            return {"status": "NO_TESTS", "cases": {}, "seconds": secs}
+        junit.parent.mkdir(parents=True, exist_ok=True)
+        junit.write_bytes(got.stdout or b"")
+        from creator.build import module_name_for
+        fmap = {m2: f for f in tg if (m2 := module_name_for(f))}
+        try:
+            cases = _cases(T.parse_junit(junit, fmap))
+        except ValueError as e:
+            return {"status": "CRASHED", "cases": {}, "seconds": secs, "problems": [f"rc {rc}: {e}; {(p.stderr or b'')[-300:]!r}"]}
+        bad = any(v == "fail" for v in cases.values())
+        status = ("CRASHED" if rc not in (0, 1) or (rc == 0 and bad) or (rc == 1 and not bad) else
+                  "NO_TESTS" if not cases else "FAILED" if bad else "PASSED")
+        return {"status": status, "cases": cases, "seconds": secs, "workers": k, "host": "remote", "rc": rc}
+
+
+def run_tests(root: Path, targets: Sequence[str], junit: Path, label: str, timeout: float, checker: Any = None,
+              serial: bool = False) -> dict[str, Any]:
+    """{case id: 'pass'|'fail'|'skip'} + status, on this PC (default) or through any checker with the same run()."""
+    return (checker or LocalChecker()).run(root, targets, junit, label, timeout, serial=serial)
 
 
 def _file_of(cid: str) -> str:
@@ -652,12 +773,13 @@ class Runner:
     """Runs tasks for one agent setup in sandboxes of a SEPARATE clone (`repo`); every sandbox is discarded, nothing is merged."""
 
     def __init__(self, repo: Path, out: Path, suite: Sequence[str] = PROTECTED_SUITE, test_timeout: float = 1800.0,
-                 log: Callable[[str], None] = print, full_suite: bool = True, cache: Optional[Path] = None) -> None:
+                 log: Callable[[str], None] = print, full_suite: bool = True, cache: Optional[Path] = None, checker: Any = None) -> None:
         """full_suite: an attempt that PASSES its task check also runs the whole protected suite (the attempts that could be adopted);
         every attempt runs the protected test files that mention a module it changed (tier 1). `cache`: validation + reference runs,
         shareable between setups (they depend on the task only)."""
         self.repo, self.out, self.suite, self.test_timeout, self.log = Path(repo), Path(out), tuple(suite), test_timeout, log
         self.full_suite = full_suite
+        self.checker = checker or LocalChecker()
         self.out.mkdir(parents=True, exist_ok=True)
         self.cache = Path(cache) if cache else self.out / "validation"
         self.cache.mkdir(parents=True, exist_ok=True)
@@ -696,7 +818,7 @@ class Runner:
         if need:
             sb = self._open(task, f"ct-ref-{task.id}", rev=task.sha)
             try:
-                r = run_tests(sb.path, need, self.out / "sandboxes" / f"{sb.id}-refprot.xml", "reference", self.test_timeout)
+                r = run_tests(sb.path, need, self.out / "sandboxes" / f"{sb.id}-refprot.xml", "reference", self.test_timeout, self.checker)
             finally:
                 S.discard(sb)
             for f in need:
@@ -714,9 +836,9 @@ class Runner:
         sb = self._open(task, f"ct-val-{task.id}")
         try:
             checkout_reference(sb.path, task, task.test_files)
-            base = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-base.xml", "start", self.test_timeout)
+            base = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-base.xml", "start", self.test_timeout, self.checker)
             checkout_reference(sb.path, task, [p for p in task.files if not _omitted(p)])
-            ref = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout)
+            ref = run_tests(sb.path, task.test_files, self.out / "sandboxes" / f"{sb.id}-ref.xml", "reference", self.test_timeout, self.checker)
         finally:
             S.discard(sb)
         own = set(task.test_files)
@@ -791,7 +913,7 @@ class Runner:
         own = sorted(attempt_tests) if task.cls == "tests_only" else sorted(task.test_files)
         tier1 = self.affected(root, ch, exclude=own)
         cand = run_tests(root, sorted(set(own) | set(tier1)), self.out / "sandboxes" / f"{task.id}-{time.time_ns()}.xml", "candidate",
-                         self.test_timeout)
+                         self.test_timeout, self.checker)
         cases = dict(cand["cases"])
         if task.cls == "tests_only":
             mine = [c for c in cases if _file_of(c) in set(attempt_tests)]
@@ -815,13 +937,13 @@ class Runner:
             rest = [t for t in self.suite if t not in set(own) | set(tier1) and (root / t).is_file()]
             if rest:
                 cases.update(run_tests(root, rest, self.out / "sandboxes" / f"{task.id}-{time.time_ns()}-full.xml", "candidate",
-                                       self.test_timeout)["cases"])
+                                       self.test_timeout, self.checker)["cases"])
                 prot_files += rest
         ref_ok = self.reference_protected(task, prot_files) if prot_files else {}
         bad_prot = [c for f in prot_files for c in ref_ok.get(f, []) if cases.get(c) != "pass"]
         if bad_prot:                                                     # flaky guard: re-run the failing protected cases twice
             again = [run_tests(root, sorted({_file_of(c) for c in bad_prot}), self.out / "sandboxes" / f"{task.id}-r{i}.xml", "rerun",
-                               self.test_timeout)["cases"] for i in range(2)]
+                               self.test_timeout, self.checker, serial=True)["cases"] for i in range(2)]
             bad_prot = [c for c in bad_prot if all(a.get(c) != "pass" for a in again)]
         out.update(regressions=bad_prot[:50], n_regressions=len(bad_prot), protected_files=prot_files,
                    protected_tier="full" if ok and self.full_suite else "affected")
