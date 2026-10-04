@@ -84,7 +84,7 @@ while [ ! -f $D/STOP ]; do
   if [ "$sig" != "$lastsig" ]; then
     new=$(echo "${sig//|/,}" | tr ',' ' ' | xargs -n1 2>/dev/null | while read q; do case ",${lastsig//|/,}," in *",$q,"*) ;; *) echo $q;; esac; done | head -1)
     if [ -n "$lastsig" ] && [ -n "$new" ]; then
-      killall_ "runner change"; stable_since=$now
+      killall_ "runner change"; [ $stable_since -lt $now ] && stable_since=$now   # never shortens a fine-tune hold
       # a new non-llama GPU process (a fine-tune) grows for a minute or two while it loads: wait longer before refilling
       case "$allllama" in *",$new,"*) ;; *) stable_since=$((now + ${FT_WAIT:-120})); log "new non-llama GPU process $new: refill held $((${FT_WAIT:-120} + STABLE_S)) s";; esac
     fi
