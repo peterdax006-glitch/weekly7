@@ -475,7 +475,13 @@ def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
             from creator import repair as RP
             guard = RP.looping
         wall = min(prof.max_s, float(env.budget["max_s"]))
-        res = runner.complete(prof.slot, prompt, form, cap, wall, **({"guard": guard} if guard is not None else {}))
+        kw: dict[str, Any] = {"guard": guard} if guard is not None else {}
+        if env.step == "CODE":
+            from creator import repair as RP
+            ex = RP.attempt_extra(_of_kind(team, env, "hint"))
+            if ex:
+                kw["extra"] = ex
+        res = runner.complete(prof.slot, prompt, form, cap, wall, **kw)
         if guard is not None and res.get("looped") and not res.get("error"):
             # R4 retry policy: a greedy loop would loop again, so ONE retry with a repeat penalty and a tighter cap; a second loop gives up
             extra, cap2 = RP.retry_extra(cap)

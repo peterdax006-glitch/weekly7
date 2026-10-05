@@ -130,11 +130,24 @@ def line_prompt(ws: Path, rel: str, ln: int, text: str, fail: str, fn_task: bool
             f"{'' if fn_task else 'FILE: <path>' + NL}<<<<<<< SEARCH{NL}<the suspect line>{NL}======={NL}<new lines>{NL}>>>>>>> REPLACE")
 
 
-def regen_hint(fail: str) -> str:
-    """The failing example for a regenerated CODE call (inserted into the user prompt after the request)."""
-    if fail.startswith("FAIL apply"):
-        return f"Your previous edit did not apply ({fail[11:150].strip()}). The SEARCH text must be copied exactly from the code shown."
-    return f"Your previous answer failed this example:{NL}{brief(fail)}{NL}Fix it."
+def regen_hint(fail: str, attempt: int = 1) -> str:
+    """The failing example for a regenerated CODE call (inserted into the user prompt after the request). A patch that did not apply (mostly an
+    over-long SEARCH that no longer matches, or an answer cut at the cap) gets the short-blocks instruction; attempt >= 2 is tagged so the
+    call samples (slotteam.attempt_extra) instead of repeating the same greedy answer."""
+    tag = f" (attempt {attempt})" if attempt > 1 else ""
+    if fail.startswith("FAIL apply") or fail.startswith("FAIL static"):
+        return (f"Your previous edit was rejected: {fail[:160].strip()}. Use short blocks: SEARCH only the 1-3 lines that change, copied exactly "
+                f"from the code shown, and end every block with >>>>>>> REPLACE.{tag}")
+    return f"Your previous answer failed this example:{NL}{brief(fail)}{NL}Fix it.{tag}"
+
+
+ATTEMPT = re.compile(r"\(attempt (\d+)\)")
+
+
+def attempt_extra(hint: str) -> Optional[dict[str, Any]]:
+    """Sampling overrides of a later regeneration attempt (greedy decoding would return the identical answer)."""
+    m = ATTEMPT.search(hint or "")
+    return {"temperature": 0.3, "repeat_penalty": 1.05, "seed": 11 + int(m.group(1))} if m else None
 
 
 def py_snapshot(ws: Path) -> dict[str, str]:

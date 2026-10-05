@@ -97,3 +97,10 @@ def test_slot_call_aborts_a_looping_stream():
     finally:
         srv.shutdown()
     assert out["stop_type"] == "loop" and out["truncated"] and 4 <= out["tokens_predicted"] < 60
+
+
+def test_regen_hint_and_attempt_sampling():
+    h1 = RP.regen_hint("FAIL tests.test_examples.test_example[case0]: AssertionError: [1] -> 2 != 3")
+    assert "[1] -> 2 != 3" in h1 and RP.attempt_extra(h1) is None
+    h2 = RP.regen_hint("FAIL apply: SEARCH not found", 2)
+    assert "short blocks" in h2 and RP.attempt_extra(h2)["temperature"] == 0.3

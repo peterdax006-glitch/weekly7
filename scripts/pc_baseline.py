@@ -317,7 +317,7 @@ class Run:
         rounds, tried = RP.plan_rounds(self.repair, self.repair_rounds), set()
         best, best_snap, hist, log = RP.score(val), RP.py_snapshot(c.ws), [RP.score(val)], []
         ts["repair"] = {"strategy": self.repair, "rounds": log, "fixed": False}
-        ok, why = False, "repair rounds used"
+        ok, why, regens = False, "repair rounds used", 0
         for strat in rounds:
             if strat == "line" and best >= 1000:                         # nothing applied yet: there is no suspect line, only regeneration helps
                 if "regen" not in self.repair:
@@ -343,7 +343,8 @@ class Run:
             else:
                 make_ws(t, self.suite, c.ws)
                 c.snapshot()
-                hint = tm.board.put(gid, "hint", RP.regen_hint(val))
+                regens += 1
+                hint = tm.board.put(gid, "hint", RP.regen_hint(val, regens))
                 self.cur_family = t["family"]
                 ids["diff"], fix = self.step(tm, "CODE", [ids["task"], ids.get("spec", ids["task"]), ids.get("plan", ids["task"]), ids["pack"], hint], "diff")
             _, safe = self.step(tm, "SAFETY", [ids["diff"]], "safety")
