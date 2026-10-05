@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -108,13 +109,15 @@ class ModelPool:
                  headroom_gb: float = HEADROOM_GB, max_servers: Optional[int] = None,
                  free_gb: Callable[[], Optional[float]] = G._free_ram_gb,
                  spawn: Optional[Callable[[list[str]], Any]] = None, health: Callable[[int], bool] = _healthy,
-                 clock: Callable[[], float] = time.monotonic, share: int = 1, threads: Optional[int] = None) -> None:
+                 clock: Callable[[], float] = time.monotonic, share: int = 1, threads: Optional[int] = None,
+                 extra_args: Optional[list[str]] = None) -> None:
         cfg = DEV.settings()
         self.base, self.model, self.exe, self.ctx = Path(base_pidfile), Path(model), Path(exe), ctx
         self.slots = max(1, int(cfg.get("llama_servers", 1)) if slots is None else slots)
         self.max_servers = self.slots if max_servers is None else min(self.slots, max_servers)
         # threads for the servers that may REALLY run at once (a 2-server thinking pool of 7 slots: 4 each, not 3)
         self.threads = DEV.server_threads(cfg, self.max_servers) if threads is None else int(threads)
+        self.extra_args = [str(a) for a in (extra_args or [])]  # role flags of a slot server (draft model, ...); empty = unchanged command
         self.share = max(1, int(share))                         # lessees per server (parallel llama-server slots, h59)
         self.gpu_layers = int(cfg["gpu_layers"])
         self.floor_gb = floor_gb if floor_gb is not None else self._floor()
@@ -178,7 +181,7 @@ class ModelPool:
         # distinct judgment prompts (measured 3 Oct); each lessee keeps its own slot, so its prompt reuse never needs that cache
         par = (["-np", str(self.share), "--kv-unified-per-slot", str(self.ctx), "--cache-ram", str(SHARED_CACHE_MIB)] if self.share > 1 else [])
         return [str(self.exe), "-m", str(self.model), "--host", "127.0.0.1", "--port", str(port), "-c", str(self.ctx * self.share),
-                "-t", str(self.threads), "--log-disable"] + par + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else [])
+                "-t", str(self.threads), "--log-disable"] + par + (["-ngl", str(self.gpu_layers)] if self.gpu_layers > 0 else []) + self.extra_args
 
     def _take_slot(self) -> Optional[tuple[int, Any]]:
         for i in range(self.slots):
@@ -320,6 +323,82 @@ class ModelPool:
 
 
 _POOL: Optional[ModelPool] = None
+
+
+# ---------------------------------------------------------------------- slot models (P0.7)
+# A slot is one ROLE (CODER, CHECKER, ...) served from a MERGED GGUF (runtime --lora measured 2.5x slower on CPU): its own threads, context,
+# max_tokens, an optional draft model for speculative decoding and one optional GBNF grammar file per output form.
+
+@dataclass(frozen=True)
+class SlotSpec:
+    name: str
+    model: Path
+    threads: int = 6
+    ctx: int = 4096
+    max_tokens: int = 256
+    draft: Optional[Path] = None
+    draft_max: int = 8
+    draft_threads: Optional[int] = None
+    grammars: dict[str, Path] = field(default_factory=dict)      # output form -> .gbnf file
+    stop: tuple[str, ...] = ()
+    temperature: float = 0.0
+
+    def server_args(self) -> list[str]:
+        a: list[str] = []
+        if self.draft is not None:
+            a += ["-md", str(self.draft), "--draft-max", str(self.draft_max)]
+            if self.draft_threads:
+                a += ["-td", str(self.draft_threads)]
+        return a
+
+    def grammar_text(self, form: Optional[str]) -> Optional[str]:
+        if form is None:
+            return None
+        path = self.grammars.get(form)
+        if path is None:
+            raise KeyError(f"slot {self.name}: no grammar for form {form!r} (have {sorted(self.grammars)})")
+        return Path(path).read_text(encoding="utf-8")
+
+    def payload(self, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"prompt": prompt, "n_predict": int(max_tokens or self.max_tokens), "temperature": self.temperature,
+                                "cache_prompt": True}
+        if self.stop:
+            body["stop"] = list(self.stop)
+        g = self.grammar_text(form)
+        if g is not None:
+            body["grammar"] = g
+        return body
+
+
+def load_slots(manifest: Path, base: Optional[Path] = None) -> dict[str, SlotSpec]:
+    """Read a slot manifest {"slots": {name: {file, threads, ctx, max_tokens, draft, draft_max, grammars: {form: file}, stop}}}; relative
+    files resolve against `base` (default: the manifest's folder)."""
+    manifest = Path(manifest)
+    root = Path(base) if base is not None else manifest.parent
+    raw = json.loads(manifest.read_text(encoding="utf-8"))
+    out: dict[str, SlotSpec] = {}
+    for name, d in (raw.get("slots") or {}).items():
+        out[name] = SlotSpec(
+            name=name, model=root / d["file"], threads=int(d.get("threads", 6)), ctx=int(d.get("ctx", 4096)),
+            max_tokens=int(d.get("max_tokens", 256)), draft=(root / d["draft"]) if d.get("draft") else None,
+            draft_max=int(d.get("draft_max", 8)), draft_threads=d.get("draft_threads"),
+            grammars={k: root / v for k, v in (d.get("grammars") or {}).items()}, stop=tuple(d.get("stop") or ()),
+            temperature=float(d.get("temperature", 0.0)))
+    return out
+
+
+def slot_pool(spec: SlotSpec, **kw: Any) -> ModelPool:
+    """A ModelPool serving this slot's merged GGUF with the role's threads, context and draft model."""
+    return ModelPool(model=spec.model, ctx=spec.ctx, threads=spec.threads, extra_args=spec.server_args(), **kw)
+
+
+def slot_complete(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
+                  timeout: float = 120.0) -> str:
+    """One completion from a running slot server: the role's max_tokens/stop/temperature and the form's grammar."""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/completion", data=json.dumps(spec.payload(prompt, form, max_tokens)).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return str(json.loads(r.read().decode("utf-8")).get("content", ""))
 
 
 THINK_SHARE = 4                 # lessees per shared thinking server (device setting 'think_share' overrides; 1 = the old one-per-server pool)
