@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timedelta
+from urllib.parse import quote
 from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -543,7 +544,12 @@ def _a_music(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict
         return "I can only play music from here, sir.", None
     if not q or q.lower() in ("music", "something", "a song", "songs"):
         return "What shall I play, sir?", None
-    return f"Playing {q}, sir.", {"type": "music", "query": q[:120]}
+    app = "Apple Music"
+    on = re.search(r"\s+(?:on|in|with|using)\s+(?:the\s+)?(spotify|youtube(?:\s+music)?|apple\s+music|music(?:\s+app)?)$", q, re.I)
+    if on:
+        q = _tidy(q[:on.start()])
+        app = {"spotify": "Spotify", "youtube": "YouTube", "youtube music": "YouTube"}.get(on[1].lower(), "Apple Music")
+    return f"Playing {q} on {app}, sir." if on else f"Playing {q}, sir.", {"type": "music", "query": q[:120], "app": app}
 
 
 def _a_home(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
@@ -571,7 +577,51 @@ def _a_open(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[
     if not name or len(name.split()) > 3:
         return None
     name = name.title() if name.islower() else name
-    return f"Opening {name}, sir.", {"type": "open_app", "name": name}
+    hit = APPS.get(re.sub(r"\s+", " ", name.lower()))
+    if hit is None:                                        # not in the table: no guessed link, the per-app If blocks in the Shortcut may still cover it
+        return f"I do not know how to open {name} directly, sir.", {"type": "open_app", "name": name}
+    return f"Opening {hit[0]}, sir.", {"type": "open_app", "name": hit[0], "url": hit[1]}
+
+
+# App name (lower case, as spoken) -> (display name, iOS deep link). Only schemes known to work; nothing guessed.
+# Not mapped on purpose (no verified public scheme): Camera, Clock, Phone app, Wallet, Health, Files, Safari by name.
+# Uncertain: Settings 'App-prefs:' opens Settings on current iOS but Apple may restrict it in a future version.
+APPS: dict[str, tuple[str, str]] = {
+    "spotify": ("Spotify", "spotify:"),
+    "youtube": ("YouTube", "youtube://"),
+    "instagram": ("Instagram", "instagram://"),
+    "whatsapp": ("WhatsApp", "whatsapp://"),
+    "maps": ("Maps", "maps://"), "apple maps": ("Maps", "maps://"),
+    "messages": ("Messages", "sms:"), "imessage": ("Messages", "sms:"), "texts": ("Messages", "sms:"),
+    "facetime": ("FaceTime", "facetime://"),
+    "mail": ("Mail", "mailto:"), "email": ("Mail", "mailto:"),
+    "music": ("Music", "music://"), "apple music": ("Music", "music://"),
+    "photos": ("Photos", "photos-redirect://"),
+    "calendar": ("Calendar", "calshow://"),
+    "reminders": ("Reminders", "x-apple-reminderkit://"),
+    "settings": ("Settings", "App-prefs:"),
+    "notes": ("Notes", "mobilenotes://"),
+}
+
+
+def _url_for(a: dict[str, Any]) -> Optional[str]:
+    """The iOS deep link for an action (None when there is no verified one); the Shortcut opens it with ONE Open URLs step."""
+    q = quote
+    t = a.get("type")
+    if t == "open_app":
+        return a.get("url")
+    if t == "music":
+        s = q(str(a["query"]), safe="")
+        return {"Spotify": "spotify:search:" + s, "YouTube": "https://www.youtube.com/results?search_query=" + s}.get(
+            str(a.get("app")), "music://music.apple.com/search?term=" + s)
+    if t == "directions":
+        return "maps://?daddr=" + q(str(a["to"]), safe="") + "&dirflg=d"
+    num = re.sub(r"[ ()-]", "", str(a.get("to", "")))
+    if t == "call" and re.fullmatch(r"\+?\d{3,15}", num):
+        return "tel:" + num
+    if t == "message" and re.fullmatch(r"\+?\d{3,15}", num):
+        return "sms:" + num + "&body=" + q(str(a["text"]), safe="")
+    return None
 
 
 _ORDER = (_a_timer, _a_alarm, _a_reminder, _a_calendar, _a_note, _a_message, _a_call)
@@ -603,7 +653,10 @@ def interpret(text: str, now: Optional[datetime] = None) -> Optional[tuple[str, 
             if res is None and _DO.match(s):
                 res = ("I am afraid I cannot do that yet, sir.", None)
     if res is not None:
-        return res[0], res[1], end
+        a = res[1]
+        if a is not None and (u := _url_for(a)):
+            a["url"] = u
+        return res[0], a, end
     if end or _THANKS.match(raw):
         return "Very good, sir. Goodbye.", None, True
     return None

@@ -241,24 +241,68 @@ def test_message(text, to, msg):
 
 @pytest.mark.parametrize("text,to", [("call mum", "mum"), ("phone my brother", "brother"), ("ring the dentist", "dentist"), ("give Sarah a call", "Sarah")])
 def test_call(text, to):
-    assert act(text)[1] == {"type": "call", "to": to}
+    assert act(text)[1] == {"type": "call", "to": to}                      # a name: no url, the Shortcut looks the contact up
 
 
 @pytest.mark.parametrize("text,q", [("play some jazz", "jazz"), ("play Bohemian Rhapsody by Queen", "Bohemian Rhapsody by Queen"),
                                     ("put on the beatles", "the beatles"), ("play songs by Adele", "Adele")])
 def test_music(text, q):
-    assert act(text)[1] == {"type": "music", "query": q}
+    a = act(text)[1]
+    assert a["type"] == "music" and a["query"] == q and a["app"] == "Apple Music"
+    assert a["url"].startswith("music://music.apple.com/search?term=")
 
 
-@pytest.mark.parametrize("text,name", [("open Safari", "Safari"), ("launch the camera app", "Camera"), ("open maps", "Maps")])
-def test_open_app(text, name):
-    assert act(text)[1] == {"type": "open_app", "name": name}
+@pytest.mark.parametrize("text,app,url", [
+    ("play Adele on Spotify", "Spotify", "spotify:search:Adele"),
+    ("play some jazz on spotify", "Spotify", "spotify:search:jazz"),
+    ("play cat videos on youtube", "YouTube", "https://www.youtube.com/results?search_query=cat%20videos"),
+    ("play Hello by Adele on Apple Music", "Apple Music", "music://music.apple.com/search?term=Hello%20by%20Adele"),
+])
+def test_music_app_and_url(text, app, url):
+    a = act(text)[1]
+    assert a["app"] == app and a["url"] == url
+
+
+APP_URLS = {
+    "open Spotify": ("Spotify", "spotify:"), "open YouTube": ("YouTube", "youtube://"), "open instagram": ("Instagram", "instagram://"),
+    "launch WhatsApp": ("WhatsApp", "whatsapp://"), "open maps": ("Maps", "maps://"), "open the messages app": ("Messages", "sms:"),
+    "open facetime": ("FaceTime", "facetime://"), "open mail": ("Mail", "mailto:"), "open apple music": ("Music", "music://"),
+    "open photos": ("Photos", "photos-redirect://"), "open the calendar": ("Calendar", "calshow://"),
+    "open reminders": ("Reminders", "x-apple-reminderkit://"), "open settings": ("Settings", "App-prefs:"), "open notes": ("Notes", "mobilenotes://"),
+}
+
+
+@pytest.mark.parametrize("text", list(APP_URLS))
+def test_open_app_mapped_with_url(text):
+    name, url = APP_URLS[text]
+    r, a, e = act(text)
+    assert a == {"type": "open_app", "name": name, "url": url} and r == f"Opening {name}, sir."
+
+
+@pytest.mark.parametrize("text,name", [("open Safari", "Safari"), ("launch the camera app", "Camera"), ("open Tinder", "Tinder")])
+def test_open_unknown_app_no_url_polite(text, name):
+    r, a, e = act(text)
+    assert a == {"type": "open_app", "name": name} and "url" not in a and "do not know" in r and r.endswith("sir.")
+
+
+def test_app_table_only_known_schemes():
+    assert all(u.endswith((":", "://")) for _, u in P.APPS.values())
+    assert not any("camera" in k for k in P.APPS)        # no verified scheme: never guessed
 
 
 @pytest.mark.parametrize("text,to", [("directions to the airport", "the airport"), ("navigate to Heathrow", "Heathrow"),
                                      ("take me to the train station", "the train station"), ("how do I get to Bath", "Bath")])
 def test_directions(text, to):
-    assert act(text)[1] == {"type": "directions", "to": to}
+    a = act(text)[1]
+    assert a["type"] == "directions" and a["to"] == to
+    assert a["url"] == "maps://?daddr=" + P.quote(to, safe="") + "&dirflg=d"
+
+
+def test_call_and_message_urls_only_for_numbers():
+    assert act("call 555 0100")[1] == {"type": "call", "to": "555 0100", "url": "tel:5550100"}
+    a = act("send a message to 07700900123 saying I am outside")[1]
+    assert a["url"] == "sms:07700900123&body=I%20am%20outside"
+    assert "url" not in act("call mum")[1] and "url" not in act("text mum hello")[1]
 
 
 @pytest.mark.parametrize("text,state", [("turn on the flashlight", "on"), ("torch on", "on"), ("turn off the torch", "off"), ("flashlight off", "off")])
