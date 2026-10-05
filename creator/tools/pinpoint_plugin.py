@@ -18,7 +18,8 @@ _TAIL = 40
 
 _scope: dict[str, str | None] = {}          # code filename -> relative path (posix) when in scope, else None
 _cur: dict[str, set[int]] | None = None
-_tail: list[tuple[str, int]] = []
+_tail: list[tuple[str, int, int]] = []
+_depth = 0                                   # repo-frame call depth (frames in scope only)
 _data: dict[str, dict[str, Any]] = {}
 
 
@@ -39,22 +40,27 @@ def _rel(filename: str) -> str | None:
 
 
 def _local(frame: Any, event: str, arg: Any) -> Any:
+    global _depth
     if event == "line" and _cur is not None:
         rel = _scope[frame.f_code.co_filename]
         _cur.setdefault(rel, set()).add(frame.f_lineno)           # type: ignore[arg-type]
-        _tail.append((rel, frame.f_lineno))                       # type: ignore[arg-type]
+        _tail.append((rel, frame.f_lineno, _depth))               # type: ignore[arg-type]
         if len(_tail) > 4 * _TAIL:
             del _tail[:-_TAIL]
+    elif event == "return":
+        _depth -= 1
     return _local
 
 
 def _glob(frame: Any, event: str, arg: Any) -> Any:
+    global _depth
     if _cur is None:
         return None
     rel = _rel(frame.f_code.co_filename)
     if rel is None:
         return None
     if event == "call":
+        _depth += 1
         _cur.setdefault(rel, set()).add(frame.f_code.co_firstlineno)
     return _local
 
@@ -64,12 +70,15 @@ import pytest  # noqa: E402
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_protocol(item: Any, nextitem: Any):
-    global _cur
+    global _cur, _depth
     _cur = {}
+    _depth = 0
     _tail.clear()
     _data[item.nodeid] = {"outcome": "passed", "lines": {}, "text": "", "tail": []}
-    sys.settrace(_glob)
-    threading.settrace(_glob)
+    tracing = os.environ.get("PINPOINT_TRACE", "1") != "0"          # 0: outcomes only (MBFL reruns), several times cheaper
+    if tracing:
+        sys.settrace(_glob)
+        threading.settrace(_glob)
     try:
         yield
     finally:
@@ -78,7 +87,7 @@ def pytest_runtest_protocol(item: Any, nextitem: Any):
         rec = _data[item.nodeid]
         rec["lines"] = {k: sorted(v) for k, v in (_cur or {}).items()}
         if rec["outcome"] != "passed":
-            rec["tail"] = [[f, ln] for f, ln in _tail[-_TAIL:]]
+            rec["tail"] = [[f, ln, d] for f, ln, d in _tail[-_TAIL:]]
         _cur = None
 
 
@@ -93,7 +102,12 @@ def pytest_runtest_logreport(report: Any) -> None:
         rec["outcome"] = "skipped"
 
 
+def pytest_sessionstart(session: Any) -> None:
+    _data.clear()
+
+
 def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
-    if _OUT:
-        with open(_OUT, "w", encoding="utf-8") as fh:
+    out = os.environ.get("PINPOINT_OUT", _OUT)
+    if out:
+        with open(out, "w", encoding="utf-8") as fh:
             json.dump(_data, fh)

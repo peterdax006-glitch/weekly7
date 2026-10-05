@@ -91,7 +91,8 @@ def test_end_to_end_plant_and_locate(tmp_path):
     (root / "creator" / "tools").mkdir(parents=True)
     (root / "tests").mkdir()
     real = Path(__file__).resolve().parents[1]
-    for rel in ("creator/__init__.py", "creator/tools/__init__.py", "creator/tools/pinpoint_plugin.py", "creator/build.py"):
+    for rel in ("creator/__init__.py", "creator/tools/__init__.py", "creator/tools/pinpoint_plugin.py", "creator/tools/pinpoint_worker.py",
+                "creator/tools/pinpoint_feat.py", "creator/tools/pinpoint.py", "creator/build.py"):
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         (root / rel).write_text((real / rel).read_text(encoding="utf-8"), encoding="utf-8")
     (root / "lib.py").write_text(
@@ -130,7 +131,8 @@ def test_generate_rows_are_labelled_and_tree_unmutated(tmp_path):
     (root / "creator" / "tools").mkdir(parents=True)
     (root / "tests").mkdir()
     real = Path(__file__).resolve().parents[1]
-    for rel in ("creator/__init__.py", "creator/tools/__init__.py", "creator/tools/pinpoint_plugin.py", "creator/build.py"):
+    for rel in ("creator/__init__.py", "creator/tools/__init__.py", "creator/tools/pinpoint_plugin.py", "creator/tools/pinpoint_worker.py",
+                "creator/tools/pinpoint_feat.py", "creator/tools/pinpoint.py", "creator/build.py"):
         (root / rel).write_text((real / rel).read_text(encoding="utf-8"), encoding="utf-8")
     lib = ("def clamp(x, lo, hi):\n    if x < lo:\n        return lo\n    if x > hi:\n        return hi\n    return x\n")
     (root / "creator" / "lib.py").write_text(lib, encoding="utf-8")
@@ -147,3 +149,4 @@ def test_generate_rows_are_labelled_and_tree_unmutated(tmp_path):
         assert {"file", "true_line", "mutation", "failing_tests", "traceback", "original_snippet", "mutated_snippet"} <= set(r)
         assert r["failing_tests"] and r["original_snippet"] != r["mutated_snippet"]
     assert P.summarize(out)["rows"] == len(rows)
+

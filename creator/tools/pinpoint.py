@@ -242,7 +242,7 @@ def rank_lines(runs: Mapping[str, Mapping[str, Any]], *, root: str | Path | None
     recency: dict[tuple[str, int], float] = {}
     for k in failing:
         tail = runs[k].get("tail") or []
-        for i, (f, ln) in enumerate(tail):
+        for i, (f, ln, *_d) in enumerate(tail):
             recency[(f, ln)] = max(recency.get((f, ln), 0.0), (i + 1) / max(1, len(tail)))
     rootp = Path(root) if root is not None else None
     pcache: dict[str, dict[int, float]] = {}
@@ -428,46 +428,63 @@ def _tests_for_target(tree: Path, target: str, limit: int = 4) -> list[str]:
     return sorted(out)[:limit]
 
 
-def _run_mutant(tree: Path, target: str, orig: str, m: Mutant, files: Sequence[str], *, python: str, timeout: float,
-                evaluate: bool) -> dict[str, Any] | None:
-    """Plant one mutant in `tree`, run the covering test files traced, restore. A row, or None when no test fails."""
+def _run_mutant(w: Any, target: str, orig: str, m: Mutant, files: Sequence[str], *, timeout: float,
+                evaluate: bool, base: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any] | None:
+    """Plant one mutant through warm worker `w`, run the covering test files. A labelled row, or None when no test fails.
+    With `base` (the traced green baseline of these files) the run is two-phase: an untraced pass finds the failing tests (survivors
+    stop here, several times cheaper), then ONLY the failing tests are re-run traced; passing tests keep their baseline coverage."""
+    from creator.tools import pinpoint_feat as PF
     mutated = apply_mutant(orig, m)
-    path = tree / target
-    path.write_text(mutated, encoding="utf-8", newline="")
-    try:
-        res = collect(tree, files, python=python, timeout=timeout)
-    finally:
-        path.write_text(orig, encoding="utf-8", newline="")
+    t0 = time.monotonic()
+    if base is None:
+        res = w.run(files, {target: mutated}, timeout=timeout)
+    else:
+        quick = w.run(files, {target: mutated}, timeout=timeout, trace=False)
+        failing = sorted(k for k, r in quick.items() if r["outcome"] == "failed")
+        if not failing:
+            return None
+        traced = w.run(failing, {target: mutated}, timeout=timeout)
+        res = {k: r for k, r in traced.items() if r["outcome"] == "failed"}
+        for k, r in quick.items():
+            if r["outcome"] == "passed" and k in base:
+                res[k] = {"outcome": "passed", "lines": base[k]["lines"], "text": "", "tail": []}
     bad = sorted(k for k, r in res.items() if r["outcome"] == "failed")
     if not bad:
         return None
+    keys, xs = PF.line_features(res, w.tree, sources={target: mutated})
+    label = next((i for i, (f, ln) in enumerate(keys) if f == target and ln == m.line), -1)
     row: dict[str, Any] = {"file": target, "true_line": m.line, "mutation": m.kind, "failing_tests": bad,
                            "traceback": res[bad[0]]["text"][:4000],
-                           "original_snippet": snippet(orig, m.line), "mutated_snippet": snippet(mutated, m.line)}
+                           "original_snippet": snippet(orig, m.line), "mutated_snippet": snippet(mutated, m.line),
+                           "mutant": {"kind": m.kind, "start": m.start, "end": m.end, "new": m.new_text},
+                           "tests": list(files), "label": label, "seconds": round(time.monotonic() - t0, 2),
+                           "cand": {"cols": PF.BASE_FEATS, "keys": [list(k) for k in keys], "x": xs}}
     if evaluate:
-        ranked = rank_lines(res, root=tree, top=None)
-        pos = next((i + 1 for i, (f, ln, _s) in enumerate(ranked) if f == target and ln == m.line), None)
-        row.update({"rank": pos, "n_ranked": len(ranked), "top": [[f, ln, sc] for f, ln, sc in ranked[:5]]})
+        ranked = rank_lines(res, root=w.tree, top=None)
+        row["rank"] = next((i + 1 for i, (f, ln, _s) in enumerate(ranked) if f == target and ln == m.line), None)
     return row
 
 
-def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, tests: Sequence[str] | None = None,
+def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, tests: Sequence[str] | Mapping[str, Sequence[str]] | None = None,
              max_rows: int = 200, seed: int = 0, per_function: int = 3, workdir: str | Path | None = None,
              python: str = sys.executable, timeout: float = 120.0, evaluate: bool = True, workers: int = 1,
-             progress: Any = None) -> GenStats:
-    """Plant bugs in TEMP COPIES of `root` (one per worker; the real tree is never touched) and write labelled rows. Per target
+             progress: Any = None, pool: Any = None, fast: bool = True) -> GenStats:
+    """Plant bugs in TEMP COPIES of `root` (one per warm worker; the real tree is never touched) and write labelled rows. Per target
     file: a traced baseline run finds the lines covered by passing tests; each mutant is run on the test files covering its line;
     mutants no test notices are dropped. Row: {file, true_line, mutation, failing_tests, traceback, original_snippet,
-    mutated_snippet} (+ rank fields when evaluate=True: position of the true line in the pinpoint ranking of that very run).
-    per_function caps tried mutants per (kind, 15-line region) so rows spread over the file."""
+    mutated_snippet} + mutant offsets, the candidate feature table (pinpoint_feat.BASE_FEATS) and `label` (index of the true line in
+    it, -1 when missing). per_function caps tried mutants per (kind, 15-line region). `tests` may map target -> test files.
+    max_rows is per call (across targets)."""
     import threading
     from concurrent.futures import ThreadPoolExecutor
+    from creator.tools.pinpoint_worker import WarmPool
     rnd = random.Random(seed)
     base_dir = Path(workdir) if workdir else Path(tempfile.mkdtemp(prefix="pinpoint_gen_"))
-    workers = max(1, workers)
-    trees = [make_copy(root, base_dir / f"w{i}") for i in range(workers)]
-    pool: list[Path] = list(trees)
+    own_pool = pool is None
+    pool = pool or WarmPool(root, max(1, workers), base_dir, python)
+    workers = len(pool.workers)
     lock = threading.Lock()
+    base_runs: dict[str, Any] = {}
     stats = GenStats()
     t0 = time.monotonic()
     outp = Path(out_path)
@@ -478,15 +495,14 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
         with lock:
             if stats.kept >= max_rows:
                 return
-            tree = pool.pop()
+        w = pool.acquire()
         try:
-            row = _run_mutant(tree, target, orig, m, files, python=python, timeout=timeout, evaluate=evaluate)
+            row = _run_mutant(w, target, orig, m, files, timeout=timeout, evaluate=evaluate, base=base_runs.get(target) if fast else None)
             err = False
         except RuntimeError:
             row, err = None, True
         finally:
-            with lock:
-                pool.append(tree)
+            pool.release(w)
         with lock:
             stats.tried += 1
             if err:
@@ -505,21 +521,28 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
         for target in targets:
             if stats.kept >= max_rows:
                 break
-            tfiles = list(tests) if tests else _tests_for_target(trees[0], target)
+            if isinstance(tests, Mapping):
+                tfiles = list(tests.get(target, []))
+            else:
+                tfiles = list(tests) if tests else _tests_for_target(pool.workers[0].tree, target)
             if not tfiles:
                 continue
+            w0 = pool.acquire()
             try:
-                base = collect(trees[0], tfiles, python=python, timeout=timeout * 3)
+                base = w0.run(tfiles, timeout=timeout * 3)
             except RuntimeError:
                 continue
+            finally:
+                pool.release(w0)
             if any(r["outcome"] == "failed" for r in base.values()):
                 continue                                              # the baseline must be green
+            base_runs[target] = base
             cov: dict[int, set[str]] = {}                              # line -> test files covering it (passing tests)
             for nid, r in base.items():
                 if r["outcome"] == "passed":
                     for ln in r["lines"].get(target, []):
                         cov.setdefault(ln, set()).add(nid.split("::", 1)[0])
-            orig = (trees[0] / target).read_text(encoding="utf-8")
+            orig = (pool.workers[0].tree / target).read_text(encoding="utf-8")
             muts = enumerate_mutants(orig, set(cov))
             rnd.shuffle(muts)
             caps: dict[tuple[str, int], int] = {}
@@ -543,8 +566,10 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
                 list(ex.map(work, jobs))
     finally:
         stats.seconds = time.monotonic() - t0
-        if workdir is None:
-            shutil.rmtree(base_dir, ignore_errors=True)
+        if own_pool:
+            pool.close()
+            if workdir is None:
+                shutil.rmtree(base_dir, ignore_errors=True)
     return stats
 
 
