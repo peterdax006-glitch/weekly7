@@ -861,7 +861,8 @@ class Core:
         return False
 
 
-def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN) -> ThreadingHTTPServer:
+def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN,
+                decisions_dir: Optional[Path] = None) -> ThreadingHTTPServer:
     limiter = RateLimit(per_min)
     tok = token.encode()
 
@@ -897,7 +898,31 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._send(200, {"ok": True, "voice_loaded": core.voice is not None})
             self._send(404, {"error": "not found"})
 
+        def _decision(self) -> None:
+            """POST /decision {id, choice}: auth = master bearer OR the key scoped to this id (what the ntfy button carries). It only RECORDS
+            the answer to the pending-decisions file; Nupen's engine reads it through its own gates. Nothing is executed here."""
+            from creator import decisions as D
+            if not limiter.ok(self.client_address[0]):
+                return self._send(429, {"error": "slow down"})
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > MAX_BODY:
+                return self._send(413, {"error": "request too large"})
+            try:
+                d = json.loads(self.rfile.read(n).decode("utf-8"))
+                did, choice = d["id"], d["choice"]
+            except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+                return self._send(400, {"error": 'expected JSON {"id": "...", "choice": "approve|later"}'})
+            if not (self._authed() or D.key_ok(token, str(did), self.headers.get("X-Decision-Key", ""))):
+                return self._send(401, {"error": "unauthorized"})
+            ok, why = D.record_answer(str(did), str(choice), decisions_dir)
+            self._send(200 if ok else 409 if why == "already answered" else 400, {"ok": ok, "why": why})
+
         def do_POST(self) -> None:  # noqa: N802
+            if self.path.split("?")[0] == "/decision":
+                return self._decision()
             if not self._authed():
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/talk_audio":

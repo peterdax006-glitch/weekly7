@@ -372,6 +372,15 @@ def _history(env: Env, cand: Mapping[str, Any], cls: str, outcome: str, v: Optio
              "regression": bool(v and v.regressed), **dict(extra or {})})
 
 
+def _push(res: Mapping[str, Any]) -> None:
+    """Optional owner push for an adopt outcome (no-op when ntfy is not configured; never raises)."""
+    try:
+        from creator import notify as N
+        N.adopt_outcome(dict(res))
+    except Exception:
+        pass
+
+
 def run_candidate(env: Env, cand: Mapping[str, Any], rung: str = "start") -> dict[str, Any]:
     """One candidate improvement through BUILD -> VERIFY -> ADOPT. Outcome: ADOPTED | PROPOSED (class at A0) | REFUSED | BUILD_FAILED |
     ROLLED_BACK | DEFERRED (rate limit / cool-down: not an attempt). 'progress' = measured saving per day (None when nothing was measured)."""
@@ -393,6 +402,7 @@ def run_candidate(env: Env, cand: Mapping[str, Any], rung: str = "start") -> dic
         if outcome != "DEFERRED":
             _history(env, cand, out["cls"], outcome, v)
         _event(env, cid, "cycle", t_all, outcome)
+        _push(out)
         return out
 
     if declared == "measuring" or level(env.state, declared) < 0:
@@ -487,7 +497,14 @@ def run_goal(env: Env, goal: str, make_candidate: Callable[[str], Optional[Mappi
     res = run_candidate(env, cand, rung)
     if res["outcome"] == "DEFERRED":                       # not an attempt: it must not count as a stuck cycle
         return dict(res, ladder={"action": "continue", "reason": "deferred"})
-    return dict(res, ladder=G.ladder_note(env.state, goal, res.get("progress"), now, kind=kind, deps=deps or fingerprints()))
+    lad = G.ladder_note(env.state, goal, res.get("progress"), now, kind=kind, deps=deps or fingerprints())
+    if lad.get("action") == "park":
+        try:
+            from creator import notify as N
+            N.stuck_parked(goal, str(lad.get("reason", "")))
+        except Exception:
+            pass
+    return dict(res, ladder=lad)
 
 
 def run_bench_command(root: Path, argv: Sequence[str], repeats: int = 5, timeout: float = 120.0) -> list[float]:
