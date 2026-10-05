@@ -192,6 +192,30 @@ class _NoCore:
     voice = None
 
 
+def test_shortcut_report_is_logged_with_the_token_only(env):
+    _, rt = env
+    res = S.handle(EXAMPLES[4][0], rt)
+    srv = P.make_server("127.0.0.1", 0, TOKEN, _NoCore(), None, decisions_dir=rt)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}/shortcut_report"
+        body = json.dumps({"id": res["id"], "result_type": "File", "has_value": "yes", "junk": "x"}).encode()
+        req = urllib.request.Request(url, data=body, headers={"Authorization": "Bearer " + TOKEN}, method="POST")
+        assert json.loads(urllib.request.urlopen(req).read())["ok"] is True
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST"))
+        assert e.value.code == 401
+        bad = urllib.request.Request(url, data=json.dumps({"id": "../x"}).encode(), headers={"Authorization": "Bearer " + TOKEN}, method="POST")
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(bad)
+        assert e.value.code == 400
+        reps = S.reports(rt)
+        assert len(reps) == 1 and reps[0]["id"] == res["id"] and reps[0]["result_type"] == "File" and "junk" not in reps[0]
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def test_refusal_is_spoken_and_nothing_is_stored_or_sent(env):
     f, rt = env
     res = S.handle("make me a shortcut that deletes all my photos", rt)

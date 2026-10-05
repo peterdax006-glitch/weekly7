@@ -1486,6 +1486,17 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/voice_upload":
                 return self._voice_upload()
+            if self.path.split("?")[0] == "/shortcut_report":     # what 'Compile Jelly Text' returned on the phone (logged only)
+                from creator import shortcutgen as SG
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    d = json.loads(self.rfile.read(n).decode("utf-8")) if 0 < n <= MAX_BODY else None
+                except (ValueError, UnicodeDecodeError):
+                    d = None
+                if not isinstance(d, dict):
+                    return self._send(400, {"error": 'expected JSON {"id": "...", "result_type": "...", "has_value": "..."}'})
+                ok, why = SG.record_report(Path(voice_rt) if voice_rt else None, d)
+                return self._send(200 if ok else 400, {"ok": ok, "why": why})
             if self.path.split("?")[0] == "/talk_audio":
                 self.rfile.read(min(max(int(self.headers.get("Content-Length") or 0), 0), MAX_BODY))      # design stub: local Piper TTS (en_GB male) returning audio/wav; not built yet
                 return self._send(501, {"error": "talk_audio is not installed yet (see IPHONE_SETUP.md, next step)"})
