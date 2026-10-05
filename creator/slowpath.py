@@ -453,6 +453,22 @@ def err_sig(exc: Any, text: Any = "") -> str:
     return (type(exc).__name__ + ": " + _NORM.sub(" ", str(text or exc).strip().split(chr(10))[0].lower())[:80]).strip()
 
 
+def chat_fields(messages: Any, cls: Optional[str] = None) -> dict[str, Any]:
+    """The detector fields of a chat call: sig (of the last user message: the task payload), form_in (tokens of the last user message = the task payload without
+    the system/boilerplate part), cls (explicit, else the step_context's). Pass as `model_call(model, **chat_fields(msgs))`."""
+    try:
+        last = ""
+        parts = []
+        for m in messages:
+            c = str(m.get("content", ""))
+            parts.append(c)
+            if m.get("role") == "user":
+                last = c
+        return {"prompt": last or "\n".join(parts), "cls": _ctx.get().get("cls") or cls, "form_in": est_tokens(last or (parts[-1] if parts else ""))}
+    except Exception:                                                  # noqa: BLE001 - accounting never breaks a call
+        return {}
+
+
 class model_call:
     """THE accounting path of a local-model call: `with model_call("qwen3-1.7b") as mc: ...; mc.tokens(in_, out)`.
     Logs one event (wall, thread CPU, tokens, outcome 'ok' / the exception name) when the block ends, also when it raises."""
@@ -463,6 +479,7 @@ class model_call:
         self.actor = actor or str(_ctx.get().get("actor") or "model:" + name)
         self.extra = {"model": True, "backend": name, **extra}
         sig = sig or (sig_of(prompt) if prompt is not None else None)         # fields the opportunity detectors read (constraints.detect_*)
+        cls = cls or _ctx.get().get("cls")                                    # step_context(cls=...) labels every call inside it
         for k, v in (("sig", sig), ("cls", cls), ("form_in", form_in), ("form_out", form_out)):
             if v is not None:
                 self.extra[k] = v
@@ -477,6 +494,8 @@ class model_call:
         return self
 
     def __exit__(self, *exc: Any) -> None:
+        if "form_in" in self.extra and "form_out" not in self.extra:         # the answer IS the form: its tokens are the form minimum
+            self.extra["form_out"] = self.out_tok
         event(self.actor, in_tok=self.in_tok, out_tok=self.out_tok, cpu_s=time.thread_time() - self.c0, wall_s=time.perf_counter() - self.w0,
               cache_hit=self.cache_hit, outcome=exc[0].__name__ if exc[0] else "ok",
               **({**self.extra, "err": err_sig(exc[1])} if exc[0] else self.extra))

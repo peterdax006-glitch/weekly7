@@ -21,6 +21,7 @@ CAPABILITIES: dict[str, str] = {
     "curriculum": "creator.curriculum",
     "goals": "creator.goals",
     "constraints": "creator.constraints",
+    "engineloop": "creator.engineloop",
     "doctrine": "creator.doctrine",
     "lm": "creator.lm",
     "process_levers": "creator.process_levers",

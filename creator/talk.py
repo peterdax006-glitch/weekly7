@@ -161,7 +161,9 @@ class Voice:
         if got is not None:
             text, tin, tout = got
         else:
-            text = str(lm.chat(msgs, max_tokens=max_tokens, temperature=temperature))
+            from creator import slowpath as SP
+            with SP.step_context(cls="talk"):
+                text = str(lm.chat(msgs, max_tokens=max_tokens, temperature=temperature))
         text = G.THINK_BLOCK.sub("", text).strip()
         self.calls += 1
         if not tin:
@@ -174,9 +176,12 @@ class Voice:
         import urllib.request
         body = json.dumps({"messages": msgs, "max_tokens": max_tokens, "temperature": temperature, "seed": 0, "cache_prompt": True}).encode()
         req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-            d = json.loads(r.read().decode("utf-8"))
-        u = d.get("usage") or {}
+        from creator import slowpath as SP                    # the direct path is a model call too: one accounting path, labelled cls=talk
+        with SP.model_call(f"port{port}", backend_kind="talk", **SP.chat_fields(msgs, "talk")) as mc:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            u = d.get("usage") or {}
+            mc.tokens(int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0))
         return str(d["choices"][0]["message"].get("content") or ""), int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)
 
 
