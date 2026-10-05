@@ -715,7 +715,7 @@ def clean_reply(t: str) -> str:
     t = _BRACKET.sub(" ", t).replace("/no_think", " ")
     t = re.sub("[\U0001F000-\U0001FFFF☀-➿️‍]", "", t)           # emoji are not speech
     t = re.sub(r"[*#`_]+|^\s*(?:[-\u2022]|\d{1,2}[.)])\s+", " ", t, flags=re.M)
-    return re.sub(r"\s+([,.!?;:])", r"", re.sub(r"\s+", " ", t)).strip()
+    return re.sub(r"\s+([,.!?;:])", r"\1", re.sub(r"\s+", " ", t)).strip()
 
 
 _SIR_WORD = r"\bsir\b"
