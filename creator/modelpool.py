@@ -342,6 +342,9 @@ class SlotSpec:
     grammars: dict[str, Path] = field(default_factory=dict)      # output form -> .gbnf file
     stop: tuple[str, ...] = ()
     temperature: float = 0.0
+    parallel: int = 1                       # R11: concurrent request slots of the server (llama-server -np); ctx is per slot
+    quant: str = ""                         # R11: informational quant label of `model` (Q3_K_M, Q4_K_M ...)
+    keep_warm_s: float = 0.0                # R11: seconds to keep the server up after its last call (0 = unload at once)
 
     def server_args(self) -> list[str]:
         a: list[str] = []
@@ -389,7 +392,8 @@ def load_slots(manifest: Path, base: Optional[Path] = None) -> dict[str, SlotSpe
 
 def slot_pool(spec: SlotSpec, **kw: Any) -> ModelPool:
     """A ModelPool serving this slot's merged GGUF with the role's threads, context and draft model."""
-    return ModelPool(model=spec.model, ctx=spec.ctx, threads=spec.threads, extra_args=spec.server_args(), **kw)
+    return ModelPool(model=spec.model, ctx=spec.ctx, threads=spec.threads, extra_args=spec.server_args(),
+                     **({"share": spec.parallel} if spec.parallel > 1 and "share" not in kw else {}), **kw)
 
 
 def slot_call(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
