@@ -70,7 +70,7 @@ def test_auth_required_and_wrong_token_rejected(server):
 def test_reply_shape_short_and_say_more(server):
     srv, _ = server
     code, d = call(srv, body={"text": "how are you", "device": "iphone"})
-    assert code == 200 and set(d) == {"reply", "action", "end", "ms", "more"} and d["action"] is None and d["end"] is False
+    assert code == 200 and set(d) == {"reply", "action", "actions", "end", "ms", "more"} and d["action"] is None and d["end"] is False
     assert "evidence" not in d["reply"] and len(d["reply"].split()) <= 62 and d["more"] is True
     code, d2 = call(srv, body={"text": "say more", "device": "iphone"})
     assert code == 200 and d2["reply"] and d2["reply"] != d["reply"]
