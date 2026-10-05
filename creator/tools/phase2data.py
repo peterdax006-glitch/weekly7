@@ -30,6 +30,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 CUT_UTC = "2026-10-01T21:58:30+00:00"
 SNAPSHOT_PATHS = ("creator", "engine", "tests", "scripts", "pyproject.toml")        # never state/ (live data) or docs/
+LINE_MIN = 60                    # only long exact suite lines count: short common one-liners (def f(x):, return x) are not leaks
 K_CAND = 10                      # candidates shown to the PINPOINT model
 CTX = 1                          # lines of context above / below each candidate
 SYS_PIN = ("[ROLE: PINPOINT] You are Nupen's bug locator. A test fails after a change. The numbered candidate lines are the most suspicious "
@@ -89,7 +90,7 @@ def _nl(line: str) -> str:
 class Guard:
     """What must never reach a training row: the 32-task baseline suite and anything derived from it."""
 
-    def __init__(self, suite_dir: str | Path) -> None:
+    def __init__(self, suite_dir: str | Path, exclude_json: Sequence[str | Path] = ()) -> None:
         sd = Path(suite_dir)
         tasks = json.loads((sd / "tasks.json").read_text(encoding="utf-8"))["tasks"]
         self.ids = {str(t["id"]) for t in tasks}
@@ -105,10 +106,17 @@ class Guard:
             if p.is_file() and p.suffix in (".py", ".md", ".txt", ".json") and p.name != "tasks.json":
                 self.files.append(p.name)
                 self.texts.append(p.read_text(encoding="utf-8", errors="replace"))
+        self.src_paths: set[str] = set()
+        for ej in exclude_json:                      # further eval suites (e.g. eval_suite200/EXCLUDE.json): ids, names, texts, source paths
+            ex = json.loads(Path(ej).read_text(encoding="utf-8"))
+            self.ids |= {str(i) for i in ex.get("ids") or []}
+            self.names |= {str(n) for n in ex.get("names") or []}
+            self.src_paths |= {str(p[1]) for p in ex.get("source_paths") or [] if len(p) > 1}
+            self.texts += [str(t[1]) for t in ex.get("texts") or [] if len(t) > 1]
         for t in self.texts:
             for ln in t.splitlines():
                 n = _nl(ln)
-                if len(n) >= 30:
+                if len(n) >= LINE_MIN:
                     self.lines.add(n)
         self.name_re = re.compile(r"(?<![A-Za-z0-9])(?:" + "|".join(re.escape(n) for n in sorted(self.names, key=len, reverse=True)) + r")(?![A-Za-z0-9])") if self.names else None
         self.id_re = re.compile("|".join(re.escape(i) for i in sorted(self.ids, key=len, reverse=True))) if self.ids else None
@@ -118,6 +126,13 @@ class Guard:
         for i, t in enumerate(self.texts):
             if len(t) >= 80:
                 self.near.add(f"suite:{i}", t)
+
+    def id_violation(self, cid: str) -> str | None:
+        if cid in self.ids:
+            return "task id is in an eval suite"
+        if any(p in cid for p in self.src_paths):
+            return "taken from a source file of an eval suite"
+        return None
 
     def violation(self, text: str) -> str | None:
         low = text.lower()
@@ -425,7 +440,7 @@ def build_code(gpuday: Path, out_dir: Path, guard: Guard, heldout: Mapping[str, 
                 drops[f"{c['source']}: does not parse"] += 1
                 continue
             text = c["prompt"] + "\n" + c["code"]
-            v = guard.violation(text)
+            v = guard.id_violation(str(c["id"])) or guard.violation(text)
             if v:
                 drops[f"{c['source']}: guard: {v}"] += 1
                 continue
@@ -469,31 +484,34 @@ def _main(argv: Sequence[str]) -> int:
     b.add_argument("--snapshot", required=True)
     b.add_argument("--out", required=True)
     b.add_argument("--suite", required=True)
+    b.add_argument("--exclude", action="append", default=[])
     b.add_argument("--max-bugs", type=int, default=None)
     c = sub.add_parser("code")
     c.add_argument("--gpuday", required=True)
     c.add_argument("--out", required=True)
     c.add_argument("--suite", required=True)
+    c.add_argument("--exclude", action="append", default=[])
     c.add_argument("--repo", default=".")
     c.add_argument("--workers", type=int, default=3)
     a = sub.add_parser("audit")
     a.add_argument("--out", required=True)
     a.add_argument("--suite", required=True)
+    a.add_argument("--exclude", action="append", default=[])
     a.add_argument("--snapshot", required=True)
     a.add_argument("--repo", default=".")
     ns = ap.parse_args(list(argv))
     if ns.cmd == "snapshot":
         print(json.dumps(make_snapshot(ns.repo, ns.dest, extract=not ns.no_extract)))
     elif ns.cmd == "planted":
-        g = Guard(ns.suite)
+        g = Guard(ns.suite, ns.exclude)
         res = build_planted(ns.ds, ns.snapshot, ns.out, g, max_rows=ns.max_bugs, progress=lambda i, st: print(i, st, flush=True))
         print(json.dumps(res, indent=1))
     elif ns.cmd == "code":
-        g = Guard(ns.suite)
+        g = Guard(ns.suite, ns.exclude)
         res = build_code(Path(ns.gpuday), Path(ns.out), g, _heldout(Path(ns.repo)), ns.workers)
         print(json.dumps(res, indent=1))
     else:
-        g = Guard(ns.suite)
+        g = Guard(ns.suite, ns.exclude)
         out = Path(ns.out)
         meta = json.loads((Path(ns.snapshot) / "snapshot_meta.json").read_text(encoding="utf-8"))
         res = audit(read_rows(sorted(out.glob("*.jsonl"))), g, meta, _heldout(Path(ns.repo)))
