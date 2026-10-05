@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import threading
+import time
 from typing import Any
 
 _ROOT = os.path.normcase(os.path.abspath(os.environ.get("PINPOINT_ROOT", os.getcwd()))) + os.sep
@@ -75,6 +76,7 @@ def pytest_runtest_protocol(item: Any, nextitem: Any):
     _depth = 0
     _tail.clear()
     _data[item.nodeid] = {"outcome": "passed", "lines": {}, "text": "", "tail": []}
+    t_cpu = time.process_time()
     tracing = os.environ.get("PINPOINT_TRACE", "1") != "0"          # 0: outcomes only (MBFL reruns), several times cheaper
     if tracing:
         sys.settrace(_glob)
@@ -85,6 +87,7 @@ def pytest_runtest_protocol(item: Any, nextitem: Any):
         sys.settrace(None)
         threading.settrace(None)                                  # type: ignore[arg-type]
         rec = _data[item.nodeid]
+        rec["cpu"] = round(time.process_time() - t_cpu, 4)           # CPU of this test (traced when tracing: a relative cost for the selection)
         rec["lines"] = {k: sorted(v) for k, v in (_cur or {}).items()}
         if rec["outcome"] != "passed":
             rec["tail"] = [[f, ln, d] for f, ln, d in _tail[-_TAIL:]]

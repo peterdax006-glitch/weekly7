@@ -10,6 +10,7 @@ CLI:  python -m creator.tools.pinpoint gen --root <tree> --target creator/x.py [
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import math
 import os
@@ -272,6 +273,9 @@ def pinpoint(root: str | Path, tests: Sequence[str], *, diff: str = "", top: int
 
 # ------------------------------------------------------------------------------------------------------------- mutations
 MUTATIONS = ("cmp_flip", "off_by_one", "swap_var", "drop_return", "negate_cond", "arith_flip")
+MUTATIONS_EXTRA = ("bool_flip", "in_flip", "aug_flip", "const_flip", "drop_not")      # only with variants=True
+_CMP_ALL = ("<", "<=", ">", ">=", "==", "!=")
+_ARITH_ALL = ("+", "-", "*", "//", "%")
 _CMP = {ast.Lt: ("<", "<="), ast.LtE: ("<=", "<"), ast.Gt: (">", ">="), ast.GtE: (">=", ">"), ast.Eq: ("==", "!="),
         ast.NotEq: ("!=", "==")}
 _ARITH = {ast.Add: ("+", "-"), ast.Sub: ("-", "+"), ast.Mult: ("*", "/"), ast.Div: ("/", "*"), ast.FloorDiv: ("//", "*"),
@@ -299,8 +303,9 @@ def _abs(src_b: bytes, offs_b: list[int], line: int, col: int) -> int:
     return offs_b[line - 1] + col                      # col_offset is a UTF-8 BYTE offset
 
 
-def enumerate_mutants(src: str, covered: set[int] | None = None) -> list[Mutant]:
-    """All single-site mutations inside function bodies whose line is in `covered` (None = any). Edits are in-place text
+def enumerate_mutants(src: str, covered: set[int] | None = None, variants: bool = False) -> list[Mutant]:
+    """variants=True: every alternative per site (not just one) and the MUTATIONS_EXTRA kinds (the data generator; ~5x more mutants).
+    All single-site mutations inside function bodies whose line is in `covered` (None = any). Edits are in-place text
     replacements on one line, so line numbers never shift and `line` is the exact ground-truth bug line."""
     try:
         tree = ast.parse(src)
@@ -349,7 +354,17 @@ def enumerate_mutants(src: str, covered: set[int] | None = None) -> list[Mutant]
                     mid = text(*sg)
                     i = mid.find(old)
                     if i >= 0:
-                        add("cmp_flip", sg[0] + len(mid[:i].encode()), sg[0] + len(mid[:i].encode()) + len(old.encode()), new)
+                        a0 = sg[0] + len(mid[:i].encode())
+                        for alt in ([new] + [c for c in _CMP_ALL if c not in (old, new)] if variants else [new]):
+                            add("cmp_flip", a0, a0 + len(old.encode()), alt)
+            elif variants and isinstance(n, ast.Compare) and len(n.ops) == 1 and isinstance(n.ops[0], (ast.In, ast.NotIn)):
+                sg = seg(n.left, n.comparators[0])
+                if sg:
+                    mid = text(*sg)
+                    m_ = re.search(r"\bnot\s+in\b", mid) if isinstance(n.ops[0], ast.NotIn) else re.search(r"\bin\b", mid)
+                    if m_:
+                        a0 = sg[0] + len(mid[:m_.start()].encode())
+                        add("in_flip", a0, a0 + len(m_.group(0).encode()), "in" if isinstance(n.ops[0], ast.NotIn) else "not in")
             elif isinstance(n, ast.BinOp) and type(n.op) in _ARITH:
                 sg = seg(n.left, n.right)
                 if sg:
@@ -357,11 +372,42 @@ def enumerate_mutants(src: str, covered: set[int] | None = None) -> list[Mutant]
                     mid = text(*sg)
                     i = mid.find(old)
                     if i >= 0:
-                        add("arith_flip", sg[0] + len(mid[:i].encode()), sg[0] + len(mid[:i].encode()) + len(old.encode()), new)
+                        a0 = sg[0] + len(mid[:i].encode())
+                        for alt in ([new] + [c for c in _ARITH_ALL if c not in (old, new)] if variants else [new]):
+                            add("arith_flip", a0, a0 + len(old.encode()), alt)
+            elif variants and isinstance(n, ast.BoolOp) and len(n.values) == 2:
+                sg = seg(n.values[0], n.values[1])
+                if sg:
+                    mid = text(*sg)
+                    m_ = re.search(r"\b(and|or)\b", mid)
+                    if m_:
+                        a0 = sg[0] + len(mid[:m_.start()].encode())
+                        add("bool_flip", a0, a0 + len(m_.group(0).encode()), "or" if m_.group(0) == "and" else "and")
+            elif variants and isinstance(n, ast.AugAssign) and type(n.op) in (ast.Add, ast.Sub) and n.value is not None:
+                sg = seg(n.target, n.value)
+                if sg:
+                    mid = text(*sg)
+                    old, new = ("+=", "-=") if isinstance(n.op, ast.Add) else ("-=", "+=")
+                    i = mid.find(old)
+                    if i >= 0:
+                        a0 = sg[0] + len(mid[:i].encode())
+                        add("aug_flip", a0, a0 + 2, new)
+            elif variants and isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.Not):
+                sp, so = span(n), span(n.operand)
+                if sp and so:
+                    add("drop_not", sp[0], sp[1], text(*so))
+            elif variants and isinstance(n, ast.Constant) and isinstance(n.value, bool):
+                sp = span(n)
+                if sp:
+                    add("const_flip", sp[0], sp[1], "False" if n.value else "True")
             elif isinstance(n, ast.Constant) and type(n.value) is int and abs(n.value) < 10 ** 6:
                 sp = span(n)
                 if sp and re.fullmatch(r"\d+", text(*sp)):
-                    add("off_by_one", sp[0], sp[1], str(n.value + 1) if n.value % 2 == 0 else str(max(n.value - 1, 0)))
+                    alts = [str(n.value + 1) if n.value % 2 == 0 else str(max(n.value - 1, 0))]
+                    if variants:
+                        alts = [str(n.value + 1)] + ([str(n.value - 1)] if n.value > 0 else [])
+                    for alt in alts:
+                        add("off_by_one", sp[0], sp[1], alt)
             elif isinstance(n, ast.Return) and n.value is not None and not (isinstance(n.value, ast.Constant) and n.value.value is None):
                 sp = span(n.value)
                 if sp:
@@ -374,7 +420,9 @@ def enumerate_mutants(src: str, covered: set[int] | None = None) -> list[Mutant]
                 sp = span(n)
                 if sp:
                     others = [x for x in names if x != n.id]
-                    add("swap_var", sp[0], sp[1], others[(n.col_offset + ln) % len(others)])
+                    picks = others[:3] if variants else [others[(n.col_offset + ln) % len(others)]]
+                    for o in picks:
+                        add("swap_var", sp[0], sp[1], o)
     return out
 
 
@@ -391,6 +439,7 @@ def snippet(src: str, line: int, ctx: int = 0) -> str:
 # ------------------------------------------------------------------------------------------------------------- generator
 COPY_DIRS = ("creator", "engine", "tests", "scripts")
 COPY_FILES = ("pyproject.toml",)
+OVERLAY = ("creator/__init__.py", "creator/tools/__init__.py", "creator/tools/pinpoint_plugin.py", "creator/tools/pinpoint_worker.py")
 
 
 def make_copy(root: str | Path, dest: str | Path) -> Path:
@@ -404,6 +453,11 @@ def make_copy(root: str | Path, dest: str | Path) -> Path:
     for f in COPY_FILES:
         if (root / f).is_file():
             shutil.copy2(root / f, dest / f)
+    here = Path(__file__).resolve().parents[2]                    # the pinpoint tooling itself, for a root (a snapshot) that predates it
+    for f in OVERLAY:
+        if not (dest / f).exists() and (here / f).is_file():
+            (dest / f).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(here / f, dest / f)
     return dest
 
 
@@ -414,6 +468,8 @@ class GenStats:
     survived: int = 0           # mutants no test noticed
     broken: int = 0             # could not run / unparsable
     seconds: float = 0.0
+    worker_cpu: float = 0.0     # CPU seconds the warm workers spent (baselines + mutant runs)
+    parent_cpu: float = 0.0     # CPU seconds of this process while generating (features, JSON)
     kinds: dict[str, int] = field(default_factory=dict)
 
 
@@ -432,26 +488,52 @@ def _tests_for_target(tree: Path, target: str, limit: int = 4) -> list[str]:
     return sorted(out)[:limit]
 
 
+ONE_PASS_NODES = 3                 # traced single run when at most this many tests (or this much CPU) reach the line
+ONE_PASS_COST = 0.4
+
+
+def traced_failing(w: Any, target: str, mutated: str, files: Sequence[str], nodes: Sequence[str] | None, base: Mapping[str, Mapping[str, Any]],
+                   timeout: float) -> dict[str, dict[str, Any]] | None:
+    """Impact-selected two-phase run of one planted bug. Phase 1 (untraced): only `nodes` (the baseline tests that execute the mutated
+    line; the files when no node list) - a survivor stops here. Phase 2: ONLY the failing tests are re-run traced. Every other baseline
+    test keeps its traced green baseline record (a test that never reaches the mutated line cannot change). None = no test fails."""
+    traced: dict[str, dict[str, Any]] | None = None
+    cost = sum(float(base[n].get("cpu", 0.1)) for n in nodes if n in base) if nodes else 9.9
+    if nodes and (len(nodes) <= ONE_PASS_NODES or cost <= ONE_PASS_COST):                   # few tests reach the line: one traced run is cheaper than two runs
+        traced = w.run(list(nodes), {target: mutated}, timeout=timeout)
+    else:
+        quick = w.run(list(nodes), {target: mutated}, timeout=timeout, trace=False) if nodes else {}
+        if not quick:
+            quick = w.run(list(files), {target: mutated}, timeout=timeout, trace=False)
+        failing = sorted(k for k, r in quick.items() if r["outcome"] == "failed")
+        if not failing:
+            return None
+        traced = w.run(failing, {target: mutated}, timeout=timeout)
+    if not traced:
+        return None
+    res = {k: r for k, r in traced.items() if r["outcome"] == "failed"}
+    if not res:
+        return None
+    fset = set(files)
+    for k, r in base.items():
+        if k not in res and r["outcome"] == "passed" and k.split("::", 1)[0] in fset:
+            res[k] = {"outcome": "passed", "lines": r["lines"], "text": "", "tail": []}
+    return res
+
+
 def _run_mutant(w: Any, target: str, orig: str, m: Mutant, files: Sequence[str], *, timeout: float,
-                evaluate: bool, base: Mapping[str, Mapping[str, Any]] | None = None) -> dict[str, Any] | None:
-    """Plant one mutant through warm worker `w`, run the covering test files. A labelled row, or None when no test fails.
-    With `base` (the traced green baseline of these files) the run is two-phase: an untraced pass finds the failing tests (survivors
-    stop here, several times cheaper), then ONLY the failing tests are re-run traced; passing tests keep their baseline coverage."""
+                evaluate: bool, base: Mapping[str, Mapping[str, Any]] | None = None, nodes: Sequence[str] | None = None) -> dict[str, Any] | None:
+    """Plant one mutant through warm worker `w`, run the covering tests. A labelled row, or None when no test fails.
+    With `base` (the traced green baseline of these files) the run is impact-selected two-phase (traced_failing)."""
     from creator.tools import pinpoint_feat as PF
     mutated = apply_mutant(orig, m)
     t0 = time.monotonic()
     if base is None:
         res = w.run(files, {target: mutated}, timeout=timeout)
     else:
-        quick = w.run(files, {target: mutated}, timeout=timeout, trace=False)
-        failing = sorted(k for k, r in quick.items() if r["outcome"] == "failed")
-        if not failing:
+        res = traced_failing(w, target, mutated, files, nodes, base, timeout)
+        if res is None:
             return None
-        traced = w.run(failing, {target: mutated}, timeout=timeout)
-        res = {k: r for k, r in traced.items() if r["outcome"] == "failed"}
-        for k, r in quick.items():
-            if r["outcome"] == "passed" and k in base:
-                res[k] = {"outcome": "passed", "lines": base[k]["lines"], "text": "", "tail": []}
     bad = sorted(k for k, r in res.items() if r["outcome"] == "failed")
     if not bad:
         return None
@@ -461,7 +543,7 @@ def _run_mutant(w: Any, target: str, orig: str, m: Mutant, files: Sequence[str],
                            "traceback": res[bad[0]]["text"][:4000],
                            "original_snippet": snippet(orig, m.line), "mutated_snippet": snippet(mutated, m.line),
                            "mutant": {"kind": m.kind, "start": m.start, "end": m.end, "new": m.new_text},
-                           "tests": list(files), "label": label, "seconds": round(time.monotonic() - t0, 2),
+                           "tests": list(files), "label": label, "src_sha": hashlib.sha1(orig.encode("utf-8")).hexdigest()[:12], "seconds": round(time.monotonic() - t0, 2),
                            "cand": {"cols": PF.BASE_FEATS, "keys": [list(k) for k in keys], "x": xs}}
     if evaluate:
         ranked = rank_lines(res, root=w.tree, top=None)
@@ -470,15 +552,16 @@ def _run_mutant(w: Any, target: str, orig: str, m: Mutant, files: Sequence[str],
 
 
 def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, tests: Sequence[str] | Mapping[str, Sequence[str]] | None = None,
-             max_rows: int = 200, seed: int = 0, per_function: int = 3, workdir: str | Path | None = None,
+             max_rows: int = 200, seed: int = 0, per_function: int = 3, max_node_cost: float | None = None, workdir: str | Path | None = None,
              python: str = sys.executable, timeout: float = 120.0, evaluate: bool = True, workers: int = 1,
-             progress: Any = None, pool: Any = None, fast: bool = True) -> GenStats:
+             progress: Any = None, pool: Any = None, fast: bool = True, variants: bool = False) -> GenStats:
     """Plant bugs in TEMP COPIES of `root` (one per warm worker; the real tree is never touched) and write labelled rows. Per target
     file: a traced baseline run finds the lines covered by passing tests; each mutant is run on the test files covering its line;
     mutants no test notices are dropped. Row: {file, true_line, mutation, failing_tests, traceback, original_snippet,
     mutated_snippet} + mutant offsets, the candidate feature table (pinpoint_feat.BASE_FEATS) and `label` (index of the true line in
     it, -1 when missing). per_function caps tried mutants per (kind, 15-line region). `tests` may map target -> test files.
-    max_rows is per call (across targets)."""
+    max_rows is per call (across targets). max_node_cost: skip mutants whose covering tests cost more than this many (traced) CPU
+    seconds in the baseline (throughput: a mutant on a hot line re-runs the whole file)."""
     import threading
     from concurrent.futures import ThreadPoolExecutor
     from creator.tools.pinpoint_worker import WarmPool
@@ -491,17 +574,20 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
     base_runs: dict[str, Any] = {}
     stats = GenStats()
     t0 = time.monotonic()
+    cpu0 = time.process_time()
+    wcpu0 = sum(w.cpu_total for w in pool.workers)
     outp = Path(out_path)
     outp.parent.mkdir(parents=True, exist_ok=True)
 
-    def work(job: tuple[str, str, Mutant, list[str]]) -> None:
-        target, orig, m, files = job
+    def work(job: tuple[str, str, Mutant, list[str], list[str]]) -> None:
+        target, orig, m, files, nodes = job
         with lock:
             if stats.kept >= max_rows:
                 return
         w = pool.acquire()
         try:
-            row = _run_mutant(w, target, orig, m, files, timeout=timeout, evaluate=evaluate, base=base_runs.get(target) if fast else None)
+            row = _run_mutant(w, target, orig, m, files, timeout=timeout, evaluate=evaluate, base=base_runs.get(target) if fast else None,
+                              nodes=nodes if fast else None)
             err = False
         except RuntimeError:
             row, err = None, True
@@ -542,12 +628,14 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
                 continue                                              # the baseline must be green
             base_runs[target] = base
             cov: dict[int, set[str]] = {}                              # line -> test files covering it (passing tests)
+            cov_nodes: dict[int, list[str]] = {}                       # line -> test node ids covering it (the impact selection)
             for nid, r in base.items():
                 if r["outcome"] == "passed":
                     for ln in r["lines"].get(target, []):
                         cov.setdefault(ln, set()).add(nid.split("::", 1)[0])
+                        cov_nodes.setdefault(ln, []).append(nid)
             orig = (pool.workers[0].tree / target).read_text(encoding="utf-8")
-            muts = enumerate_mutants(orig, set(cov))
+            muts = enumerate_mutants(orig, set(cov), variants)
             rnd.shuffle(muts)
             caps: dict[tuple[str, int], int] = {}
             jobs = []
@@ -560,8 +648,10 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
                 except SyntaxError:
                     stats.broken += 1
                     continue
+                if max_node_cost is not None and sum(float(base[n].get("cpu", 0.1)) for n in cov_nodes[m.line]) > max_node_cost:
+                    continue
                 caps[k] = caps.get(k, 0) + 1
-                jobs.append((target, orig, m, sorted(cov[m.line])))
+                jobs.append((target, orig, m, sorted(cov[m.line]), sorted(cov_nodes[m.line])))
             by_kind: dict[str, list[Any]] = {}
             for j in jobs:
                 by_kind.setdefault(j[2].kind, []).append(j)
@@ -570,6 +660,8 @@ def generate(root: str | Path, targets: Sequence[str], out_path: str | Path, *, 
                 list(ex.map(work, jobs))
     finally:
         stats.seconds = time.monotonic() - t0
+        stats.parent_cpu = time.process_time() - cpu0
+        stats.worker_cpu = sum(w.cpu_total for w in pool.workers) - wcpu0
         if own_pool:
             pool.close()
             if workdir is None:
@@ -611,7 +703,7 @@ def _main(argv: Sequence[str]) -> int:
         return 0
     st = generate(a.root, a.target, a.out, tests=a.tests, max_rows=a.max_rows, seed=a.seed, per_function=a.per_function, workers=a.workers)
     print(json.dumps({"tried": st.tried, "kept": st.kept, "survived": st.survived, "broken": st.broken,
-                      "seconds": round(st.seconds, 1), "rows_per_hour": round(st.kept / st.seconds * 3600) if st.seconds else 0,
+                      "seconds": round(st.seconds, 1), "worker_cpu_s": round(st.worker_cpu, 1), "parent_cpu_s": round(st.parent_cpu, 1), "rows_per_hour": round(st.kept / st.seconds * 3600) if st.seconds else 0,
                       "kinds": st.kinds}))
     return 0
 
