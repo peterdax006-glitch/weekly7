@@ -969,3 +969,151 @@ def machine_test_slot(command_text: str = "") -> Any:
         return testslots.Slot()
     except Exception:                                   # noqa: BLE001 - the budget is optional: fail open
         return contextlib.nullcontext()
+
+
+# ------------------------------------------------------------------------------------------------ diff checker (P0.6)
+# check_diff(unified_diff_text) -> DiffVerdict. Deterministic, regex + counting only, no I/O. Run on every builder diff before it is
+# staged: a "block" verdict stops the change, a "review" verdict sends it to the owner digest.
+
+DIFF_MAX_DELETED = 400                  # removed lines in one diff above which a human looks
+DIFF_MAX_FILE_BYTES = 400_000           # bytes ADDED to one file above which a human looks
+DIFF_MAX_LINE_CHARS = 20_000            # one added line this long is a data blob, not code
+SEALED_SEGMENTS = ("livesim", "masterstock", "oldpc")          # path segments that are never touched (state/livesim, Masterstock, oldpc)
+
+_SECRET_RES: tuple[tuple[str, "re.Pattern[str]"], ...] = (
+    ("api-key", re.compile(r"\b(?:sk|pk|rk)-(?:ant-|proj-|live-|test-)?[A-Za-z0-9_\-]{20,}")),
+    ("github-token", re.compile(r"\b(?:ghp|gho|ghs|ghu|ghr|github_pat)_[A-Za-z0-9_]{20,}")),
+    ("aws-key", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("slack-token", re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}")),
+    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("hf-token", re.compile(r"\bhf_[A-Za-z0-9]{30,}")),
+    ("assigned-secret", re.compile(r"""(?i)\b[\w.]*(?:api[_-]?key|secret|passwd|password|token|auth)[\w.]*["']?\s*[:=]\s*["'][A-Za-z0-9+/_\-=]{20,}["']""")),
+    ("bearer", re.compile(r"(?i)\bauthorization\W{1,4}bearer\s+[A-Za-z0-9._\-]{20,}")),
+    ("url-credentials", re.compile(r"\b[a-z][a-z0-9+.\-]*://[^/\s:@\"']+:[^/\s@\"']+@[\w.\-]+")),
+    ("ssh-target", re.compile(r"\b(?:ssh|scp|sftp)\s+(?:-\w+\s+(?:\S+\s+)?)*[\w.\-]+@[\w.\-]+\.[a-z]{2,}", re.I)),
+    ("vast-host", re.compile(r"\b(?:ssh\d*|proxy\d*|gpu\d*)\.vast\.ai\b", re.I)),
+)
+_IPV4 = re.compile(r"(?<![\w.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![\w])(?!\.\d)")
+_IP_OK = {"127.0.0.1", "0.0.0.0", "255.255.255.255", "255.255.255.0", "8.8.8.8", "1.1.1.1", "192.0.2.1"}
+_HOME_RE = re.compile(r"(?i)(?:\b[A-Z]:[\\/]+Users[\\/]+(?!<|\{|%|\$|public\b|default\b|name\b|you\b|user\b|username\b|x\b)[\w.\-]+"
+                      r"|(?<![\w.])/(?:home|Users)/(?!<|\{|\$|name\b|you\b|user\b|username\b|runner\b|x\b|me\b)[\w.\-]+/)")
+
+
+@dataclasses.dataclass(frozen=True)
+class DiffVerdict:
+    verdict: str                                    # "ok" | "review" | "block"
+    reasons: tuple[str, ...] = ()
+    deleted: int = 0
+    added: int = 0
+    files: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return self.verdict == "ok"
+
+    def __bool__(self) -> bool:
+        return self.ok
+
+
+def _diff_files(text: str) -> "list[tuple[str, list[str], int, bool]]":
+    """-> [(path, added_lines, deleted_count, is_binary)] from a unified diff (git format or plain ---/+++)."""
+    out: list[list[Any]] = []
+    cur: Optional[list[Any]] = None
+    in_hunk = False
+    old = ""
+    for raw in text.splitlines():
+        if raw.startswith("diff --git "):
+            m = re.match(r"diff --git a/(.*?) b/(.*)$", raw)
+            cur = [(m.group(2) if m else raw[11:]).strip(), [], 0, False]
+            out.append(cur)
+            in_hunk = False
+            continue
+        if raw.startswith("@@"):
+            in_hunk = True
+            continue
+        if not in_hunk:
+            if raw.startswith("--- "):
+                old = raw[4:].strip()
+                if old.startswith("a/"):
+                    old = old[2:]
+            elif raw.startswith("+++ "):
+                new = raw[4:].strip()
+                name = new[2:] if new.startswith("b/") else new
+                if name == "/dev/null":
+                    name = old
+                if cur is None:
+                    cur = [name, [], 0, False]
+                    out.append(cur)
+                elif not (cur[1] or cur[2]):
+                    cur[0] = name
+            elif raw.startswith("Binary files") or raw.startswith("GIT binary patch"):
+                if cur is not None:
+                    cur[3] = True
+            elif raw.startswith("rename to ") and cur is not None:
+                cur[0] = raw[10:].strip()
+            continue
+        if cur is None:
+            continue
+        if raw.startswith("+"):
+            cur[1].append(raw[1:])
+        elif raw.startswith("-"):
+            cur[2] += 1
+    return [(c[0], c[1], c[2], c[3]) for c in out]
+
+
+def _secret_hits(line: str) -> list[str]:
+    hits = [name for name, rx in _SECRET_RES if rx.search(line)]
+    for m in _IPV4.finditer(line):
+        octs = [int(g) for g in m.groups()]
+        ip = ".".join(map(str, octs))
+        if max(octs) <= 255 and ip not in _IP_OK and octs[0] > 0 and octs[0] != 127:
+            hits.append("ip-address")
+            break
+    if _HOME_RE.search(line):
+        hits.append("home-path")
+    return hits
+
+
+def check_diff(diff_text: str, *, max_deleted: int = DIFF_MAX_DELETED, max_file_bytes: int = DIFF_MAX_FILE_BYTES,
+               protected: Optional[Sequence[str]] = None, allow_protected: bool = False,
+               allow_deleted_paths: Sequence[str] = ()) -> DiffVerdict:
+    """Judge a unified diff. block: protected path (unless the owner/teacher passes allow_protected), sealed path, secret-looking
+    added text (keys, tokens, private hosts/IPs, absolute home paths). review: more than max_deleted removed lines, a file that grew by
+    more than max_file_bytes, an added line longer than DIFF_MAX_LINE_CHARS, a binary file. Reasons name the path and rule, never the
+    secret itself."""
+    if protected is None:
+        from creator import sandbox
+        protected = sandbox.PROTECTED
+    blocks: list[str] = []
+    reviews: list[str] = []
+    files = _diff_files(diff_text or "")
+    deleted = sum(f[2] for f in files if not any(fnmatch.fnmatch(f[0], g) for g in allow_deleted_paths))
+    added = sum(len(f[1]) for f in files)
+    for path, adds, dels, binary in files:
+        rel = path.replace("\\", "/")
+        while rel.startswith("./"):
+            rel = rel[2:]
+        segs = [s.lower() for s in rel.split("/")]
+        if any(s in SEALED_SEGMENTS for s in segs):
+            blocks.append(f"sealed path: {rel}")
+        if not allow_protected and any(fnmatch.fnmatch(rel, p) for p in protected):
+            blocks.append(f"protected path: {rel}")
+        if binary:
+            reviews.append(f"binary file: {rel}")
+        size = sum(len(a.encode("utf-8", "replace")) + 1 for a in adds)
+        if size > max_file_bytes:
+            reviews.append(f"size: {rel} grows by {size} bytes (limit {max_file_bytes})")
+        seen: set[str] = set()
+        for i, a in enumerate(adds, 1):
+            if len(a) > DIFF_MAX_LINE_CHARS:
+                reviews.append(f"long line: {rel} ({len(a)} chars)")
+                continue                                  # a data blob: skip the regex pass (speed, and noise)
+            for h in _secret_hits(a):
+                key = f"{h}:{rel}"
+                if key not in seen:
+                    seen.add(key)
+                    blocks.append(f"secret-looking text ({h}): {rel} added line {i}")
+    if deleted > max_deleted:
+        reviews.append(f"large deletion: {deleted} lines removed (limit {max_deleted})")
+    verdict = "block" if blocks else ("review" if reviews else "ok")
+    return DiffVerdict(verdict, tuple(blocks + reviews), deleted, added, tuple(f[0] for f in files))
