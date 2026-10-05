@@ -621,6 +621,10 @@ def pipeline_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
             tin = [float(r.get("tok_in", 0)) for r in res if "tok_in" in r]
             bin_ = [float(r.get("tok_in", 0)) for r in base[-1]["rows"] if "tok_in" in r]
             rec["compare"]["prefill_tokens_mean"] = {"base": round(sum(bin_) / max(1, len(bin_)), 1), "tuned": round(sum(tin) / max(1, len(tin)), 1)}
+            try:                                     # per-role scores for the engine's weak_skill detector (uses/day + fail cost: not measured here -> 0)
+                export_skills(state, rec["compare"])
+            except OSError:
+                pass
     p = TM.gate_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as f:

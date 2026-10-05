@@ -368,6 +368,10 @@ def run_round(cfg: K.KernelConfig, make_worker: Callable[[], Any], governor: Opt
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     REG.get("goals").maybe_propose(led, Path(cfg.ledger_path).parent, cfg.repo)      # at most daily; proposals are not work until approved
     REG.get("constraints").maybe_run(Path(cfg.ledger_path).parent)                    # at most hourly; measures what limits improvement, never raises
+    try:                                                                              # the improvement engine: only with ENGINE_ON and no NUPEN_STOP; A0 = proposals only
+        REG.get("engineloop").maybe_step(Path(cfg.ledger_path).parent, cfg)
+    except Exception:                                                             # noqa: BLE001 - never costs a round
+        pass
     lock = threading.Lock()
     running: list[_Running] = []
     reports: list[K.CycleReport] = []
