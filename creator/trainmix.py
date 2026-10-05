@@ -355,6 +355,29 @@ def src_export_pref(ctx: Ctx, drops: collections.Counter[str], d: str, name: str
     return out
 
 
+HANDOFF_SHARE = 0.15                                 # handoff rows per in-scope row of the same mix (owner 4 Oct: never act outside the niche)
+
+
+def src_handoff(ctx: Ctx, drops: collections.Counter[str], scope: Sequence[str], share: float = HANDOFF_SHARE) -> list[Row]:
+    """Owner 4 Oct 2026: a specialist never works outside its jurisdiction - anything else is handed to the suited model. The other roles'
+    role rows (same prompts the orchestrator would send) answered with exactly 'HANDOFF: <ROLE>'; sampled to `share` of the in-scope rows,
+    stable order (sha of the id), so the specialist learns the refusal without the out-of-scope skill."""
+    rows = _pm().src_roles(ctx, drops)
+    n_in = sum(1 for r in rows if r.meta.get("role") in scope)
+    out = [r for r in rows if r.meta.get("role") not in scope and r.body.get("messages")]
+    out.sort(key=lambda r: hashlib.sha256(r.id.encode()).hexdigest())
+    keep = out[: int(n_in * share)]
+    drops["handoff: not sampled"] += len(out) - len(keep)
+    res = []
+    for r in keep:
+        msgs = [m for m in r.body["messages"] if m.get("role") != "assistant"]
+        role = str(r.meta.get("role"))
+        res.append(dataclasses.replace(r, id="handoff:" + r.id, source="handoff_" + role.lower(),
+                                       body={"messages": msgs + [{"role": "assistant", "content": f"HANDOFF: {role}"}]},
+                                       meta=dict(r.meta, handoff=True)))
+    return res
+
+
 def trajectory_files(view: str) -> list[Path]:
     """C2 trajectory views (<runtime>/gpuday/trajectories/**): files whose name carries the view (sft | debug | review | pair)."""
     d = gpuday_dir() / "trajectories"
@@ -482,6 +505,7 @@ SOURCES: dict[str, Callable[[Ctx, collections.Counter[str]], list[Row]]] = {
     "aider_sft": lambda c, d: _pm().src_aider(c, d, "sft"),
     "aider_pref": lambda c, d: _pm().src_aider(c, d, "pref"),
     "roles_code": lambda c, d: [r for r in _pm().src_roles(c, d) if r.meta.get("role") in ("CODE", "DEBUG")],
+    "handoff_code": lambda c, d: src_handoff(c, d, ("CODE", "DEBUG")),
     "calib": lambda c, d: _mods().src_calib(c, d),
     "brevity_sft": lambda c, d: _mods().src_brevity(c, d),
     "brevity_pref": lambda c, d: _mods().src_brevity(c, d, pref=True),
