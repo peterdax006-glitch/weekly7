@@ -671,6 +671,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     stage.sec["before_execute"] = round(t_start - t0, 3)         # prepare + curriculum/student planning (the caller's stamp)
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     guard = lock if lock is not None else contextlib.nullcontext()
+    from creator import safety as SF                                    # the checker / safety loop (trust gate, rate limit, full suite)
 
     def checkpoint_cancel(where: str) -> None:
         if cancel is not None and cancel.is_set():
@@ -707,6 +708,10 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         change = sb.changes()                                           # 5 EVALUATE
         if not change.paths:
             raise _Reject("the worker changed nothing")
+        by = work.by or getattr(worker, "name", "")
+        stop = SF.gate(cfg, plan, wp, sb, rep, by, change.paths)        # trust + rate BEFORE any test runs
+        if stop:
+            raise stop
         frozen = hashlib.sha256(sb.diff().encode()).hexdigest()         # RESULT FREEZE (content) before anything runs in the tree
         if cfg.hide or cfg.omit:
             sb.reveal()                                                 # the Creator's own tests need the sealed suite back
@@ -786,6 +791,9 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         with stage("lock_wait"):
             guard.__enter__()                                           # one adoption + verification at a time
         locked = True
+        stop = SF.gate(cfg, plan, wp, sb, rep, by, change.paths, at_decide=True)   # the rate limit again, counted under the lock
+        if stop:
+            raise stop
         problems = led.problems(decision)                               # 6 DECIDE (validated before the merge)
         if problems:
             raise _Reject(f"ledger refuses the ADOPT decision: {problems}")
@@ -805,22 +813,13 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
         G.sync(led, after_main.model)
         lost_after = sorted({r.key for r in main.rows if r.met} - {r.key for r in after_main.rows if r.met})
         still = plan.step in P.EFFICIENCY_STEPS or next((r.met for r in after_main.rows if r.key == plan.requirement_key), False)
-        if red(after_main.audit) or not still or lost_after:
-            why = ("requirement not met on main after merge" if not still else
-                   f"requirements lost on main after merge: {lost_after}" if lost_after else
-                   f"audit red after merge: {[f.check for f in after_main.audit.findings[:5]]}")
+        why = ("requirement not met on main after merge" if not still else
+               f"requirements lost on main after merge: {lost_after}" if lost_after else
+               f"audit red after merge: {[f.check for f in after_main.audit.findings[:5]]}" if red(after_main.audit) else
+               SF.suite_failure(cfg, res.merge_commit, rep))             # the full protected suite on the merged main
+        if why:
             with stage("rollback"):
-                revert = S.rollback(cfg.repo, res.merge_commit, why)
-            led.append(M.Decision(created_by=M.Role.VALIDATOR, subject_id=plan.experiment_id, verdict=M.DecisionVerdict.ROLLBACK,
-                                  reason=f"{why}; reverted by {revert[:12]}"))
-            fid = led.append(M.Failure(created_by=M.Role.DEBUGGER, parents=(plan.work_package_id,), subject_id=plan.experiment_id,
-                                       symptom=f"post-merge rollback: {why}"[:500], classification="post-merge rollback",
-                                       reproduction=f"merge {res.merge_commit[:12]}, re-assess main"))
-            did = led.append(M.Diagnosis(created_by=M.Role.DEBUGGER, parents=(fid,), failure_id=fid, hypotheses=(why[:300],),
-                                         root_cause=why[:500], uncertainty=M.Uncertainty.LIKELY))
-            led.append(M.Repair(created_by=M.Role.KERNEL, parents=(did,), diagnosis_id=did,       # CR204: a rollback is never silent
-                                description=f"merge {res.merge_commit[:12]} reverted by {revert[:12]}"))
-            P.record_outcome(led, plan, False, f"rolled back: {why}")
+                SF.roll_back(cfg, led, plan, res.merge_commit, why)
             rep.outcome, rep.reason = "ROLLED_BACK", why
         else:
             P.record_outcome(led, plan, True, f"adopted as {res.merge_commit[:12]}")
@@ -862,6 +861,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             P.record_outcome(led, plan, False, f"kernel error: {type(e).__name__}: {e}"[:500])
             rep.outcome, rep.reason = "ERROR", f"{type(e).__name__}: {e}"
     finally:
+        SF.note(cfg, rep, plan)                                         # before the lock goes: the rate limit counts it
         if locked:
             guard.__exit__(None, None, None)
         rep.seconds = round(time.monotonic() - t0, 1)                   # 8 RECORD

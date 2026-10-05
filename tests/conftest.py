@@ -46,3 +46,28 @@ def cached_provenance(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
     finally:
         mp.undo()
+
+
+@pytest.fixture(autouse=True)
+def scripted_workers_are_supervised(request: pytest.FixtureRequest) -> Iterator[None]:
+    """h70 (4 Oct 2026): creator.safety refuses changes from UNSUPERVISED workers unless the coding trust gate opened their class, and
+    runs the real protected suite after every merge. Tests that drive kernel cycles with scripted workers test the kernel's OTHER
+    mechanics: for them every worker counts as the teacher (exactly the behaviour before the safety loop) and the post-merge suite is
+    off (a nested 3-minute run of the real suite per adoption). A module that exercises the safety loop sets REAL_SAFETY = True
+    (tests/test_creator_safety.py does)."""
+    if getattr(request.module, "REAL_SAFETY", False):
+        yield
+        return
+    try:
+        from creator import safety as SF
+    except ImportError:
+        yield
+        return
+    real = SF.policy
+    mp = pytest.MonkeyPatch()
+    mp.setattr(SF, "supervised", lambda pol, by: True)
+    mp.setattr(SF, "policy", lambda state: dataclasses.replace(real(state), full_suite=False))
+    try:
+        yield
+    finally:
+        mp.undo()
