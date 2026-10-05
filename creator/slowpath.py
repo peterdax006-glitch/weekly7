@@ -15,6 +15,7 @@ Overhead: two clock reads per operation and one appended line; the history check
 into the timed operation (timing is measurement, not work). Lightweight imports only: the goals module is loaded when a flag is proposed."""
 from __future__ import annotations
 
+import atexit
 import contextvars
 import json
 import os
@@ -204,18 +205,27 @@ def report(state: Path, days: float = 1.0, now: Optional[float] = None) -> list[
 # effladder.Endpoint.call, gpuday.chat_http all go through it). `step_context()` sets goal_id/step/actor for the calls inside it.
 METRICS_DIR = "metrics"
 _state_override: Optional[Path] = None
+_prefix: tuple[Optional[Path], str] = (None, "")
 _ctx: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("metrics_ctx", default={})
 
 
 def set_state(state: Optional[Path]) -> None:
     """Where events go (None = the default). Tests and the kernel set this once."""
-    global _state_override
+    global _state_override, _prefix
     _state_override = Path(state) if state is not None else None
+    _prefix = (_state_override, str(_state_override / METRICS_DIR / "events-") if _state_override is not None else "")
     close_handles()
+
+
+def ensure_state(state: Path) -> None:
+    """Point the bus at `state` unless it already is (the kernel calls this where it starts)."""
+    if _state_override != Path(state):
+        set_state(state)
 
 
 def close_handles() -> None:
     """Close the kept-open event files (set_state does; call before deleting a state directory)."""
+    flush()
     with _lock:
         for f in list(_fh.values()):
             try:
@@ -288,43 +298,116 @@ def ram_peak_mb() -> Optional[float]:
         return None
 
 
+# Buffered writer. Durability: lines are queued in memory and written when the buffer reaches FLUSH_BYTES, when FLUSH_S seconds have passed
+# since the last write (checked at the next event), on flush()/close_handles()/set_state(), and at interpreter exit. A hard kill loses at
+# most the last buffer (< FLUSH_BYTES or < FLUSH_S of events); nothing already written is ever rewritten.
+FLUSH_BYTES = 32768
+FLUSH_S = 2.0
+_buf: list[bytes] = []
+_buf_n = 0
+_buf_path: Optional[str] = None
+_last_flush = 0.0
 _fh: dict[str, Any] = {}
+_jstr: dict[str, str] = {}                            # json-encoded strings (goal ids, actors, steps repeat endlessly)
+_day = ("", 0)                                        # (YYYYMMDD, minute stamp it was computed for)
+_ram = (0.0, None)                                    # (monotonic stamp, MB): peak RSS is sampled at most once a second
 
 
-def _write_event(path: Path, rec: dict[str, Any]) -> None:
-    """Append one line through a kept-open handle (re-opening per event cost ~1 ms on Windows; a kept handle ~20 us). One write + flush per
-    line; the handle follows the daily file name, so rotation is automatic. Fork/threads: a lock guards the write."""
-    line = (json.dumps(rec, separators=(",", ":")) + "\n").encode("utf-8")
-    key = str(path)
+def _js(s: Any) -> str:
+    k = str(s)
+    v = _jstr.get(k)
+    if v is None:
+        v = json.dumps(k)
+        if len(_jstr) < 4096:
+            _jstr[k] = v
+    return v
+
+
+def _flush_locked() -> None:
+    global _buf_n, _last_flush
+    _last_flush = time.monotonic()
+    if not _buf or _buf_path is None:
+        return
+    data = b"".join(_buf)
+    _buf.clear()
+    _buf_n = 0
+    key = _buf_path
+    f = _fh.get(key)
+    if f is None or f.closed:
+        for k in list(_fh):
+            try:
+                _fh.pop(k).close()                    # yesterday's file
+            except OSError:
+                pass
+        os.makedirs(os.path.dirname(_buf_path), exist_ok=True)
+        f = _fh[key] = open(_buf_path, "ab", buffering=0)
+    f.write(data)
+
+
+def flush() -> None:
+    """Write the buffered events now (the report does; so does exit)."""
+    try:
+        with _lock:
+            _flush_locked()
+    except Exception:                                 # noqa: BLE001
+        pass
+
+
+atexit.register(flush)
+
+
+def _queue(path: str, line: bytes) -> None:
+    global _buf_n, _buf_path
     with _lock:
-        f = _fh.get(key)
-        if f is None or f.closed:
-            for k in [k for k in _fh if k != key and k.rsplit("events-", 1)[0] == key.rsplit("events-", 1)[0]]:
-                try:
-                    _fh.pop(k).close()                        # yesterday's file
-                except OSError:
-                    pass
-            path.parent.mkdir(parents=True, exist_ok=True)
-            f = _fh[key] = open(path, "ab", buffering=0)
-        f.write(line)
+        if _buf_path is not None and path != _buf_path:   # a new day or a new state dir: write the old buffer first
+            _flush_locked()
+        _buf_path = path
+        _buf.append(line)
+        _buf_n += len(line)
+        if _buf_n >= FLUSH_BYTES or time.monotonic() - _last_flush >= FLUSH_S:
+            _flush_locked()
 
 
 def event(actor: str, *, goal_id: Optional[str] = None, step: Optional[str] = None, in_tok: int = 0, out_tok: int = 0,
           cpu_s: Optional[float] = None, wall_s: float = 0.0, cache_hit: bool = False, outcome: str = "ok", model: bool = False,
           state: Optional[Path] = None, **extra: Any) -> bool:
-    """Append one step event. `model` marks a step that used a model (the Qwen share counts them). Never raises."""
+    """Queue one step event (written within FLUSH_S / FLUSH_BYTES). `model` marks a step that used a model (the Qwen share counts them).
+    Never raises."""
+    global _day, _ram
     try:
-        st = Path(state) if state is not None else _state()
-        if st is None:
-            return False
+        if state is None and _state_override is not None:
+            pre = _prefix[1]                                  # fast path: the configured bus, no Path arithmetic
+        else:
+            st = Path(state) if state is not None else _state()
+            if st is None:
+                return False
+            pre = str(st / METRICS_DIR / "events-")
         c = _ctx.get()
+        if goal_id is None:
+            goal_id = c.get("goal_id")
+        if step is None:
+            step = c.get("step")
         now = _now()
-        row = {"t": round(now, 3), "goal_id": goal_id if goal_id is not None else c.get("goal_id"),
-               "step": step if step is not None else c.get("step"), "actor": actor, "in_tok": int(in_tok), "out_tok": int(out_tok),
-               "cpu_s": None if cpu_s is None else round(cpu_s, 4), "wall_s": round(wall_s, 4), "ram_peak_mb": ram_peak_mb(),
-               "cache_hit": bool(cache_hit), "outcome": outcome, "model": bool(model), **extra}
-        _write_event(st / METRICS_DIR / ("events-" + time.strftime("%Y%m%d", time.localtime(now)) + ".jsonl"),
-                     {k: v for k, v in row.items() if v is not None})
+        mn = int(now // 60)
+        if _day[1] != mn:
+            _day = (time.strftime("%Y%m%d", time.localtime(now)), mn)
+        mono = time.monotonic()
+        if mono - _ram[0] >= 1.0:
+            _ram = (mono, ram_peak_mb())
+        parts = [f'{{"t":{now:.3f},"actor":{_js(actor)},"in_tok":{in_tok},"out_tok":{out_tok},"wall_s":{wall_s:.4f},"cache_hit":{"true" if cache_hit else "false"},'
+                 f'"outcome":{_js(outcome)},"model":{"true" if model else "false"}']
+        if goal_id is not None:
+            parts.append(f',"goal_id":{_js(goal_id)}')
+        if step is not None:
+            parts.append(f',"step":{_js(step)}')
+        if cpu_s is not None:
+            parts.append(f',"cpu_s":{cpu_s:.4f}')
+        if _ram[1] is not None:
+            parts.append(f',"ram_peak_mb":{_ram[1]}')
+        if extra:
+            parts.append("," + json.dumps(extra, separators=(",", ":"))[1:-1] if len(extra) else "")
+        parts.append("}\n")
+        _queue(pre + _day[0] + ".jsonl", "".join(parts).encode())
         return True
     except Exception:                                    # noqa: BLE001 - measurement never breaks the work
         return False
@@ -360,6 +443,7 @@ class model_call:
 
 def metrics_report(state: Path, days: float = 1.0, now: Optional[float] = None) -> dict[str, Any]:
     """Qwen share (fraction of steps that used a model) and per-actor totals over the last `days`."""
+    flush()
     now = _now() if now is None else now
     d = Path(state) / METRICS_DIR
     rows: list[dict[str, Any]] = []

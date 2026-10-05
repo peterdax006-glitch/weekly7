@@ -42,6 +42,7 @@ from creator import objective as O
 from creator import planner as P
 from creator import sandbox as S
 from creator import selfmodel as SM
+from creator import slowpath as SP
 from creator import testrun as T
 from creator import treecache as TC
 from creator.audit import checks as AUD
@@ -566,13 +567,18 @@ def plan_one(cfg: KernelConfig, led: Ledger, main: Assessed, base_sha: str, excl
 
 def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] = None) -> CycleReport:
     t0 = time.monotonic()
+    SP.ensure_state(cfg.state)                          # P0.2: the metrics bus writes under this kernel's state directory
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     main, recovered, stop = prepare(cfg, led)
+    SP.event("kernel", goal_id=f"cycle{n}", step="prepare", wall_s=time.monotonic() - t0, outcome="ok" if stop is None else "audit_red")
     if stop is not None:
         return CycleReport(n, "AUDIT_RED", reason=stop, seconds=round(time.monotonic() - t0, 1))
     assert main is not None
     base_sha = S.head(cfg.repo)
+    t_plan = time.monotonic()
     plan = plan_one(cfg, led, main, base_sha)
+    SP.event("planner", goal_id=plan.package_id if plan else f"cycle{n}", step="plan", wall_s=time.monotonic() - t_plan,
+             outcome="ok" if plan else "nothing_to_do")
     if plan is None:
         return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap and nothing to shrink",
                            seconds=round(time.monotonic() - t0, 1))
@@ -627,17 +633,23 @@ class _Stages:
     """Per-stage wall seconds of one cycle (time.monotonic stamps only; never changes what runs). Recorded as
     CycleReport.details["stages"]; constraints.cycle_time_metric names the dominant stage from it."""
 
-    def __init__(self) -> None:
+    def __init__(self, goal_id: Optional[str] = None) -> None:
         self.sec: dict[str, float] = {}
+        self.goal_id = goal_id                                      # P0.2 metrics bus: every stage is one non-model step event
 
     @contextlib.contextmanager
     def __call__(self, name: str) -> Iterator[None]:
         t = time.monotonic()
         pid = _fast_stage_begin(name)
+        outcome = "ok"
         try:
             yield
+        except BaseException as e:
+            outcome = type(e).__name__
+            raise
         finally:
             dt_s = time.monotonic() - t
+            SP.event("worker" if name == "worker" else "kernel", goal_id=self.goal_id, step=name, wall_s=dt_s, outcome=outcome)
             self.sec[name] = round(self.sec.get(name, 0.0) + dt_s, 3)
             if pid:
                 _fast_stage_end(pid, dt_s)
@@ -654,7 +666,8 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     post-merge verification, rollback) when several run in parallel; `cancel` (an Event) is checked between phases."""
     t_start = time.monotonic()
     t0 = t_start if t0 is None else t0
-    stage = _Stages()
+    SP.ensure_state(cfg.state)
+    stage = _Stages(plan.package_id)
     stage.sec["before_execute"] = round(t_start - t0, 3)         # prepare + curriculum/student planning (the caller's stamp)
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     guard = lock if lock is not None else contextlib.nullcontext()

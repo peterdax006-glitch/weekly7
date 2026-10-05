@@ -49,6 +49,7 @@ def bus(tmp_path: Path) -> Iterator[Path]:
 
 
 def _events(state: Path) -> list[dict[str, Any]]:
+    SP.flush()
     out: list[dict[str, Any]] = []
     for f in sorted((state / SP.METRICS_DIR).glob("events-*.jsonl")):
         out += [json.loads(x) for x in f.read_text(encoding="utf-8").splitlines()]
@@ -101,6 +102,7 @@ def test_daily_rotation_and_report(bus: Path, monkeypatch: pytest.MonkeyPatch) -
     SP.event("planner", wall_s=0.5)
     SP.event("coder", model=True, in_tok=100, out_tok=20, wall_s=2.0, cpu_s=1.0, cache_hit=True)
     SP.event("coder", model=True, in_tok=50, out_tok=5, outcome="TimeoutError")
+    SP.flush()
     assert len(list((bus / SP.METRICS_DIR).glob("events-*.jsonl"))) == 2
     rep = SP.metrics_report(bus, days=1, now=t0)
     assert rep["steps"] == 4 and rep["model_steps"] == 2 and rep["qwen_share"] == 0.5
@@ -116,4 +118,20 @@ def test_overhead_per_event(bus: Path) -> None:
     us = (time.perf_counter() - t0) / n * 1e6
     print(f"METRICS_US_PER_EVENT={us:.1f}")
     assert len(_events(bus)) == n
-    assert us < 500                                       # a Qwen call takes >= 100 ms: 0.5 ms is < 0.5 %
+    assert us < 20                                        # target <= 10 us; slack for a busy PC
+
+
+def test_kernel_stages_emit_non_model_events(bus: Path) -> None:
+    from creator import kernel as K
+    st = K._Stages("pkg1")
+    with st("sandbox_open"):
+        pass
+    with pytest.raises(ValueError):
+        with st("worker"):
+            raise ValueError("x")
+    SP.flush()
+    ev = _events(bus)
+    assert [(e["actor"], e["step"], e["goal_id"], e["outcome"], e["model"]) for e in ev] == [
+        ("kernel", "sandbox_open", "pkg1", "ok", False), ("worker", "worker", "pkg1", "ValueError", False)]
+    rep = SP.metrics_report(bus)
+    assert rep["steps"] == 2 and rep["qwen_share"] == 0.0
