@@ -47,7 +47,7 @@ def test_unsupported_and_failed_actions() -> None:
 
 
 def test_leaked_internals() -> None:
-    for bad in ("According to [doc:12] it is so.", "See C:\\Users\\x\\notes.txt", "Look in /Users/a/b", '{"answer": 42}', "edit creator/kernel.py"):
+    for bad in ("According to [doc:12] it is so.", "See C:\\Users\\x\\notes.txt", "Look in /Users/x/b", '{"answer": 42}', "edit creator/kernel.py"):
         assert "leak" in subs([turn(0, "q", bad)]), bad
     assert "leak" not in subs([turn(0, "q", "All is well, sir.")])
 
