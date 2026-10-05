@@ -4,7 +4,7 @@ reused READ-ONLY), against any OpenAI-compatible endpoint. After the agent ran, 
 <workdir>/.codetrust_result.json: the agent's own file if it wrote one, else one short self-rating call to the same model with the task and
 the agent's diff ("self-rated after the run"; its tokens are counted too). Agent droppings (.aider*, AGENTS.md copies) are removed.
 
-  --agent-cmd "C:/Users/peter/weekly7/.venv/Scripts/python.exe C:/Users/peter/wt56_trust/scripts/codetrust_agent.py aider --workdir {workdir} --task-file {task_file} --url {url}"
+  --agent-cmd "python scripts/codetrust_agent.py aider --workdir {workdir} --task-file {task_file} --url {url}"
   (aider | aider_t | opencode; --cap seconds, default 1800)"""
 from __future__ import annotations
 
