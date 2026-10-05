@@ -72,7 +72,7 @@ def default_specs(runtime: Optional[Path] = None, threads: int = 6) -> dict[str,
             "THINKER": MP.SlotSpec("THINKER", rt / "models" / "Qwen3-1.7B-Q4_K_M.gguf", threads=threads, ctx=4096, max_tokens=224, grammars=g)}
 
 
-MOE_FILE = "Qwen3-30B-A3B-Q4_K_M.gguf"
+MOE_FILE = "Qwen3-30B-A3B-Q3_K_M.gguf"
 
 
 def moe_specs(specs: dict[str, MP.SlotSpec], runtime: Optional[Path] = None, threads: int = 6) -> dict[str, MP.SlotSpec]:
