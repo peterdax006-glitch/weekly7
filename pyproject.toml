@@ -2,6 +2,8 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]                  # bare `pytest` must not collect scripts/test_inventory.py
 pythonpath = ["."]                     # tests import `engine`; works without `python -m pytest`
+tmp_path_retention_count = 1           # 4 Oct 2026: 307 kept basetemps = 99 GB on the home PC; keep only the last run's
+tmp_path_retention_policy = "failed"   # ... and only the dirs of FAILED tests (enough to debug, nothing else)
 markers = [
     "integration: multi-module synthetic end-to-end runs (pyramid level 2)",
 ]
