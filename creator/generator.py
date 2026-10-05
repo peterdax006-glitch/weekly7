@@ -543,7 +543,11 @@ class LocalModel:
         body = json.dumps({"messages": list(messages), "max_tokens": max_tokens, "temperature": temperature,
                            "seed": seed}).encode()
         t0 = time.monotonic()
-        data = json.loads(self._send("/v1/chat/completions", body, timeout).decode("utf-8"))
+        from creator import slowpath as SP                    # P0.2: every local-model call is accounted in ONE place
+        with SP.model_call(self.model, pulse=bool(self.pulse), leased=self.leased) as mc:
+            data = json.loads(self._send("/v1/chat/completions", body, timeout).decode("utf-8"))
+            u = data.get("usage") or {}
+            mc.tokens(u.get("prompt_tokens") or SP.est_tokens(body), u.get("completion_tokens") or SP.est_tokens(data["choices"][0]["message"]["content"]))
         self.calls += 1
         self.seconds += time.monotonic() - t0
         return str(data["choices"][0]["message"]["content"])
