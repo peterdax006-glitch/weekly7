@@ -377,7 +377,7 @@ def test_never_touches_the_pc(text):
 def test_actions_only_from_allow_list_and_http_shape(server):
     srv, _ = server
     code, d = call(srv, body={"text": "set a timer for five minutes", "device": "iphone"})
-    assert code == 200 and d["action"] == {"type": "timer", "minutes": 5, "shortcut": {"name": "Nupen Timer", "input": "300"}} and d["reply"] == "Timer set for five minutes, sir." and d["end"] is False
+    assert code == 200 and d["action"] == {"type": "timer", "minutes": 5} and d["reply"] == "Timer set for five minutes, sir." and d["end"] is False
     assert isinstance(d["ms"], int)
     code, d = call(srv, body={"text": "goodbye"})
     assert code == 200 and d["end"] is True and d["action"] is None
@@ -474,7 +474,7 @@ def test_conversation_log_written_and_rotated(tmp_path):
     rows = [json.loads(x) for x in (tmp_path / "c.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [r["intent"] for r in rows] == ["chat", "action"]
     assert rows[0]["in"] == "how's your day going" and rows[0]["device"] == "iphone" and rows[0]["reply"] and isinstance(rows[0]["ms"], int)
-    assert rows[1]["action"] == {"type": "timer", "minutes": 5, "shortcut": {"name": "Nupen Timer", "input": "300"}} and rows[0]["t"]
+    assert rows[1]["action"] == {"type": "timer", "minutes": 5} and rows[0]["t"]
     (tmp_path / "c.jsonl").write_text("x" * (P.LOG_MAX + 1), encoding="utf-8")
     core.talk("iphone", "hello")
     assert (tmp_path / "c.jsonl.1").is_file() and (tmp_path / "c.jsonl").stat().st_size < 10000

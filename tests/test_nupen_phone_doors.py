@@ -95,14 +95,19 @@ def test_every_url_scheme_is_in_the_allow_list():
     ("facetime mum", "Nupen Call", '{"to": "mum", "via": "facetime"}'),
 ])
 def test_shortcut_routing(text, name, inp):
-    sc = act(text)[1]["shortcut"]
-    assert sc == {"name": name, "input": inp} and name in P.HELPERS
+    a = act(text)[1]
+    assert "shortcut" not in a and a["type"]                       # one shortcut: the action is self-contained, no helper door
+    assert P.shortcut_for(a) == {"name": name, "input": inp} and name in P.HELPERS     # the legacy mapping still agrees with the inline params
 
 
 def test_reminder_and_calendar_inputs_are_json():
-    sc = act("remind me to call the dentist tomorrow at nine")[1]["shortcut"]
+    a = act("remind me to call the dentist tomorrow at nine")[1]
+    assert a["type"] == "reminder" and a["text"] == "call the dentist" and "shortcut" not in a
+    sc = P.shortcut_for(a)
     assert sc["name"] == "Nupen Reminder" and json.loads(sc["input"]) == {"text": "call the dentist", "when": "2026-10-06T09:00"}
-    sc = act("schedule dentist today at 4 pm for 45 minutes")[1]["shortcut"]
+    a = act("schedule dentist today at 4 pm for 45 minutes")[1]
+    assert a["type"] == "calendar" and a["title"] == "Dentist" and a["duration"] == 45 and "shortcut" not in a
+    sc = P.shortcut_for(a)
     assert sc["name"] == "Nupen Calendar Event" and json.loads(sc["input"]) == {"title": "Dentist", "start": "2026-10-05T16:00", "duration": 45}
 
 
@@ -156,9 +161,9 @@ def test_other_context_answers():
 
 def test_missing_context_asks_helper_or_says_so():
     r, a = ask("how much battery do I have", {})
-    assert a["shortcut"] == {"name": "Nupen Battery", "input": "how much battery do I have"}
-    assert ask("where am I", {})[1]["shortcut"]["name"] == "Nupen Location"
-    assert ask("what's the weather like", {})[1]["shortcut"]["name"] == "Nupen Weather"
+    a == {"type": "report", "what": "battery"}
+    assert ask("where am I", {})[1] == {"type": "report", "what": "location"}
+    assert ask("what's the weather like", {})[1] == {"type": "report", "what": "weather"}
     r, a = ask("what song is this", {})
     assert a is None and "do not have" in r
     r, a = ask("where am I", {"location": None})                 # tried and failed: no loop back to the helper
@@ -200,7 +205,7 @@ def test_context_not_kept_between_requests():
     core = P.Core(Path("."), make_conv=lambda: None, chat=lambda m, more: "Fine, sir.")
     assert core.talk("d", "where am I", {"location": "Provo, Utah"})[1]["reply"] == "You are in Provo, Utah, sir."
     r = core.talk("d", "where am I")[1]
-    assert r["action"]["shortcut"]["name"] == "Nupen Location" and "Provo" not in json.dumps(r)
+    assert r["action"] == {"type": "report", "what": "location"} and "Provo" not in json.dumps(r)
     assert not any("Provo" in json.dumps(v, default=str) for v in vars(core).values())
 
 
@@ -219,3 +224,10 @@ def test_http_passes_context(tmp_path):
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+def test_helper_door_is_off_by_default_and_flag_restores_it(monkeypatch):
+    assert P.HELPER_DOOR is False
+    assert "shortcut" not in P.route(act("set a timer for five minutes")[1])
+    monkeypatch.setattr(P, "HELPER_DOOR", True)
+    assert P.route(act("set a timer for five minutes")[1])["shortcut"]["name"] == "Nupen Timer"

@@ -25,8 +25,11 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 SR = 22050
-EXTS = (".m4a", ".mp3", ".wav", ".aac", ".caf")
+AUDIO_EXTS = (".m4a", ".mp3", ".wav", ".aac", ".caf")
+VIDEO_EXTS = (".mov", ".mp4", ".m4v", ".3gp")        # the audio track is extracted with ffmpeg; the uploaded bytes are stored as they came
+EXTS = AUDIO_EXTS + VIDEO_EXTS
 MAX_FILE = 200 * 1024 * 1024
+MAX_VIDEO = 500 * 1024 * 1024
 CONSENT_FLAG = "friend-agreed"
 MIN_UTT, MAX_UTT = 1.0, 15.0
 MIN_SNR_DB = 12.0
@@ -133,8 +136,8 @@ def store_upload(rt: Path, filename: str, data: bytes, fields: dict[str, str],
         return 415, {"error": "unsupported type; send " + "/".join(e[1:] for e in EXTS)}
     if not data:
         return 400, {"error": "empty file"}
-    if len(data) > MAX_FILE:
-        return 413, {"error": "file too large (200 MB cap)"}
+    if len(data) > (MAX_VIDEO if ext in VIDEO_EXTS else MAX_FILE):
+        return 413, {"error": "file too large (200 MB cap for audio, 500 MB for video)"}
     speaker = safe_speaker(fields.get("speaker", ""))
     inbox.mkdir(parents=True, exist_ok=True)
     if not has_consent(rt, speaker):
@@ -150,6 +153,44 @@ def store_upload(rt: Path, filename: str, data: bytes, fields: dict[str, str],
     minutes = sum(durs.values()) / 60.0
     return 200, {"ok": True, "stored": name, "bytes": len(data), "minutes_received": round(minutes, 2),
                  "reply": "Received, sir. " + spoken_minutes(minutes)}
+
+
+_NUMS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+         "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20}
+_MEDIA_VERB = r"(?:send|upload|pull|grab|get|fetch|take|give|share|use|accept|receive|got)"
+MEDIA_REQ = re.compile(r"(?:" + _MEDIA_VERB + r".{0,70}" + r"(?:voice|videos?|photos?|pictures?|album|recordings?|memos?|clips?|samples?)"
+                       r"|(?:videos?|photos?|album|voice).{0,60}" + _MEDIA_VERB + r")", re.I)
+_MEDIA_NOUN = re.compile(r"(?:voice|videos?|photos?|pictures?|album|recordings?|memos?|clips?|samples?)", re.I)
+DEFAULT_COUNT = 5
+LATEST_CAP = 50
+
+
+def parse_media_request(text: str) -> Optional[dict[str, Any]]:
+    """Owner words -> the send_media action parameters, or None when it is not a request to pull media from the phone.
+    'my last 3 videos' -> latest, video, 3; 'the latest video' -> 1; 'everything in my Nupen Voice album' -> album, count 0 (all);
+    'the videos from today' -> latest, since today. Plural without a number: the last 5."""
+    t = text.strip()
+    if not MEDIA_REQ.search(t) or not _MEDIA_NOUN.search(t):
+        return None
+    low = t.lower()
+    kind = "video" if re.search(r"videos?", low) else ("photo" if re.search(r"photos?|pictures?", low) else "any")
+    m = re.search(r"(?:in|from|out of)\s+(?:my\s+|the\s+)?(.+?)\s+album|album\s+(?:called|named)\s+[\"']?([^\"']+?)[\"']?\s*$", t, re.I)
+    album = (m.group(1) or m.group(2)).strip(" .,'\"") if m else ""
+    since = "today" if re.search(r"\b(?:from )?today(?:'s)?\b|\bthis morning\b|\bthis afternoon\b", low) else ""
+    n = None
+    cm = re.search(r"\b(?:last|latest|recent|newest|past|previous|first|top)\s+(\d+|" + "|".join(_NUMS) + r")\b", low) or re.search(r"\b(\d+)\s+(?:videos?|photos?|pictures?|clips?|recordings?)", low)
+    if cm:
+        g = cm.group(1)
+        n = int(g) if g.isdigit() else _NUMS[g]
+    elif re.search(r"\b(?:the |my )?(?:last|latest|newest|most recent)\s+(?:video|photo|picture|clip|recording|memo)\b|\b(?:this|that|the) (?:video|photo|clip)\b", low):
+        n = 1
+    if album:
+        count = 0 if re.search(r"\b(?:everything|all|every)\b", low) or n is None else n
+        source = "album"
+    else:
+        count = min(n, LATEST_CAP) if n else (LATEST_CAP if since else DEFAULT_COUNT)
+        source = "latest"
+    return {"source": source, "kind": kind, "count": count, "album": album if source == "album" else "", "since": since}
 
 
 # ---------------------------------------------------------------- audio helpers
@@ -168,7 +209,7 @@ def decode(src: Path, dst: Path) -> str:
     """Any supported file -> mono 22.05 kHz 16-bit wav. Returns the tool used."""
     ff = _tool("ffmpeg")
     if ff:
-        r = subprocess.run([ff, "-y", "-v", "error", "-i", str(src), "-ac", "1", "-ar", str(SR), "-sample_fmt", "s16", str(dst)],
+        r = subprocess.run([ff, "-y", "-v", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", str(SR), "-sample_fmt", "s16", str(dst)],
                            capture_output=True, timeout=1800)
         if r.returncode != 0 or not dst.exists():
             raise RuntimeError("ffmpeg failed: " + r.stderr.decode("utf-8", "replace")[:200])

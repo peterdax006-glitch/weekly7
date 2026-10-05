@@ -52,7 +52,7 @@ def test_multi_step_two_actions():
     c = core(brain())
     code, d = c.talk("d", "set a timer for ten minutes and then add lunch with Sam to my calendar tomorrow at 1 pm")
     assert code == 200 and [a["type"] for a in d["actions"]] == ["timer", "calendar"] and d["action"] == d["actions"][0]
-    assert d["actions"][0]["shortcut"]["name"] == "Nupen Timer" and d["actions"][1]["shortcut"]["name"] == "Nupen Calendar Event"
+    assert "shortcut" not in d["actions"][0] and d["actions"][0]["minutes"] == 10 and d["actions"][1]["title"]
     assert "Timer set" in d["reply"] and "calendar" in d["reply"]
 
 
@@ -141,7 +141,7 @@ def test_weather_elsewhere_goes_to_web_not_to_the_phone_helper():
     net = Net({"api.duckduckgo.com": (200, json.dumps({"AbstractText": "Paris is mild and cloudy this week.", "AbstractSource": "Wikipedia"}))})
     d = core(brain(net)).talk("d", "what is the weather in Paris")[1]
     assert d["reply"].startswith("According to Wikipedia") and d["actions"] == []
-    assert core(brain(net)).talk("d", "what's the weather like")[1]["action"]["shortcut"]["name"] == "Nupen Weather"
+    assert core(brain(net)).talk("d", "what's the weather like")[1]["action"] == {"type": "report", "what": "weather"}
 
 
 # ---- calculator

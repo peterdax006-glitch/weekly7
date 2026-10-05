@@ -205,13 +205,13 @@ def test_talk_asks_consent_then_returns_upload_action(tmp_path):
     code, b = c.talk("iphone", "yes")
     assert b["reply"] == "Of course, sir. Choose the clips."
     a = b["action"]
-    assert a["type"] == "upload_files" and a["purpose"] == "voice" and a["endpoint"] == "/voice_upload" and "url" not in a
+    assert a["type"] == "send_media" and a["purpose"] == "voice" and a["endpoint"] == "/voice_upload" and "url" not in a
     assert a["fields"] == {"consent": "friend-agreed", "speaker": "friend"}
-    assert a["shortcut"]["name"] == "Nupen Upload" and json.loads(a["shortcut"]["input"])["endpoint"] == "/voice_upload"
+    assert "shortcut" not in a
     rec = json.loads((tmp_path / "voice_inbox" / "CONSENT.json").read_text())["friend"]
     assert rec["date"] and "yes" in rec["owner_statement"]
     code, b = c.talk("iphone", "take these voice clips")             # consent already on record: no question
-    assert b["action"]["type"] == "upload_files"
+    assert b["action"]["type"] == "send_media"
 
 
 def test_talk_consent_no_cancels_and_off_without_runtime(tmp_path):
@@ -252,3 +252,68 @@ def test_merge_replaces_by_id_and_drops_entries_that_need_skipped_pins():
     out = PX.merge([{"id": "c", "x": 0}, {"id": "z"}], pins, lambda e: e.get("kind") != "infer")
     assert [w["id"] for w in out] == ["c", "z"] and out[0]["x"] == 1
     assert [w["id"] for w in PX.merge([], pins)] == ["a", "b", "c"]
+
+
+# ---- send_media: parsing, video accept, audio extraction ----
+
+@pytest.mark.parametrize("text,src,kind,count,album,since", [
+    ("I want to send you my last 3 videos", "latest", "video", 3, "", ""),
+    ("pull the latest video from my photos", "latest", "video", 1, "", ""),
+    ("take my last two voice clips", "latest", "any", 2, "", ""),
+    ("send you everything in my Nupen Voice album", "album", "any", 0, "Nupen Voice", ""),
+    ("upload all the videos in the Friend Clips album", "album", "video", 0, "Friend Clips", ""),
+    ("grab the videos from today", "latest", "video", 50, "", "today"),
+    ("take these voice clips", "latest", "any", 5, "", ""),
+    ("send you the last 4 photos", "latest", "photo", 4, "", ""),
+])
+def test_parse_media_request(text, src, kind, count, album, since):
+    assert VP.parse_media_request(text) == {"source": src, "kind": kind, "count": count, "album": album, "since": since}
+
+
+def test_parse_ignores_other_talk():
+    for t in ("set a timer for five minutes", "what's the weather", "tell me a joke about videos"):
+        assert VP.parse_media_request(t) is None
+
+
+def test_talk_returns_send_media_action_after_consent(tmp_path):
+    c = _core(tmp_path)
+    code, b = c.talk("iphone", "pull my last 3 videos")
+    assert b["reply"] == "Has your friend agreed to lend their voice, sir?"
+    code, b = c.talk("iphone", "yes he has")
+    a = b["action"]
+    assert b["reply"] == "Of course, sir. Choose the clips." or b["reply"].startswith("Of course")
+    assert a["type"] == "send_media" and a["source"] == "latest" and a["kind"] == "video" and a["count"] == 3
+    assert a["endpoint"] == "/voice_upload" and a["fields"]["consent"] == "friend-agreed" and a["purpose"] == "voice" and "url" not in a and "shortcut" not in a
+    code, b = c.talk("iphone", "send you everything in my Nupen Voice album")
+    assert b["action"]["source"] == "album" and b["action"]["album"] == "Nupen Voice" and b["action"]["count"] == 0
+
+
+def test_video_accepted_stored_exact_and_audio_extracted(srv, tmp_path):
+    ff = VP._tool("ffmpeg")
+    if not ff:
+        pytest.skip("no ffmpeg")
+    import subprocess
+    s, rt, _ = srv
+    wav = tmp_path / "v.wav"
+    VP.write_wav(wav, voiced(3.0))
+    mov = tmp_path / "clip.mov"
+    subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64:d=3", "-i", str(wav), "-shortest", "-pix_fmt", "yuv420p", str(mov)], check=True)
+    data = mov.read_bytes()
+    for ext in ("mov", "mp4", "m4v", "3gp"):
+        body, ct = multipart(data, f"IMG_1.{ext}", consent="friend-agreed")
+        code, out = post(s, body, ct)
+        assert code == 200 and (rt / "voice_inbox" / out["stored"]).read_bytes() == data
+    dst = tmp_path / "d.wav"
+    assert VP.decode(mov, dst) == "ffmpeg"
+    x, sr = VP.read_wav(dst)
+    assert sr == SR and 2.5 < len(x) / SR < 3.6 and np.abs(x).max() > 0.05
+
+
+def test_video_cap_is_500mb_and_audio_200mb(monkeypatch):
+    assert VP.MAX_FILE == 200 * 1024 * 1024 and VP.MAX_VIDEO == 500 * 1024 * 1024
+    monkeypatch.setattr(VP, "MAX_FILE", 1000)
+    monkeypatch.setattr(VP, "MAX_VIDEO", 5000)
+    rt = Path(__file__).parent / "_unused"
+    f = {"consent": "friend-agreed"}
+    assert VP.store_upload(rt, "a.m4a", b"x" * 1001, f)[0] == 413
+    assert VP.store_upload(rt, "a.mov", b"x" * 5001, f)[0] == 413
