@@ -733,8 +733,12 @@ def chat_http(url: str, timeout: float = 900.0, think: bool = False) -> Any:
                 "chat_template_kwargs": {"enable_thinking": think}}
         req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            d = json.loads(r.read().decode("utf-8"))
+        from creator import slowpath as SP                    # P0.2: the one accounting path of a model call
+        with SP.model_call(url, backend_kind="gpuday") as mc:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            u = d.get("usage") or {}
+            mc.tokens(u.get("prompt_tokens") or 0, u.get("completion_tokens") or 0)
         return str(d["choices"][0]["message"].get("content") or "")
     return call
 

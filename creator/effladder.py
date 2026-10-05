@@ -450,10 +450,13 @@ class Endpoint:
                 "seed": seed, "chat_template_kwargs": {"enable_thinking": bool(think)}}
         req = urllib.request.Request(self.url, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:
-            d = json.loads(r.read())
+        from creator import slowpath as SP                    # P0.2: the one accounting path of a model call
+        with SP.model_call(self.model, backend_kind="effladder") as mc:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                d = json.loads(r.read())
+            u = d.get("usage") or {}
+            mc.tokens(u.get("prompt_tokens") or 0, u.get("completion_tokens") or 0)
         ch = d["choices"][0]
-        u = d.get("usage") or {}
         tm = d.get("timings") or {}
         return {"content": str(ch["message"].get("content") or ""), "reasoning_chars": len(str(ch["message"].get("reasoning_content") or "")),
                 "finish": ch.get("finish_reason"), "tok_in": int(u.get("prompt_tokens") or 0), "tok_out": int(u.get("completion_tokens") or 0),

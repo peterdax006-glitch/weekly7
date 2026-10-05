@@ -15,9 +15,11 @@ Overhead: two clock reads per operation and one appended line; the history check
 into the timed operation (timing is measurement, not work). Lightweight imports only: the goals module is loaded when a flag is proposed."""
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import statistics
+import sys
 import threading
 import time
 from pathlib import Path
@@ -196,8 +198,209 @@ def report(state: Path, days: float = 1.0, now: Optional[float] = None) -> list[
     return sorted(out, key=lambda x: -x["cpu_h_per_day"])
 
 
-if __name__ == "__main__":                                # python -m creator.slowpath [state]
-    import sys
-    st = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "state" / "creator"
-    for r in report(st):
-        print(json.dumps(r))
+# ---- the metrics bus (P0.2): one compact event per step, ONE function for every local-model call ------------------------------------------
+# {t, goal_id, step, actor, in_tok, out_tok, cpu_s, wall_s, ram_peak_mb, cache_hit, outcome} in state/creator/metrics/events-YYYYMMDD.jsonl
+# (rotated daily). `event()` is the only writer; `model_call()` is the only accounting path of a model call (generator.LocalModel._post,
+# effladder.Endpoint.call, gpuday.chat_http all go through it). `step_context()` sets goal_id/step/actor for the calls inside it.
+METRICS_DIR = "metrics"
+_state_override: Optional[Path] = None
+_ctx: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("metrics_ctx", default={})
+
+
+def set_state(state: Optional[Path]) -> None:
+    """Where events go (None = the default). Tests and the kernel set this once."""
+    global _state_override
+    _state_override = Path(state) if state is not None else None
+    close_handles()
+
+
+def close_handles() -> None:
+    """Close the kept-open event files (set_state does; call before deleting a state directory)."""
+    with _lock:
+        for f in list(_fh.values()):
+            try:
+                f.close()
+            except OSError:
+                pass
+        _fh.clear()
+
+
+def _state() -> Optional[Path]:
+    if _state_override is not None:
+        return _state_override
+    if os.environ.get("PYTEST_CURRENT_TEST"):          # a test that did not ask for a bus never writes to the live state
+        return None
+    env = os.environ.get("NUPEN_STATE")
+    return Path(env) if env else Path(__file__).resolve().parents[1] / "state" / "creator"
+
+
+class step_context:
+    """`with step_context(goal_id="g1", step="code", actor="coder"): ...` - defaults for every event logged inside (thread/task local)."""
+
+    def __init__(self, **fields: Any) -> None:
+        self.fields = fields
+
+    def __enter__(self) -> "step_context":
+        self._tok = _ctx.set({**_ctx.get(), **self.fields})
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        _ctx.reset(self._tok)
+
+
+_peak_fn: Any = None
+
+
+def _make_peak_fn() -> Any:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        class _PMC(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD), ("PeakWorkingSetSize", ctypes.c_size_t),
+                        ("WorkingSetSize", ctypes.c_size_t), ("a", ctypes.c_size_t), ("b", ctypes.c_size_t), ("c", ctypes.c_size_t),
+                        ("d", ctypes.c_size_t), ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
+        k32, ps = ctypes.WinDLL("kernel32"), ctypes.WinDLL("psapi")
+        k32.GetCurrentProcess.restype = wintypes.HANDLE
+        ps.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(_PMC), wintypes.DWORD]
+        h = k32.GetCurrentProcess()
+
+        def peak() -> Optional[float]:
+            pmc = _PMC()
+            pmc.cb = ctypes.sizeof(pmc)
+            return round(pmc.PeakWorkingSetSize / 1048576, 1) if ps.GetProcessMemoryInfo(h, ctypes.byref(pmc), pmc.cb) else None
+        return peak
+    import resource
+
+    def peak_unix() -> Optional[float]:
+        return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1048576 if sys.platform == "darwin" else 1024), 1)
+    return peak_unix
+
+
+def ram_peak_mb() -> Optional[float]:
+    """Peak resident memory of this process in MB (one syscall)."""
+    global _peak_fn
+    try:
+        if _peak_fn is None:
+            _peak_fn = _make_peak_fn()
+        return _peak_fn()
+    except Exception:                                    # noqa: BLE001
+        return None
+
+
+_fh: dict[str, Any] = {}
+
+
+def _write_event(path: Path, rec: dict[str, Any]) -> None:
+    """Append one line through a kept-open handle (re-opening per event cost ~1 ms on Windows; a kept handle ~20 us). One write + flush per
+    line; the handle follows the daily file name, so rotation is automatic. Fork/threads: a lock guards the write."""
+    line = (json.dumps(rec, separators=(",", ":")) + "\n").encode("utf-8")
+    key = str(path)
+    with _lock:
+        f = _fh.get(key)
+        if f is None or f.closed:
+            for k in [k for k in _fh if k != key and k.rsplit("events-", 1)[0] == key.rsplit("events-", 1)[0]]:
+                try:
+                    _fh.pop(k).close()                        # yesterday's file
+                except OSError:
+                    pass
+            path.parent.mkdir(parents=True, exist_ok=True)
+            f = _fh[key] = open(path, "ab", buffering=0)
+        f.write(line)
+
+
+def event(actor: str, *, goal_id: Optional[str] = None, step: Optional[str] = None, in_tok: int = 0, out_tok: int = 0,
+          cpu_s: Optional[float] = None, wall_s: float = 0.0, cache_hit: bool = False, outcome: str = "ok", model: bool = False,
+          state: Optional[Path] = None, **extra: Any) -> bool:
+    """Append one step event. `model` marks a step that used a model (the Qwen share counts them). Never raises."""
+    try:
+        st = Path(state) if state is not None else _state()
+        if st is None:
+            return False
+        c = _ctx.get()
+        now = _now()
+        row = {"t": round(now, 3), "goal_id": goal_id if goal_id is not None else c.get("goal_id"),
+               "step": step if step is not None else c.get("step"), "actor": actor, "in_tok": int(in_tok), "out_tok": int(out_tok),
+               "cpu_s": None if cpu_s is None else round(cpu_s, 4), "wall_s": round(wall_s, 4), "ram_peak_mb": ram_peak_mb(),
+               "cache_hit": bool(cache_hit), "outcome": outcome, "model": bool(model), **extra}
+        _write_event(st / METRICS_DIR / ("events-" + time.strftime("%Y%m%d", time.localtime(now)) + ".jsonl"),
+                     {k: v for k, v in row.items() if v is not None})
+        return True
+    except Exception:                                    # noqa: BLE001 - measurement never breaks the work
+        return False
+
+
+def est_tokens(text: Any) -> int:
+    """Rough token count (4 chars per token) for backends that report no usage."""
+    return (len(str(text)) + 3) // 4
+
+
+class model_call:
+    """THE accounting path of a local-model call: `with model_call("qwen3-1.7b") as mc: ...; mc.tokens(in_, out)`.
+    Logs one event (wall, thread CPU, tokens, outcome 'ok' / the exception name) when the block ends, also when it raises."""
+
+    def __init__(self, model: Any = "", *, actor: Optional[str] = None, **extra: Any) -> None:
+        name = Path(str(model)).name
+        self.actor = actor or str(_ctx.get().get("actor") or "model:" + name)
+        self.extra = {"model": True, "backend": name, **extra}
+        self.in_tok = self.out_tok = 0
+        self.cache_hit = False
+
+    def tokens(self, in_tok: int, out_tok: int, cache_hit: bool = False) -> None:
+        self.in_tok, self.out_tok, self.cache_hit = int(in_tok), int(out_tok), bool(cache_hit)
+
+    def __enter__(self) -> "model_call":
+        self.w0, self.c0 = time.perf_counter(), time.thread_time()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        event(self.actor, in_tok=self.in_tok, out_tok=self.out_tok, cpu_s=time.thread_time() - self.c0, wall_s=time.perf_counter() - self.w0,
+              cache_hit=self.cache_hit, outcome=exc[0].__name__ if exc[0] else "ok", **self.extra)
+
+
+def metrics_report(state: Path, days: float = 1.0, now: Optional[float] = None) -> dict[str, Any]:
+    """Qwen share (fraction of steps that used a model) and per-actor totals over the last `days`."""
+    now = _now() if now is None else now
+    d = Path(state) / METRICS_DIR
+    rows: list[dict[str, Any]] = []
+    for f in sorted(d.glob("events-*.jsonl")) if d.is_dir() else []:
+        for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if now - float(r.get("t") or 0) <= days * 86400:
+                rows.append(r)
+    actors: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        a = actors.setdefault(str(r.get("actor")), {"steps": 0, "model_steps": 0, "in_tok": 0, "out_tok": 0, "cpu_s": 0.0, "wall_s": 0.0,
+                                                    "cache_hits": 0, "errors": 0, "ram_peak_mb": 0.0})
+        a["steps"] += 1
+        a["model_steps"] += 1 if r.get("model") else 0
+        a["in_tok"] += int(r.get("in_tok") or 0)
+        a["out_tok"] += int(r.get("out_tok") or 0)
+        a["cpu_s"] = round(a["cpu_s"] + float(r.get("cpu_s") or 0), 4)
+        a["wall_s"] = round(a["wall_s"] + float(r.get("wall_s") or 0), 4)
+        a["cache_hits"] += 1 if r.get("cache_hit") else 0
+        a["errors"] += 1 if r.get("outcome") not in (None, "ok") else 0
+        a["ram_peak_mb"] = max(a["ram_peak_mb"], float(r.get("ram_peak_mb") or 0))
+    n = len(rows)
+    m = sum(1 for r in rows if r.get("model"))
+    return {"steps": n, "model_steps": m, "qwen_share": round(m / n, 4) if n else 0.0, "actors": actors}
+
+
+def _main() -> None:
+    st = Path(sys.argv[1]) if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else Path(__file__).resolve().parents[1] / "state" / "creator"
+    if "--metrics" in sys.argv:
+        k = sys.argv.index("--metrics")
+        rep = metrics_report(st, float(sys.argv[k + 1]) if len(sys.argv) > k + 1 else 1.0)
+        print(f"steps={rep['steps']} model_steps={rep['model_steps']} qwen_share={rep['qwen_share']:.1%}")
+        for a, v in sorted(rep["actors"].items(), key=lambda x: -x[1]["wall_s"]):
+            print(a, json.dumps(v))
+    else:
+        for r in report(st):
+            print(json.dumps(r))
+
+
+if __name__ == "__main__":                                # python -m creator.slowpath [state] [--metrics [days]]
+    _main()
