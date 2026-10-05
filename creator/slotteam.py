@@ -31,7 +31,7 @@ from creator import modelpool as MP
 from creator import team as TM
 
 GRAMMAR_DIR = Path(__file__).resolve().parent / "grammars"
-FORMS = ("diff", "diff1", "fnbody", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
+FORMS = ("diff", "diff1", "fnbody", "lineedit", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 
@@ -197,18 +197,19 @@ class SlotRunner:
             self.pool.close()
         self.pool, self.cur, self.port, self.pid = None, None, 0, 0
 
-    def complete(self, slot: str, prompt: str, form: Optional[str], max_tokens: int, timeout: float) -> dict[str, Any]:
+    def complete(self, slot: str, prompt: str, form: Optional[str], max_tokens: int, timeout: float, guard: Optional[Callable[[str], bool]] = None,
+                 extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         port = self.use(slot)
         spec = self.specs[slot]
         t0 = time.perf_counter()
         out: dict[str, Any] = {"content": "", "slot": slot, "form": form, "max_tokens": max_tokens}
         try:
-            raw = MP.slot_call(port, spec, prompt, form, max_tokens, timeout)
+            raw = MP.slot_call(port, spec, prompt, form, max_tokens, timeout, guard=guard, extra=extra)
             tm = raw.get("timings") or {}
             out.update(content=str(raw.get("content", "")), in_tok=int(raw.get("tokens_evaluated") or 0), out_tok=int(raw.get("tokens_predicted") or 0),
                        cached_tok=int(raw.get("tokens_cached") or 0), prompt_n=int(tm.get("prompt_n") or 0), prompt_s=float(tm.get("prompt_ms") or 0) / 1000,
                        gen_s=float(tm.get("predicted_ms") or 0) / 1000, stop=str(raw.get("stop_type") or ""),
-                       truncated=bool(raw.get("truncated")) or str(raw.get("stop_type")) == "limit")
+                       truncated=bool(raw.get("truncated")) or str(raw.get("stop_type")) in ("limit", "loop"), looped=str(raw.get("stop_type")) == "loop")
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             out["error"] = type(e).__name__
         out["wall_s"] = time.perf_counter() - t0
@@ -346,6 +347,7 @@ def code_user(t: dict[str, Any], plan: str, pack: str) -> str:
 NL = chr(10)
 FENCE = chr(96) * 3
 EX_LINES, EX_CHARS = 4, 160
+LEAN = False                                      # R4 variant: the stub once in the prompt + a one-line SEARCH prefill (instead of the stub twice in the prefill)
 DUP_STUB = False                                  # the prefilled SEARCH half already holds the stub: do not send it a second time
 FAIL_CHARS = 500
 FAST_PLAN ="Implement the function body below the signature; keep the signature and docstring."
@@ -369,18 +371,22 @@ def fast_prefill(t: dict[str, Any]) -> str:
     m = re.search(r"^(?:async )?def .*$", stub, re.M)
     if t.get("family") != "fn" or not m or not stub.endswith(STUB_LAST.strip()):
         return ""
+    if LEAN:
+        return f"<<<<<<< SEARCH{NL}{STUB_LAST}{NL}======={NL}"
     func = stub[m.start():]
     head = func[:len(func) - len(STUB_LAST.lstrip(NL))].rstrip() if func.endswith(STUB_LAST.strip()) else func
     head = func[:func.rindex(STUB_LAST.strip())].rstrip(" ").rstrip(NL)
     return f"<<<<<<< SEARCH{NL}{func}{NL}======={NL}{head}{NL}"
 
 
-def fast_code_user(t: dict[str, Any], pack: str) -> str:
+def fast_code_user(t: dict[str, Any], pack: str, hint: str = "") -> str:
     fn = t.get("family") == "fn"
     if fn:
-        cur = (f"{NL}{NL}Current solution.py:{NL}{FENCE}python{NL}{t.get('stub', '')}{NL}{FENCE}{NL}" if DUP_STUB else NL * 2)             + EDIT_FORMAT.format(f="solution.py")
+        cur = (f"{NL}{NL}Current solution.py:{NL}{FENCE}python{NL}{t.get('stub', '')}{NL}{FENCE}{NL}" if (DUP_STUB or LEAN) else NL * 2)             + EDIT_FORMAT.format(f="solution.py")
     else:
         cur = f"{NL}{NL}Relevant code:{NL}{pack}{NL}" + EDIT_FORMAT_FILES
+    if hint:                                                                  # R2 regenerate: the failing visible example rides along
+        cur = f"{NL}{NL}{hint}" + cur
     return f"ROLE: CODE{NL}Plan:{NL}{FAST_PLAN}{NL}{NL}Request:{NL}{_fast_request(t) if fn else _request(t)}{cur}"
 
 
@@ -411,9 +417,13 @@ def build_prompt(step: str, env: TM.Envelope, team: Any) -> tuple[str, str]:
         ctx = f"\n\nCurrent solution.py:\n```python\n{t['stub']}\n```" if t.get("stub") else f"\n\nRelevant code:\n{pack}"
         return system, f"ROLE: PLAN\nSPEC:\n{spec.strip()}\n\nRequest:\n{_request(t)}{ctx}"
     if step == "CODE" and getattr(team, "fast", False):
-        return system, fast_code_user(t, _of_kind(team, env, "pack"))
+        return system, fast_code_user(t, _of_kind(team, env, "pack"), _of_kind(team, env, "hint"))
     if step == "CODE":
         return system, code_user(t, _of_kind(team, env, "plan"), _of_kind(team, env, "pack"))
+    if step == "DEBUG_FIX" and _of_kind(team, env, "target"):                  # R2 line repair: only the pinpointed line is edited
+        from creator import repair as RP
+        tg = json.loads(_of_kind(team, env, "target"))
+        return system, RP.line_prompt(team.ctx.ws, tg["file"], tg["line"], tg["text"], tg["fail"], t.get("family") == "fn")
     if step == "DEBUG_FIX" and getattr(team, "fast", False):
         fail, pin, cur = _of_kind(team, env, "failure"), _of_kind(team, env, "pinpoint"), _of_kind(team, env, "code")
         fn = t.get("family") == "fn"
@@ -439,19 +449,47 @@ def build_prompt(step: str, env: TM.Envelope, team: Any) -> tuple[str, str]:
 
 
 # ------------------------------------------------------------------------------------------------------ actors
+LOOP_STEPS = ("CODE", "DEBUG_FIX")
+
+
 def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
     def fn(env: TM.Envelope, team: Any) -> str:
         prof = PROFILES.get(env.step)
         if prof is None:
             raise TM.Refused(f"no model profile for step {env.step!r}")
         system, user = build_prompt(env.step, env, team)
-        prompt, form, pre = chatml(system, user), prof.form, ""
+        prompt, form, pre, cap = chatml(system, user), prof.form, "", min(prof.max_tokens, int(env.budget["max_tok"]))
         if getattr(team, "fast", False) and env.step == "CODE":
             pre = fast_prefill(_task(team, env))
             form = "fnbody" if pre else "diff1"
             prompt += pre
-        res = runner.complete(prof.slot, prompt, form, min(prof.max_tokens, int(env.budget["max_tok"])),
-                              min(prof.max_s, float(env.budget["max_s"])))
+        tg = _of_kind(team, env, "target") if env.step == "DEBUG_FIX" else ""
+        if tg:                                                                # R2 line repair: tiny prefilled, grammar-bound answer
+            from creator import repair as RP
+            t_ = json.loads(tg)
+            pre = RP.line_prefill(team.ctx.ws, t_["file"], t_["line"], t_.get("with_file", False))[0]
+            form, cap = "lineedit", min(cap, RP.LINE_CAP)
+            prompt += pre
+        guard = None
+        if getattr(team, "fast", False) and env.step in LOOP_STEPS:
+            from creator import repair as RP
+            guard = RP.looping
+        wall = min(prof.max_s, float(env.budget["max_s"]))
+        kw: dict[str, Any] = {"guard": guard} if guard is not None else {}
+        if env.step == "CODE":
+            from creator import repair as RP
+            ex = RP.attempt_extra(_of_kind(team, env, "hint"))
+            if ex:
+                kw["extra"] = ex
+        res = runner.complete(prof.slot, prompt, form, cap, wall, **kw)
+        if guard is not None and res.get("looped") and not res.get("error"):
+            # R4 retry policy: a greedy loop would loop again, so ONE retry with a repeat penalty and a tighter cap; a second loop gives up
+            extra, cap2 = RP.retry_extra(cap)
+            first = res
+            res = runner.complete(prof.slot, prompt, form, cap2, wall, guard=guard, extra=extra)
+            for k in ("in_tok", "out_tok", "prompt_s", "gen_s", "wall_s"):
+                res[k] = res.get(k, 0) + first.get(k, 0)
+            res["retried"], res["first_out_tok"], res["first_looped"] = 1, first.get("out_tok", 0), bool(first.get("looped"))
         team.last_call = res
         return pre + str(res["content"])
     return TM.actor(name, fn)
@@ -623,7 +661,8 @@ class MeasuredTeam(TM.Team):
         if kw.get("model") and not kw.get("cache_hit") and lc:
             kw["in_tok"], kw["out_tok"] = lc.get("in_tok", kw["in_tok"]), lc.get("out_tok", kw["out_tok"])
             kw["outcome"] = lc.get("error") or ("truncated" if lc.get("truncated") else "ok")
-        kw.update({k: v for k, v in lc.items() if k in ("prompt_s", "gen_s", "prompt_n", "cached_tok", "stop", "slot", "form", "stage_s",
+        kw.update({k: v for k, v in lc.items() if k in ("prompt_s", "gen_s", "prompt_n", "cached_tok", "stop", "slot", "form", "stage_s", "looped", "retried",
+                                                       "first_out_tok", "first_looped",
                                                        "index_update_s", "tests_run", "pinpoint_error")})
         self.sink(actor_name, **kw)
 

@@ -4,6 +4,8 @@
   python scripts/lowprio.py python scripts/pc_baseline.py run    --suite <suite dir> --out <run dir> [--limit N] [--only id ...]
   python scripts/lowprio.py python scripts/pc_baseline.py calib  --heldout <heldout_CALIB.jsonl> --out <run dir> [--limit N]
   python scripts/pc_baseline.py report --out <run dir>
+  R2/R4 switches of the fast path (any coder slot; the model is the CODER slot spec):
+    ... run --fast --repair none|line|regen|line+regen|regen+line --repair-rounds N [--coder-moe | --coder-gguf <file>] [--lean-prefill]
 
 The suite = the agent bake-off's held-out tasks (function tasks from the export eval split, feature/bug tasks on the minishop app) with their
 hidden tests; nothing here trains on them. `run` drives every task through creator.team with the REAL slot actors of creator.slotteam:
@@ -28,6 +30,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from creator import repair as RP  # noqa: E402
 from creator import slotteam as SL  # noqa: E402
 from creator import slowpath as SP  # noqa: E402
 from creator import team as TM  # noqa: E402
@@ -75,7 +78,8 @@ def _close(a, b):
     return a == b
 @pytest.mark.parametrize("case", CASES)
 def test_example(case):
-    assert _close(_norm({name}(*case["args"])), case["expect"])
+    got = _norm({name}(*case["args"]))
+    assert _close(got, case["expect"]), f"{{case['args']!r:.100}} -> {{got!r:.60}} != {{case['expect']!r:.60}}"
 '''
 
 
@@ -175,6 +179,13 @@ class Run:
         specs = SL.default_specs(threads=int(getattr(a, "threads", 6) or 6))
         if getattr(a, "coder_moe", False):
             specs = SL.moe_specs(specs, threads=int(getattr(a, "threads", 6) or 6))
+        if getattr(a, "coder_gguf", ""):                                       # any other coder model: same slot, prompts and grammars
+            from creator import modelpool as MP
+            old = specs["CODER"]
+            specs["CODER"] = MP.SlotSpec("CODER", Path(a.coder_gguf), threads=old.threads, ctx=old.ctx, max_tokens=old.max_tokens, grammars=old.grammars)
+        SL.LEAN = bool(getattr(a, "lean_prefill", False))
+        self.repair = getattr(a, "repair", "none") or "none"
+        self.repair_rounds = int(getattr(a, "repair_rounds", 3))
         self.max_fast_debug = int(a.max_fast_debug) if getattr(a, "max_fast_debug", None) is not None else MAX_FAST_DEBUG
         self.runner = SL.SlotRunner(specs, self.out / "server")
         self.teams: dict[str, SL.MeasuredTeam] = {}
@@ -294,6 +305,8 @@ class Run:
                 ok = True
                 break
             if rnd == (self.max_fast_debug if self.fast else MAX_DEBUG):
+                if self.fast and self.repair != "none" and not ok:
+                    ok, val, why = self.repair_loop(t, tm, ts, c, val)
                 break
             ids["failure"] = tm.board.put(gid, "failure", val)
             c.tb_lines, c.pin_scores = [], []
@@ -320,6 +333,66 @@ class Run:
             ids["answer"] = tm.board.put(gid, "answer", "\n".join(answers)[:3000])
         ts["done"].append("code")
         self.save()
+
+    def repair_loop(self, t: dict[str, Any], tm: SL.MeasuredTeam, ts: dict[str, Any], c: SL.ToolContext, val: str) -> tuple[bool, str, str]:
+        """R2: test-driven repair on the VISIBLE examples only. Each round = one strategy (creator.repair.plan_rounds): 'line' edits the best
+        untried pinpointed line (prefilled SEARCH, <=72 tokens), 'regen' runs CODE again with the failing example in the prompt. A round that
+        does not lower the failing-test score is rolled back; two rounds without progress stop the loop."""
+        gid, ids, fn = t["id"], ts["ids"], t["family"] == "fn"
+        rounds, tried = RP.plan_rounds(self.repair, self.repair_rounds), set()
+        best, best_snap, hist, log = RP.score(val), RP.py_snapshot(c.ws), [RP.score(val)], []
+        ts["repair"] = {"strategy": self.repair, "rounds": log, "fixed": False}
+        ok, why, regens = False, "repair rounds used", 0
+        for strat in rounds:
+            if strat == "line" and best >= 1000:                         # nothing applied yet: there is no suspect line, only regeneration helps
+                if "regen" not in self.repair:
+                    why = "no applied code to pinpoint"
+                    break
+                strat = "regen"
+            ids["failure"] = tm.board.put(gid, "failure", val)
+            row: dict[str, Any] = {"strategy": strat, "before": best}
+            if strat == "line":
+                c.tb_lines, c.pin_scores = [], []
+                ids["pinpoint"], pin = self.step(tm, "DEBUG_PINPOINT", [ids["failure"]], "pinpoint")
+                cands = RP.candidates(pin, c.ws, tried)
+                if not cands:
+                    row["result"] = "no candidate"
+                    log.append(row)
+                    why = "no pinpointed line"
+                    break
+                f, ln, txt = cands[0]
+                tried.add((f, ln))
+                tg = tm.board.put(gid, "target", json.dumps({"file": f, "line": ln, "text": txt, "fail": val[:600], "with_file": not fn}, sort_keys=True))
+                ids["diff"], fix = self.step(tm, "DEBUG_FIX", [ids["task"], tg], "diff")
+                row["target"] = f"{f}:{ln}"
+            else:
+                make_ws(t, self.suite, c.ws)
+                c.snapshot()
+                regens += 1
+                hint = tm.board.put(gid, "hint", RP.regen_hint(val, regens))
+                self.cur_family = t["family"]
+                ids["diff"], fix = self.step(tm, "CODE", [ids["task"], ids.get("spec", ids["task"]), ids.get("plan", ids["task"]), ids["pack"], hint], "diff")
+            _, safe = self.step(tm, "SAFETY", [ids["diff"]], "safety")
+            if safe.startswith("BLOCK") or not fix.strip():
+                new, nval = 1000, "FAIL apply: blocked or empty"
+            else:
+                _, nval = self.step(tm, "VALIDATE", [ids["diff"]], "result", success="visible tests")
+                new = RP.score(nval)
+            row.update(after=new, result="pass" if new == 0 else ("better" if new < best else "no gain"))
+            log.append(row)
+            hist.append(new)
+            if new < best:
+                best, best_snap, val = new, RP.py_snapshot(c.ws), nval
+            else:
+                RP.py_restore(c.ws, best_snap)
+            if new == 0:
+                ok, why = True, "pass after repair"
+                ts["repair"]["fixed"] = True
+                break
+            if RP.stop_early(hist):
+                why = "no progress"
+                break
+        return ok, val, why
 
     @staticmethod
     def current_code(t: dict[str, Any], c: SL.ToolContext) -> str:
@@ -505,7 +578,23 @@ def summarize(out: Path) -> dict[str, Any]:
     trunc = sum(1 for e in ev if e.get("outcome") == "truncated")
     over = {"gt10": sum(1 for v in per_task.values() if v > 10), "gt100": sum(1 for v in per_task.values() if v > 100),
             "max": round(max(per_task.values()), 1) if per_task else 0, "p90": round(sorted(per_task.values())[int(0.9 * (n - 1))], 1) if n else 0}
-    return {"working_lines": wl, "working_lines_per_hour": round(wl / (total_wall / 3600), 1) if total_wall else 0,
+    mev = [e for e in ev if e.get("model")]
+    pin_tok, proc_tok = sum(e.get("in_tok", 0) for e in mev), sum(e.get("prompt_n") or e.get("in_tok", 0) for e in mev)
+    prompt_s = sum(e.get("prompt_s", 0) or 0 for e in mev)
+    rep_rows = [(k, v["repair"]) for k, v in tasks.items() if v.get("repair")]
+    r4 = {"prompt_tokens": pin_tok, "prompt_tokens_processed": proc_tok, "prompt_reuse_share": round(1 - proc_tok / pin_tok, 4) if pin_tok else 0,
+          "prompt_read_s": round(prompt_s, 1), "prompt_read_share_of_wall": round(prompt_s / total_wall, 4) if total_wall else 0,
+          "prompt_read_share_of_model_wall": round(prompt_s / max(1e-9, sum(e["wall_s"] for e in mev)), 4) if mev else 0,
+          "loop_aborts": sum(1 for e in ev if e.get("looped") or e.get("first_looped")), "loop_retries": sum(1 for e in ev if e.get("retried")),
+          "tokens_wasted_in_aborted_first_calls": sum(e.get("first_out_tok", 0) for e in ev if e.get("retried"))}
+    r2 = {"strategy": next((v["strategy"] for _, v in rep_rows), "none"), "tasks_with_repair_rounds": len(rep_rows),
+          "rounds": sum(len(v["rounds"]) for _, v in rep_rows),
+          "fixed_visible": [k for k, v in rep_rows if v["fixed"]],
+          "fixed_and_hidden_pass": [k for k, v in rep_rows if v["fixed"] and tasks[k]["graded"]["passed"]],
+          "by_strategy": {s_: {"rounds": sum(1 for _, v in rep_rows for r_ in v["rounds"] if r_["strategy"] == s_),
+                               "to_pass": sum(1 for _, v in rep_rows for r_ in v["rounds"] if r_["strategy"] == s_ and r_.get("result") == "pass")}
+                          for s_ in ("line", "regen")}}
+    return {"r4": r4, "r2": r2, "working_lines": wl, "working_lines_per_hour": round(wl / (total_wall / 3600), 1) if total_wall else 0,
             "useful_token_ratio": round(good_tok / gen_tok, 4) if gen_tok else 0, "truncated_calls": trunc, "over": over,
             "n_tasks": n, "solved": len(solved), "pass_rate": round(len(solved) / n, 4) if n else 0, "pass_ci95": [lo, hi],
             "visible_first_pass": sum(1 for v in tasks.values() if v.get("visible_first")), "visible_final_pass": sum(1 for v in tasks.values() if v.get("visible_pass")),
@@ -549,6 +638,10 @@ def main(argv: list[str]) -> int:
     r.add_argument("--reuse-db", default="", help="R3: path of the reuse index (creator.tools.reuse); on -> function tasks start from proven code")
     r.add_argument("--coder-moe", action="store_true", help="R10: serve CODER from Qwen3-30B-A3B (MoE) instead of the merged 1.7B")
     r.add_argument("--threads", type=int, default=6)
+    r.add_argument("--repair", default="none", choices=list(RP.STRATEGIES), help="R2 test-driven repair after CODE (fast path only)")
+    r.add_argument("--repair-rounds", type=int, default=3)
+    r.add_argument("--lean-prefill", action="store_true", help="R4 variant: stub once in the prompt, one-line SEARCH prefill (fewer prompt tokens)")
+    r.add_argument("--coder-gguf", default="", help="serve CODER from this GGUF (any coder model; same prompts and grammars)")
     r.add_argument("--max-fast-debug", type=int, default=None, help="override the fast-path DEBUG_FIX rounds (default SL.MAX_FAST_DEBUG)")
     c = sub.add_parser("calib")
     c.add_argument("--heldout", required=True)

@@ -117,7 +117,11 @@ def parse_traceback(text: str, root: str | Path | None = None) -> Traceback:
 # ----------------------------------------------------------------------------------------------------- coverage collection
 def clean_child_env(root: str | Path, out_json: str | Path) -> dict[str, str]:
     from creator.build import clean_env
-    return clean_env(root, {"PINPOINT_ROOT": str(root), "PINPOINT_OUT": str(out_json)})
+    env = clean_env(root, {"PINPOINT_ROOT": str(root), "PINPOINT_OUT": str(out_json)})
+    if not (Path(root) / "creator" / "tools" / "pinpoint_plugin.py").is_file():
+        # a workspace outside this repo (the PC pipeline's task folders): the pytest plugin must still import, so the package root joins the path
+        env["PYTHONPATH"] = str(root) + os.pathsep + str(Path(__file__).resolve().parents[2])
+    return env
 
 
 def collect(root: str | Path, tests: Sequence[str], *, python: str = sys.executable, timeout: float = 300.0,
