@@ -1,0 +1,2 @@
+root ::= line line? line? line? line? ">>>>>>> REPLACE\n"
+line ::= [^\n=<>] [^\n]* "\n" | [=<>] ([^\n=<>] [^\n]*)? "\n" | "\n"

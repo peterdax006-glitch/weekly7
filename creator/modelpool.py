@@ -393,13 +393,45 @@ def slot_pool(spec: SlotSpec, **kw: Any) -> ModelPool:
 
 
 def slot_call(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
-              timeout: float = 120.0) -> dict[str, Any]:
+              timeout: float = 120.0, guard: Optional[Callable[[str], bool]] = None, extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """One completion from a running slot server, the whole llama-server answer: content, tokens_evaluated / tokens_predicted / tokens_cached,
-    timings (prompt_ms, predicted_ms), stop_type ('eos' | 'limit' | 'word')."""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/completion", data=json.dumps(spec.payload(prompt, form, max_tokens)).encode("utf-8"),
+    timings (prompt_ms, predicted_ms), stop_type ('eos' | 'limit' | 'word'). `extra` overrides sampling fields (repeat_penalty, temperature,
+    seed). With a `guard` the answer is streamed and the call is ABORTED (connection closed, stop_type 'loop') the moment guard(text so far)
+    says the output degenerated, so a repetition loop does not burn the whole token cap."""
+    body = spec.payload(prompt, form, max_tokens)
+    body.update(extra or {})
+    if guard is not None:
+        body["stream"] = True
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/completion", data=json.dumps(body).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
+    if guard is None:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return dict(json.loads(r.read().decode("utf-8")))
+    t0 = time.perf_counter()
+    text, n, t_first, final = "", 0, 0.0, {}
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return dict(json.loads(r.read().decode("utf-8")))
+        for raw in r:
+            ln = raw.decode("utf-8", "replace").strip()
+            if not ln.startswith("data:"):
+                continue
+            d = json.loads(ln[5:])
+            piece = str(d.get("content") or "")
+            if piece:
+                n += 1
+                t_first = t_first or time.perf_counter() - t0
+                text += piece
+            if d.get("stop"):
+                final = d
+                break
+            if time.perf_counter() - t0 > timeout:
+                raise TimeoutError("slot call over its wall cap")
+            if n % 4 == 0 and piece and guard(text):
+                now = time.perf_counter() - t0
+                return {"content": text, "tokens_evaluated": max(1, len(prompt) // 3), "tokens_predicted": n, "stop_type": "loop", "truncated": True,
+                        "timings": {"prompt_n": max(1, len(prompt) // 3), "prompt_ms": t_first * 1000, "predicted_ms": max(0.0, now - t_first) * 1000}}
+    out = dict(final)
+    out["content"] = text
+    return out
 
 
 def slot_complete(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
