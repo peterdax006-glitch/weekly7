@@ -626,3 +626,22 @@ def pipeline_eval_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(rec, sort_keys=True, default=str) + "\n")
     return {k: v for k, v in rec.items() if k != "rows"}
+
+
+def export_skills(state: Path, cmp: Mapping[str, Any], targets: Optional[Mapping[str, float]] = None, default_target: float = 0.8,
+                  uses_per_day: Optional[Mapping[str, float]] = None, fail_cost: Optional[Mapping[str, float]] = None) -> int:
+    """Write per-role accuracies of a `compare()` result (tuned_acc, else base_acc) to metrics/skills.jsonl for the weak_skill detector.
+    uses_per_day / fail_cost (CPU-seconds a failed use costs) come from the metrics bus; absent -> 0, which values the candidate at 0."""
+    rows = []
+    for role, v in (cmp.get("roles") or {}).items():
+        acc = v.get("tuned_acc") if v.get("tuned_acc") is not None else v.get("base_acc")
+        if acc is None:
+            continue
+        rows.append({"role": role, "score": acc, "target": (targets or {}).get(role, default_target), "n": v.get("n"),
+                     "uses_per_day": (uses_per_day or {}).get(role, 0.0), "fail_cost": (fail_cost or {}).get(role, 0.0)})
+    d = Path(state) / "metrics"
+    d.mkdir(parents=True, exist_ok=True)
+    with (d / "skills.jsonl").open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, sort_keys=True) + chr(10))
+    return len(rows)

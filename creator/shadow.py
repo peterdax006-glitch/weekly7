@@ -213,3 +213,20 @@ def update_policy(state: Path = STATE, lessons_path: Optional[Path] = None, curr
         _write_policy(new, s, state)
         cur = new
     return {**s, "use_chooser": cur}
+
+
+def export_metrics(state: Path, lessons: list[Any], cost_default: float, cost_chooser: float, cls: str = "candidate_pick") -> int:
+    """Write this shadow comparison to metrics/shadow.jsonl (rows {cls, rung, pass_rate, cost, n, current}) for the model_too_big /
+    qwen_replaceable detectors. Costs are CPU-seconds per decision, measured by the caller. The current rung is the applied policy."""
+    st = stats(Path(state), lessons)
+    if not st.get("n"):
+        return 0
+    use = bool(read_policy(Path(state)))
+    d = Path(state) / "metrics"
+    d.mkdir(parents=True, exist_ok=True)
+    rows = [{"cls": cls, "rung": "default", "pass_rate": st["default_acc"], "cost": cost_default, "n": st["n"], "current": not use},
+            {"cls": cls, "rung": "chooser", "pass_rate": st["chooser_acc"], "cost": cost_chooser, "n": st["n"], "current": use}]
+    with (d / "shadow.jsonl").open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, sort_keys=True) + chr(10))
+    return len(rows)

@@ -249,6 +249,12 @@ def actor(name: str, fn: Callable[[Envelope, "Team"], str], accepts: Optional[Se
 _HANDOFF = re.compile(r"^\s*HANDOFF:\s*([A-Za-z_]+)\s*$", re.M)
 
 
+def _sig(env: Envelope) -> str:
+    """Envelope signature WITHOUT the goal id: the same step/inputs/constraints/test/prior repeated across goals is one signature."""
+    from creator import slowpath
+    return slowpath.sig_of(f"{env.step}|{env.inputs}|{env.constraints}|{env.success_test}|{env.prior}")
+
+
 def slowpath_log() -> Optional[Callable[..., Any]]:
     """Adapter onto creator.slowpath.event when that module has it; None otherwise (no hard dependency)."""
     try:
@@ -332,7 +338,8 @@ class Team:
             self.stats["env_tokens"].append(env.tokens())
             if self.log:
                 self.log(name, goal_id=env.goal_id, step=env.step, in_tok=env.tokens(), out_tok=est_tokens(out),
-                         wall_s=time.perf_counter() - t0, cache_hit=how != "run", model=a.is_slot)
+                         wall_s=time.perf_counter() - t0, cache_hit=how != "run", model=a.is_slot,
+                         sig=_sig(env), cls=env.step)
             m = _HANDOFF.search(out)
             if not m:
                 return out

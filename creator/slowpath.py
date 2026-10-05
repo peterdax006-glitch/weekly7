@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import atexit
 import contextvars
+import hashlib
 import json
 import os
+import re
 import statistics
 import sys
 import threading
@@ -313,6 +315,24 @@ _day = ("", 0)                                        # (YYYYMMDD, minute stamp 
 _ram = (0.0, None)                                    # (monotonic stamp, MB): peak RSS is sampled at most once a second
 
 
+_jkeys: dict[str, str] = {}
+
+
+def _jk(k: str) -> str:
+    v = _jkeys.get(k)
+    if v is None:
+        v = _jkeys[k] = json.dumps(k) if len(_jkeys) < 512 else json.dumps(k)
+    return v
+
+
+def _enc_other(v: Any) -> str:
+    if v is True or v is False:
+        return "true" if v else "false"
+    if type(v) is float and v == v and abs(v) != float("inf"):
+        return repr(v)
+    return json.dumps(v, default=str)
+
+
 def _js(s: Any) -> str:
     k = str(s)
     v = _jstr.get(k)
@@ -405,7 +425,9 @@ def event(actor: str, *, goal_id: Optional[str] = None, step: Optional[str] = No
         if _ram[1] is not None:
             parts.append(f',"ram_peak_mb":{_ram[1]}')
         if extra:
-            parts.append("," + json.dumps(extra, separators=(",", ":"))[1:-1] if len(extra) else "")
+            for k, v in extra.items():                       # scalars encoded inline (json.dumps of the dict costs ~50 us)
+                t = type(v)
+                parts.append(f',{_jk(k)}:{_js(v) if t is str else (repr(v) if t is int else _enc_other(v))}')
         parts.append("}\n")
         _queue(pre + _day[0] + ".jsonl", "".join(parts).encode())
         return True
@@ -418,14 +440,32 @@ def est_tokens(text: Any) -> int:
     return (len(str(text)) + 3) // 4
 
 
+_NORM = re.compile(r"\d+|\s+")
+
+
+def sig_of(text: Any) -> str:
+    """Normalized signature (12 hex): case, digit runs and whitespace folded, so the same envelope/prompt shape repeats to ONE signature."""
+    return hashlib.blake2b(_NORM.sub(" ", str(text).lower()).encode("utf-8", "replace"), digest_size=6).hexdigest()
+
+
+def err_sig(exc: Any, text: Any = "") -> str:
+    """Error signature: exception class + the first line of its message, digits folded (stable across runs)."""
+    return (type(exc).__name__ + ": " + _NORM.sub(" ", str(text or exc).strip().split(chr(10))[0].lower())[:80]).strip()
+
+
 class model_call:
     """THE accounting path of a local-model call: `with model_call("qwen3-1.7b") as mc: ...; mc.tokens(in_, out)`.
     Logs one event (wall, thread CPU, tokens, outcome 'ok' / the exception name) when the block ends, also when it raises."""
 
-    def __init__(self, model: Any = "", *, actor: Optional[str] = None, **extra: Any) -> None:
+    def __init__(self, model: Any = "", *, actor: Optional[str] = None, prompt: Any = None, sig: Optional[str] = None, cls: Optional[str] = None,
+                 form_in: Optional[int] = None, form_out: Optional[int] = None, **extra: Any) -> None:
         name = Path(str(model)).name
         self.actor = actor or str(_ctx.get().get("actor") or "model:" + name)
         self.extra = {"model": True, "backend": name, **extra}
+        sig = sig or (sig_of(prompt) if prompt is not None else None)         # fields the opportunity detectors read (constraints.detect_*)
+        for k, v in (("sig", sig), ("cls", cls), ("form_in", form_in), ("form_out", form_out)):
+            if v is not None:
+                self.extra[k] = v
         self.in_tok = self.out_tok = 0
         self.cache_hit = False
 
@@ -438,7 +478,8 @@ class model_call:
 
     def __exit__(self, *exc: Any) -> None:
         event(self.actor, in_tok=self.in_tok, out_tok=self.out_tok, cpu_s=time.thread_time() - self.c0, wall_s=time.perf_counter() - self.w0,
-              cache_hit=self.cache_hit, outcome=exc[0].__name__ if exc[0] else "ok", **self.extra)
+              cache_hit=self.cache_hit, outcome=exc[0].__name__ if exc[0] else "ok",
+              **({**self.extra, "err": err_sig(exc[1])} if exc[0] else self.extra))
 
 
 def metrics_report(state: Path, days: float = 1.0, now: Optional[float] = None) -> dict[str, Any]:

@@ -161,3 +161,51 @@ def test_registry_higher_is_better(tmp_path: Path) -> None:
     t = e["target"]
     assert CON.target_measure(tmp_path, "top1", 0.3)["target"] == t
     assert CON.detect_missed_targets(tmp_path)[0]["key"] == "missed_target:top1"
+
+
+def test_producers_emit_detector_fields(tmp_path: Path) -> None:
+    from creator import slowpath as SP
+    from creator import team as T
+    SP.set_state(tmp_path)
+    try:
+        with SP.model_call("m.gguf", prompt="Locate file 12 in repo", cls="LOCATE", form_in=20, form_out=5) as mc:
+            mc.tokens(60, 30)
+        try:
+            with SP.model_call("m.gguf", prompt="x", cls="CODE"):
+                raise TimeoutError("model timed out after 90 s")
+        except TimeoutError:
+            pass
+        env = T.Envelope("g1", "SPEC", inputs=["a.py:1-5"])
+        env2 = T.Envelope("g2", "SPEC", inputs=["a.py:1-5"])
+        assert T._sig(env) == T._sig(env2) and SP.sig_of("Locate file 99 in repo") == SP.sig_of("locate  file 12 in repo")
+        SP.flush()
+    finally:
+        SP.set_state(None)
+    rows = CON.load_events(tmp_path, 1.0, None)
+    ok, bad = rows[0], rows[1]
+    assert ok["sig"] == SP.sig_of("Locate file 12 in repo") and ok["cls"] == "LOCATE" and ok["form_in"] == 20 and "err" not in ok
+    assert bad["outcome"] == "TimeoutError" and bad["err"] == SP.err_sig(TimeoutError("model timed out after 5 s"))
+
+
+def test_skills_and_shadow_writers_feed_the_detectors(tmp_path: Path) -> None:
+    from creator import pipelinemix as PM
+    n = PM.export_skills(tmp_path, {"roles": {"CODE": {"n": 60, "tuned_acc": 0.55, "base_acc": 0.5}, "REVIEW": {"n": 60, "base_acc": 0.9}}},
+                         uses_per_day={"CODE": 20}, fail_cost={"CODE": 200.0})
+    assert n == 2
+    k = kinds(CON.detect_weak_skill(tmp_path))
+    assert k == {"weak_skill": ["weak_skill:CODE"]}
+
+
+def test_engine_cycle_writes_a_decision_record_and_holds_wip(tmp_path: Path) -> None:
+    from creator import schedule as SC
+    fixture(tmp_path)
+    with open(tmp_path / "metrics" / "events-20270102.jsonl", "w", encoding="utf-8") as f:           # one expensive repeated call: worth building
+        for i in range(200):
+            f.write(json.dumps({"t": NOW - 60, "actor": "model:q", "model": True, "sig": "big", "cpu_s": 100.0, "outcome": "ok"}) + chr(10))
+    rec = CON.engine_cycle(tmp_path, NOW, rng=random.Random(3))
+    assert rec["decision"] and rec["decision"]["key"] in {t["key"] for t in rec["top"]} and rec["in_flight"] == 0
+    assert SC.engine_decision(tmp_path)["key"] == rec["decision"]["key"]
+    again = CON.engine_cycle(tmp_path, NOW + 60)
+    assert again["decision"] is None and "WIP 1" in again["why_none"]
+    CON.mark_done(tmp_path, rec["decision"]["key"])
+    assert CON.engine_cycle(tmp_path, NOW + 120)["decision"] is not None

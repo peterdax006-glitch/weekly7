@@ -367,3 +367,13 @@ def plan_batch(cfg: Any, led: Ledger, main: Any, base_sha: str, slots: int, held
         if p2 is not None:
             plans.append(p2)
     return plans
+
+
+def engine_decision(state: Any) -> Optional[dict[str, Any]]:
+    """The improvement engine's latest decision (constraints.engine_cycle; written hourly by the constraint loop), or None. The planner
+    reads it as a suggestion; the engine itself never schedules or adopts."""
+    try:
+        d = json.loads((Path(state) / "engine" / "decision_record.json").read_text(encoding="utf-8"))
+        return d.get("decision")
+    except (OSError, ValueError):
+        return None

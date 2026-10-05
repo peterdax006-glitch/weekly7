@@ -716,6 +716,11 @@ def run(state: Path, now: Optional[dt.datetime] = None, window_h: float = 24.0, 
     rep = measure_all(state, now, window_h)
     rep["messages"] = snapshot(state, rep)
     rep["act"] = act(state, rep) if do_act else {}
+    if do_act:
+        try:
+            rep["engine"] = engine_cycle(state, now.timestamp() if now else None)      # decision record; never blocks the loop
+        except Exception as e:                                                          # noqa: BLE001
+            rep["engine"] = {"error": f"{type(e).__name__}: {e}"}
     return rep
 
 
@@ -1122,3 +1127,54 @@ def seed_registry(state: Path) -> int:
                 target_measure(state, m, s["best_measured"], s["evidence"])
             n += 1
     return n
+
+
+# ------------------------------------------------------------------------------------------------ one engine cycle (OBSERVE-DETECT-VALUE-DECIDE)
+RECORD_FILE = "decision_record.json"
+IN_FLIGHT_FILE = "in_flight.json"
+IN_FLIGHT_TTL_S = 86400.0       # a build nobody reported on for a day no longer holds the WIP slot
+
+
+def in_flight(state: Path, now: Optional[float] = None) -> int:
+    now = _time.time() if now is None else now
+    d = _json(Path(state) / ENGINE_DIR / IN_FLIGHT_FILE)
+    return sum(1 for t in d.values() if now - float(t) < IN_FLIGHT_TTL_S)
+
+
+def mark_done(state: Path, key: str, actual_saving_day: Optional[float] = None, cand: Optional[dict[str, Any]] = None) -> None:
+    """The builder/adopter reports the end of an attempt: frees the WIP slot and (with a measured saving) feeds the calibration."""
+    p = Path(state) / ENGINE_DIR / IN_FLIGHT_FILE
+    d = _json(p)
+    d.pop(key, None)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(d), encoding="utf-8")
+    if actual_saving_day is not None and cand is not None:
+        record_outcome(state, cand, actual_saving_day)
+
+
+def engine_cycle(state: Path, now: Optional[float] = None, days: float = 7.0, rng: Optional[_random.Random] = None) -> dict[str, Any]:
+    """Detect over the aggregated bus, rank, decide (WIP 1, 10% exploration); writes engine/decision_record.json (the ranked top 10, the
+    decision or why none) and, on a decision, takes the WIP slot. Read-only on everything else; never touches kernel adoption."""
+    state = Path(state)
+    now = _time.time() if now is None else now
+    t0 = _time.perf_counter()
+    if not registry_load(state):
+        seed_registry(state)
+    cands = detect_all(state, days, now)
+    busy = in_flight(state, now)
+    pick = decide(state, cands, in_flight=busy, rng=rng)
+    rk = rank(cands, state)
+    rec = {"at": now, "window_days": days, "candidates": len(cands), "in_flight": busy,
+           "decision": ({k: pick[k] for k in ("key", "kind", "fix", "risk", "p", "f_per_day", "c0", "c1", "build_s", "evidence", "value", "mode")} if pick else None),
+           "why_none": "" if pick else ("WIP 1: a build is in flight" if busy else ("no candidates" if not cands else "no candidate passes payback <= 3 d with an allowed risk")),
+           "top": [{"key": c["key"], "roi_30d": round(c["value"]["roi_30d"], 3), "payback_days": round(c["value"]["payback_days"], 3), "worth": c["value"]["worth"]} for c in rk[:10]],
+           "seconds": round(_time.perf_counter() - t0, 3)}
+    d = state / ENGINE_DIR
+    d.mkdir(parents=True, exist_ok=True)
+    (d / RECORD_FILE).write_text(json.dumps(rec, indent=1, default=str), encoding="utf-8")
+    if pick:
+        f = d / IN_FLIGHT_FILE
+        cur = _json(f)
+        cur[pick["key"]] = now
+        f.write_text(json.dumps(cur), encoding="utf-8")
+    return rec
