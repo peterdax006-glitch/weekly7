@@ -337,7 +337,7 @@ class SlotSpec:
     ctx: int = 4096
     max_tokens: int = 256
     draft: Optional[Path] = None
-    draft_max: int = 8
+    draft_max: int = 3
     draft_threads: Optional[int] = None
     grammars: dict[str, Path] = field(default_factory=dict)      # output form -> .gbnf file
     stop: tuple[str, ...] = ()
@@ -346,7 +346,7 @@ class SlotSpec:
     def server_args(self) -> list[str]:
         a: list[str] = []
         if self.draft is not None:
-            a += ["-md", str(self.draft), "--draft-max", str(self.draft_max)]
+            a += ["-md", str(self.draft), "--spec-type", "draft-simple", "--spec-draft-n-max", str(self.draft_max)]
             if self.draft_threads:
                 a += ["-td", str(self.draft_threads)]
         return a

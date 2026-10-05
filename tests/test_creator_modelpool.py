@@ -258,13 +258,14 @@ def test_slot_pool_command_carries_threads_ctx_and_draft_flags(tmp_path: Path) -
     cmd = pool._command(18080)
     assert cmd[cmd.index("-m") + 1] == str(tmp_path / "coder.gguf")
     assert cmd[cmd.index("-t") + 1] == "6" and cmd[cmd.index("-c") + 1] == "8192"
-    assert cmd[cmd.index("-md") + 1] == str(tmp_path / "draft.gguf") and cmd[cmd.index("--draft-max") + 1] == "6"
+    assert cmd[cmd.index("--spec-type") + 1] == "draft-simple"
+    assert cmd[cmd.index("-md") + 1] == str(tmp_path / "draft.gguf") and cmd[cmd.index("--spec-draft-n-max") + 1] == "6"
     pool.close()
 
 
 def test_plain_pool_command_is_unchanged_without_slot_args(rig: Rig) -> None:
     cmd = rig.pool._command(18081)
-    assert "-md" not in cmd and "--draft-max" not in cmd and rig.pool.extra_args == []
+    assert "-md" not in cmd and "--spec-type" not in cmd and rig.pool.extra_args == []
     assert cmd[-1] == "--log-disable"
 
 
