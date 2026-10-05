@@ -22,7 +22,7 @@ import sys
 import time
 from pathlib import Path
 
-RT = Path("C:/Users/peter/creator_runtime/util3/guardian")
+RT = Path.home() / ("creator_runtime/util3/guardian")
 
 
 def ssh_base(a, route) -> list[str]:
@@ -123,9 +123,9 @@ def pull(a, main: Path, qmap: dict) -> dict:
 
 
 CODING_SOURCES = ("rl_tasks_hf.jsonl", "rl_tasks_more.jsonl")            # PUBLIC only (OpenCodeInstruct + mined public repos); never rl_tasks.jsonl
-EXPORT = Path("C:/Users/peter/creator_runtime/gpuday/export_plus")
-BRIEF = Path("C:/Users/peter/creator_runtime/gpuday/TEACHER_BRIEF.md")
-ROLES = Path("C:/Users/peter/creator_runtime/gpuday/trajectories/roles")
+EXPORT = Path.home() / ("creator_runtime/gpuday/export_plus")
+BRIEF = Path.home() / ("creator_runtime/gpuday/TEACHER_BRIEF.md")
+ROLES = Path.home() / ("creator_runtime/gpuday/trajectories/roles")
 
 
 def stage_coding(a) -> int:
@@ -178,7 +178,7 @@ def pull_roles(a) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=("stage", "stage-coding", "pull", "loop"))
-    ap.add_argument("--main", default="C:/Users/peter/weekly7")
+    ap.add_argument("--main", default=str(Path.home() / "weekly7"))
     ap.add_argument("--host", required=True)
     ap.add_argument("--sshport", required=True)
     ap.add_argument("--relay", default="")

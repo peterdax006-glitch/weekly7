@@ -21,9 +21,9 @@ import threading
 import time
 from pathlib import Path
 
-RT = Path("C:/Users/peter/creator_runtime/util3/guardian")
+RT = Path.home() / ("creator_runtime/util3/guardian")
 PORTS = (18350, 18351, 18352, 18353)
-LADDER_JOBS = Path("C:/Users/peter/creator_runtime/gpu/ladder/jobs_tiers.json")
+LADDER_JOBS = Path.home() / ("creator_runtime/gpu/ladder/jobs_tiers.json")
 EFFICIENCY = ["Qwen3-1.7B-Q3_K_M.gguf", "Qwen3-4B-Q3_K_M.gguf", "Qwen3-0.6B-Q5_K_M.gguf", "Qwen3-1.7B-Q5_K_M.gguf", "Qwen3-4B-Q5_K_M.gguf"]
 TRACES = [(8, "Qwen3-4B-Q4_K_M.gguf"), (9, "Qwen3-1.7B-Q4_K_M.gguf")]
 CODING = [(5, "Qwen3-4B-Q4_K_M.gguf")]               # pod-driven role trajectories (coder.py); below efficiency, above traces
@@ -35,7 +35,7 @@ def log(msg: str) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--main", default="C:/Users/peter/weekly7")
+    ap.add_argument("--main", default=str(Path.home() / "weekly7"))
     ap.add_argument("--host", required=True)
     ap.add_argument("--sshport", required=True)
     ap.add_argument("--relay", default="")

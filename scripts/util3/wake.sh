@@ -1,6 +1,6 @@
 #!/bin/bash
 # Exit (= wake the agent) on an anomaly, or after MAXMIN minutes. Prints the reason.
-MAXMIN=${1:-60}; M=C:/Users/peter/creator_runtime/util3/meter.log
+MAXMIN=${1:-60}; M=$HOME/creator_runtime/util3/meter.log
 start=$(date +%s); n0=$(wc -l < $M 2>/dev/null || echo 0)
 while true; do
   sleep 30

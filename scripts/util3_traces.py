@@ -6,7 +6,7 @@ there with worked-example questions (reasondrills.generate_stream, cached per re
 flight. Only correct, outcome-blind traces reach the bank (gpupulse.traces -> reasondrills.bank_add; each row records the model). A question a
 model already answered (right or wrong) is not asked again by that model (asked_<model>.txt); threads never share a question in flight.
 Runs at BELOW_NORMAL priority (it feeds the paid GPU).
-    python scripts/util3_traces.py --host <pod> --sshport <port> [--main C:/Users/peter/weekly7]
+    python scripts/util3_traces.py --host <pod> --sshport <port> [--main $HOME/weekly7]
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-RT = Path("C:/Users/peter/creator_runtime/util3")
+RT = Path.home() / "creator_runtime/util3"
 PORTS = (18350, 18351, 18352, 18353)
 SLOTS = 16                                   # -np of every filler instance (watch3.sh)
 BATCH_Q = SLOTS * 60
@@ -50,7 +50,7 @@ def served_model(port: int) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--main", default="C:/Users/peter/weekly7")
+    ap.add_argument("--main", default=str(Path.home() / "weekly7"))
     ap.add_argument("--host", required=True)
     ap.add_argument("--sshport", required=True)
     ap.add_argument("--relay", default="", help="fallback host:port (vast ssh relay) used when the direct tunnel keeps failing")
