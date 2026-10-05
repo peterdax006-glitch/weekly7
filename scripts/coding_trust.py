@@ -168,6 +168,11 @@ def main(argv: list[str]) -> int:
     rep = _write_report(out, recs, agent.describe(), g)
     print(CT.markdown(rep))
     print(f"results: {out}")
+    try:
+        from creator import notify as N
+        N.queue_finished("coding trust run", len(recs))
+    except Exception:
+        pass
     return 0
 
 
