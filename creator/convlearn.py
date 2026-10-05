@@ -19,6 +19,9 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Optional
 
+from creator.owner import OWNER_SYSTEM as _OWNER
+from creator.owner import boilerplate as _boilerplate
+
 SYNTHETIC_DEVICES = ("warmup", "probe")      # health probes, not the owner
 SESSION_GAP_S = 1800.0
 REPEAT_TURNS = 2
@@ -31,7 +34,7 @@ BACKLOG_NAME = "capability_backlog.json"
 VOICE_FILE = "conv_rows.jsonl"
 FIX_KINDS = ("new_action", "style", "bug", "knowledge")
 SUBTYPE_FIX = {"repeat": "knowledge", "correction": "style", "unsupported": "new_action", "action_failed": "bug", "no_url": "bug",
-               "leak": "bug", "long": "style", "abandon": "knowledge"}
+               "leak": "bug", "long": "style", "abandon": "knowledge", "boilerplate": "style"}
 # Value model (engine currency: CPU-seconds): a conversation failure costs the owner about a minute of attention.
 C0_FAIL, C1_FIXED, P_FIX, BUILD_S = 60.0, 0.0, 0.5, 1800.0
 
@@ -152,6 +155,11 @@ def detect_leak(sess: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_fail("leak", r, i) for i, r in enumerate(sess) if _LEAK.search(r["reply"])]
 
 
+def detect_boilerplate(sess: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Canned disclaimers / guideline talk instead of answering the owner (creator/owner.py)."""
+    return [_fail("boilerplate", r, i) for i, r in enumerate(sess) if _boilerplate(r["reply"])]
+
+
 def detect_long(sess: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [_fail("long", r, i) for i, r in enumerate(sess)
             if len(r["reply"].split()) > LONG_REPLY_WORDS and len(r["in"].split()) <= SHORT_Q_WORDS]
@@ -167,9 +175,9 @@ def detect_abandon(sess: list[dict[str, Any]], now: float, bad_turns: set[int]) 
 def failures(sess: list[dict[str, Any]], now: Optional[float] = None) -> list[dict[str, Any]]:
     now = _time.time() if now is None else now
     out: list[dict[str, Any]] = []
-    for fn in (detect_repeat, detect_correction, detect_unsupported, detect_leak, detect_long):
+    for fn in (detect_repeat, detect_correction, detect_unsupported, detect_leak, detect_long, detect_boilerplate):
         out.extend(fn(sess))
-    bad = {f["turn"] for f in out if f["subtype"] in ("unsupported", "no_url", "leak", "long", "correction", "action_failed", "repeat")}
+    bad = {f["turn"] for f in out if f["subtype"] in ("unsupported", "no_url", "leak", "long", "correction", "action_failed", "repeat", "boilerplate")}
     out.extend(detect_abandon(sess, now, bad))
     return out
 
@@ -239,7 +247,9 @@ def write_backlog(path: Path, items: list[dict[str, Any]]) -> None:
 
 
 # ------------------------------------------------------------------------------------------------ learning data for the voice module
-VOICE_SYSTEM = "You are Nupen, the owner's private assistant. Answer briefly, directly and politely; never expose internals."
+
+
+VOICE_SYSTEM = "You are Nupen, your creator's private assistant. " + _OWNER + " Answer briefly and directly; never expose internals."
 
 
 def _row(kind: str, user: str, reply: str, extra: Optional[dict[str, Any]] = None) -> dict[str, Any]:
