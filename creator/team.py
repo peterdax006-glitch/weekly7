@@ -7,7 +7,7 @@ Pieces (all deterministic, no model needed to test them):
   ROUTES        step type -> actor (a code tool, or a slot CHECKER / CODER / THINKER)
   Actor         declares the step types it accepts (jurisdiction); a mismatched dispatch is refused BEFORE it is sent
   Envelope      {goal_id, step, inputs[board ids | path:a-b ranges], constraints, success_test, prior (<=2 lines), budget}
-                token-checked (chars / 3.6, target <= 300); big content goes on the Board and travels as an id
+                token-checked (chars / 3.6, target <= 50, hard 120); big content goes on the Board and travels as an id
   Board         SQLite facts/artifacts by id, outside the repo
   Team          goal gate (off-goal envelopes refused), jurisdiction gate, 'HANDOFF: <ROLE>' re-routing, result cache
                 (exact key + minhash near-duplicate) in front of slot calls, optional event hook
@@ -27,7 +27,9 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
 CHARS_PER_TOKEN = 3.6
-ENVELOPE_TARGET_TOKENS = 300
+ENVELOPE_TARGET_TOKENS = 50          # ratchet 4 Oct: measured floor ~30
+ENVELOPE_MAX_TOKENS = 120
+NEAR_THRESHOLD = 0.9
 MAX_HOPS = 3
 SLOTS = ("CHECKER", "CODER", "THINKER")
 
@@ -59,6 +61,9 @@ def est_tokens(text: str) -> int:
 
 
 # ---------------------------------------------------------------------------------------------------------------------- envelope
+DEFAULT_BUDGET = {"max_tok": 400, "max_s": 60}
+
+
 @dataclass
 class Envelope:
     goal_id: str
@@ -67,7 +72,7 @@ class Envelope:
     constraints: list[str] = field(default_factory=list)
     success_test: str = ""
     prior: str = ""                                       # what came before, <= 2 lines
-    budget: dict[str, float] = field(default_factory=lambda: {"max_tok": 400, "max_s": 60})
+    budget: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_BUDGET))
 
     def validate(self) -> None:
         if not self.goal_id:
@@ -80,7 +85,11 @@ class Envelope:
             raise Refused("budget needs max_tok and max_s")
 
     def text(self) -> str:
-        return json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
+        """Compact wire form: short field codes, empty fields and the default budget omitted."""
+        d = {"g": self.goal_id, "s": self.step, "i": self.inputs, "c": self.constraints, "t": self.success_test, "p": self.prior}
+        if self.budget != DEFAULT_BUDGET:
+            d["b"] = [self.budget.get("max_tok"), self.budget.get("max_s")]
+        return json.dumps({k: v for k, v in d.items() if v not in ("", [], None)}, sort_keys=True, separators=(",", ":"))
 
     def tokens(self) -> int:
         return est_tokens(self.text())
@@ -112,7 +121,7 @@ class Board:
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS board(id TEXT PRIMARY KEY, goal_id TEXT, kind TEXT, body TEXT, t REAL);
             CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT);
-            CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, step TEXT, actor TEXT, sig TEXT, result TEXT, t REAL);
+            CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY, step TEXT, actor TEXT, ins TEXT, sig TEXT, result TEXT, t REAL);
         """)
 
     def put(self, goal_id: str, kind: str, body: str) -> str:
@@ -169,8 +178,16 @@ def _resolved(board: Board, env: Envelope, actor_name: str = "") -> str:
     return "|".join([actor_name, env.step, ",".join(sorted(parts)), ";".join(env.constraints), env.success_test, env.prior])
 
 
+def _free(env: Envelope) -> str:
+    return " ".join(env.constraints + [env.success_test, env.prior])
+
+
+def _ins(board: Board, env: Envelope, actor_name: str) -> str:
+    return _resolved(board, Envelope(env.goal_id, env.step, env.inputs), actor_name)
+
+
 class ResultCache:
-    def __init__(self, board: Board, near: float = 0.8) -> None:
+    def __init__(self, board: Board, near: float = NEAR_THRESHOLD) -> None:
         self.board, self.near = board, near
         self.exact_hits = self.near_hits = self.misses = 0
 
@@ -184,9 +201,15 @@ class ResultCache:
         if r:
             self.exact_hits += 1
             return r[0], "exact"
-        sig = minhash(norm)
+        free = _free(env)
+        if not free.strip():
+            self.misses += 1
+            return None
+        sig = minhash(free)
         best, hit = 0.0, None
-        for res, s in self.board.db.execute("SELECT result, sig FROM cache WHERE step=? AND actor=?", (env.step, actor_name)):
+        # near hits only among entries with the SAME step, actor and resolved inputs: only the free text may differ
+        for res, s in self.board.db.execute("SELECT result, sig FROM cache WHERE step=? AND actor=? AND ins=?",
+                                            (env.step, actor_name, _ins(self.board, env, actor_name))):
             sim = similarity(sig, json.loads(s))
             if sim > best:
                 best, hit = sim, res
@@ -198,8 +221,8 @@ class ResultCache:
 
     def put(self, env: Envelope, result: str, actor_name: str = "") -> None:
         k, norm = self.key(env, actor_name)
-        self.board.db.execute("INSERT OR REPLACE INTO cache VALUES(?,?,?,?,?,?)",
-                              (k, env.step, actor_name, json.dumps(minhash(norm)), result, time.time()))
+        self.board.db.execute("INSERT OR REPLACE INTO cache VALUES(?,?,?,?,?,?,?)",
+                              (k, env.step, actor_name, _ins(self.board, env, actor_name), json.dumps(minhash(_free(env))), result, time.time()))
         self.board.db.commit()
 
     def stats(self) -> dict[str, float]:
@@ -239,7 +262,7 @@ def slowpath_log() -> Optional[Callable[..., Any]]:
 # ---------------------------------------------------------------------------------------------------------------------- team
 class Team:
     def __init__(self, state: str | Path, actors: Sequence[Actor], goal_id: Optional[str] = None,
-                 log: Optional[Callable[..., Any]] = None, near: float = 0.8) -> None:
+                 log: Optional[Callable[..., Any]] = None, near: float = NEAR_THRESHOLD) -> None:
         self.state = Path(state)
         self.board = Board(self.state / "team.sqlite")
         self.cache = ResultCache(self.board, near)
@@ -284,8 +307,8 @@ class Team:
             raise self._refuse(None, f"no actor {actor_name!r}")
         if env.step not in a.accepts:
             raise self._refuse("out_of_jurisdiction", f"{actor_name} does not accept {env.step}")
-        if not env.check_size(ENVELOPE_TARGET_TOKENS * 2):
-            raise self._refuse(None, f"envelope {env.tokens()} tokens, hard limit {ENVELOPE_TARGET_TOKENS * 2}")
+        if not env.check_size(ENVELOPE_MAX_TOKENS):
+            raise self._refuse(None, f"envelope {env.tokens()} tokens, hard limit {ENVELOPE_MAX_TOKENS}")
 
     def dispatch(self, env: Envelope, actor_name: Optional[str] = None) -> str:
         """Send an envelope to its routed actor (or an explicit one, which must still be in jurisdiction)."""
@@ -334,8 +357,11 @@ class Team:
         refs.append(task_id)
         self._ix = ix
         for step in steps:
-            env = Envelope(gid, step, inputs=list(refs[-3:]), constraints=task.get("constraints", [])[:3],
-                           success_test=task.get("success_test", ""), prior=prior)
+            lean = step in ("SPEC", "LOCATE", "PLAN")           # the task itself is on the board: ids, not text
+            env = Envelope(gid, step, inputs=list(refs[-3:]),
+                           constraints=task.get("constraints", [])[:3] if step == "CODE" else [],
+                           success_test=task.get("success_test", "") if step in ("REVIEW", "VALIDATE") else "",
+                           prior="" if lean else prior)
             res = self.dispatch(env)
             bid = self.board.put(gid, step.lower(), res)
             out[step] = res

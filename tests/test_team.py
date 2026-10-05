@@ -126,3 +126,51 @@ def test_end_to_end_20_tasks(tmp_path, repo):
     st = team.cache.stats()
     assert st["hit_rate"] >= 0.4
     print("E2E", {"median_env_tokens": med, "max_env_tokens": max(s["env_tokens"]), "dispatched": s["dispatched"], **st})
+
+
+# labelled near-duplicate set: (a, b, same_answer). Positives are paraphrases; negatives look alike but need a different answer.
+LABELLED = [
+    ("make the parser handle empty config files without raising an error when the file is missing", "make the parser handle empty config files without raising any error when the file is missing", True),
+    ("make the parser handle empty config files without raising an error when the file is missing", "make the parser handle empty config files without raising an error when the file is absent", True),
+    ("the ranking function must return the best five hits sorted by score and never more than five", "the ranking function must return the best five hits sorted by score and never more than five hits", True),
+    ("add a unit test that covers the empty list case for the pack lines function", "add a unit test that covers the empty list case for the pack lines function please", True),
+    ("keep the public signature unchanged and only fix the off by one error in the loop bound", "keep the public signature unchanged and only fix the off by one error in the loop bounds", True),
+    ("the report writer should create the output directory if it does not exist yet", "the report writer should create the output directory if it does not yet exist", True),
+    ("the report writer should create the output directory if it does not exist yet", "the report writer should not create the output directory if it does not exist yet", False),
+    ("make the parser return none when the file is missing and never raise", "make the parser raise an error when the file is missing and never return none", False),
+    ("the ranking function must return the best five hits sorted by score", "the ranking function must return the worst five hits sorted by score", False),
+    ("add a unit test that covers the empty list case for the pack lines function", "add a unit test that covers the single item case for the pack lines function", False),
+    ("fix the off by one error in the loop bound of split words", "fix the off by one error in the loop bound of join paths", False),
+    ("raise the timeout to sixty seconds for the fetch state call", "raise the timeout to six seconds for the fetch state call", False),
+    ("sort events ascending by time and keep the original order for ties", "sort events descending by time and keep the original order for ties", False),
+    ("delete stale rows older than seven days from the cache table", "delete stale rows older than seventy days from the cache table", False),
+]
+
+
+def _rates(thr):
+    tp = fp = fn = 0
+    for a, b, same in LABELLED:
+        sim = T.similarity(T.minhash(a), T.minhash(b))
+        hit = sim >= thr
+        tp += hit and same
+        fp += hit and not same
+        fn += (not hit) and same
+    return tp, fp, fn
+
+
+def test_near_threshold_labelled_precision_recall():
+    for thr in (0.5, 0.6, 0.7, 0.8, 0.9):
+        tp, fp, fn = _rates(thr)
+        print("NEAR", thr, "precision", tp / max(1, tp + fp), "recall", tp / max(1, tp + fn), "fp", fp)
+    tp, fp, fn = _rates(T.NEAR_THRESHOLD)
+    assert fp == 0 and tp / (tp + fn) >= 0.5
+
+
+def test_near_hit_needs_same_inputs(tmp_path):
+    b = T.Board(tmp_path / "b.sqlite")
+    i1, i2 = b.put("g", "fact", "one"), b.put("g", "fact", "two")
+    c = T.ResultCache(b)
+    t = "make the parser handle empty config files without raising an error when the file is missing or locked"
+    c.put(T.Envelope("g", "SPEC", inputs=[i1], success_test=t), "R1", "CHECKER")
+    t2 = t.replace("an error", "any error")
+    assert c.get(T.Envelope("g", "SPEC", inputs=[i2], success_test=t2), "CHECKER") is None
