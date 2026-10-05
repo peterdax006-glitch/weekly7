@@ -43,7 +43,7 @@ MIN_FREE_GB = 2.0
 CGNAT = "100." + "64.0.0/10"                 # Tailscale's address range
 MAX_DEVICES = 8
 BLOCKED = ("pause", "resume", "approve", "request")
-MORE = re.compile(r"^\s*(?:say|tell me|go on|continue|more|and|keep going)\b.{0,20}$", re.I)
+MORE = re.compile(r"^\s*(?:(?:please\s+)?(?:say|tell me) (?:some )?more|go on|continue|keep going|more|and\??)[\s.!?]*$", re.I)
 _EVID = re.compile(r"\n?\[evidence:.*?\]", re.S)
 
 
@@ -135,7 +135,7 @@ def tailscale_ips() -> list[str]:
 
 
 FACT_CHARS = 1000
-SPOKEN_TOKENS = 60                      # ~40 words; 'say more' re-asks with MORE_TOKENS
+SPOKEN_TOKENS = 80                      # ~55 words; 'say more' re-asks with MORE_TOKENS
 MORE_TOKENS = 150
 THREADS = 6
 CTX = 2048
@@ -679,18 +679,46 @@ class RateLimit:
             return True
 
 
+ABOUT = re.compile(r"\b(?:status|progress|who are you|what are you (?:working on|doing|up to|building|learning)|what have you (?:learned|learnt|done)|"
+                   r"what did you (?:learn|do)|open questions|your (?:status|progress|plans?|goals?|lessons?|training|tasks?|work|projects?|"
+                   r"priorit(?:y|ies)|objectives?)|(?:the|our) (?:plans?|goals?|lessons?|training|progress)|lessons (?:learned|learnt)|"
+                   r"how(?:'s| is) (?:the )?(?:training|progress|nupen))\b", re.I)
+CHAT_SYSTEM = ("You are Nupen, the owner's personal voice assistant on their phone. Answer the owner's message directly and helpfully from general "
+               "knowledge and common sense, as in a friendly conversation. Never mention documents, files, code, records or your own status "
+               "unless asked. If you do not know, say so briefly. One to three short spoken sentences.")
+REWRITE_SYSTEM = ("You are Nupen. Answer the owner's question in one or two short spoken sentences using ONLY the facts given. Do not read the "
+                  "facts out, do not use brackets, file names, lists or markdown; say it the way you would to a friend.")
+HIST_TURNS = 6
+LOG_MAX = 10 * 1024 * 1024
+_BRACKET = re.compile(r"\[[^\]]*\]")
+_NOANSWER = "I am afraid I have no good answer to that, sir."
+
+
+def clean_reply(t: str) -> str:
+    """Spoken text only: no [doc:...]/[evidence:...] brackets, markdown marks, or leaked control words."""
+    t = _BRACKET.sub(" ", t).replace("/no_think", " ")
+    t = re.sub("[\U0001F000-\U0001FFFF☀-➿️‍]", "", t)           # emoji are not speech
+    t = re.sub(r"[*#`_]+|^\s*(?:[-\u2022]|\d{1,2}[.)])\s+", " ", t, flags=re.M)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 class Core:
-    """Conversations per device over one lazily loaded voice. `make_conv(voice)` and `ram_free()` are injectable (tests)."""
+    """Conversations per device over one lazily loaded voice. `make_conv`, `ram_free`, `chat` and `log_path` are injectable (tests).
+
+    Routing is by code: (1) phone actions/goodbyes (`interpret`), (2) questions about Nupen itself: grounded facts, always rewritten by the model
+    into one or two spoken sentences, (3) everything else: plain assistant chat with the last HIST_TURNS turns of this device, no grounding.
+    `chat(messages, more) -> str` replaces the model (tests). With `make_conv` and no `chat`, the conversation object answers everything (old behaviour, tests)."""
 
     def __init__(self, root: Path, model: str = "1.7b", idle_min: float = 60.0, make_conv: Optional[Callable[[], Any]] = None,
                  ram_free: Optional[Callable[[], Optional[float]]] = None, clock: Callable[[], float] = time.monotonic,
-                 now: Callable[[], datetime] = datetime.now) -> None:
+                 now: Callable[[], datetime] = datetime.now, chat: Optional[Callable[[list[dict[str, str]], bool], str]] = None,
+                 log_path: Optional[Path] = None) -> None:
         self.now = now
         self.root, self.model, self.idle_s, self.clock = Path(root), model, idle_min * 60, clock
-        self.make_conv, self.ram_free = make_conv, ram_free
+        self.make_conv, self.ram_free, self.chat, self.log_path = make_conv, ram_free, chat, log_path
         self.convs: OrderedDict[str, Any] = OrderedDict()
         self.rest: dict[str, str] = {}
-        self.prev: dict[str, str] = {}
+        self.hist: dict[str, deque] = {}
         self.voice: Any = None
         self.last = clock()
         self.last_split: dict[str, Any] = {}
@@ -704,6 +732,12 @@ class Core:
             free = self.ram_free()
         return free is None or free - 2.0 >= MIN_FREE_GB     # ~2 GB for the 1.7B voice; keep 2 GB free after
 
+    def _ensure_voice(self) -> None:
+        if self.voice is None:
+            from creator import talk as T
+            T.FACT_CHARS = FACT_CHARS                          # lean grounding: ~300 tokens of facts, chosen by the handlers' own ranking
+            self.voice = make_voice(T, self.model, persona_text(), self.ram_free)
+
     def _build(self) -> Any:
         if self.make_conv is not None:
             return self.make_conv()
@@ -712,54 +746,106 @@ class Core:
 
         def refuse(c: Any, s: dict[str, Any]) -> Any:
             return CV.Facts("help", ["I only talk from the phone. Pausing, resuming, approving and requests need the terminal."])
-        if self.voice is None:
-            T.FACT_CHARS = FACT_CHARS                          # lean grounding: ~300 tokens of facts, chosen by the handlers' own ranking
-            self.voice = make_voice(T, self.model, persona_text(), self.ram_free)
+        self._ensure_voice()
         conv = T.conversation(self.root, self.voice, log=False, mode="rules", handlers={k: refuse for k in BLOCKED})
-        conv.speak.retries = 0                                 # no second model call to repair a status; the rule report speaks instead
+        conv.speak.retries = 0                                 # the facts are rewritten below, not repaired here
         return conv
+
+    def _ask(self, messages: list[dict[str, str]], more: bool = False) -> str:
+        if self.chat is not None:
+            return self.chat(messages, more)
+        self._ensure_voice()
+        self.voice.more = more
+        try:
+            return str(self.voice.ask(messages, MORE_TOKENS if more else SPOKEN_TOKENS, 0.5).text)
+        finally:
+            self.voice.more = False
+
+    def _about(self, device: str, text: str) -> str:
+        """Grounded facts about Nupen, rewritten by the model into short speech; never the raw record text."""
+        conv = self.convs.get(device)
+        if conv is None:
+            conv = self.convs[device] = self._build()
+        raw = clean_reply(spoken(conv.reply(text)))
+        if raw and len(raw.split()) <= 40 and raw.count(".") <= 2 and "[" not in spoken(raw):
+            return raw
+        out = clean_reply(self._ask([{"role": "system", "content": REWRITE_SYSTEM},
+                                     {"role": "user", "content": f"Question: {text}\nFacts: {raw[:700]}"}]))
+        return out or "I would rather not recite my records, sir. Ask me something more specific."
+
+    def _chat(self, device: str, text: str, more: bool) -> str:
+        h = self.hist.setdefault(device, deque(maxlen=2 * HIST_TURNS))
+        msgs = [{"role": "system", "content": CHAT_SYSTEM}] + list(h) + [{"role": "user", "content": text}]
+        return clean_reply(self._ask(msgs, more)) or _NOANSWER
+
+    def _log(self, device: str, text: str, reply: str, intent: str, action: Any, ms: int) -> None:
+        if self.log_path is None:
+            return
+        try:
+            p = Path(self.log_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            if p.is_file() and p.stat().st_size > LOG_MAX:
+                p.replace(p.with_name(p.name + ".1"))
+            with open(p, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"t": time.strftime("%Y-%m-%d %H:%M:%S"), "device": device, "in": text, "reply": reply, "intent": intent,
+                                    "action": action, "ms": ms}, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
 
     def talk(self, device: str, text: str) -> tuple[int, dict[str, Any]]:
         t0 = time.monotonic()
+        code, body, intent = self._talk(device, text, t0)
+        body["ms"] = int((time.monotonic() - t0) * 1000)
+        self._log(device, text, body["reply"], intent, body["action"], body["ms"])
+        return code, body
+
+    def _talk(self, device: str, text: str, t0: float) -> tuple[int, dict[str, Any], str]:
+        def out(reply: str, intent: str, code: int = 200, action: Any = None, end: bool = False, more: bool = False) -> tuple[int, dict[str, Any], str]:
+            return code, {"reply": reply, "action": action, "end": end, "ms": -1, "more": more}, intent
         cmd = interpret(text, self.now())                       # phone actions and goodbyes: code only, no voice model, no RAM needed
         if cmd is not None:
-            return 200, {"reply": cmd[0], "action": cmd[1], "end": cmd[2], "ms": int((time.monotonic() - t0) * 1000), "more": False}
+            return out(cmd[0], "end" if cmd[2] and cmd[1] is None else ("action" if cmd[1] else "refused"), action=cmd[1], end=cmd[2])
         with self.lock:
             self.last = self.clock()
-            if MORE.match(text) and self.rest.get(device):
+            is_more = bool(MORE.match(text))
+            if is_more and self.rest.get(device):                 # leftovers are served ONLY on an explicit 'say more'
                 head, self.rest[device] = chunk(self.rest[device])
-                return 200, {"reply": head, "action": None, "end": False, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
-            if MORE.match(text) and self.prev.get(device):       # nothing left over: ask the same question again with room to say more
-                text = self.prev[device]
-                if self.voice is not None:
-                    self.voice.more = True
-            conv = self.convs.get(device)
-            if conv is None:
-                if self.make_conv is None and self.voice is None and not self._ram_ok():
-                    return 503, {"reply": "I cannot load my voice now, the PC is short of memory. Try again later.", "action": None, "end": False, "ms": 0, "more": False}
-                conv = self._build()
-                self.convs[device] = conv
-                while len(self.convs) > MAX_DEVICES:
-                    old, _ = self.convs.popitem(last=False)
-                    self.rest.pop(old, None)
-            self.convs.move_to_end(device)
+                return out(head, "more", more=bool(self.rest[device]))
+            self.rest[device] = ""                                # any new question clears them
+            legacy = self.chat is None and self.make_conv is not None
+            if self.make_conv is None and self.voice is None and self.chat is None and not self._ram_ok():
+                return out("I cannot load my voice now, the PC is short of memory. Try again later.", "error", 503)
+            about = bool(ABOUT.search(text)) and not is_more
+            intent = "legacy" if legacy else ("about" if about else "chat")
             try:
                 v0 = len(getattr(self.voice, "timings", []))
                 t1 = time.monotonic()
-                raw = conv.reply(text)
+                if legacy:
+                    conv = self.convs.get(device) or self.convs.setdefault(device, self._build())
+                    raw = spoken(conv.reply(text))
+                elif about:
+                    raw = self._about(device, text)
+                else:
+                    raw = self._chat(device, text, is_more)
                 tot = time.monotonic() - t1
                 calls = list(getattr(self.voice, "timings", []))[v0:] if self.voice is not None else []
                 vs = sum(c[0] for c in calls)
                 self.last_split = {"load_s": round(t1 - t0, 2), "voice_s": round(vs, 2), "grounding_s": round(max(tot - vs, 0), 2),
                                    "prompt_tokens": sum(c[1] for c in calls), "out_tokens": sum(c[2] for c in calls)}
             except Exception as e:  # noqa: BLE001
-                return 500, {"reply": f"Something went wrong ({type(e).__name__}).", "action": None, "end": False, "ms": 0, "more": False}
-            if self.voice is not None:
-                self.voice.more = False
-            if not MORE.match(text):
-                self.prev[device] = text
-            head, self.rest[device] = chunk(spoken(raw))
-            return 200, {"reply": head, "action": None, "end": False, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
+                return out(f"Something went wrong ({type(e).__name__}).", "error", 500)
+            while len(self.convs) > MAX_DEVICES:
+                old, _ = self.convs.popitem(last=False)
+                self.rest.pop(old, None)
+                self.hist.pop(old, None)
+            if device in self.convs:
+                self.convs.move_to_end(device)
+            head, self.rest[device] = chunk(raw)
+            if not legacy:
+                h = self.hist.setdefault(device, deque(maxlen=2 * HIST_TURNS))
+                h.append({"role": "user", "content": text})
+                h.append({"role": "assistant", "content": head})
+            return out(head, intent, more=bool(self.rest[device]))
 
     def reap(self) -> bool:
         """Unload the voice after the idle time."""
@@ -770,6 +856,7 @@ class Core:
                 finally:
                     self.voice, self.convs = None, OrderedDict()
                     self.rest.clear()
+                    self.hist.clear()
                 return True
         return False
 
@@ -879,7 +966,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     hosts = [a.host] if a.host else [lan_ip()] + tailscale_ips()
     if any(h in ("0.0.0.0", "") for h in hosts) and not a.allow_all:
         raise SystemExit("refusing to bind 0.0.0.0 without --allow-all")
-    core = Core(Path(a.root), a.model, a.idle_min)
+    core = Core(Path(a.root), a.model, a.idle_min, log_path=rt / "conversations.jsonl")
     servers = []
     for h in dict.fromkeys(hosts):
         try:

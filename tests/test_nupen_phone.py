@@ -374,3 +374,88 @@ def test_auth_rules_unchanged_for_actions(server):
     assert call(srv, "/health", token=None, method="GET")[0] == 401
     assert call(srv, raw=b"x" * (P.MAX_BODY + 1))[0] == 413
     assert core.convs == {}                       # unauthenticated or action requests never even build a conversation
+
+
+# ---- routing: chat vs about-Nupen, history, leftovers, conversation log ----
+DUMP = "[doc:creator/resources.py] " + " ".join(["word"] * 120) + " [evidence: x]"
+PROBES = ["how's your day going", "tell me a joke", "what should I make for dinner", "help me with my homework"]
+
+
+class Stub:
+    def __init__(self) -> None:
+        self.calls: list[list[dict]] = []
+
+    def __call__(self, messages, more=False):
+        self.calls.append(messages)
+        return "Quite well, sir. [doc:x] Thank you for asking." if messages[0]["content"].startswith("You are Nupen, the owner") else "We are training, sir."
+
+
+class DumpConv:
+    def reply(self, text):
+        return DUMP
+
+
+def make_core(tmp_path=None, **kw):
+    stub = Stub()
+    core = P.Core(Path("."), make_conv=DumpConv, chat=stub, log_path=(tmp_path / "c.jsonl") if tmp_path else None, now=lambda: NOW, **kw)
+    return core, stub
+
+
+def test_probe_questions_never_dump_docs_or_leave_leftovers():
+    core, stub = make_core()
+    for q in PROBES:
+        code, d = core.talk("iphone", q)
+        assert code == 200 and "[doc" not in d["reply"] and "evidence" not in d["reply"] and d["more"] is False, q
+    assert core.convs == {} and core.rest["iphone"] == ""          # general chat never touches the doc/status conversation
+    assert len(stub.calls) == 4
+
+
+def test_about_nupen_is_rewritten_never_raw():
+    core, stub = make_core()
+    for q in ("what are you working on", "give me a status report", "who are you", "what are your plans"):
+        code, d = core.talk("iphone", q)
+        assert d["reply"] == "We are training, sir." and "[doc" not in d["reply"], q
+    assert stub.calls[-1][0]["content"].startswith("You are Nupen. Answer")
+    assert "Facts:" in stub.calls[-1][1]["content"] and "[doc" not in stub.calls[-1][1]["content"]
+
+
+def test_leftover_only_on_explicit_more():
+    class Long(Stub):
+        def __call__(self, messages, more=False):
+            return " ".join(["word"] * 100) + "."
+    core = P.Core(Path("."), chat=Long(), now=lambda: NOW)
+    core.make_conv = None
+    code, d1 = core.talk("d", "tell me about the moon")
+    assert d1["more"] is True and core.rest["d"]
+    code, d2 = core.talk("d", "tell me a joke")                      # a new question must not continue the old answer
+    assert core.rest["d"] and d2["reply"].split()[:3] == ["word"] * 3 and len(d2["reply"].split()) <= 62
+    assert core.talk("d", "say more")[1]["reply"]
+    core.rest["d"] = "leftover words here"
+    core.talk("d", "what is two plus two")
+    assert core.rest["d"] != "leftover words here"
+    core.rest["d"] = "leftover words here"
+    assert core.talk("d", "go on")[1]["reply"] == "leftover words here"
+
+
+def test_history_used_per_device_and_capped():
+    core, stub = make_core()
+    for i in range(10):
+        core.talk("a", f"question number {i}")
+    last = stub.calls[-1]
+    assert last[0]["role"] == "system" and last[-1]["content"] == "question number 9"
+    assert len(last) == 1 + 2 * P.HIST_TURNS + 1 and last[1]["content"] == "question number 3"
+    core.talk("b", "hello there")
+    assert [m["content"] for m in stub.calls[-1][1:]] == ["hello there"]
+
+
+def test_conversation_log_written_and_rotated(tmp_path):
+    core, _ = make_core(tmp_path)
+    core.talk("iphone", "how's your day going")
+    core.talk("iphone", "set a timer for five minutes")
+    rows = [json.loads(x) for x in (tmp_path / "c.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["intent"] for r in rows] == ["chat", "action"]
+    assert rows[0]["in"] == "how's your day going" and rows[0]["device"] == "iphone" and rows[0]["reply"] and isinstance(rows[0]["ms"], int)
+    assert rows[1]["action"] == {"type": "timer", "minutes": 5} and rows[0]["t"]
+    (tmp_path / "c.jsonl").write_text("x" * (P.LOG_MAX + 1), encoding="utf-8")
+    core.talk("iphone", "hello")
+    assert (tmp_path / "c.jsonl.1").is_file() and (tmp_path / "c.jsonl").stat().st_size < 10000
