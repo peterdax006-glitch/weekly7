@@ -72,6 +72,19 @@ def default_specs(runtime: Optional[Path] = None, threads: int = 6) -> dict[str,
             "THINKER": MP.SlotSpec("THINKER", rt / "models" / "Qwen3-1.7B-Q4_K_M.gguf", threads=threads, ctx=4096, max_tokens=224, grammars=g)}
 
 
+MOE_FILE = "Qwen3-30B-A3B-Q4_K_M.gguf"
+
+
+def moe_specs(specs: dict[str, MP.SlotSpec], runtime: Optional[Path] = None, threads: int = 6) -> dict[str, MP.SlotSpec]:
+    """R10: the same slots with CODER served by the Qwen3-30B-A3B mixture-of-experts GGUF (~3B parameters active per token). Same prompts,
+    grammars and prefills; the model is the stock instruct model (no adapter), the prompt keeps the empty think block (= /no_think)."""
+    from creator import generator as G
+    rt = Path(runtime) if runtime else G.RUNTIME
+    out = dict(specs)
+    out["CODER"] = MP.SlotSpec("CODER", rt / "models" / MOE_FILE, threads=threads, ctx=8192, max_tokens=512, grammars=grammars())
+    return out
+
+
 def chatml(system: str, user: str) -> str:
     """Qwen3 chat prompt with the empty think block (what the adapters were trained on: the last assistant turn renders <think></think>)."""
     return f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
