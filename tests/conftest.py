@@ -23,6 +23,13 @@ import pytest
 
 os.environ.setdefault("NUPEN_TEST_MB_FILE", os.path.join(tempfile.gettempdir(), f"nupen_test_mb_{os.getpid()}.json"))
 
+# 5 Oct 2026 (h86, test speed): under pytest-xdist every worker is its own process; lightgbm (n_jobs=-1), OpenMP and BLAS would each start one
+# thread per logical CPU, so N workers x all CPUs spin-wait against each other (measured: a 10 s test took 646 s under 12 workers).
+# Inside a worker the libraries are pinned to one thread. A plain serial run (no PYTEST_XDIST_WORKER) is untouched.
+if os.environ.get("PYTEST_XDIST_WORKER"):
+    for _name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        os.environ.setdefault(_name, "1")
+
 PINNED_TREE = "pinned-in-tests"
 
 
