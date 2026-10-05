@@ -347,6 +347,7 @@ def code_user(t: dict[str, Any], plan: str, pack: str) -> str:
 NL = chr(10)
 FENCE = chr(96) * 3
 EX_LINES, EX_CHARS = 4, 160
+LEAN = False                                      # R4 variant: the stub once in the prompt + a one-line SEARCH prefill (instead of the stub twice in the prefill)
 DUP_STUB = False                                  # the prefilled SEARCH half already holds the stub: do not send it a second time
 FAIL_CHARS = 500
 FAST_PLAN ="Implement the function body below the signature; keep the signature and docstring."
@@ -370,6 +371,8 @@ def fast_prefill(t: dict[str, Any]) -> str:
     m = re.search(r"^(?:async )?def .*$", stub, re.M)
     if t.get("family") != "fn" or not m or not stub.endswith(STUB_LAST.strip()):
         return ""
+    if LEAN:
+        return f"<<<<<<< SEARCH{NL}{STUB_LAST}{NL}======={NL}"
     func = stub[m.start():]
     head = func[:len(func) - len(STUB_LAST.lstrip(NL))].rstrip() if func.endswith(STUB_LAST.strip()) else func
     head = func[:func.rindex(STUB_LAST.strip())].rstrip(" ").rstrip(NL)
@@ -379,7 +382,7 @@ def fast_prefill(t: dict[str, Any]) -> str:
 def fast_code_user(t: dict[str, Any], pack: str, hint: str = "") -> str:
     fn = t.get("family") == "fn"
     if fn:
-        cur = (f"{NL}{NL}Current solution.py:{NL}{FENCE}python{NL}{t.get('stub', '')}{NL}{FENCE}{NL}" if DUP_STUB else NL * 2)             + EDIT_FORMAT.format(f="solution.py")
+        cur = (f"{NL}{NL}Current solution.py:{NL}{FENCE}python{NL}{t.get('stub', '')}{NL}{FENCE}{NL}" if (DUP_STUB or LEAN) else NL * 2)             + EDIT_FORMAT.format(f="solution.py")
     else:
         cur = f"{NL}{NL}Relevant code:{NL}{pack}{NL}" + EDIT_FORMAT_FILES
     if hint:                                                                  # R2 regenerate: the failing visible example rides along

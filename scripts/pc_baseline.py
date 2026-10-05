@@ -181,6 +181,7 @@ class Run:
             from creator import modelpool as MP
             old = specs["CODER"]
             specs["CODER"] = MP.SlotSpec("CODER", Path(a.coder_gguf), threads=old.threads, ctx=old.ctx, max_tokens=old.max_tokens, grammars=old.grammars)
+        SL.LEAN = bool(getattr(a, "lean_prefill", False))
         self.repair = getattr(a, "repair", "none") or "none"
         self.repair_rounds = int(getattr(a, "repair_rounds", 3))
         self.max_fast_debug = int(a.max_fast_debug) if getattr(a, "max_fast_debug", None) is not None else MAX_FAST_DEBUG
@@ -609,6 +610,7 @@ def main(argv: list[str]) -> int:
     r.add_argument("--threads", type=int, default=6)
     r.add_argument("--repair", default="none", choices=list(RP.STRATEGIES), help="R2 test-driven repair after CODE (fast path only)")
     r.add_argument("--repair-rounds", type=int, default=3)
+    r.add_argument("--lean-prefill", action="store_true", help="R4 variant: stub once in the prompt, one-line SEARCH prefill (fewer prompt tokens)")
     r.add_argument("--coder-gguf", default="", help="serve CODER from this GGUF (any coder model; same prompts and grammars)")
     r.add_argument("--max-fast-debug", type=int, default=None, help="override the fast-path DEBUG_FIX rounds (default SL.MAX_FAST_DEBUG)")
     c = sub.add_parser("calib")
