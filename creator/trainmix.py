@@ -459,6 +459,13 @@ def eval_sets(ctx: Ctx) -> dict[str, dict[str, Any]]:
     for n in ("rl_tasks_hf", "rl_tasks_more"):
         ev = [r for r in jsonl(export_dirs()["export"] / f"{n}.jsonl") if r.get("split") == "eval"]
         put(f"export/{n}:eval", [(str(r["id"]), str(r.get("prompt") or "")) for r in ev], [str(r["id"]) for r in ev])   # ids: role rows of eval tasks
+    try:                                                                  # R13: the ~200-task eval suite (EXCLUDE.json): ids, requests, def names
+        from creator.tools import evalexclude as EX
+        ex = EX.load()
+        if ex:
+            out["eval_suite200"] = ex.eval_set()
+    except Exception:                                   # noqa: BLE001 - a broken list must not hide the other evals; the audit below still runs
+        pass
     return out
 
 

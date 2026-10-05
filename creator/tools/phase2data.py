@@ -89,10 +89,12 @@ def _nl(line: str) -> str:
 class Guard:
     """What must never reach a training row: the 32-task baseline suite and anything derived from it."""
 
-    def __init__(self, suite_dir: str | Path) -> None:
+    def __init__(self, suite_dir: str | Path, exclude: str | Path | None = None) -> None:
+        from creator.tools import evalexclude as EX
+        self.excl = EX.load(Path(exclude) if exclude else None)          # R13: the ~200-task eval suite (EXCLUDE.json, outside the repo)
         sd = Path(suite_dir)
         tasks = json.loads((sd / "tasks.json").read_text(encoding="utf-8"))["tasks"]
-        self.ids = {str(t["id"]) for t in tasks}
+        self.ids = {str(t["id"]) for t in tasks} | self.excl.ids
         self.names = {str(t["name"]) for t in tasks if t.get("name")}
         self.texts: list[str] = []
         for t in tasks:
@@ -118,6 +120,9 @@ class Guard:
         for i, t in enumerate(self.texts):
             if len(t) >= 80:
                 self.near.add(f"suite:{i}", t)
+        for i, (_xid, t) in enumerate(self.excl.texts):
+            if len(t) >= 80:
+                self.near.add(f"eval_suite200:{i}", t)
 
     def violation(self, text: str) -> str | None:
         low = text.lower()
@@ -125,6 +130,9 @@ class Guard:
             return "mentions the baseline suite / minishop"
         if self.id_re and self.id_re.search(text):
             return "contains a suite task id"
+        why = self.excl.violation(text)
+        if why:
+            return f"eval suite: {why}"
         if self.name_re and self.name_re.search(text):
             return "mentions a suite function name"
         for ln in text.splitlines():
@@ -425,6 +433,9 @@ def build_code(gpuday: Path, out_dir: Path, guard: Guard, heldout: Mapping[str, 
                 drops[f"{c['source']}: does not parse"] += 1
                 continue
             text = c["prompt"] + "\n" + c["code"]
+            if str(c["id"]) in guard.excl.ids:
+                drops[f"{c['source']}: guard: an eval-suite task / source id"] += 1
+                continue
             v = guard.violation(text)
             if v:
                 drops[f"{c['source']}: guard: {v}"] += 1
