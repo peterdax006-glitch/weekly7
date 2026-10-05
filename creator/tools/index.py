@@ -1,0 +1,352 @@
+"""Locate index + context packer (MASTER_BLUEPRINT P0.3, owner 4 Oct 2026: "code first ... absolutely crazy efficent").
+
+Finding the code a change needs used to cost a model call that read ~2000 tokens (~60 s on the home CPU). This index answers the same
+question from a SQLite file in milliseconds: definitions, call sites and ripgrep text hits, ranked; the packer then returns only the
+exact line ranges, under a hard token budget per role, instead of whole files.
+
+    ix = Index(root); ix.update()                 # incremental: only files whose bytes changed are re-parsed
+    ix.defs("select_tests")                       # [Hit(path, line, end, kind, qual)]
+    ix.callers("select_tests")                    # call sites, with the enclosing function
+    ix.locate("select tests for changed files")   # ranked hits for a free-text or symbol query
+    ix.pack(hits, max_tokens=1500)                # "### path:line-end (qual)\n<code>" blocks within the budget
+
+Stored outside the repo (diskcache.cache_dir()/index/<root hash>.sqlite, or WEEKLY7_INDEX_DIR); loaded on demand, imports nothing heavy.
+CLI: python -m creator.tools.index [root] update | defs NAME | callers NAME | locate QUERY | bench
+"""
+from __future__ import annotations
+
+import ast
+import hashlib
+import os
+import re
+import sqlite3
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, Optional, Sequence
+
+CHARS_PER_TOKEN = 3.6
+SCHEMA = 5
+_WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_STOP = frozenset("a an and the of to for in on with from by is are be it this that as at or not into".split())
+
+
+@dataclass(frozen=True)
+class Hit:
+    path: str
+    line: int
+    end: int
+    kind: str          # def | class | call | text
+    qual: str          # dotted name (defs) / enclosing function (calls) / matched text (text)
+    score: float = 0.0
+
+
+def _db_path(root: Path) -> Path:
+    base = os.environ.get("WEEKLY7_INDEX_DIR")
+    if base:
+        d = Path(base)
+    else:
+        try:
+            from creator import diskcache
+            c = diskcache.cache_dir()
+        except Exception:
+            c = None
+        d = (Path(c) if c else Path.home() / ".cache" / "weekly7") / "index"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / (hashlib.sha256(str(root.resolve()).encode()).hexdigest()[:16] + ".sqlite")
+
+
+def _py_files(root: Path) -> list[str]:
+    try:
+        out = subprocess.run(["git", "-C", str(root), "ls-files", "-co", "--exclude-standard", "*.py"], capture_output=True, text=True,
+                             timeout=30)
+        if out.returncode == 0:
+            return [p for p in out.stdout.splitlines() if p]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return [str(p.relative_to(root)).replace("\\", "/") for p in root.rglob("*.py") if ".git" not in p.parts]
+
+
+class _Visitor(ast.NodeVisitor):
+    def __init__(self) -> None:
+        self.stack: list[str] = []
+        self.defs: list[tuple[str, str, str, int, int]] = []    # name, qual, kind, line, end
+        self.calls: list[tuple[str, int, str]] = []               # callee name, line, caller qual
+
+    def _def(self, node: ast.AST, kind: str) -> None:
+        name = getattr(node, "name")
+        qual = ".".join(self.stack + [name])
+        self.defs.append((name, qual, kind, node.lineno, getattr(node, "end_lineno", node.lineno) or node.lineno))
+        self.stack.append(name)
+        self.generic_visit(node)
+        self.stack.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._def(node, "def")
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._def(node, "def")
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._def(node, "class")
+
+    def visit_Call(self, node: ast.Call) -> None:
+        f = node.func
+        name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+        if name:
+            self.calls.append((name, node.lineno, ".".join(self.stack)))
+        self.generic_visit(node)
+
+
+class Index:
+    def __init__(self, root: str | Path, db: Optional[str | Path] = None) -> None:
+        self.root = Path(root).resolve()
+        self.db_path = Path(db) if db else _db_path(self.root)
+        self.db = sqlite3.connect(str(self.db_path))
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA synchronous=NORMAL")
+        cur = self.db.execute("PRAGMA user_version").fetchone()[0]
+        if cur != SCHEMA:
+            self.db.executescript("""
+                DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS syms; DROP TABLE IF EXISTS calls; DROP TABLE IF EXISTS words;
+                CREATE TABLE files(path TEXT PRIMARY KEY, sha TEXT, nlines INT);
+                CREATE TABLE syms(name TEXT, qual TEXT, kind TEXT, path TEXT, line INT, end INT);
+                CREATE TABLE calls(name TEXT, path TEXT, line INT, caller TEXT);
+                CREATE VIRTUAL TABLE words USING fts5(txt, qual UNINDEXED, path UNINDEXED, line UNINDEXED, end UNINDEXED,
+                                                      kind UNINDEXED);
+                CREATE INDEX syms_name ON syms(name); CREATE INDEX syms_path ON syms(path);
+                CREATE INDEX calls_name ON calls(name); CREATE INDEX calls_path ON calls(path);
+            """)
+            self.db.execute(f"PRAGMA user_version={SCHEMA}")
+            self.db.commit()
+
+    # ------------------------------------------------------------------------------------------------------------------ building
+    def update(self, paths: Optional[Iterable[str]] = None) -> dict[str, float]:
+        """Re-parse only files whose bytes changed; drop deleted ones. Returns counts and seconds."""
+        t0 = time.perf_counter()
+        files = list(paths) if paths is not None else _py_files(self.root)
+        known = dict(self.db.execute("SELECT path, sha FROM files"))
+        seen, parsed, failed = set(), 0, 0
+        for rel in files:
+            p = self.root / rel
+            try:
+                data = p.read_bytes()
+            except OSError:
+                continue
+            seen.add(rel)
+            sha = hashlib.sha1(data).hexdigest()
+            if known.get(rel) == sha:
+                continue
+            self._drop(rel)
+            try:
+                tree = ast.parse(data, filename=rel)
+            except (SyntaxError, ValueError):
+                failed += 1
+                self.db.execute("INSERT OR REPLACE INTO files VALUES (?,?,?)", (rel, sha, data.count(b"\n") + 1))
+                continue
+            v = _Visitor()
+            v.visit(tree)
+            mod = rel[:-3].replace("/", ".")                        # the module itself is a symbol: "slow path" finds creator/slowpath.py
+            doc = (ast.get_docstring(tree) or "").split("\n", 1)[0][:200]
+            v.defs.insert(0, (mod.rsplit(".", 1)[-1], mod, "module", 1, data.count(b"\n") + 1))
+            if doc:
+                nl = data.count(b"\n") + 1
+                self.db.execute("INSERT INTO words VALUES (?,?,?,?,?,?)", (" ".join(_split(mod)) + " " + doc.lower(), mod, rel, 1, nl,
+                                                                            "module"))
+            self.db.executemany("INSERT INTO syms VALUES (?,?,?,?,?,?)", [(n, q, k, rel, a, b) for n, q, k, a, b in v.defs])
+            self.db.executemany("INSERT INTO words VALUES (?,?,?,?,?,?)",
+                                [(" ".join(_split(q)), q, rel, a, b, k) for _n, q, k, a, b in v.defs if k != "module"])
+            self.db.executemany("INSERT INTO calls VALUES (?,?,?,?)", [(n, rel, ln, c) for n, ln, c in v.calls])
+            self.db.execute("INSERT OR REPLACE INTO files VALUES (?,?,?)", (rel, sha, data.count(b"\n") + 1))
+            parsed += 1
+        if paths is None:
+            for rel in set(known) - seen:
+                self._drop(rel)
+                self.db.execute("DELETE FROM files WHERE path=?", (rel,))
+        self.db.commit()
+        return {"files": float(len(seen)), "parsed": float(parsed), "failed": float(failed), "seconds": round(time.perf_counter() - t0, 3)}
+
+    def _drop(self, rel: str) -> None:
+        for t in ("syms", "calls", "words"):
+            self.db.execute(f"DELETE FROM {t} WHERE path=?", (rel,))
+
+    # ------------------------------------------------------------------------------------------------------------------ queries
+    def defs(self, name: str) -> list[Hit]:
+        rows = self.db.execute("SELECT path, line, end, kind, qual FROM syms WHERE name=? ORDER BY path, line", (name,))
+        return [Hit(p, a, b, k, q) for p, a, b, k, q in rows]
+
+    def callers(self, name: str, limit: int = 200) -> list[Hit]:
+        rows = self.db.execute("SELECT path, line, caller FROM calls WHERE name=? ORDER BY path, line LIMIT ?", (name, limit))
+        return [Hit(p, ln, ln, "call", c) for p, ln, c in rows]
+
+    def text(self, pattern: str, limit: int = 50, fixed: bool = True) -> list[Hit]:
+        """ripgrep over the tracked Python files (literal by default)."""
+        args = ["rg", "-n", "--no-heading", "--color", "never", "-g", "*.py", "-m", "20"] + (["-F"] if fixed else []) + ["--", pattern, "."]
+        try:
+            out = subprocess.run(args, cwd=self.root, capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
+        except (OSError, subprocess.TimeoutExpired):
+            return []
+        hits = []
+        for line in out.stdout.splitlines()[:limit]:
+            parts = line.split(":", 2)
+            if len(parts) == 3 and parts[1].isdigit():
+                hits.append(Hit(parts[0].lstrip("./").replace("\\", "/"), int(parts[1]), int(parts[1]), "text", parts[2].strip()[:120]))
+        return hits
+
+    def enclosing(self, path: str, line: int) -> Optional[Hit]:
+        r = self.db.execute("SELECT path, line, end, kind, qual FROM syms WHERE path=? AND line<=? AND end>=? ORDER BY line DESC LIMIT 1",
+                            (path, line, line)).fetchone()
+        return Hit(*r[:4], r[4]) if r else None
+
+    def locate(self, query: str, k: int = 10) -> list[Hit]:
+        """Ranked definitions for a symbol or free-text query: exact name > identifier words in the query > name-word match (FTS) >
+        ripgrep hits mapped to their enclosing definition."""
+        scores: dict[tuple[str, int], tuple[float, Hit]] = {}
+
+        def add(h: Hit, s: float) -> None:
+            key = (h.path, h.line)
+            old = scores.get(key)
+            scores[key] = (s + (old[0] if old else 0.0), h)
+
+        q = query.strip()
+        idents = [w for w in _WORD.findall(q) if len(w) > 2 and w.lower() not in _STOP]
+        specific = [w for w in idents if "_" in w or re.search(r"[a-z][A-Z]", w)]     # select_tests / ImportGraph: a real name
+        if _WORD.fullmatch(q):
+            specific = specific or [q]
+        for w in specific:
+            for h in self.defs(w):
+                add(h, 10.0)
+        terms = sorted({t for w in idents for t in _split(w) if len(t) > 2 and t not in _STOP})
+        if terms:
+            fts = " OR ".join(f'"{t}"' for t in terms)
+            try:
+                rows = self.db.execute("SELECT txt, qual, path, line, end, kind, bm25(words) FROM words WHERE words MATCH ? "
+                                       "ORDER BY bm25(words) LIMIT 120", (fts,)).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+            want = set(terms)
+            seen_rows: set[tuple[str, int]] = set()
+            test_q = any(t.startswith("test") for t in want)
+
+            def score_rows(rs: Iterable[tuple]) -> None:
+                for words, qual, p, a, b, kind, bm in rs:
+                    if (p, int(a)) in seen_rows:
+                        continue
+                    seen_rows.add((p, int(a)))
+                    name_words = _split(qual.rsplit(".", 1)[-1])
+                    full = words.split()
+                    cov_last = sum(_covered(t, name_words) for t in want) / len(want)     # how much of the query the NAME covers
+                    cov_full = sum(_covered(t, full) for t in want) / len(want)           # ... or with its class/module context
+                    extra = sum(1 for w in name_words if not any(_covered(t, [w]) for t in want)) / max(1, len(name_words))
+                    pen = 1.5 if (not test_q and (p.startswith("tests/") or "/test_" in p or p.startswith("test_"))) else 0.0
+                    add(Hit(p, int(a), int(b), kind, qual), 6.0 * cov_last + 3.0 * cov_full - 1.0 * extra - pen + min(1.0, -float(bm) / 10))
+
+            score_rows(rows)
+            if sum(1 for sc, _h in scores.values() if sc >= 6.0) < 3:   # compound names (slowpath, modelpool) are one FTS token:
+                extra_rows = []                                       # substring scan only when the token match found too little
+                for t in (t for t in terms if len(t) >= 4):
+                    for p, a, b, kind, qual in self.db.execute(
+                            "SELECT path, line, end, kind, qual FROM syms WHERE name LIKE ? AND (kind != 'def' OR name NOT LIKE '%\\_%' ESCAPE '\\') "
+                            "LIMIT 80", (f"%{t}%",)):
+                        extra_rows.append((" ".join(_split(qual)), qual, p, a, b, kind, 0.0))
+                score_rows(extra_rows)
+        strong = sum(1 for sc, _h in scores.values() if sc >= 3.0)
+        for w in (idents[:3] if strong < k else []):          # ripgrep (a subprocess, ~20-30 ms) only when the index found too little
+            for t in self.text(w, limit=20):
+                e = self.enclosing(t.path, t.line)
+                if e:
+                    add(e, 0.5)
+        ranked = sorted(scores.values(), key=lambda x: (-x[0], x[1].path, x[1].line))
+        return [Hit(h.path, h.line, h.end, h.kind, h.qual, round(s, 2)) for s, h in ranked[:k]]
+
+    # ------------------------------------------------------------------------------------------------------------------ packing
+    def pack(self, hits: Sequence[Hit], max_tokens: int = 1500, max_lines_per_hit: int = 80) -> str:
+        """Exact line ranges for the hits, in order, until the token budget is spent. A def longer than max_lines_per_hit is cut with a
+        marker. Overlapping ranges in the same file are emitted once."""
+        budget = int(max_tokens * CHARS_PER_TOKEN)
+        out, used, done = [], 0, set()
+        cache: dict[str, list[str]] = {}
+        for h in hits:
+            lines = cache.get(h.path)
+            if lines is None:
+                try:
+                    lines = (self.root / h.path).read_text(encoding="utf-8", errors="replace").splitlines()
+                except OSError:
+                    continue
+                cache[h.path] = lines
+            a, b = h.line, max(h.line, h.end)
+            if h.kind in ("call", "text"):
+                a, b = max(1, h.line - 3), min(len(lines), h.line + 3)
+            if any(p == h.path and x <= a and b <= y for p, x, y in done):
+                continue
+            cut = b - a + 1 > max_lines_per_hit
+            body = lines[a - 1:(a - 1 + max_lines_per_hit) if cut else b]
+            block = f"### {h.path}:{a}-{b} ({h.qual})\n" + "\n".join(body) + ("\n# ... cut" if cut else "") + "\n"
+            if used + len(block) > budget:
+                if not out:
+                    out.append(block[:budget])
+                break
+            out.append(block)
+            used += len(block)
+            done.add((h.path, a, b))
+        return "".join(out)
+
+
+def _split(name: str) -> list[str]:
+    """snake_case / CamelCase / dotted -> lower-case words."""
+    parts = re.split(r"[._]+", name)
+    words: list[str] = []
+    for p in parts:
+        words += [w.lower() for w in re.findall(r"[A-Z]+(?=[A-Z][a-z]|\d|\b)|[A-Z]?[a-z]+|[A-Z]+|\d+", p)]
+    return [w for w in words if w]
+
+
+def _covered(term: str, words: Sequence[str]) -> bool:
+    """A query term is covered by a name word when equal, or (4+ letters) inside a compound word: slow -> slowpath."""
+    return any(term == w or (len(term) >= 4 and term in w) for w in words)
+
+
+def _unsplit(words: str, path: str, line: int, ix: "Index") -> str:
+    r = ix.db.execute("SELECT qual FROM syms WHERE path=? AND line=? LIMIT 1", (path, line)).fetchone()
+    return r[0] if r else words
+
+
+def _bench(ix: Index, queries: Sequence[str]) -> dict[str, float]:
+    times = []
+    for q in queries:
+        t0 = time.perf_counter()
+        ix.locate(q)
+        times.append(time.perf_counter() - t0)
+    times.sort()
+    return {"n": float(len(times)), "p50_ms": round(1000 * times[len(times) // 2], 1), "p95_ms": round(1000 * times[int(len(times) * 0.95) - 1], 1)}
+
+
+def main(argv: Sequence[str]) -> int:
+    root = Path(argv[0]) if argv and not argv[0] in ("update", "defs", "callers", "locate", "bench") else Path.cwd()
+    rest = list(argv[1:] if argv and Path(argv[0]) == root else argv)
+    ix = Index(root)
+    cmd = rest[0] if rest else "update"
+    if cmd == "update":
+        print(ix.update())
+    elif cmd == "defs":
+        for h in ix.defs(rest[1]):
+            print(f"{h.path}:{h.line}-{h.end} {h.kind} {h.qual}")
+    elif cmd == "callers":
+        for h in ix.callers(rest[1]):
+            print(f"{h.path}:{h.line} in {h.qual}")
+    elif cmd == "locate":
+        ix.update()
+        hits = ix.locate(" ".join(rest[1:]))
+        for h in hits:
+            print(f"{h.score:6.2f} {h.path}:{h.line}-{h.end} {h.qual}")
+    elif cmd == "bench":
+        print(ix.update())
+        names = [r[0] for r in ix.db.execute("SELECT name FROM syms ORDER BY random() LIMIT 100")]
+        print(_bench(ix, names + [n.replace("_", " ") for n in names]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
