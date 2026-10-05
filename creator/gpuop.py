@@ -419,6 +419,18 @@ _LOCAL_KEYS = ("restart_feeder", "sync_chunks_direct", "sync_resume_direct", "st
 _REVERT = {"hold_guardian_stop": "release_guardian", "evict_filler": None}
 
 
+def _push_gpu(action: "Action") -> None:
+    try:
+        from creator import notify as N
+        why = dict(action.params).get("reason")
+        if action.key == "stop_instance":
+            N.gpu_event("budget_near_cap" if why == "budget" else "rental_idle", f"Rental stopped ({why}).")
+        elif action.key == "release_after_result":
+            N.gpu_event("job_done", "A job produced its result.")
+    except Exception:
+        pass
+
+
 class LiveBackend(Backend):
     """Builds ssh/local commands from a config file outside the repo (GPUOP_CONFIG or the path given). Nothing runs unless armed=True
     AND the instance was created with armed=True explicitly; otherwise do() returns the command it would have run."""
@@ -457,7 +469,10 @@ class LiveBackend(Backend):
         return Result(action.key, True, f"{verb}: rc={getattr(p, 'returncode', '?')}", cmd)
 
     def do(self, action: Action, t: Optional[float] = None) -> Result:
-        return self._exec(action, "do")
+        r = self._exec(action, "do")
+        if r.executed:                                             # owner push only for a really executed live action
+            _push_gpu(action)
+        return r
 
     def revert(self, action: Action, t: Optional[float] = None) -> Result:
         back = _REVERT.get(action.key)
@@ -572,6 +587,8 @@ class Operator:
             cost = 0.0                                      # pod remedies here cost no extra $; instance restarts are excluded by level
             if not within_budget(self.spent, cost, self.budget) and self.budget > 0:
                 refused = "budget cap"
+                if self.backend.name == "live":
+                    _push_gpu(Action("stop_instance", (("reason", "budget"),)))
                 break
             chosen = cand
             break

@@ -1240,6 +1240,17 @@ class Core:
                "fields": dict(UPLOAD_FIELDS)}
         return out("Of course, sir. Choose the clips.", "upload", action=act)
 
+    def _shortcut_request(self, device: str, text: str, out: Callable[..., Any]) -> Optional[tuple[int, dict[str, Any], str]]:
+        """'Make me a shortcut that ...': plan -> validated Jelly source -> stored, owner gets a Confirm notification (and the action rides the reply)."""
+        if self.voice_rt is None:
+            return None
+        from creator import shortcutgen as SG
+        v = self.voice                                           # the loaded local model only; never loaded just for this
+        res = SG.handle(text, self.voice_rt, (lambda p: str(v.ask([{"role": "user", "content": p}], 300, 0.1).text)) if v is not None else None)
+        if res is None:
+            return None
+        return out(res["reply"], "shortcut" if res.get("action") else "refused", action=res.get("action"))
+
     def _hold(self, device: str, acts: list[dict[str, Any]]) -> None:
         self.pending[device] = (self.clock() + 300.0, acts)
 
@@ -1283,6 +1294,8 @@ class Core:
                 body["_tools"] = tools
             return code, body, intent
         if (c := self._voice_upload(device, text, out)) is not None:
+            return c
+        if (c := self._shortcut_request(device, text, out)) is not None:
             return c
         if (c := self._confirm(device, text, out)) is not None:
             return c
@@ -1361,7 +1374,8 @@ class Core:
 
 
 def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN,
-                voice_rt: Optional[Path] = None, on_voice: Optional[Callable[[Path], Any]] = None) -> ThreadingHTTPServer:
+                voice_rt: Optional[Path] = None, on_voice: Optional[Callable[[Path], Any]] = None,
+                decisions_dir: Optional[Path] = None) -> ThreadingHTTPServer:
     limiter = RateLimit(per_min)
     tok = token.encode()
 
@@ -1395,7 +1409,37 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/health":
                 return self._send(200, {"ok": True, "voice_loaded": core.voice is not None})
+            if self.path.split("?")[0] == "/shortcut":          # the Nupen shortcut fetches a generated shortcut's Jelly source by id
+                from urllib.parse import parse_qs, urlparse
+                from creator import shortcutgen as SG
+                sid = (parse_qs(urlparse(self.path).query).get("id") or [""])[0]
+                rec = SG.fetch(Path(voice_rt) if voice_rt else None, sid)
+                if rec is None:
+                    return self._send(404, {"error": "no such shortcut"})
+                return self._send(200, rec)
             self._send(404, {"error": "not found"})
+
+        def _decision(self) -> None:
+            """POST /decision {id, choice}: auth = master bearer OR the key scoped to this id (what the ntfy button carries). It only RECORDS
+            the answer to the pending-decisions file; Nupen's engine reads it through its own gates. Nothing is executed here."""
+            from creator import decisions as D
+            if not limiter.ok(self.client_address[0]):
+                return self._send(429, {"error": "slow down"})
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > MAX_BODY:
+                return self._send(413, {"error": "request too large"})
+            try:
+                d = json.loads(self.rfile.read(n).decode("utf-8"))
+                did, choice = d["id"], d["choice"]
+            except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+                return self._send(400, {"error": 'expected JSON {"id": "...", "choice": "approve|later"}'})
+            if not (self._authed() or D.key_ok(token, str(did), self.headers.get("X-Decision-Key", ""))):
+                return self._send(401, {"error": "unauthorized"})
+            ok, why = D.record_answer(str(did), str(choice), decisions_dir)
+            self._send(200 if ok else 409 if why == "already answered" else 400, {"ok": ok, "why": why})
 
         def _voice_upload(self) -> None:
             from urllib.parse import parse_qs, urlparse
@@ -1436,6 +1480,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             self._send(code, out)
 
         def do_POST(self) -> None:  # noqa: N802
+            if self.path.split("?")[0] == "/decision":
+                return self._decision()
             if not self._authed():
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/voice_upload":
