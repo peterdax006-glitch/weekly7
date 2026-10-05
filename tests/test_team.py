@@ -89,7 +89,7 @@ def test_board_and_cache(tmp_path):
     b = T.Board(tmp_path / "b.sqlite")
     i = b.put("g", "fact", "hello")
     assert i == b.put("g", "fact", "hello") and b.get(i)["body"] == "hello" and len(b.by_goal("g")) == 1
-    c = T.ResultCache(b)
+    c = T.ResultCache(b, near=0.7)     # mechanism test; production threshold is NEAR_THRESHOLD
     e = T.Envelope("g", "SPEC", inputs=[i], success_test="make the parser handle empty config files without raising an error when the file is missing or unreadable or locked by another process on windows")
     assert c.get(e) is None
     c.put(e, "R")
