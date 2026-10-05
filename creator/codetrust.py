@@ -704,8 +704,22 @@ def upstream_head(root: Path) -> str:
     return _git(root, "rev-parse", "HEAD").strip()
 
 
-POD_SSH = ("ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-i", str(Path.home() / ".ssh" / "nupen_vast"), "-p", "56727",
-           "root@38.49.42.46")
+def _pod_ssh() -> tuple[str, ...]:
+    """The pod's ssh command, never stored in the (public) repo: env NUPEN_POD_SSH (a full command line) or the first line of
+    ~/creator_runtime/gpu/pod_ssh.txt; empty when neither exists (pod-side runs then report that no pod is configured)."""
+    import os
+    import shlex
+    line = os.environ.get("NUPEN_POD_SSH", "")
+    if not line:
+        cfg = Path.home() / "creator_runtime" / "gpu" / "pod_ssh.txt"
+        try:
+            line = cfg.read_text(encoding="utf-8").splitlines()[0].strip()
+        except (OSError, IndexError):
+            line = ""
+    return tuple(shlex.split(line)) if line else ()
+
+
+POD_SSH = _pod_ssh()
 POD_DIR = "/workspace/nupen/codetrust"
 PUBLIC_URL = "https://github.com/peterdax006-glitch/weekly7.git"
 

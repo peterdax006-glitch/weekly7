@@ -91,7 +91,7 @@ def main(argv: list[str]) -> int:
                     help="where the sandbox tests run: this PC (xdist on free cores) or the GPU pod's CPUs over ssh (public code only)")
     ap.add_argument("--workers", type=int, default=0, help="local xdist workers (0 = free cores, max 8; 1 = serial)")
     ap.add_argument("--pod-cores", type=int, default=4)
-    ap.add_argument("--pod-ssh", default="", help="ssh command for the pod, e.g. 'ssh -i ~/.ssh/nupen_vast -p 35735 root@ssh9.vast.ai'")
+    ap.add_argument("--pod-ssh", default="", help="ssh command for the pod, e.g. 'ssh -i <key> -p <port> <user>@<host>' (never commit a real one)")
     ap.add_argument("--futility", type=int, default=10,
                     help="stop attempting a class once it has this many scored tasks and its Wilson UPPER bound is below the gate (0 = off)")
     ap.add_argument("--tasks-parallel", type=int, default=1, help="tasks attempted at the same time")

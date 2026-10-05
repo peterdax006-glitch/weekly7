@@ -119,13 +119,14 @@ def test_diff_catches_seeded_violations() -> None:
         "sealed-oldpc": _diff("docs/oldpc/a.txt", ["hi"]),
         "api-key": _diff("creator/a.py", [f'KEY = "{fake_key}"']),
         "token": _diff("creator/a.py", ["t = 'ghp_" + "A" * 30 + "'"]),
-        "private-key": _diff("creator/a.py", ["-----BEGIN RSA PRIVATE KEY-----"]),
-        "ip": _diff("creator/a.py", ["host = '203.0.113.77'"]),
-        "home": _diff("creator/a.py", ["P = 'C:/Users/someone/data'"]),
-        "home-posix": _diff("creator/a.py", ["P = '/home/someone/data'"]),
-        "creds-url": _diff("creator/a.py", ["u = 'https://bob:hunter22@example.org/x'"]),
-        "ssh": _diff("creator/a.sh", ["ssh -p 22 root@pod.example.org uptime"]),
-        "assigned": _diff("creator/a.py", ["api_token = 'abcdefghijklmnopqrstuvwx'"]),
+        # seeded violations are assembled at run time so this test file itself never trips the deploy gate (check_diff over git diff)
+        "private-key": _diff("creator/a.py", ["-----BEGIN RSA " + "PRIVATE KEY-----"]),
+        "ip": _diff("creator/a.py", ["host = '" + ".".join(["203", "0", "113", "77"]) + "'"]),
+        "home": _diff("creator/a.py", ["P = '" + "C:/" + "Users/someone/data'"]),
+        "home-posix": _diff("creator/a.py", ["P = '/" + "home/someone/data'"]),
+        "creds-url": _diff("creator/a.py", ["u = 'https://" + "bob:hunter22" + "@example.org/x'"]),
+        "ssh": _diff("creator/a.sh", ["ssh -p 22 " + "root" + "@pod.example.org uptime"]),
+        "assigned": _diff("creator/a.py", ["api_" + "token = '" + "abcdefghijklmnopqrstuvwx'"]),
     }
     for name, d in cases.items():
         assert PO.check_diff(d).verdict == "block", name
