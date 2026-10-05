@@ -71,6 +71,7 @@ def main(argv):
             rows.append((wav.name, text))
             if len(rows) % 25 == 0:
                 print(spk, len(rows), f"{dur / 60:.1f} min", flush=True)
+                (out / f"metadata_{spk}.csv").write_text("".join(f"{w}|{t}\n" for w, t in rows), encoding="utf-8")  # partial, resumable
         (out / f"metadata_{spk}.csv").write_text("".join(f"{w}|{t}\n" for w, t in rows), encoding="utf-8")
         multi += [(w, spk, t) for w, t in rows]
         manifest["speakers"][spk] = {"utts": len(rows), "minutes": round(dur / 60, 1), "skipped": skipped}
