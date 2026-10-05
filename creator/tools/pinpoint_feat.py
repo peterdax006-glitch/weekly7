@@ -276,10 +276,10 @@ def mbfl_fast(worker: Any, failing: Sequence[str], base: Mapping[str, Mapping[st
                 break
             try:
                 res = worker.run(tests, {file: P.apply_mutant(buggy, m)}, timeout=run_timeout, trace=False)
-            except RuntimeError:
-                spent += run_timeout
+            except RuntimeError:                                  # timeout / crash (the worker is replaced): the run is lost, charge a nominal second
+                spent += 1.0
                 continue
-            spent += float(getattr(worker, "last_cpu", 0.0) or 0.0) or 0.5
+            spent += float(getattr(worker, "last_cpu", 0.0) or 0.0) or 0.15
             runs_n += 1
             n += 1
             fixed = sum(1 for t in fail if res.get(t, {}).get("outcome") == "passed")

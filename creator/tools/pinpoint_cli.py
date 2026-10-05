@@ -66,10 +66,10 @@ def plan_from_survey(survey_json: str | Path, root: str | Path, *, max_test_s: f
     sv = json.loads(Path(survey_json).read_text(encoding="utf-8"))
     mods: dict[str, list[tuple[float, str, int]]] = {}
     for t, d in sv.items():
-        if not d["ok"] or d["s"] > max_test_s:
+        if not d["ok"] or d["s"] > max_test_s or not (Path(root) / t).is_file():          # a survey of another tree: only files this root has
             continue
         for f, n in d["cov"].items():
-            if n >= 8 and not f.startswith("scripts/") and "pinpoint" not in f:
+            if n >= 8 and not f.startswith("scripts/") and "pinpoint" not in f and (Path(root) / f).is_file():
                 mods.setdefault(f, []).append((d["s"], t, n))
     plan: dict[str, list[str]] = {}
     for f, lst in sorted(mods.items()):
@@ -324,6 +324,9 @@ def main(argv: Sequence[str]) -> int:
     s2.add_argument("--root", default=".")
     s2.add_argument("--survey", required=True)
     s2.add_argument("--out", required=True)
+    s2.add_argument("--max-test-s", type=float, default=6.0)
+    s2.add_argument("--min-lines", type=int, default=25)
+    s2.add_argument("--max-files", type=int, default=3)
     s3 = sub.add_parser("dataset")
     s3.add_argument("--root", default=".")
     s3.add_argument("--plan", required=True)
@@ -366,7 +369,7 @@ def main(argv: Sequence[str]) -> int:
         r = survey(a.root, a.out, a.workers)
         print(json.dumps({"files": len(r), "ok": sum(1 for v in r.values() if v["ok"])}))
     elif a.cmd == "plan":
-        plan = plan_from_survey(a.survey, a.root)
+        plan = plan_from_survey(a.survey, a.root, max_test_s=a.max_test_s, min_lines=a.min_lines, max_files=a.max_files)
         Path(a.out).write_text(json.dumps(plan, indent=1), encoding="utf-8")
         print(json.dumps({"modules": len(plan)}))
     elif a.cmd == "dataset":

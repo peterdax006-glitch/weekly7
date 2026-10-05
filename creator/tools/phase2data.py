@@ -345,7 +345,7 @@ def run_program(prog: str, timeout: float = 10.0) -> bool:
                                creationflags=flags)
         except subprocess.TimeoutExpired:
             return False
-    return p.stdout.decode("utf-8", "replace").strip().startswith("PASS")
+    return p.stdout.decode("utf-8", "replace").strip().splitlines()[-1:] == ["PASS"]      # the candidate may print: only the runner's last line counts
 
 
 def _cases_program(name: str, tests: Any, code: str) -> str:
