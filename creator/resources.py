@@ -108,9 +108,12 @@ def _append(path: Path, rec: dict[str, Any]) -> None:
         pass
 
 
-def record_task(state: Path, kind: str, seconds: float, cpu_seconds: Optional[float], peak_gb: float) -> None:
-    """One measured run of a kind of work (cores = cpu_seconds / seconds; omitted when the CPU cost was not measured)."""
+def record_task(state: Path, kind: str, seconds: float, cpu_seconds: Optional[float], peak_gb: float, units: Optional[float] = None) -> None:
+    """One measured run of a kind of work (cores = cpu_seconds / seconds; omitted when the CPU cost was not measured). `units` (tokens, rows,
+    steps ...) lets creator.jobcost price the kind as fixed + rate x units for the PC-vs-GPU placement decision."""
     row: dict[str, Any] = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "kind": kind, "seconds": round(seconds, 2), "peak_gb": round(peak_gb, 4)}
+    if units is not None:
+        row["units"] = units
     if cpu_seconds is not None and seconds > 0:
         row["cores"] = round(cpu_seconds / seconds, 3)
     _append(Path(state) / TASKS_FILE, row)
