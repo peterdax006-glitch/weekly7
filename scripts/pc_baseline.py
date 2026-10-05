@@ -174,6 +174,7 @@ class Run:
         self.runner = SL.SlotRunner(SL.default_specs(), self.out / "server")
         self.teams: dict[str, SL.MeasuredTeam] = {}
         self.py = sys.executable
+        self.reuse_db = getattr(a, "reuse_db", "") or ""
 
     def save(self) -> None:
         self.st["loads"] = self.runner.loads + [x for x in self.st.get("loads", []) if x not in self.runner.loads]
@@ -211,6 +212,28 @@ class Run:
     def step(self, tm: SL.MeasuredTeam, step: str, inputs: list[str], kind: str, success: str = "") -> tuple[str, str]:
         out = tm.dispatch(self.env(tm.goal() or "", step, inputs, success))
         return tm.board.put(tm.goal() or "", kind, out), out
+
+    # --- reuse (R3): proven code before any generation; function tasks only
+    def stage_reuse(self, t: dict[str, Any]) -> None:
+        ts = self.st["tasks"].setdefault(t["id"], {"ids": {}, "done": [], "debug": 0})
+        if "reuse" in ts or t["family"] != "fn":
+            return
+        from creator import slowpath as _sp
+        from creator.tools import reuse as RU
+        t0 = time.perf_counter()
+        if not hasattr(self, "_rix"):
+            self._rix = RU.ReuseIndex(self.reuse_db, RU.default_guard(ROOT))
+        r = RU.prepare(self._rix, t, ROOT, python=self.py)
+        ts["reuse"] = {k: v for k, v in r.items() if k != "code"}
+        if r["mode"] in ("direct", "adapt"):
+            t["stub"] = r["code"]                                       # the starting code every later step (and make_ws) sees
+        if r["mode"] == "direct":
+            tm = self.team(t)
+            (tm.ctx.ws / "solution.py").write_text(r["code"], encoding="utf-8")
+            ts.update({"visible_first": True, "visible_pass": True, "stop_reason": "reuse-direct", "confidence": None, "verdict": None})
+            ts["done"] += ["think", "code", "check"]
+        _sp.event("reuse", goal_id=t["id"], step="REUSE", wall_s=time.perf_counter() - t0, model=False)
+        self.save()
 
     # --- stages
     def stage_think(self, t: dict[str, Any]) -> None:
@@ -289,6 +312,9 @@ class Run:
 
     def run(self) -> int:
         t_all = time.perf_counter()
+        if self.reuse_db:
+            for t in self.tasks:
+                self.stage_reuse(t)
         for name, slot, fn in (("think", "THINKER", self.stage_think), ("code", "CODER", self.stage_code), ("check", "CHECKER", self.stage_check)):
             todo = [t for t in self.tasks if name not in self.st["tasks"].get(t["id"], {}).get("done", [])]
             if not todo:
@@ -476,6 +502,7 @@ def main(argv: list[str]) -> int:
     r.add_argument("--out", required=True)
     r.add_argument("--limit", type=int, default=0)
     r.add_argument("--only", nargs="*", default=[])
+    r.add_argument("--reuse-db", default="", help="R3: path of the reuse index (creator.tools.reuse); on -> function tasks start from proven code")
     c = sub.add_parser("calib")
     c.add_argument("--heldout", required=True)
     c.add_argument("--out", required=True)
