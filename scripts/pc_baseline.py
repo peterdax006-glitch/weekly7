@@ -198,6 +198,7 @@ class Run:
             specs["CODER"] = MP.SlotSpec("CODER", Path(a.coder_gguf), threads=old.threads, ctx=old.ctx, max_tokens=old.max_tokens, grammars=old.grammars)
         SL.LEAN = bool(getattr(a, "lean_prefill", False))
         SL.PREFIX_FIRST = bool(getattr(a, "prefix_first", False))
+        SL.PACK_NO_TESTS = bool(getattr(a, "pack_no_tests", False))
         self.conf_mode = getattr(a, "conf", "auto") or "auto"             # auto: CONFIDENCE only where the tests did not decide; always: every task (the old fast path)
         self.route = bool(getattr(a, "route", False))
         self.class_caps: dict[str, int] = json.loads(Path(a.class_caps).read_text(encoding="utf-8")) if getattr(a, "class_caps", "") else {}
@@ -746,6 +747,7 @@ def main(argv: list[str]) -> int:
     r.add_argument("--router-state", default="", help="router counts file (measured per-class pass counts)")
     r.add_argument("--prefix-first", action="store_true", help="R4: fixed text first, task-specific text last in the CODE prompt (longer shared KV prefix)")
     r.add_argument("--class-caps", default="", help="JSON {router class: CODE max_tokens} from the measured output distribution")
+    r.add_argument("--pack-no-tests", action="store_true", help="app tasks: leave test files out of the packed context")
     r.add_argument("--pack-k", type=int, default=0, help="app tasks: located hits packed (default ToolContext.k)")
     r.add_argument("--pack-tokens", type=int, default=0, help="app tasks: pack token budget (default ToolContext.pack_tokens)")
     c = sub.add_parser("calib")

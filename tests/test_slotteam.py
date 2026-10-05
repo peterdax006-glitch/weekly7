@@ -161,3 +161,15 @@ def test_coder06_slot_exists_and_slot_constraint_is_in_the_cache_key():
     a = TM.Envelope("g", "CODE", inputs=["b:abcdef12"])
     b = TM.Envelope("g", "CODE", inputs=["b:abcdef12"], constraints=[S.COUPLED_SLOT + "CODER06"])
     assert TM._sig(a) != TM._sig(b)
+
+
+def test_stratified_subset_is_deterministic_and_spans_families():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("pcb", Path(__file__).resolve().parents[1] / "scripts" / "pc_baseline.py")
+    m = importlib.util.module_from_spec(spec)                       # type: ignore[arg-type]
+    spec.loader.exec_module(m)                                      # type: ignore[union-attr]
+    tasks = [{"id": f"app.{i}", "family": "app", "request": "r" * (10 * i)} for i in range(20)] + \
+            [{"id": f"fn.{i}", "family": "fn", "request": "x", "stub": "def f(a):\n    '''" + "d" * (30 * i) + "'''\n    raise NotImplementedError\n"} for i in range(40)]
+    a, b = m.stratified(tasks, 12), m.stratified(tasks, 12)
+    assert [t["id"] for t in a] == [t["id"] for t in b] and len(a) == 12
+    assert {t["family"] for t in a} == {"app", "fn"}

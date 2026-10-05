@@ -356,6 +356,7 @@ CODE_CAP = {"fn": 140, "app": 420}               # per-family output caps from t
 MAX_FAST_DEBUG = 0                                  # measured 0 fixes in 13 gated attempts (2 fast runs); the gate code stays (debug_worthwhile), raise to re-enable
 STUB_LAST = "    raise NotImplementedError"
 CODE_CAP_CLASS: dict[str, int] = {}               # router class (fn_s ... app_l) -> output cap measured from the class's completed-output distribution (h94)
+PACK_NO_TESTS = False                             # h94: the packed context of the CODER leaves out test files (their edits are dropped anyway)
 PREFIX_FIRST = False                              # h94 R4: the fixed text (role, plan, edit format) first, everything task-specific last -> longer KV-cache prefix shared by tasks
 COUPLED_SLOT = "slot:"                            # an envelope constraint "slot:CODER06" sends a CODE step to another slot (router, R5); it is also part of the cache key
 
@@ -539,7 +540,10 @@ def pack_actor() -> TM.Actor:
         c: ToolContext = team.ctx
         if getattr(c, "hits", None) is None:
             c.hits = c.ix.locate(_query(team, env), k=c.k)                 # type: ignore[attr-defined]
-        return _fenced(str(c.ix.pack(c.hits, max_tokens=c.pack_tokens))) or "(nothing located)"
+        hits = c.hits
+        if PACK_NO_TESTS:                                                    # edits to test files are dropped by canonical_patch: do not pay to read them
+            hits = [h for h in hits if not _is_test_path(h.path)] or hits
+        return _fenced(str(c.ix.pack(hits, max_tokens=c.pack_tokens))) or "(nothing located)"
     return TM.actor("pack", fn)
 
 
