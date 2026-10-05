@@ -247,3 +247,59 @@ def test_warm_worker_purges_importers_of_an_edited_module(box: TB.ToolBox, worke
     assert worker.run(sb, ["tests/test_m.py"], tmp_path / "b.xml", timeout=60)["rc"] == 1
     assert box.files.apply_patch(sr("creator/n.py", "X = 2", "X = 1"))["ok"]
     assert worker.run(sb, ["tests/test_m.py"], tmp_path / "c.xml", timeout=60)["rc"] == 0
+
+
+# ------------------------------------------------------------------------------------------------------- impact map
+IMP_SRC = "K = 1\n\n\ndef f():\n    return K + 1\n\n\ndef g():\n    return K + 2\n\n\ndef h():\n    return K + 3\n"
+IMP_TESTS = (
+    "import subprocess, sys\nimport pytest\nfrom creator import imp\n\n\n"
+    "@pytest.fixture(scope='module')\ndef built():\n    return imp.h()\n\n\n"
+    "def test_f():\n    assert imp.f() == 2\n\n\ndef test_g():\n    assert imp.g() == 3\n\n\n"
+    "def test_via_fixture(built):\n    assert built == 4\n\n\n"
+    "def test_opaque():\n    subprocess.run([sys.executable, '-c', 'print(1)'], check=True, capture_output=True)\n")
+
+
+def test_impact_map_selects_only_tests_touching_the_edited_function(box: TB.ToolBox, worker: W.WarmWorker, tmp_path: Path) -> None:
+    from creator import impactmap as IM
+    sb = box.policy.sandbox
+    (sb / "creator" / "imp.py").write_text(IMP_SRC, encoding="utf-8", newline="\n")
+    (sb / "tests" / "test_imp.py").write_text(IMP_TESTS, encoding="utf-8", newline="\n")
+    W._POOL[(T.PytestConfig().python, "pytest,numpy,pandas")] = worker
+    cfg = T.PytestConfig(warm=True, timeout=120, impact_out=str(tmp_path / "raw.json"))
+    run = T.run_pytest(sb, ["tests/test_imp.py"], tmp_path / "j.xml", label="c", config=cfg)
+    assert run.status is T.RunStatus.PASSED
+    m = IM.ImpactMap(tmp_path / "map", sb)
+    assert m.update(tmp_path / "raw.json", commit=["creator/imp.py"]) == 4
+    nid = lambda n: "tests/test_imp.py::" + n                                                   # noqa: E731
+
+    def sel(edit_old: str, edit_new: str) -> Any:
+        src = (sb / "creator" / "imp.py").read_text(encoding="utf-8")
+        (sb / "creator" / "imp.py").write_text(src.replace(edit_old, edit_new), encoding="utf-8", newline="\n")
+        try:
+            return IM.ImpactMap(tmp_path / "map", sb).narrow(["creator/imp.py"], {"tests/test_imp.py": []})["tests/test_imp.py"]
+        finally:
+            (sb / "creator" / "imp.py").write_text(src, encoding="utf-8", newline="\n")
+
+    assert sorted(sel("return K + 2", "return K + 20")) == sorted([nid("test_g"), nid("test_opaque")])        # g: its test + the opaque one
+    assert sorted(sel("return K + 3", "return K + 30")) == sorted([nid("test_via_fixture"), nid("test_opaque")])   # module fixture attribution
+    assert sorted(sel("return K + 1", "return K + 10")) == sorted([nid("test_f"), nid("test_opaque")])
+    assert sel("K = 1", "K = 5") is None                                                          # module-level change: no narrowing
+    assert sel("def f():", "def f():  # just a comment") == [nid("test_opaque")]                  # comment only: nothing but the opaque test
+    assert sel("def f():\n    return K + 1", "def f():\n    return K + 1\n\n\ndef newfn():\n    return 0") is None                                                               # a new def changes the module residue
+
+
+def test_impact_map_unknown_file_or_changed_test_file_runs_everything(box: TB.ToolBox, tmp_path: Path) -> None:
+    from creator import impactmap as IM
+    sb = box.policy.sandbox
+    m = IM.ImpactMap(tmp_path / "empty", sb)
+    assert m.narrow(["creator/m.py"], {"tests/test_m.py": []}) == {"tests/test_m.py": None}
+
+
+def test_static_ruff_path_when_installed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("ruff")
+    monkeypatch.setenv("WEEKLY7_CREATOR_CACHE", "off")
+    (tmp_path / "u.py").write_text("def f():\n    return undefined_name\n", encoding="utf-8", newline="\n")
+    (tmp_path / "ok.py").write_text("import os\n\n\ndef f():\n    return 1\n", encoding="utf-8", newline="\n")
+    rep = SC.check_files(tmp_path, ["u.py", "ok.py"])
+    byp = {f.path: f for f in rep.files}
+    assert rep.tools["ruff"] == "yes" and byp["u.py"].ruff == "issues" and byp["ok.py"].ruff == "ok" and any("F821" in m for m in rep.messages())

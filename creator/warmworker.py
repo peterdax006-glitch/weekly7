@@ -166,7 +166,6 @@ class _OnlyTargets:
             return None
         return True
 
-    pytest_ignore_collect.tryfirst = True                          # type: ignore[attr-defined]
 
 
 def _serve() -> None:
@@ -184,6 +183,7 @@ def _serve() -> None:
         except Exception:                                              # noqa: BLE001 - an absent heavy module is just not warm
             pass
     import pytest
+    _OnlyTargets.pytest_ignore_collect = pytest.hookimpl(tryfirst=True)(_OnlyTargets.pytest_ignore_collect)    # type: ignore[method-assign]
     base_path = list(sys.path)
     base_env = dict(os.environ)
     cur_root = ""
@@ -215,7 +215,7 @@ def _serve() -> None:
                     "--basetemp", os.path.join(tempfile.gettempdir(), f"nupen_warm_{os.getpid()}"),
                     *req.get("extra", []), "--", *req["targets"]]
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-                rc = int(pytest.main(argv, plugins=[_OnlyTargets(root, req['targets'])]))
+                rc = int(pytest.main(argv, plugins=[_OnlyTargets(root, req['targets']), *_impact_plugin(root, req)]))
             _record([root])
         except SystemExit as e:
             rc = int(e.code) if isinstance(e.code, int) else 2
@@ -224,6 +224,19 @@ def _serve() -> None:
         proto.write(json.dumps({"id": req.get("id"), "rc": rc, "out": buf.getvalue()[-20000:], "err": err, "purged": purged,
                                 "seconds": round(time.monotonic() - t0, 4)}) + "\n")
         proto.flush()
+
+
+def _impact_plugin(root: str, req: dict[str, Any]) -> list[Any]:
+    """Recording plugin (creator/impactmap.py, loaded by path: it is stdlib-only) when the request asks for an impact recording."""
+    if not req.get("impact"):
+        return []
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_nupen_impactmap", os.path.join(os.path.dirname(os.path.abspath(__file__)), "impactmap.py"))
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["_nupen_impactmap"] = mod
+    spec.loader.exec_module(mod)
+    return [mod.make_plugin(root, str(req["impact"]))]
 
 
 def importlib_invalidate() -> None:
@@ -288,7 +301,7 @@ class WarmWorker:
             pass
 
     def run(self, root: str | Path, targets: list[str], junit: str | Path, *, timeout: float = 600.0, extra: Optional[list[str]] = None,
-            env: Optional[dict[str, str]] = None) -> dict[str, Any]:
+            env: Optional[dict[str, str]] = None, impact: str = "") -> dict[str, Any]:
         """One pytest run in the warm process, under a machine test slot. Returns {rc, out, err, seconds, timed_out, launch_error}."""
         from creator import testslots
         with self._lock, testslots.Slot():
@@ -298,7 +311,7 @@ class WarmWorker:
                     self.start()
                 self._n += 1
                 req = {"id": self._n, "root": str(root), "targets": list(targets), "junit": str(junit), "extra": extra or [],
-                       "env": {k: v for k, v in (env or {}).items() if k not in ("PYTHONPATH",)}}
+                       "env": {k: v for k, v in (env or {}).items() if k not in ("PYTHONPATH",)}, "impact": str(impact)}
                 assert self.proc is not None and self.proc.stdin is not None
                 self.proc.stdin.write(json.dumps(req) + "\n")
                 self.proc.stdin.flush()

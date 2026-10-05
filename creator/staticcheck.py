@@ -17,6 +17,8 @@ from typing import Any, Iterable, Optional
 
 from creator import diskcache as DC
 
+# Deterministic, config-independent: syntax errors, invalid constructs, undefined names. Style rules would flag every pre-existing file.
+RUFF_SELECT = "E9,F63,F7,F82"
 _SALT = DC.salt_of((), (b"staticcheck-v1",))
 
 
@@ -99,7 +101,7 @@ def check_files(root: str | Path, rel_paths: Iterable[str], *, mypy: bool = Fals
     rels = [r.replace("\\", "/") for r in rel_paths if r.endswith(".py")]
     ruff_cmd = _ruff_cmd()
     use_mypy = mypy and _mypy_ok()
-    tool_id = f"ruff={_version(ruff_cmd) if ruff_cmd else '-'};mypy={'1' if use_mypy else '-'}"
+    tool_id = f"{RUFF_SELECT};ruff={_version(ruff_cmd) if ruff_cmd else '-'};mypy={'1' if use_mypy else '-'}"
     results: dict[str, FileCheck] = {}
     todo: dict[str, tuple[str, bytes]] = {}
     for rel in rels:
@@ -121,7 +123,7 @@ def check_files(root: str | Path, rel_paths: Iterable[str], *, mypy: bool = Fals
         good = {r: r for r in todo if comp[r][0]}
         if good:
             try:
-                cp = subprocess.run([*ruff_cmd, "check", "--no-cache", "--output-format=concise", *good], cwd=str(rootp),
+                cp = subprocess.run([*ruff_cmd, "check", "--isolated", "--select", RUFF_SELECT, "--no-cache", "--output-format=concise", *good], cwd=str(rootp),
                                     capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
                 ruff_out = _split_by_file(cp.stdout, rootp, good) if cp.returncode == 1 else {r: [] for r in good}
             except (OSError, subprocess.SubprocessError):
@@ -151,7 +153,7 @@ def check_files(root: str | Path, rel_paths: Iterable[str], *, mypy: bool = Fals
             msgs += errs
         fc = FileCheck(rel, ok, rs, ms, tuple(msgs))
         results[rel] = fc
-        if rs != "skipped" or ms != "skipped" or not ruff_cmd:        # do not cache a result a missing optional tool could change
+        if not (ruff_cmd and ok and rs == "skipped"):        # do not cache a result a missing optional tool could change
             DC.put("staticcheck", _SALT, key, (fc.compile_ok, fc.ruff, fc.mypy, list(fc.messages)))
     return CheckReport(tuple(results[r] for r in rels if r in results), time.monotonic() - t0,
                        {"ruff": "yes" if ruff_cmd else "skipped", "mypy": "yes" if use_mypy else "skipped"})

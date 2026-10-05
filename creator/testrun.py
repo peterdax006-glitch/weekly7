@@ -425,6 +425,7 @@ class PytestConfig:
     timeout: float = 600.0
     extra_args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
+    impact_out: str = ""            # warm only: record a function-level impact map of this run to this json path
     warm: bool = False                 # run in the pooled warm worker (creator.warmworker): heavy imports preloaded, same junit results
 
 
@@ -441,7 +442,8 @@ def _fast(name: str, *args: Any) -> Any:
 def _run_warm(argv: Sequence[str], root: str | Path, sel: Sequence[str], jp: Path, cfg: PytestConfig) -> ProcResult:
     """The same pytest invocation, served by the warm worker. ProcResult-shaped so the verdict logic below is untouched."""
     from creator import warmworker as W
-    r = W.get_worker(cfg.python).run(root, list(sel), jp, timeout=cfg.timeout, extra=cfg.extra_args, env=clean_env(root, cfg.env))
+    r = W.get_worker(cfg.python).run(root, list(sel), jp, timeout=cfg.timeout, extra=cfg.extra_args, env=clean_env(root, cfg.env),
+                                           impact=cfg.impact_out)
     return ProcResult(tuple(argv), str(root), r["rc"], r.get("out", ""), "", float(r["seconds"]), timed_out=bool(r["timed_out"]),
                       launch_error=str(r.get("launch_error", "")))
 
@@ -683,7 +685,7 @@ def comparison_record(baseline: TestRun, candidate: TestRun, report: RegressionR
 
 # ------------------------------------------------------------------------------------------------------------ quick cycle
 def quick_cycle(files: Any, root: str | Path, patch: str, junit_path: str | Path, *, default_path: str = "", smoke: Iterable[str] = (),
-                warm: bool = True, mypy: bool = False, max_tests: int = 0, timeout: float = 600.0) -> dict[str, Any]:
+                warm: bool = True, mypy: bool = False, max_tests: int = 0, timeout: float = 600.0, impact_dir: str = "") -> dict[str, Any]:
     """edit -> static checks -> affected tests in one call. `files` is a creator.tools.files.FileTools. The patch is applied atomically; when
     the static checks fail the tests are not run (and the undo record is returned so the caller can revert). Returns timings per stage."""
     import time
@@ -707,11 +709,23 @@ def quick_cycle(files: Any, root: str | Path, patch: str, junit_path: str | Path
         return out
     sel = select_tests(cached_graph(rootp, rels, max_age_s=60.0), rels, smoke)
     tests = list(sel.tests[:max_tests] if max_tests else sel.tests)
+    cfg = PytestConfig(warm=warm, timeout=timeout)
+    imp = None
+    if impact_dir and warm:
+        from creator import impactmap as IM
+        imp = IM.ImpactMap(impact_dir, rootp)
+        narrowable = [t for t in tests if sel.reasons.get(t, "").startswith("imports a changed module")]
+        got = imp.narrow(rels, {t: [] for t in narrowable})
+        tests = [t for t in tests if t not in got] + [x for t, v in got.items() for x in ([t] if v is None else v)]
+        out["impact"] = {"files_before": len(sel.tests), "targets": len(tests), "whole_files": sum(1 for v in got.values() if v is None)}
+        cfg.impact_out = str(Path(junit_path).with_suffix(".impact.json"))
     t3 = time.monotonic()
-    run = run_pytest(rootp, tests, junit_path, label="candidate", config=PytestConfig(warm=warm, timeout=timeout))
+    run = run_pytest(rootp, tests, junit_path, label="candidate", config=cfg)
+    if imp is not None and run.status in (RunStatus.PASSED, RunStatus.FAILED, RunStatus.NO_TESTS) and (run.status is not RunStatus.NO_TESTS or not tests):
+        imp.update(cfg.impact_out if Path(cfg.impact_out).is_file() else "", commit=rels)
     out.update({"selection": sel.to_dict(), "run": {"status": run.status.value, "counts": run.counts(), "seconds": round(run.seconds, 3),
                                                     "problems": list(run.problems)}})
     out["stage_s"].update({"select": round(t3 - t2, 3), "tests": round(time.monotonic() - t3, 3)})
     out["total_s"] = round(time.monotonic() - t0, 3)
-    out["ok"] = run.status is RunStatus.PASSED
+    out["ok"] = run.status is RunStatus.PASSED or (imp is not None and not tests)
     return out
