@@ -172,7 +172,11 @@ class Run:
         self.state_f = self.out / "run_state.json"
         self.st: dict[str, Any] = json.loads(self.state_f.read_text(encoding="utf-8")) if self.state_f.exists() else {"tasks": {}, "loads": []}
         SP.set_state(self.out / "state")
-        self.runner = SL.SlotRunner(SL.default_specs(), self.out / "server")
+        specs = SL.default_specs(threads=int(getattr(a, "threads", 6) or 6))
+        if getattr(a, "coder_moe", False):
+            specs = SL.moe_specs(specs, threads=int(getattr(a, "threads", 6) or 6))
+        self.max_fast_debug = int(a.max_fast_debug) if getattr(a, "max_fast_debug", None) is not None else MAX_FAST_DEBUG
+        self.runner = SL.SlotRunner(specs, self.out / "server")
         self.teams: dict[str, SL.MeasuredTeam] = {}
         self.py = sys.executable
         self.fast = bool(getattr(a, "fast", False))
@@ -289,7 +293,7 @@ class Run:
             if val.startswith("PASS"):
                 ok = True
                 break
-            if rnd == (MAX_FAST_DEBUG if self.fast else MAX_DEBUG):
+            if rnd == (self.max_fast_debug if self.fast else MAX_DEBUG):
                 break
             ids["failure"] = tm.board.put(gid, "failure", val)
             c.tb_lines, c.pin_scores = [], []
@@ -543,6 +547,9 @@ def main(argv: list[str]) -> int:
     r.add_argument("--only", nargs="*", default=[])
     r.add_argument("--fast", action="store_true", help="the P0.10 fast path (routing, prefilled edit, <=1 gated debug, short confidence)")
     r.add_argument("--reuse-db", default="", help="R3: path of the reuse index (creator.tools.reuse); on -> function tasks start from proven code")
+    r.add_argument("--coder-moe", action="store_true", help="R10: serve CODER from Qwen3-30B-A3B (MoE) instead of the merged 1.7B")
+    r.add_argument("--threads", type=int, default=6)
+    r.add_argument("--max-fast-debug", type=int, default=None, help="override the fast-path DEBUG_FIX rounds (default SL.MAX_FAST_DEBUG)")
     c = sub.add_parser("calib")
     c.add_argument("--heldout", required=True)
     c.add_argument("--out", required=True)
