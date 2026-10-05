@@ -766,7 +766,9 @@ class _Skip(Exception):
 def chat_text(llm: Any, messages: Sequence[dict[str, str]], **kw: Any) -> str:
     """The answer without a reasoning model's <think> block (fakes in tests only need .chat)."""
     from creator import generator as G
-    return G.THINK_BLOCK.sub("", str(llm.chat(G.prepare_messages(messages, getattr(llm, "model", "")), **kw))).strip()
+    from creator import slowpath as SP                                 # owner-approved 5 Oct: judgment calls labelled for the engine
+    with SP.step_context(cls="judgment"):
+        return G.THINK_BLOCK.sub("", str(llm.chat(G.prepare_messages(messages, getattr(llm, "model", "")), **kw))).strip()
 
 
 def _anchor_p(state: Path, c: Case) -> Optional[float]:

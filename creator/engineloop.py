@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import sys
+import threading
 import time
 import types
 from pathlib import Path
@@ -221,3 +222,96 @@ def engine_step(state: Path, cfg: Any, team: Any, by: str, *, now: Optional[floa
         gate_open, ece = trust_signals(state, by, res)
         level = A.earn(state, str(res.get("cls", cand["cls"])), gate_open=gate_open, ece=ece, now=clock())
     return {"decision": dec, "result": res, "actual_saving_day": actual, "level": level}
+
+
+# ------------------------------------------------------------------------------------------------ the live trigger (gated)
+ENGINE_ON = "ENGINE_ON"                  # the owner's explicit opt-in file: state/creator/ENGINE_ON
+LAST_STEP = "engine/last_step.json"
+_WIP = threading.Lock()                  # WIP 1: one engine cycle at a time (constraints.engine_cycle holds the persistent WIP slot as well)
+
+
+def enabled(state: Path) -> bool:
+    """Gates 1 and 2: the stop file is absent AND the owner created ENGINE_ON. (Gate 3, the autonomy ladder, is enforced inside the adopt
+    cycle: every class starts at A0 = proposal + benchmark only; only adopt.earn / the owner raise it, a regression lowers it.)"""
+    s = Path(state)
+    return not stopped(s) and (s / ENGINE_ON).exists()
+
+
+def slot_team(state: Path, chat: Optional[Callable[[str, str], str]] = None) -> Any:
+    """The builder team for the live engine: code tools answer from files, the slot roles (CHECKER / THINKER / CODER) ask the local model.
+    chat(role, prompt) -> text; default = creator.generator.LocalModel (leases a warm pool server). The envelope carries ids; the prompt
+    is rebuilt here from the board content."""
+    from creator import team as TM
+
+    def ask(role: str) -> Callable[[Any, Any], str]:
+        def fn(env: Any, team: Any) -> str:
+            ctx = []
+            for ref in env.inputs:
+                row = team.board.get(ref) if TM.input_kind(ref) == "board" else None
+                ctx.append(str(row["body"]) if row else str(ref))
+            prompt = f"{role} step {env.step}.\n" + "\n---\n".join(ctx + list(env.constraints) + [env.success_test, env.prior])
+            if chat is not None:
+                return chat(role, prompt)
+            from creator import generator as G
+            with G.LocalModel(startup_s=120.0) as llm:
+                return str(llm.chat_text([{"role": "user", "content": prompt}], max_tokens=1500))
+        return fn
+
+    def locate(env: Any, team: Any) -> str:
+        return "none"                                                  # no index wired here: the builder works from the task text
+    return TM.Team(Path(state) / "engine" / "team", [TM.actor(r, ask(r)) for r in TM.SLOTS] + [TM.actor("locate", locate)], log=TM.slowpath_log())
+
+
+def maybe_step(state: Path, cfg: Any, *, team_factory: Optional[Callable[[Path], Any]] = None, by: str = "engine", every_s: float = 3600.0,
+               now: Optional[float] = None, spawn: bool = True, **kw: Any) -> str:
+    """The swarm's hourly hook (next to constraints.maybe_run). Returns why nothing started, or 'started' / 'ran'.
+    Gates: NUPEN_STOP absent, ENGINE_ON present, at most one cycle at a time, at most one per `every_s`. The cycle runs on an idle-priority
+    daemon thread (spawn=True) so the swarm round never waits for it; spawn=False runs it inline (tests). Never raises."""
+    import json
+    state = Path(state)
+    try:
+        if stopped(state):
+            return f"{STOP_FILE} exists"
+        if not (state / ENGINE_ON).exists():
+            return f"no {ENGINE_ON} (the owner has not turned the engine on)"
+        t = time.time() if now is None else now
+        f = state / LAST_STEP
+        try:
+            if t - float(json.loads(f.read_text(encoding="utf-8")).get("at", 0.0)) < every_s:
+                return "cadence: ran within the last interval"
+        except (OSError, ValueError):
+            pass
+        if not _WIP.acquire(blocking=False):
+            return "WIP 1: an engine cycle is already running"
+    except Exception as e:                                           # noqa: BLE001
+        return f"error: {type(e).__name__}"
+
+    def work() -> None:
+        try:
+            if stopped(state):
+                return
+            rec: dict[str, Any] = {"at": t}
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(json.dumps(rec), encoding="utf-8")          # stamped first: a crash does not make the next round retry at once
+            res = engine_step(state, cfg, (team_factory or slot_team)(state), by, now=now, **kw)
+            out = res.get("result") or {}
+            f.write_text(json.dumps({"at": t, "skipped": res.get("skipped"), "outcome": out.get("outcome"), "id": out.get("id"),
+                                     "level": res.get("level")}, default=str), encoding="utf-8")
+        except Exception as e:                                       # noqa: BLE001 - the engine never costs a swarm round
+            try:
+                f.write_text(json.dumps({"at": t, "error": f"{type(e).__name__}: {e}"[:300]}), encoding="utf-8")
+            except OSError:
+                pass
+        finally:
+            _WIP.release()
+    if not spawn:
+        work()
+        return "ran"
+    try:
+        from creator import resources as RS
+        th = threading.Thread(target=RS.idle_thread(work), name="engine-step", daemon=True)
+        th.start()
+    except Exception:                                                # noqa: BLE001
+        _WIP.release()
+        return "error: could not start"
+    return "started"
