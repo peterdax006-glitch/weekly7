@@ -22,7 +22,7 @@ from creator import jobcost as JC
 RUNTIME = Path.home() / "creator_runtime"
 SIZES = ("0.6b", "1.7b", "4b")
 SIZE_TAG = {"06b": "0.6b", "17b": "1.7b", "4b": "4b"}
-PARAMS_B = {"0.6b": 0.6, "1.7b": 1.7, "4b": 4.0}
+PARAMS_B = {"0.6b": 0.6, "1.7b": 1.7, "4b": 4.0, "30b-a3b": 30.0}
 EPOCH_GAIN_MIN = 0.10             # a 2nd epoch must buy >= 10% held-out loss to be worth its time (measured: code mixes 1-8%, calib 36-51%)
 THIN_STEPS = 200                  # thin-mix rule: fewer optimizer steps than this and the module does not go to the GPU
 DEFAULT_BATCH = 16                # batch 4 x accum 4: the settings proven on the real GPU (SAFE MODE)
@@ -250,10 +250,10 @@ class Eff:
         up = [r for r in same if r["len"]["max"] >= max_tokens]
         if up:
             r = max(up, key=lambda x: x["peak_gb"])
-            return {"gb": float(r["peak_gb"]), "basis": f"measured {r['name']} (max len {r['len']['max']:.0f} >= {max_tokens:.0f})"}
+            return {"gb": float(r["peak_gb"]), "len": float(r["len"]["max"]), "basis": f"measured {r['name']} (max len {r['len']['max']:.0f} >= {max_tokens:.0f})"}
         if same:
             r = max(same, key=lambda x: x["peak_gb"])
-            return {"gb": float(r["peak_gb"]), "basis": f"measured {r['name']} (longest seen {r['len']['max']:.0f} < {max_tokens:.0f}: lower bound)"}
+            return {"gb": float(r["peak_gb"]), "len": float(r["len"]["max"]), "basis": f"measured {r['name']} (longest seen {r['len']['max']:.0f} < {max_tokens:.0f}: lower bound)"}
         allr = [r for r in self.runs if r.get("peak_gb") and (r.get("len") or {}).get("max") and r["len"]["max"] >= max_tokens]
         if allr:
             r = min(allr, key=lambda x: x["peak_gb"])
@@ -292,7 +292,65 @@ class Eff:
                 "old_model_signed_err": old, "old_median_abs_err": round(JC._median([abs(o[1]) for o in old]), 3) if old else None}
 
 
-FAMILY_EPOCHS = {"code": 1, "pinpoint": 1, "thinker": 1, "calib": 2, "judge": 2, "checker": 2}      # measured gains decide below; these are the priors
+FAMILY_EPOCHS = {"code": 1, "pinpoint": 1, "thinker": 1, "calib": 2, "judge": 2, "checker": 2, "voice": 2}      # measured gains decide below; these are the priors
+
+# First-run speed options (owner 5 Oct: "10x faster, no quality loss"). Nothing here is applied unless the GPU smoke-first step measured it faster
+# AND no worse on dev loss (creator.gpucompile.pick_setting). Multipliers are the SPEED_PLAN expectations (unverified on the GPU) and are used ONLY
+# for the `expected` timeline scenario; the `safe` scenario never assumes them.
+SPEED_EXPECT = {"group_by_length": 1.25, "no_ckpt": 1.3, "micro_batch_8": 1.1, "packing": 1.2, "flash_attn": 1.15}
+SAFE_VRAM_GB = 29.0               # a candidate whose estimated peak exceeds this is not tried (31 GB card minus the CUDA context and a margin)
+BF16_WEIGHTS_GB = {"0.6b": 1.2, "1.7b": 3.4, "4b": 8.0}
+NOCKPT_ACT_FACTOR = 3.0           # ASSUMPTION: activations without gradient checkpointing ~3x the checkpointed ones (smoke measures the real peak)
+
+
+def plateau_fraction(runs: Sequence[Mapping[str, Any]], family: str, tol: float = 0.05) -> Optional[float]:
+    """Evidence for how much of a family's first epoch the dev loss needs: the smallest fraction f of epoch 1 at which the measured dev loss is
+    within `tol` (relative) of the loss at the end of epoch 1. Median over the family's runs that evaluated >= 3 times; None without a run."""
+    out: list[float] = []
+    for r in runs:
+        if _family_of(r["name"]) != family or r.get("stopped_early"):
+            continue
+        ev = [e for e in (r.get("eval_loss") or []) if r["epochs"] and e[0] <= r["steps"] / max(1.0, r["epochs"]) * 1.02]
+        if len(ev) < 3 or not ev[-1][1]:
+            continue
+        end, last_step = ev[-1][1], ev[-1][0]
+        ok = [e[0] for e in ev if e[1] <= end * (1 + tol)]
+        out.append(min(ok) / last_step if ok else 1.0)
+    return round(statistics.median(out), 3) if out else None
+
+
+def peak_estimate(size: str, measured_gb: float, measured_len: float, new_len: float, batch: int, ckpt: bool) -> float:
+    """VRAM peak of a candidate setting from a measured one (4 x 4, ckpt on): the weights stay, the rest (logits + activations) scales with
+    batch x sequence; no checkpointing multiplies the activation part. An ESTIMATE - the smoke run measures the real peak."""
+    w = BF16_WEIGHTS_GB.get(size, 3.4)
+    act = max(0.0, measured_gb - w) * (batch / 4.0) * min(1.0, new_len / max(1.0, measured_len))
+    return round(w + act * (1.0 if ckpt else NOCKPT_ACT_FACTOR), 2)
+
+
+def candidate_settings(size: str, measured_gb: float, measured_len: float, new_len: float, *, base_batch: int = 4, base_accum: int = 4) -> list[dict[str, Any]]:
+    """The smoke-first grid of one module: the SAFE setting first (the reference every other candidate must not regress against), then the
+    speed options in the order of expected gain. Each carries its estimated peak and expected speed-up; candidates over SAFE_VRAM_GB are dropped."""
+    eff_batch = base_batch * base_accum
+    grid = [("safe", dict(batch=base_batch, accum=base_accum, grad_ckpt=True, group_by_length=False, packing=False), []),
+            ("group", dict(batch=base_batch, accum=base_accum, grad_ckpt=True, group_by_length=True, packing=False), ["group_by_length"]),
+            ("group_nockpt", dict(batch=base_batch, accum=base_accum, grad_ckpt=False, group_by_length=True, packing=False), ["group_by_length", "no_ckpt"]),
+            ("group_b8", dict(batch=base_batch * 2, accum=base_accum // 2, grad_ckpt=True, group_by_length=True, packing=False), ["group_by_length", "micro_batch_8"]),
+            ("group_nockpt_b8", dict(batch=base_batch * 2, accum=base_accum // 2, grad_ckpt=False, group_by_length=True, packing=False),
+             ["group_by_length", "no_ckpt", "micro_batch_8"]),
+            ("packing", dict(batch=base_batch, accum=base_accum, grad_ckpt=True, group_by_length=False, packing=True), ["packing"])]
+    out: list[dict[str, Any]] = []
+    for name, st, flags in grid:
+        assert st["batch"] * st["accum"] == eff_batch                      # the optimisation (effective batch) never changes between candidates
+        pk = peak_estimate(size, measured_gb, measured_len, new_len, st["batch"], st["grad_ckpt"])
+        if name != "safe" and pk > SAFE_VRAM_GB:
+            continue
+        mult = 1.0
+        for f in flags:
+            mult *= SPEED_EXPECT[f]
+        if name == "packing":
+            mult = SPEED_EXPECT["packing"] * SPEED_EXPECT["group_by_length"]    # packing removes the same padding grouping does, plus the boundary waste
+        out.append({"name": name, **st, "est_peak_gb": pk, "expect_speedup": round(mult, 3), "unverified": name != "safe", "flags": flags})
+    return out
 
 
 def settings(eff: Eff, size: str, family: str, rows: int, tokens_train: float, stats: Mapping[str, float], *, nockpt_measured: bool = False) -> dict[str, Any]:
@@ -308,7 +366,7 @@ def settings(eff: Eff, size: str, family: str, rows: int, tokens_train: float, s
         basis = f"no measured 2nd-epoch gain for '{family}': family prior {epochs}"
     steps = math.ceil(rows / DEFAULT_BATCH) * epochs
     return {"epochs": epochs, "epochs_basis": basis, "batch": 4, "accum": 4, "grad_ckpt": not nockpt_measured, "packing": False,
-            "group_by_length": False, "max_seq": int(min(4096, max(1024, 2 ** math.ceil(math.log2(max(2.0, stats.get("p99", 1024.0) * 1.1)))))),
+            "group_by_length": False, "max_seq": int(min(4096, max(512, 2 ** math.ceil(math.log2(max(2.0, stats.get("p99", 1024.0) * 1.1)))))),
             "steps": steps, "trained_tokens": tokens_train * epochs,
             "pending": [{"flag": "group_by_length", "expect": "~1.25x (padding ~25%)"}, {"flag": "no grad-ckpt at max_seq 2048", "expect": "~1.3x"},
                         {"flag": "flash-attn on the pod", "expect": "1.1-1.5x"}]}
@@ -316,7 +374,7 @@ def settings(eff: Eff, size: str, family: str, rows: int, tokens_train: float, s
 
 def _family_of(name: str) -> str:
     n = name.lower()
-    for fam, keys in (("calib", ("calib",)), ("judge", ("judge",)), ("pinpoint", ("pinpoint",)), ("thinker", ("thinker",)),
+    for fam, keys in (("calib", ("calib",)), ("judge", ("judge",)), ("pinpoint", ("pinpoint",)), ("thinker", ("thinker",)), ("voice", ("voice",)),
                       ("code", ("coder", "pipeline", "role_", "locate", "brevity", "promptbake"))):
         if any(k in n for k in keys):
             return fam
