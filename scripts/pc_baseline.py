@@ -33,6 +33,7 @@ from creator import slowpath as SP  # noqa: E402
 from creator import team as TM  # noqa: E402
 
 MAX_DEBUG = 2
+MAX_FAST_DEBUG = SL.MAX_FAST_DEBUG
 Z_LINE = "Z = 1.96" + chr(10) * 2
 CONF_THRESHOLD = 0.5
 FN_PRE = "from __future__ import annotations\n\nimport math\nfrom typing import Any, Optional, Sequence\n\n"
@@ -174,6 +175,7 @@ class Run:
         self.runner = SL.SlotRunner(SL.default_specs(), self.out / "server")
         self.teams: dict[str, SL.MeasuredTeam] = {}
         self.py = sys.executable
+        self.fast = bool(getattr(a, "fast", False))
 
     def save(self) -> None:
         self.st["loads"] = self.runner.loads + [x for x in self.st.get("loads", []) if x not in self.runner.loads]
@@ -193,6 +195,7 @@ class Run:
             make_ws(t, self.suite, ws)
             ts["ws"] = True
         tm = SL.MeasuredTeam(self.out / "tasks" / tid, SL.actors(self.runner), goal_id=tid, sink=self.sink)
+        tm.fast = self.fast
         (self.out / "idx").mkdir(parents=True, exist_ok=True)
         tm.ctx = SL.ToolContext(ws=ws, ix=IX.Index(ws, db=self.out / "idx" / f"{tid}.sqlite"), python=self.py,
                                 default_path="solution.py" if t["family"] == "fn" else "")
@@ -206,7 +209,13 @@ class Run:
     def env(self, tid: str, step: str, inputs: list[str], success: str = "") -> TM.Envelope:
         prof = SL.PROFILES.get(step)
         budget = {"max_tok": prof.max_tokens if prof else 400, "max_s": prof.max_s if prof else 150}
+        if self.fast and step in ("CODE", "DEBUG_FIX"):
+            budget["max_tok"] = SL.CODE_CAP["fn" if self.cur_family == "fn" else "app"]
+        elif self.fast and step == "CONFIDENCE":
+            budget["max_s"] = 20
         return TM.Envelope(tid, step, inputs=inputs, success_test=success, budget=budget)
+
+    cur_family = ""
 
     def step(self, tm: SL.MeasuredTeam, step: str, inputs: list[str], kind: str, success: str = "") -> tuple[str, str]:
         out = tm.dispatch(self.env(tm.goal() or "", step, inputs, success))
@@ -219,6 +228,14 @@ class Run:
         if "think" in ts["done"]:
             return
         ids = ts["ids"]
+        if self.fast:                       # routing: the code tools extract the spec; SPEC / PLAN are not run (no THINKER model at all)
+            if t["family"] != "fn":
+                ids["locate"], _ = self.step(tm, "LOCATE", [ids["task"]], "locate")
+                ids["pack"], _ = self.step(tm, "PACK", [ids["task"], ids["locate"]], "pack")
+            ids.setdefault("pack", ids["task"])
+            ts["done"].append("think")
+            self.save()
+            return
         ids["spec"], _ = self.step(tm, "SPEC", [ids["task"]], "spec")
         ids["locate"], _ = self.step(tm, "LOCATE", [ids["task"]], "locate")
         ids["pack"], _ = self.step(tm, "PACK", [ids["task"], ids["locate"]], "pack")
@@ -232,9 +249,10 @@ class Run:
         if "code" in ts["done"]:
             return
         ids, c, gid = ts["ids"], tm.ctx, t["id"]
+        self.cur_family = t["family"]
         make_ws(t, self.suite, c.ws)                                  # a resumed run starts the task from the pristine workspace
         c.snapshot()
-        ids["diff"], code = self.step(tm, "CODE", [ids["task"], ids["spec"], ids["plan"], ids["pack"]], "diff")
+        ids["diff"], code = self.step(tm, "CODE", [ids["task"], ids.get("spec", ids["task"]), ids.get("plan", ids["task"]), ids["pack"]], "diff")
         answers = [code]
         ok, why, val = False, "", ""
         for rnd in range(MAX_DEBUG + 1):
@@ -248,22 +266,31 @@ class Run:
             if val.startswith("PASS"):
                 ok = True
                 break
-            if rnd == MAX_DEBUG:
+            if rnd == (MAX_FAST_DEBUG if self.fast else MAX_DEBUG):
                 break
             ids["failure"] = tm.board.put(gid, "failure", val)
-            ts["debug"] = rnd + 1
+            c.tb_lines, c.pin_scores = [], []
             if val.startswith("FAIL FAILED"):
                 ids["pinpoint"], _ = self.step(tm, "DEBUG_PINPOINT", [ids["failure"]], "pinpoint")
             else:
                 ids["pinpoint"] = tm.board.put(gid, "pinpoint", "")
+            if self.fast and not SL.debug_worthwhile(c):
+                why = "not pinned: no debug"
+                break
+            ts["debug"] = rnd + 1
             ids["code"] = tm.board.put(gid, "code", self.current_code(t, c) or (tm.board.get(ids["pack"]) or {}).get("body", ""))
             ids["diff"], fix = self.step(tm, "DEBUG_FIX", [ids["task"], ids["code"], ids["failure"], ids["pinpoint"]], "diff")
             answers.append(fix)
             if not fix.strip():
                 why = "empty fix"
                 break
+        ts["lines_added"] = sum(1 for x in c.unified_diff().splitlines() if x.startswith("+") and not x.startswith("+++") and x[1:].strip())
         ts["visible_pass"], ts["stop_reason"] = ok, why or ("pass" if ok else "debug rounds used")
-        ids["answer"] = tm.board.put(gid, "answer", "\n".join(answers)[:3000])
+        if self.fast:
+            pin = (tm.board.get(ids["pinpoint"]) or {}).get("body", "") if ids.get("pinpoint") else ""
+            ids["answer"] = tm.board.put(gid, "answer", SL.confidence_summary(t, c.unified_diff(), "PASS" if ok else (val or why), pin, ts.get("debug", 0)))
+        else:
+            ids["answer"] = tm.board.put(gid, "answer", "\n".join(answers)[:3000])
         ts["done"].append("code")
         self.save()
 
@@ -280,7 +307,7 @@ class Run:
         if "check" in ts["done"]:
             return
         ids = ts["ids"]
-        _, out = self.step(tm, "CONFIDENCE", [ids["task"], ids["plan"], ids["pack"], ids["answer"]], "confidence")
+        _, out = self.step(tm, "CONFIDENCE", [ids["task"], ids.get("plan", ids["task"]), ids["pack"], ids["answer"]], "confidence")
         m = re.search(r"([01](?:\.\d+)?)", out)
         ts["confidence"] = float(m.group(1)) if m else None
         ts["verdict"] = None if ts["confidence"] is None else ("correct" if ts["confidence"] >= CONF_THRESHOLD else "incorrect")
@@ -295,6 +322,10 @@ class Run:
                 continue
             import psutil
             self.st.setdefault("noise", []).append({"stage": name, "cpu_pct_before": psutil.cpu_percent(interval=3.0), "t": round(time.time())})
+            if self.fast and name == "think":
+                for t in todo:
+                    fn(t)
+                continue
             self.runner.use(slot)
             self.save()
             print(f"[{name}] {len(todo)} tasks on {slot}", flush=True)
@@ -438,7 +469,15 @@ def summarize(out: Path) -> dict[str, Any]:
     nev, nmodel = len(ev), sum(1 for e in ev if e.get("model"))
     conf = [(v["confidence"], int(v["graded"]["passed"])) for v in tasks.values() if v.get("confidence") is not None]
     lo, hi = wilson(len(solved), n)
-    return {"n_tasks": n, "solved": len(solved), "pass_rate": round(len(solved) / n, 4) if n else 0, "pass_ci95": [lo, hi],
+    wl = sum(tasks[k].get("lines_added", 0) for k in solved)
+    gen_tok = sum(e.get("out_tok", 0) for e in ev if e.get("model"))
+    good_tok = sum(e.get("out_tok", 0) for e in ev if e.get("model") and e.get("goal_id") in solved)
+    trunc = sum(1 for e in ev if e.get("outcome") == "truncated")
+    over = {"gt10": sum(1 for v in per_task.values() if v > 10), "gt100": sum(1 for v in per_task.values() if v > 100),
+            "max": round(max(per_task.values()), 1) if per_task else 0, "p90": round(sorted(per_task.values())[int(0.9 * (n - 1))], 1) if n else 0}
+    return {"working_lines": wl, "working_lines_per_hour": round(wl / (total_wall / 3600), 1) if total_wall else 0,
+            "useful_token_ratio": round(good_tok / gen_tok, 4) if gen_tok else 0, "truncated_calls": trunc, "over": over,
+            "n_tasks": n, "solved": len(solved), "pass_rate": round(len(solved) / n, 4) if n else 0, "pass_ci95": [lo, hi],
             "visible_first_pass": sum(1 for v in tasks.values() if v.get("visible_first")), "visible_final_pass": sum(1 for v in tasks.values() if v.get("visible_pass")),
             "tasks_with_debug": sum(1 for v in tasks.values() if v.get("debug")), "debug_rounds": sum(v.get("debug", 0) for v in tasks.values()),
             "by_family": {f: {"n": sum(1 for k in tasks if k.startswith(f)), "solved": sum(1 for k in solved if k.startswith(f))} for f in ("app", "fn")},
@@ -452,7 +491,7 @@ def summarize(out: Path) -> dict[str, Any]:
             "team_confidence": {"n": len(conf), "ece5": round(ece(conf, 5), 4) if conf else None,
                                 "verdict_acc": round(sum(1 for p, y in conf if (p >= CONF_THRESHOLD) == bool(y)) / len(conf), 3) if conf else None},
             "per_task": {k: {"s": round(per_task[k], 1), "passed": tasks[k]["graded"]["passed"], "visible_first": tasks[k].get("visible_first"),
-                             "debug": tasks[k].get("debug"), "conf": tasks[k].get("confidence"), "stop": tasks[k].get("stop_reason")} for k in tasks}}
+                             "debug": tasks[k].get("debug"), "lines": tasks[k].get("lines_added"), "conf": tasks[k].get("confidence"), "stop": tasks[k].get("stop_reason")} for k in tasks}}
 
 
 def report(a: argparse.Namespace) -> int:
@@ -476,6 +515,7 @@ def main(argv: list[str]) -> int:
     r.add_argument("--out", required=True)
     r.add_argument("--limit", type=int, default=0)
     r.add_argument("--only", nargs="*", default=[])
+    r.add_argument("--fast", action="store_true", help="the P0.10 fast path (routing, prefilled edit, <=1 gated debug, short confidence)")
     c = sub.add_parser("calib")
     c.add_argument("--heldout", required=True)
     c.add_argument("--out", required=True)

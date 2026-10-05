@@ -31,7 +31,7 @@ from creator import modelpool as MP
 from creator import team as TM
 
 GRAMMAR_DIR = Path(__file__).resolve().parent / "grammars"
-FORMS = ("diff", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
+FORMS = ("diff", "diff1", "fnbody", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 
@@ -330,6 +330,59 @@ def code_user(t: dict[str, Any], plan: str, pack: str) -> str:
     return f"ROLE: CODE\nPlan:\n{plan.strip()}\n\nRequest:\n{_request(t)}{cur}"
 
 
+NL = chr(10)
+FENCE = chr(96) * 3
+EX_LINES, EX_CHARS = 4, 160
+DUP_STUB = False                                  # the prefilled SEARCH half already holds the stub: do not send it a second time
+FAIL_CHARS = 500
+FAST_PLAN ="Implement the function body below the signature; keep the signature and docstring."
+CODE_CAP = {"fn": 140, "app": 420}               # per-family output caps from the measured lengths (baseline: 4 of 33 CODE calls hit 512)
+MAX_FAST_DEBUG = 0                                  # measured 0 fixes in 13 gated attempts (2 fast runs); the gate code stays (debug_worthwhile), raise to re-enable
+STUB_LAST = "    raise NotImplementedError"
+
+
+def _fast_request(t: dict[str, Any]) -> str:
+    """Function task: the stub already holds the signature + docstring, so the request is one line plus the examples."""
+    exs = [x[:EX_CHARS] for x in (t.get("examples") or "").splitlines()[:EX_LINES]]
+    ex = (NL * 2 + "Examples:" + NL + NL.join(exs)) if exs else ""
+    return f"Write the Python function `{t.get('name', '')}` described in the docstring (standard library only).{ex}"
+
+
+def fast_prefill(t: dict[str, Any]) -> str:
+    """The SEARCH half of a function task's edit block and the start of its REPLACE half (signature + docstring, unchanged) are known from the
+    stub: they are fed as the start of the answer (prompt tokens read ~4x faster than tokens are generated), so the model generates only the
+    new body. One-line SEARCH prefills made the model copy the stub line, so the whole function is the SEARCH."""
+    stub = (t.get("stub") or "").rstrip()
+    m = re.search(r"^(?:async )?def .*$", stub, re.M)
+    if t.get("family") != "fn" or not m or not stub.endswith(STUB_LAST.strip()):
+        return ""
+    func = stub[m.start():]
+    head = func[:len(func) - len(STUB_LAST.lstrip(NL))].rstrip() if func.endswith(STUB_LAST.strip()) else func
+    head = func[:func.rindex(STUB_LAST.strip())].rstrip(" ").rstrip(NL)
+    return f"<<<<<<< SEARCH{NL}{func}{NL}======={NL}{head}{NL}"
+
+
+def fast_code_user(t: dict[str, Any], pack: str) -> str:
+    fn = t.get("family") == "fn"
+    if fn:
+        cur = (f"{NL}{NL}Current solution.py:{NL}{FENCE}python{NL}{t.get('stub', '')}{NL}{FENCE}{NL}" if DUP_STUB else NL * 2)             + EDIT_FORMAT.format(f="solution.py")
+    else:
+        cur = f"{NL}{NL}Relevant code:{NL}{pack}{NL}" + EDIT_FORMAT_FILES
+    return f"ROLE: CODE{NL}Plan:{NL}{FAST_PLAN}{NL}{NL}Request:{NL}{_fast_request(t) if fn else _request(t)}{cur}"
+
+
+def diff_stats(diff: str) -> tuple[int, int]:
+    return (sum(1 for x in diff.splitlines() if x.startswith("+") and not x.startswith("+++")),
+            sum(1 for x in diff.splitlines() if x.startswith("-") and not x.startswith("---")))
+
+
+def confidence_summary(t: dict[str, Any], diff: str, outcome: str, pin: str, rounds: int) -> str:
+    """<= 120 tokens: what the checker needs (diff stats, test outcome, top suspect), never the code or the prompt."""
+    a, d = diff_stats(diff)
+    return (f"task {t.get('name') or t.get('id', '')}; edit +{a}/-{d} lines; visible tests {outcome[:60]}; fix rounds {rounds}"
+            + (f"; suspect {pin.splitlines()[0][:60]}" if pin else ""))
+
+
 def build_prompt(step: str, env: TM.Envelope, team: Any) -> tuple[str, str]:
     """(system, user) of a model step, from board facts only."""
     from creator import pipelinemix as PM
@@ -344,8 +397,16 @@ def build_prompt(step: str, env: TM.Envelope, team: Any) -> tuple[str, str]:
         spec, pack = _of_kind(team, env, "spec"), _of_kind(team, env, "pack")
         ctx = f"\n\nCurrent solution.py:\n```python\n{t['stub']}\n```" if t.get("stub") else f"\n\nRelevant code:\n{pack}"
         return system, f"ROLE: PLAN\nSPEC:\n{spec.strip()}\n\nRequest:\n{_request(t)}{ctx}"
+    if step == "CODE" and getattr(team, "fast", False):
+        return system, fast_code_user(t, _of_kind(team, env, "pack"))
     if step == "CODE":
         return system, code_user(t, _of_kind(team, env, "plan"), _of_kind(team, env, "pack"))
+    if step == "DEBUG_FIX" and getattr(team, "fast", False):
+        fail, pin, cur = _of_kind(team, env, "failure"), _of_kind(team, env, "pinpoint"), _of_kind(team, env, "code")
+        fn = t.get("family") == "fn"
+        return system, (f"ROLE: DEBUG{NL}" + (f"Current solution.py:{NL}{FENCE}python{NL}{cur}{NL}{FENCE}{NL}" if fn else f"Current code:{NL}{cur}{NL}")
+                        + (f"{NL}Suspect lines:{NL}{pin}{NL}" if pin else "") + f"{NL}Exact failing output:{NL}{fail[:FAIL_CHARS]}{NL}"
+                        + (EDIT_FORMAT.format(f="solution.py") if fn else EDIT_FORMAT_FILES))
     if step == "DEBUG_FIX":
         fail, pin, cur = _of_kind(team, env, "failure"), _of_kind(team, env, "pinpoint"), _of_kind(team, env, "code")
         fn = t.get("family") == "fn"
@@ -353,6 +414,10 @@ def build_prompt(step: str, env: TM.Envelope, team: Any) -> tuple[str, str]:
                         + (f"Current solution.py:\n```python\n{cur}\n```\n" if fn else f"Current code:\n{cur}\n")
                         + (f"\nSuspect lines:\n{pin}\n" if pin else "") + f"\nExact failing output:\n{fail[:1500]}\n"
                         + (EDIT_FORMAT.format(f="solution.py") if fn else EDIT_FORMAT_FILES))
+    if step == "CONFIDENCE" and getattr(team, "fast", False):
+        from creator import trainmods as TMODS
+        brief = (t.get("name") and f"Function `{t['name']}`.") or str(t.get("request", ""))[:160]
+        return system, f"ROLE OF THE ANSWER: CODE\n{brief}" + TMODS.CALIB_ASK.format(answer=_of_kind(team, env, "answer").strip())
     if step == "CONFIDENCE":
         from creator import trainmods as TMODS
         user = code_user(t, _of_kind(team, env, "plan"), _of_kind(team, env, "pack"))
@@ -367,10 +432,15 @@ def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
         if prof is None:
             raise TM.Refused(f"no model profile for step {env.step!r}")
         system, user = build_prompt(env.step, env, team)
-        res = runner.complete(prof.slot, chatml(system, user), prof.form, min(prof.max_tokens, int(env.budget["max_tok"])),
+        prompt, form, pre = chatml(system, user), prof.form, ""
+        if getattr(team, "fast", False) and env.step == "CODE":
+            pre = fast_prefill(_task(team, env))
+            form = "fnbody" if pre else "diff1"
+            prompt += pre
+        res = runner.complete(prof.slot, prompt, form, min(prof.max_tokens, int(env.budget["max_tok"])),
                               min(prof.max_s, float(env.budget["max_s"])))
         team.last_call = res
-        return str(res["content"])
+        return pre + str(res["content"])
     return TM.actor(name, fn)
 
 
@@ -393,8 +463,6 @@ def locate_actor() -> TM.Actor:
     return TM.actor("locate", fn, accepts=("LOCATE", "DEBUG_PINPOINT"))
 
 
-NL = chr(10)
-FENCE = chr(96) * 3
 _HEAD = re.compile(r"^### (\S+?):(\d+)-(\d+) \(.*\)$", re.M)
 
 
@@ -504,6 +572,9 @@ def _pinpoint(team: Any, env: TM.Envelope, c: ToolContext) -> str:
         team.last_call = {"pinpoint_error": type(e).__name__}
     if not lines:
         lines = [(f.file, f.line, 0.0) for f in tb.repo_frames()[:5]]
+    c.pin_scores = [float(x[2]) for x in lines[:2]]                           # type: ignore[attr-defined]
+    # a raised error inside the repo pins the line; a plain failed assert does not (0 of 7 such fixes worked in the first fast run)
+    c.tb_lines = [(f.file, f.line) for f in tb.repo_frames()] if tb.exc_type and "Assertion" not in tb.exc_type else []   # type: ignore[attr-defined]
     out = []
     for f, ln, _s in lines[:5]:
         try:
@@ -523,6 +594,7 @@ class MeasuredTeam(TM.Team):
         self.sink = sink
         self.ctx: Any = None
         self.last_call: dict[str, Any] = {}
+        self.fast = False
         self._cpu0 = 0.0
 
     def dispatch(self, env: TM.Envelope, actor_name: Optional[str] = None) -> str:
@@ -546,3 +618,11 @@ class MeasuredTeam(TM.Team):
 def actors(runner: SlotRunner) -> list[TM.Actor]:
     return [slot_actor("CHECKER", runner), slot_actor("THINKER", runner), slot_actor("CODER", runner), locate_actor(), pack_actor(),
             safety_actor(), tests_actor()]
+
+
+def debug_worthwhile(ctx: Any) -> bool:
+    """One debug attempt only when the failure is pinned: the traceback names a repo (non-test) line, or the top pinpoint line is clearly ahead."""
+    if getattr(ctx, "tb_lines", None):
+        return True
+    sc = getattr(ctx, "pin_scores", None) or []
+    return bool(sc) and sc[0] >= 0.8 and (len(sc) < 2 or sc[0] - sc[1] >= 0.15)
