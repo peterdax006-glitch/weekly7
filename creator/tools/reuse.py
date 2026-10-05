@@ -184,8 +184,14 @@ class LeakGuard:
     # -- construction
     @classmethod
     def from_sources(cls, rl_task_files: Iterable[Path], suite_dir: Optional[Path] = None, heldout_json: Optional[Path] = None,
-                     repo_root: Optional[Path] = None, public_root: Optional[Path] = None) -> "LeakGuard":
+                     repo_root: Optional[Path] = None, public_root: Optional[Path] = None, exclude_json: Optional[Path] = None) -> "LeakGuard":
         g = cls()
+        from creator.tools import evalexclude as EX                  # R13: the ~200-task eval suite's EXCLUDE.json (ids, source files, body hashes)
+        ex = EX.load(exclude_json) if exclude_json else EX.Exclusions()       # explicit only: default_guard passes the real file
+        g.files |= ex.source_paths
+        g.hashes |= ex.body_hashes
+        g.sigdocs |= ex.sigdoc_hashes
+        g.task_names |= ex.names
         ids: set[str] = set()
         for f in rl_task_files:
             if not Path(f).is_file():
@@ -658,7 +664,7 @@ def default_guard(repo_root: str | Path, public_root: Optional[str | Path] = Non
     gd = rt / "gpuday"
     return LeakGuard.from_sources([gd / "export" / "rl_tasks.jsonl", gd / "export_plus" / "rl_tasks.jsonl"], suite_dir=gd / "baseline_suite",
                                   heldout_json=Path(repo_root) / "creator" / "codetrust_heldout.json", repo_root=Path(repo_root),
-                                  public_root=public_root or rt / "public_repos")
+                                  public_root=public_root or rt / "public_repos", exclude_json=gd / "eval_suite200" / "EXCLUDE.json")
 
 
 def main(argv: Sequence[str]) -> int:
