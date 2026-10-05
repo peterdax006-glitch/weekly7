@@ -29,6 +29,7 @@ TOOL_HELP = [
     ("read", '{"path": str, "offset": 1, "limit": 2000}', "read a file with line numbers"),
     ("write", '{"path": str, "content": str}', "write a whole file (LF)"),
     ("edit", '{"path": str, "old": str, "new": str, "replace_all": false}', "exact unique string replace; refuses an ambiguous match"),
+    ("patch", '{"patch": str, "path": ""}', "SEARCH/REPLACE blocks or a unified diff; whitespace-tolerant, all-or-nothing, returns an undo record"),
     ("grep", '{"pattern": regex, "path": ".", "glob": "*.py", "ignore_case": false}', "regex search over files"),
     ("glob", '{"pattern": "creator/*.py", "path": "."}', "find files by pattern"),
     ("jobs", "{}", "list your background jobs"),
@@ -92,6 +93,10 @@ class ToolBox:
             return self.files.write(str(a["path"]), str(a["content"]))
         if tool == "edit":
             return self.files.edit(str(a["path"]), str(a["old"]), str(a["new"]), bool(a.get("replace_all")))
+        if tool == "patch":
+            r = self.files.apply_patch(str(a["patch"]), str(a.get("path", "")))
+            r.pop("undo", None) if not r.get("ok") else None
+            return r
         if tool == "grep":
             return self.files.grep(str(a["pattern"]), str(a.get("path", ".")), a.get("glob"), bool(a.get("ignore_case")))
         if tool == "glob":
