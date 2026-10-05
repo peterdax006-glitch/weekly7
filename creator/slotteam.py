@@ -31,7 +31,7 @@ from creator import modelpool as MP
 from creator import team as TM
 
 GRAMMAR_DIR = Path(__file__).resolve().parent / "grammars"
-FORMS = ("diff", "diff1", "fnbody", "lineedit", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
+FORMS = ("diff", "diff1", "diff3", "fnbody", "lineedit", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 
@@ -356,6 +356,7 @@ CODE_CAP = {"fn": 140, "app": 420}               # per-family output caps from t
 MAX_FAST_DEBUG = 0                                  # measured 0 fixes in 13 gated attempts (2 fast runs); the gate code stays (debug_worthwhile), raise to re-enable
 STUB_LAST = "    raise NotImplementedError"
 CODE_CAP_CLASS: dict[str, int] = {}               # router class (fn_s ... app_l) -> output cap measured from the class's completed-output distribution (h94)
+APP_BLOCKS_MAX = 0                                # h94: >0 -> app CODE answers use the grammar of at most 3 edit blocks (a loop of blocks cannot run to the cap)
 PACK_NO_TESTS = False                             # h94: the packed context of the CODER leaves out test files (their edits are dropped anyway)
 PREFIX_FIRST = False                              # h94 R4: the fixed text (role, plan, edit format) first, everything task-specific last -> longer KV-cache prefix shared by tasks
 COUPLED_SLOT = "slot:"                            # an envelope constraint "slot:CODER06" sends a CODE step to another slot (router, R5); it is also part of the cache key
@@ -468,7 +469,7 @@ def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
         prompt, form, pre, cap = chatml(system, user), prof.form, "", min(prof.max_tokens, int(env.budget["max_tok"]))
         if getattr(team, "fast", False) and env.step == "CODE":
             pre = fast_prefill(_task(team, env))
-            form = "fnbody" if pre else "diff1"
+            form = "fnbody" if pre else ("diff3" if APP_BLOCKS_MAX else "diff1")
             prompt += pre
         tg = _of_kind(team, env, "target") if env.step == "DEBUG_FIX" else ""
         if tg:                                                                # R2 line repair: tiny prefilled, grammar-bound answer
