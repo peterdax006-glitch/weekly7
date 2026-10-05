@@ -226,3 +226,82 @@ def test_an_unshared_server_keeps_the_old_command_and_one_lessee(rig: Rig) -> No
     assert first is not None
     assert MP.lease(rig.base, rig.pool.model, 4096, **ok) is None
     first[1].release()
+
+
+# ---------------------------------------------------------------------- slot models (P0.7)
+
+def _slot_files(tmp: Path) -> dict[str, Any]:
+    (tmp / "coder.gguf").write_text("x")
+    (tmp / "draft.gguf").write_text("x")
+    (tmp / "label.gbnf").write_text('root ::= "yes" | "no"')
+    man = {"slots": {"CODER": {"file": "coder.gguf", "threads": 6, "ctx": 8192, "max_tokens": 400, "draft": "draft.gguf", "draft_max": 6,
+                               "grammars": {"label": "label.gbnf"}, "stop": ["</s>"]},
+                     "CHECKER": {"file": "coder.gguf"}}}
+    (tmp / "slots.json").write_text(json.dumps(man))
+    return man
+
+
+def test_slot_manifest_loads_with_role_settings(tmp_path: Path) -> None:
+    _slot_files(tmp_path)
+    sl = MP.load_slots(tmp_path / "slots.json")
+    c = sl["CODER"]
+    assert c.model == tmp_path / "coder.gguf" and c.threads == 6 and c.ctx == 8192 and c.max_tokens == 400
+    assert c.draft == tmp_path / "draft.gguf" and c.grammars["label"] == tmp_path / "label.gbnf" and c.stop == ("</s>",)
+    assert sl["CHECKER"].draft is None and sl["CHECKER"].max_tokens == 256 and sl["CHECKER"].temperature == 0.0
+
+
+def test_slot_pool_command_carries_threads_ctx_and_draft_flags(tmp_path: Path) -> None:
+    _slot_files(tmp_path)
+    spec = MP.load_slots(tmp_path / "slots.json")["CODER"]
+    (tmp_path / "exe").write_text("x")
+    pool = MP.slot_pool(spec, base_pidfile=tmp_path / "llama_server.pid", exe=tmp_path / "exe", slots=1, floor_gb=1.0)
+    cmd = pool._command(18080)
+    assert cmd[cmd.index("-m") + 1] == str(tmp_path / "coder.gguf")
+    assert cmd[cmd.index("-t") + 1] == "6" and cmd[cmd.index("-c") + 1] == "8192"
+    assert cmd[cmd.index("--spec-type") + 1] == "draft-simple"
+    assert cmd[cmd.index("-md") + 1] == str(tmp_path / "draft.gguf") and cmd[cmd.index("--spec-draft-n-max") + 1] == "6"
+    pool.close()
+
+
+def test_plain_pool_command_is_unchanged_without_slot_args(rig: Rig) -> None:
+    cmd = rig.pool._command(18081)
+    assert "-md" not in cmd and "--spec-type" not in cmd and rig.pool.extra_args == []
+    assert cmd[-1] == "--log-disable"
+
+
+def test_grammar_per_form_and_unknown_form_is_an_error(tmp_path: Path) -> None:
+    _slot_files(tmp_path)
+    spec = MP.load_slots(tmp_path / "slots.json")["CODER"]
+    body = spec.payload("is it ok?", form="label", max_tokens=3)
+    assert body["grammar"] == 'root ::= "yes" | "no"' and body["n_predict"] == 3 and body["temperature"] == 0.0 and body["stop"] == ["</s>"]
+    assert "grammar" not in spec.payload("free text") and spec.payload("free text")["n_predict"] == 400
+    with pytest.raises(KeyError):
+        spec.payload("x", form="diff")
+
+
+def test_slot_complete_posts_role_settings_to_a_fake_server(tmp_path: Path) -> None:
+    _slot_files(tmp_path)
+    spec = MP.load_slots(tmp_path / "slots.json")["CODER"]
+    seen: list[dict[str, Any]] = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:                                           # noqa: N802
+            seen.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            out = json.dumps({"content": "yes"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *a: Any) -> None:
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    th = threading.Thread(target=srv.serve_forever, daemon=True)
+    th.start()
+    try:
+        assert MP.slot_complete(srv.server_address[1], spec, "ok?", form="label") == "yes"
+    finally:
+        srv.shutdown()
+        srv.server_close()
+    assert seen[0]["grammar"].startswith("root") and seen[0]["n_predict"] == 400 and seen[0]["cache_prompt"] is True
