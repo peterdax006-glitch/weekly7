@@ -120,7 +120,7 @@ def test_pinpoint_and_debug_fix_rows():
 def _suite(tmp_path):
     sd = tmp_path / "suite"
     (sd / "app_base" / "minishop").mkdir(parents=True)
-    (sd / "app_base" / "minishop" / "cart.py").write_text("def total_with_shipping_and_tax(items, rate):\n    return sum(items) * (1 + rate)\n", encoding="utf-8")
+    (sd / "app_base" / "minishop" / "cart.py").write_text("def total_with_shipping_and_tax(items, rate):\n    return sum(items) * (1 + rate) + shipping_cost_for_the_whole_order(items)\n", encoding="utf-8")
     (sd / "tasks.json").write_text(json.dumps({"tasks": [
         {"id": "fn.zorblax", "family": "fn", "name": "zorblax", "request": "Write the Python function `zorblax` that frobnicates the widget list",
          "stub": "def zorblax(widgets):\n    raise NotImplementedError\n", "tests": "[{'args': [[1]], 'expect': 2}]"}]}), encoding="utf-8")
@@ -131,7 +131,7 @@ def test_guard_blocks_the_suite_and_anything_derived(tmp_path):
     g = D.Guard(_suite(tmp_path))
     assert g.violation("def zorblax(widgets):\n    return [w * 2 for w in widgets]") is not None             # a suite function name
     assert g.violation("import minishop.cart") is not None
-    assert g.violation("x = 1\n    return sum(items) * (1 + rate)\n") is not None                            # a source line of app_base
+    assert g.violation("x = 1\n    return sum(items) * (1 + rate) + shipping_cost_for_the_whole_order(items)\n") is not None                            # a source line of app_base
     assert g.violation("def add(a, b):\n    return a + b\n") is None
     rows = [{"id": "r1", "messages": [{"role": "user", "content": "def add(a, b):\n    return a + b"}], "meta": {"public": True}}]
     assert D.audit(rows, g)["clean"]
