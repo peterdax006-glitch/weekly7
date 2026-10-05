@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from creator.tools import patch as PT
 from creator.tools import policy as PO
 
 MAX_READ_BYTES = 2_000_000
@@ -85,7 +86,27 @@ class FileTools:
         self._done("edit", path, t0)
         return {"ok": True, "replaced": n if replace_all else 1}
 
-    def _walk(self, root: str):                                                       # type: ignore[no-untyped-def]
+    def apply_patch(self, patch: str, default_path: str = "") -> dict[str, Any]:
+        """SEARCH/REPLACE blocks or a unified diff, whitespace-tolerant, all-or-nothing across files, every path gated as a write.
+        Returns {"ok", "files", "hunks", "fuzzy", "undo"}; hand `undo` to undo_patch to reverse it."""
+        t0 = time.monotonic()
+        try:
+            hunks = PT.parse(patch, default_path)
+        except PT.PatchError as e:
+            return {"ok": False, "error": str(e)}
+        res = PT.apply_to_files(hunks, lambda p: self._gate("patch", p, True), Path(self.policy.scratch))
+        if res.get("ok"):
+            self._done("patch", ",".join(sorted({h[0] for h in hunks})), t0)
+        return res
+
+    def undo_patch(self, record: dict[str, Any], force: bool = False) -> dict[str, Any]:
+        for e in record.get("files", []):                                              # undo writes too: re-gate every path
+            den, _ = self._gate("patch_undo", e["path"], True)
+            if den:
+                return den
+        return PT.undo(record, force)
+
+    def _walk(self, root: str):                                                     # type: ignore[no-untyped-def]
         for dp, dns, fns in os.walk(root):
             dns[:] = [d for d in dns if d not in (".git", "__pycache__", ".venv", "node_modules", ".pytest_cache")]
             for f in fns:
