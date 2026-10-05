@@ -413,6 +413,38 @@ def notify_ready(name: str, sid: str, rt: Optional[Path] = None) -> bool:
         return False
 
 
+REPORT_FIELDS = ("id", "result_type", "has_value", "error")
+
+
+def record_report(rt: Optional[Path], d: dict[str, Any], now: Optional[float] = None) -> tuple[bool, str]:
+    """POST /shortcut_report: the Nupen shortcut says what 'Compile Jelly Text' returned on the phone (type, empty or not, error text),
+    so Nupen learns whether Jellycuts shows Apple's Add sheet itself or needs the extra open step. Only appends a log line."""
+    sid = str(d.get("id", ""))
+    if not re.fullmatch(r"[0-9a-f]{12}", sid):
+        return False, "bad id"
+    rec = {k: esc(str(d[k]), 120) for k in REPORT_FIELDS if k in d}
+    rec["at"] = time.time() if now is None else now
+    p = _dir(rt) / "reports.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec) + "\n")
+    return True, "recorded"
+
+
+def reports(rt: Optional[Path]) -> list[dict[str, Any]]:
+    try:
+        lines = (_dir(rt) / "reports.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out = []
+    for ln in lines:
+        try:
+            out.append(json.loads(ln))
+        except ValueError:
+            continue
+    return out
+
+
 def handle(text: str, rt: Optional[Path], llm: Optional[Callable[[str], str]] = None) -> Optional[dict[str, Any]]:
     """Phone-server entry: None when the words are not a shortcut request; otherwise {reply, action}. Stores, validates, notifies."""
     if not SHORTCUT_ASK.search(text):
