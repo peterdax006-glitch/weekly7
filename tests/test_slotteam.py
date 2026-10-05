@@ -119,3 +119,11 @@ def test_canonical_patch_reads_the_models_native_format():
     assert out == "minishop/cart.py" + nl + nl.join(["<<<<<<< SEARCH", "a", "=======", "b", ">>>>>>> REPLACE"]) + nl and dropped == 1
     bare, n = S.canonical_patch(nl.join(["<<<<<<< SEARCH", "q", "=======", "r", ">>>>>>> REPLACE", ""]), "solution.py")
     assert bare.startswith("solution.py" + nl) and n == 0
+
+
+def test_fast_prefill_holds_search_and_replace_head():
+    stub = "from __future__ import annotations\n\ndef f(x):\n    \"\"\"Doc.\"\"\"\n    raise NotImplementedError\n"
+    pre = S.fast_prefill({"family": "fn", "stub": stub})
+    assert pre.startswith("<<<<<<< SEARCH\ndef f(x):") and pre.count("raise NotImplementedError") == 1
+    assert pre.endswith("=======\ndef f(x):\n    \"\"\"Doc.\"\"\"\n")
+    assert S.fast_prefill({"family": "app"}) == ""
