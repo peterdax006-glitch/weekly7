@@ -312,7 +312,7 @@ _last_flush = 0.0
 _fh: dict[str, Any] = {}
 _jstr: dict[str, str] = {}                            # json-encoded strings (goal ids, actors, steps repeat endlessly)
 _day = ("", 0)                                        # (YYYYMMDD, minute stamp it was computed for)
-_ram = (0.0, None)                                    # (monotonic stamp, MB): peak RSS is sampled at most once a second
+_ram = (0.0, None, "")                                    # (monotonic stamp, MB): peak RSS is sampled at most once a second
 
 
 _jkeys: dict[str, str] = {}
@@ -345,7 +345,7 @@ def _js(s: Any) -> str:
 
 def _flush_locked() -> None:
     global _buf_n, _last_flush
-    _last_flush = time.monotonic()
+    _last_flush = time.time()
     if not _buf or _buf_path is None:
         return
     data = b"".join(_buf)
@@ -376,24 +376,27 @@ def flush() -> None:
 atexit.register(flush)
 
 
-def _queue(path: str, line: bytes) -> None:
+def _queue(path: str, line: bytes, now: Optional[float] = None) -> None:
     global _buf_n, _buf_path
     with _lock:
-        if _buf_path is not None and path != _buf_path:   # a new day or a new state dir: write the old buffer first
+        if _buf_path is not path and _buf_path is not None and path != _buf_path:   # a new day or a new state dir: write the old buffer first
             _flush_locked()
         _buf_path = path
         _buf.append(line)
         _buf_n += len(line)
-        if _buf_n >= FLUSH_BYTES or time.monotonic() - _last_flush >= FLUSH_S:
+        if _buf_n >= FLUSH_BYTES or (time.time() if now is None else now) - _last_flush >= FLUSH_S:
             _flush_locked()
+
+
+_path_cache: tuple[str, int, str] = ("", -1, "")      # (prefix, minute, full path): one string concat per minute, not per event
 
 
 def event(actor: str, *, goal_id: Optional[str] = None, step: Optional[str] = None, in_tok: int = 0, out_tok: int = 0,
           cpu_s: Optional[float] = None, wall_s: float = 0.0, cache_hit: bool = False, outcome: str = "ok", model: bool = False,
           state: Optional[Path] = None, **extra: Any) -> bool:
     """Queue one step event (written within FLUSH_S / FLUSH_BYTES). `model` marks a step that used a model (the Qwen share counts them).
-    Never raises."""
-    global _day, _ram
+    One clock read per event. Never raises."""
+    global _day, _ram, _path_cache
     try:
         if state is None and _state_override is not None:
             pre = _prefix[1]                                  # fast path: the configured bus, no Path arithmetic
@@ -402,34 +405,35 @@ def event(actor: str, *, goal_id: Optional[str] = None, step: Optional[str] = No
             if st is None:
                 return False
             pre = str(st / METRICS_DIR / "events-")
-        c = _ctx.get()
-        if goal_id is None:
-            goal_id = c.get("goal_id")
-        if step is None:
-            step = c.get("step")
+        if goal_id is None or step is None:
+            c = _ctx.get()
+            if goal_id is None:
+                goal_id = c.get("goal_id")
+            if step is None:
+                step = c.get("step")
         now = _now()
         mn = int(now // 60)
-        if _day[1] != mn:
+        pc = _path_cache
+        if pc[1] != mn or pc[0] != pre:
             _day = (time.strftime("%Y%m%d", time.localtime(now)), mn)
-        mono = time.monotonic()
-        if mono - _ram[0] >= 1.0:
-            _ram = (mono, ram_peak_mb())
-        parts = [f'{{"t":{now:.3f},"actor":{_js(actor)},"in_tok":{in_tok},"out_tok":{out_tok},"wall_s":{wall_s:.4f},"cache_hit":{"true" if cache_hit else "false"},'
-                 f'"outcome":{_js(outcome)},"model":{"true" if model else "false"}']
-        if goal_id is not None:
-            parts.append(f',"goal_id":{_js(goal_id)}')
+            pc = _path_cache = (pre, mn, pre + _day[0] + ".jsonl")
+        if now - _ram[0] >= 1.0:                              # peak RSS: at most one syscall a second
+            r = ram_peak_mb()
+            _ram = (now, r, "" if r is None else f',"ram_peak_mb":{r}')
+        g = "" if goal_id is None else ',"goal_id":' + (_jstr.get(goal_id) or _js(goal_id))
         if step is not None:
-            parts.append(f',"step":{_js(step)}')
+            g += ',"step":' + (_jstr.get(step) or _js(step))
         if cpu_s is not None:
-            parts.append(f',"cpu_s":{cpu_s:.4f}')
-        if _ram[1] is not None:
-            parts.append(f',"ram_peak_mb":{_ram[1]}')
+            g += f',"cpu_s":{cpu_s:.4f}'
+        g += _ram[2]
+        line = (f'{{"t":{now:.3f},"actor":{_jstr.get(actor) or _js(actor)},"in_tok":{in_tok},"out_tok":{out_tok},"wall_s":{wall_s:.4f},'
+                f'"cache_hit":{"true" if cache_hit else "false"},"outcome":{_jstr.get(outcome) or _js(outcome)},'
+                f'"model":{"true" if model else "false"}{g}')
         if extra:
             for k, v in extra.items():                       # scalars encoded inline (json.dumps of the dict costs ~50 us)
                 t = type(v)
-                parts.append(f',{_jk(k)}:{_js(v) if t is str else (repr(v) if t is int else _enc_other(v))}')
-        parts.append("}\n")
-        _queue(pre + _day[0] + ".jsonl", "".join(parts).encode())
+                line += f',{_jk(k)}:{_js(v) if t is str else (repr(v) if t is int else _enc_other(v))}'
+        _queue(pc[2], (line + "}\n").encode(), now)
         return True
     except Exception:                                    # noqa: BLE001 - measurement never breaks the work
         return False
@@ -453,6 +457,22 @@ def err_sig(exc: Any, text: Any = "") -> str:
     return (type(exc).__name__ + ": " + _NORM.sub(" ", str(text or exc).strip().split(chr(10))[0].lower())[:80]).strip()
 
 
+def chat_fields(messages: Any, cls: Optional[str] = None) -> dict[str, Any]:
+    """The detector fields of a chat call: sig (of the last user message: the task payload), form_in (tokens of the last user message = the task payload without
+    the system/boilerplate part), cls (explicit, else the step_context's). Pass as `model_call(model, **chat_fields(msgs))`."""
+    try:
+        last = ""
+        parts = []
+        for m in messages:
+            c = str(m.get("content", ""))
+            parts.append(c)
+            if m.get("role") == "user":
+                last = c
+        return {"prompt": last or "\n".join(parts), "cls": _ctx.get().get("cls") or cls, "form_in": est_tokens(last or (parts[-1] if parts else ""))}
+    except Exception:                                                  # noqa: BLE001 - accounting never breaks a call
+        return {}
+
+
 class model_call:
     """THE accounting path of a local-model call: `with model_call("qwen3-1.7b") as mc: ...; mc.tokens(in_, out)`.
     Logs one event (wall, thread CPU, tokens, outcome 'ok' / the exception name) when the block ends, also when it raises."""
@@ -463,6 +483,7 @@ class model_call:
         self.actor = actor or str(_ctx.get().get("actor") or "model:" + name)
         self.extra = {"model": True, "backend": name, **extra}
         sig = sig or (sig_of(prompt) if prompt is not None else None)         # fields the opportunity detectors read (constraints.detect_*)
+        cls = cls or _ctx.get().get("cls")                                    # step_context(cls=...) labels every call inside it
         for k, v in (("sig", sig), ("cls", cls), ("form_in", form_in), ("form_out", form_out)):
             if v is not None:
                 self.extra[k] = v
@@ -477,6 +498,8 @@ class model_call:
         return self
 
     def __exit__(self, *exc: Any) -> None:
+        if "form_in" in self.extra and "form_out" not in self.extra:         # the answer IS the form: its tokens are the form minimum
+            self.extra["form_out"] = self.out_tok
         event(self.actor, in_tok=self.in_tok, out_tok=self.out_tok, cpu_s=time.thread_time() - self.c0, wall_s=time.perf_counter() - self.w0,
               cache_hit=self.cache_hit, outcome=exc[0].__name__ if exc[0] else "ok",
               **({**self.extra, "err": err_sig(exc[1])} if exc[0] else self.extra))

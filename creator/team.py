@@ -331,7 +331,9 @@ class Team:
             if cached:
                 out, how = cached
             else:
-                out, how = a.fn(env, self), "run"
+                from creator import slowpath as _sp           # model calls made by the actor are labelled with the step (task class)
+                with _sp.step_context(cls=env.step):
+                    out, how = a.fn(env, self), "run"
                 if a.is_slot:
                     self.stats["slot_calls"] += 1
                     self.cache.put(env, out, name)
@@ -340,7 +342,7 @@ class Team:
             if self.log:
                 self.log(name, goal_id=env.goal_id, step=env.step, in_tok=env.tokens(), out_tok=est_tokens(out),
                          wall_s=time.perf_counter() - t0, cache_hit=how != "run", model=a.is_slot,
-                         sig=_sig(env), cls=env.step)
+                         sig=_sig(env), cls=env.step, form_in=env.tokens(), form_out=est_tokens(out))
             m = _HANDOFF.search(out)
             if not m:
                 return out

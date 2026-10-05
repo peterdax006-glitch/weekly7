@@ -237,6 +237,63 @@ def mbfl(worker: Any, tests_failing: Sequence[str], runs: Mapping[str, Mapping[s
     return out
 
 
+def mbfl_fast(worker: Any, failing: Sequence[str], base: Mapping[str, Mapping[str, Any]], file: str, buggy: str,
+              lines: Sequence[tuple[str, int]], *, per_line: int = 3, n_fail: int = 2, n_pass: int = 0, budget_cpu: float = 1.5,
+              stop_on_fix: bool = True, run_timeout: float = 60.0) -> tuple[dict[tuple[str, int], list[float]], float, int]:
+    """Cheap MBFL (same MBFL_FEATS as mbfl()): `lines` are visited in the ranker's order (best first); each gets <= per_line single-site
+    mutants of the buggy source; each mutant re-runs only the n_fail CHEAPEST failing tests (+ n_pass passing tests of the line) untraced.
+    Early stop: the first line whose mutant makes every re-run failing test pass (a candidate FIX) ends the search; so does the CPU budget
+    (worker-reported seconds). Lines never reached keep zeros. Returns (features, cpu spent, runs)."""
+    spent, runs_n = 0.0, 0
+    out: dict[tuple[str, int], list[float]] = {}
+    fail = sorted(failing, key=lambda k: float(base.get(k, {}).get("cpu", 0.1)))[:max(1, n_fail)]
+    F = len(fail)
+    for (f, ln) in lines:
+        if spent >= budget_cpu:
+            break
+        if f != file:
+            out[(f, ln)] = [0.0] * len(MBFL_FEATS)
+            continue
+        muts = P.enumerate_mutants(buggy, {ln})
+        if not muts:
+            out[(f, ln)] = [0.0] * len(MBFL_FEATS)
+            continue
+        by_kind: dict[str, list[Any]] = {}
+        for m in muts:
+            by_kind.setdefault(m.kind, []).append(m)
+        chosen: list[Any] = []
+        for m in zip_longest_kinds(by_kind):
+            chosen.append(m)
+            if len(chosen) >= per_line:
+                break
+        cover = [t for t in sorted(base) if base[t]["outcome"] == "passed" and ln in base[t]["lines"].get(f, ())
+                 and t not in fail][:max(0, n_pass)]
+        tests = sorted(set(fail) | set(cover))
+        och_best = fix_best = pb_sum = any_fix = 0.0
+        n = 0
+        for m in chosen:
+            if spent >= budget_cpu:
+                break
+            try:
+                res = worker.run(tests, {file: P.apply_mutant(buggy, m)}, timeout=run_timeout, trace=False)
+            except RuntimeError:                                  # timeout / crash (the worker is replaced): the run is lost, charge a nominal second
+                spent += 1.0
+                continue
+            spent += float(getattr(worker, "last_cpu", 0.0) or 0.0) or 0.15
+            runs_n += 1
+            n += 1
+            fixed = sum(1 for t in fail if res.get(t, {}).get("outcome") == "passed")
+            broke = sum(1 for t in cover if res.get(t, {}).get("outcome") == "failed")
+            och_best = max(och_best, fixed / math.sqrt(F * (fixed + broke)) if fixed else 0.0)
+            fix_best = max(fix_best, fixed / F)
+            pb_sum += broke / max(1, len(cover))
+            any_fix = max(any_fix, 1.0 if fixed else 0.0)
+        out[(f, ln)] = [float(n), round(och_best, 4), round(fix_best, 4), round(pb_sum / max(1, n), 4), any_fix]
+        if stop_on_fix and fix_best >= 1.0:
+            break
+    return out, spent, runs_n
+
+
 def zip_longest_kinds(by_kind: Mapping[str, list[Any]]) -> Any:
     """Round-robin over mutation kinds (diverse per-line sample)."""
     from itertools import zip_longest
@@ -322,6 +379,25 @@ def topk_from_scores(scores: Any, ys: Any, gid: Any, ks: Sequence[int] = (1, 3, 
             for k in ks:
                 hits[k] += int(pos[0] < k)
     return {f"top{k}": round(hits[k] / max(1, n), 4) for k in ks} | {"n": n}
+
+
+def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    if n <= 0:
+        return 0.0, 0.0
+    p = k / n
+    d = 1 + z * z / n
+    c = p + z * z / (2 * n)
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return round((c - h) / d, 4), round((c + h) / d, 4)
+
+
+def topk_ci(scores: Any, ys: Any, gid: Any, ks: Sequence[int] = (1, 3, 5)) -> dict[str, Any]:
+    """topk_from_scores + the 95% Wilson interval of every top-k rate (bugs are the unit)."""
+    r = topk_from_scores(scores, ys, gid, ks)
+    n = int(r["n"])
+    for k in ks:
+        r[f"top{k}_ci95"] = list(wilson(round(r[f"top{k}"] * n), n))
+    return r
 
 
 def fit_score(kind: str, x_tr: Any, y_tr: Any, x_te: Any, seed: int = 0) -> Any:
@@ -467,4 +543,33 @@ def cv_report(rows: Sequence[dict[str, Any]], mbfl_map: Mapping[str, Any] | None
             s, y, g = cv_scores(have, allf, "gbm", mbfl_map)
             out["c_gbm_all_features"] = topk_from_scores(s, y, g)
             out["c_by_kind"] = by_kind_report(s, y, g, have)
+    return out
+
+
+def cv_ci_report(rows: Sequence[dict[str, Any]], mbfl_map: Mapping[str, Any]) -> dict[str, Any]:
+    """Leave-modules-out CV on the bugs that have MBFL features, top-1/3/5 with 95% Wilson intervals: the P0.5 heuristic, the a-model
+    (spectrum + distance + structure), and a-model + MBFL (logistic and boosted), overall and per mutation kind."""
+    have = [r for r in rows if bug_id(r) in mbfl_map]
+    out: dict[str, Any] = {"n_bugs": len(have), "n_modules": len({r["file"] for r in have})}
+    if len(have) < 30:
+        return out
+    x, y, g = _matrix(have, A_FEATS, None)
+    out["baseline"] = topk_ci(heuristic_scores(have), y, g)
+    s_a, y, g = cv_scores(have, A_FEATS, "logistic")
+    out["a_logistic"] = topk_ci(s_a, y, g)
+    out["a_logistic_by_kind"] = by_kind_report(s_a, y, g, have)
+    allf = A_FEATS + MBFL_FEATS
+    s_b, y, g = cv_scores(have, allf, "logistic", mbfl_map)
+    out["a_plus_mbfl_logistic"] = topk_ci(s_b, y, g)
+    out["b_by_kind"] = by_kind_report(s_b, y, g, have)
+    s_c, y, g = cv_scores(have, allf, "gbm", mbfl_map)
+    out["a_plus_mbfl_gbm"] = topk_ci(s_c, y, g)
+    out["gbm_by_kind"] = by_kind_report(s_c, y, g, have)
+    kinds = sorted({r["mutation"] for r in have})
+    out["kind_share"] = {k: round(sum(1 for r in have if r["mutation"] == k) / len(have), 3) for k in kinds}
+    bal: dict[str, Any] = {}
+    for name, sc in (("a_logistic", s_a), ("a_plus_mbfl_logistic", s_b), ("a_plus_mbfl_gbm", s_c)):
+        per = by_kind_report(sc, y, g, have)
+        bal[name] = {f"top{k}": round(sum(per[kd][f"top{k}"] for kd in kinds) / len(kinds), 4) for k in (1, 3, 5)}
+    out["kind_balanced_macro"] = bal
     return out

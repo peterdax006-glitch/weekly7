@@ -451,7 +451,7 @@ class Endpoint:
         req = urllib.request.Request(self.url, data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"})
         t0 = time.monotonic()
         from creator import slowpath as SP                    # P0.2: the one accounting path of a model call
-        with SP.model_call(self.model, backend_kind="effladder") as mc:
+        with SP.model_call(self.model, backend_kind="effladder", **SP.chat_fields(m, "effladder")) as mc:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 d = json.loads(r.read())
             u = d.get("usage") or {}

@@ -33,8 +33,14 @@ def test_the_rule() -> None:
 
 def _round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, free_gb: float, drain_after_s: float = 0.0) -> int:
     cfg = K.KernelConfig(repo=tmp_path, state=tmp_path / "state", scratch=tmp_path / "scratch")
+    planned = threading.Event()         # the round planned (and found nothing) before the first filler starts: a filler that wins the race
+                                        # against the instant prepare() moves the ramp window and the round then never plans (hung under load)
+
+    def plan_one(*a, **k):
+        planned.set()
+        return None
     monkeypatch.setattr(K, "prepare", lambda cfg, led: (object(), [], None))
-    monkeypatch.setattr(K, "plan_one", lambda *a, **k: None)
+    monkeypatch.setattr(K, "plan_one", plan_one)
     monkeypatch.setattr(W.S, "head", lambda repo: "base")
     live = {"now": 0, "peak": 0}
     lock = threading.Lock()
@@ -48,7 +54,7 @@ def _round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, free_gb: float, drai
             live["now"] -= 1
     t0 = time.monotonic()
     drain = (lambda: time.monotonic() - t0 > drain_after_s) if drain_after_s else None
-    W.run_round(cfg, lambda: None, gov(free_gb), max_packages=1, poll_s=0.01, scheduled=False, filler=lambda: job, filler_budget=6,
+    W.run_round(cfg, lambda: None, gov(free_gb), max_packages=1, poll_s=0.01, scheduled=False, filler=lambda: job if planned.is_set() else None, filler_budget=6,
                 drain=drain)
     return live["peak"]
 

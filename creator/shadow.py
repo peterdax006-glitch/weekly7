@@ -205,20 +205,28 @@ def update_policy(state: Path = STATE, lessons_path: Optional[Path] = None, curr
     """Recompute the evidence, apply the rule, persist a flip. Returns the stats plus the current policy."""
     from creator.curriculum import LessonLog
     state = Path(state)
-    s = stats(state, LessonLog(lessons_path or state / "lessons.jsonl").lessons())
+    lessons = LessonLog(lessons_path or state / "lessons.jsonl").lessons()
+    s = stats(state, lessons)
     cur = read_policy(state)
     cur = current_default if cur is None else cur
     new = decide(s, cur)
     if new is not None and new != cur:
         _write_policy(new, s, state)
         cur = new
+    try:                                                     # the improvement engine's detectors read this (never affects the policy)
+        export_metrics(state, lessons, None, None, st=s)
+    except Exception as e:                                   # noqa: BLE001
+        log.warning("shadow export failed: %s", e)
     return {**s, "use_chooser": cur}
 
 
-def export_metrics(state: Path, lessons: list[Any], cost_default: float, cost_chooser: float, cls: str = "candidate_pick") -> int:
+def export_metrics(state: Path, lessons: list[Any], cost_default: Optional[float], cost_chooser: Optional[float], cls: str = "candidate_pick",
+                   st: Optional[dict[str, Any]] = None) -> int:
     """Write this shadow comparison to metrics/shadow.jsonl (rows {cls, rung, pass_rate, cost, n, current}) for the model_too_big /
-    qwen_replaceable detectors. Costs are CPU-seconds per decision, measured by the caller. The current rung is the applied policy."""
-    st = stats(Path(state), lessons)
+    qwen_replaceable detectors. Costs are CPU-seconds per decision, measured by the caller; None = not measured yet (the detectors skip a
+    rung without a cost, so nothing is claimed about savings). `st` = stats already computed (the leave-one-out refit is slow). The current
+    rung is the applied policy. A row set identical to the last one written is not appended again."""
+    st = st if st is not None else stats(Path(state), lessons)
     if not st.get("n"):
         return 0
     use = bool(read_policy(Path(state)))
@@ -226,7 +234,15 @@ def export_metrics(state: Path, lessons: list[Any], cost_default: float, cost_ch
     d.mkdir(parents=True, exist_ok=True)
     rows = [{"cls": cls, "rung": "default", "pass_rate": st["default_acc"], "cost": cost_default, "n": st["n"], "current": not use},
             {"cls": cls, "rung": "chooser", "pass_rate": st["chooser_acc"], "cost": cost_chooser, "n": st["n"], "current": use}]
-    with (d / "shadow.jsonl").open("a", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, sort_keys=True) + chr(10))
+    new = [json.dumps(r, sort_keys=True) for r in rows]
+    f = d / "shadow.jsonl"
+    try:
+        last = f.read_text(encoding="utf-8").splitlines()[-2:]
+    except OSError:
+        last = []
+    if last == new:
+        return 0
+    with f.open("a", encoding="utf-8") as fh:
+        for r in new:
+            fh.write(r + chr(10))
     return len(rows)

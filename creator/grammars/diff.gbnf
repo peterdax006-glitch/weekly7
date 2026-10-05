@@ -1,0 +1,7 @@
+root ::= think? block+
+think ::= "REASONING: " [^\n]{1,200} "\n"
+block ::= fence? file? "<<<<<<< SEARCH\n" body "=======\n" body ">>>>>>> REPLACE\n" fence?
+file ::= "FILE: " [A-Za-z0-9_./-]+ "\n"
+fence ::= "```\n"
+body ::= line*
+line ::= [^\n=<>] [^\n]* "\n" | [=<>] ([^\n=<>] [^\n]*)? "\n" | "\n"

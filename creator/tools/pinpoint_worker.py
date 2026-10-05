@@ -89,8 +89,37 @@ def _purge(root: str, changed: list[str] | None = None) -> None:
     linecache.clearcache()
 
 
+# Plugins the worker never reads (small win); the big one is --tb=no on untraced runs: nobody reads their failure text.
+_PLAIN = ("-p", "no:cacheprovider", "-p", "no:faulthandler", "-p", "no:stepwise", "-p", "no:doctest",
+          "-p", "no:junitxml", "-p", "no:pastebin", "-p", "no:setuponly", "-p", "no:setupplan",
+          "-p", "no:unraisableexception", "-p", "no:threadexception")      # the last two run gc.collect() per test (~25% of a run)
+
+
+class _OnlyTargets:
+    """Collection shortcut: pytest stats every entry of tests/ just to ignore all but the requested files. Only the target files and
+    the directories on the way to them are looked at; the same tests run."""
+
+    def __init__(self, root: str, targets: Sequence[str]) -> None:
+        self.files = {os.path.normcase(os.path.realpath(os.path.join(root, t.split("::", 1)[0]))) for t in targets}
+        self.anc: set[str] = set()
+        for f in self.files:
+            d = os.path.dirname(f)
+            while d and d not in self.anc:
+                self.anc.add(d)
+                nd = os.path.dirname(d)
+                if nd == d:
+                    break
+                d = nd
+
+    def pytest_ignore_collect(self, collection_path: Any, config: Any) -> bool | None:
+        p = os.path.normcase(str(collection_path))
+        return None if (p in self.files or p in self.anc) else True
+
+
 def _serve(root: str) -> int:
+    os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"      # no entry-point scan per run (~40% of a run); the tree's tests use no plugin
     import pytest
+    _OnlyTargets.pytest_ignore_collect = pytest.hookimpl(tryfirst=True)(_OnlyTargets.pytest_ignore_collect)   # type: ignore[method-assign]
     os.chdir(root)
     if root not in sys.path:
         sys.path.insert(0, root)
@@ -105,8 +134,8 @@ def _serve(root: str) -> int:
         os.environ["PINPOINT_OUT"] = req["out"]
         os.environ["PINPOINT_TRACE"] = "1" if req.get("trace", True) else "0"
         with open(os.devnull, "w") as dn, contextlib.redirect_stdout(dn), contextlib.redirect_stderr(dn):
-            rc = pytest.main(["-q", "-p", "no:cacheprovider", "-p", PLUGIN, "--tb=short", "--rootdir", root,
-                              "-o", "addopts=", "--", *req["tests"]])
+            rc = pytest.main(["-q", *_PLAIN, "-p", PLUGIN, "--tb=short" if req.get("trace", True) else "--tb=no", "--rootdir", root, "-o", "addopts=", "--", *req["tests"]],
+                             plugins=[_OnlyTargets(root, req["tests"])])
         proto.write(json.dumps({"rc": int(rc), "cpu": round(time.process_time() - c0, 3)}) + "\n")
         proto.flush()
     return 0
@@ -125,6 +154,8 @@ class Warm:
         self.uses = 0
         self.full = False                # True: purge every tree module on each run (slower, no dependency guess)
         self.last_cpu = 0.0
+        self.log: list[tuple[int, bool, float]] | None = None   # (tests, traced, cpu) per run when a profiler sets it to a list
+        self.cpu_total = 0.0            # CPU seconds of every run through this worker (worker-reported)
         self._lines: "queue.Queue[str]" = queue.Queue()
 
     def _start(self) -> None:
@@ -176,6 +207,9 @@ class Warm:
                 self.proc.stdin.flush()
                 reply = self._lines.get(timeout=timeout)
                 self.last_cpu = json.loads(reply).get("cpu", 0.0) if reply else 0.0
+                self.cpu_total += self.last_cpu
+                if self.log is not None:
+                    self.log.append((len(tests), trace, self.last_cpu))
             except (queue.Empty, OSError):
                 self.stop()
                 raise RuntimeError("worker timed out") from None

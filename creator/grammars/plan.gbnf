@@ -1,0 +1,3 @@
+root ::= fence? "STEPS:" sline{1,6} "RISKS:" sline{1,2} "TEST PLAN:" sline{1,2} fence?
+fence ::= "```\n"
+sline ::= [^\n]{1,160} "\n"

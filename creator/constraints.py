@@ -718,7 +718,7 @@ def run(state: Path, now: Optional[dt.datetime] = None, window_h: float = 24.0, 
     rep["act"] = act(state, rep) if do_act else {}
     if do_act:
         try:
-            rep["engine"] = engine_cycle(state, now.timestamp() if now else None)      # decision record; never blocks the loop
+            rep["engine"] = engine_cycle(state, now.timestamp() if now else None, claim=False)   # record only: the engine loop (engineloop.engine_step) claims the WIP slot
         except Exception as e:                                                          # noqa: BLE001
             rep["engine"] = {"error": f"{type(e).__name__}: {e}"}
     return rep
@@ -857,9 +857,9 @@ def detect_shadow(state: Path, rows: list[dict[str, Any]], days: float, rate: Op
     out = []
     for cls, ss in by.items():
         cur = next((s for s in reversed(ss) if s.get("current")), None)
-        if not cur or cls not in freq:
+        if not cur or cls not in freq or cur.get("cost") is None:         # cost None = not measured: nothing is claimed
             continue
-        ok = [s for s in ss if not s.get("current") and int(s.get("n", 0)) >= SHADOW_MIN_N and float(s["cost"]) < float(cur["cost"])
+        ok = [s for s in ss if not s.get("current") and s.get("cost") is not None and int(s.get("n", 0)) >= SHADOW_MIN_N and float(s["cost"]) < float(cur["cost"])
               and float(s["pass_rate"]) >= float(cur["pass_rate"]) - SHADOW_TOL]
         if not ok:
             continue
@@ -1152,7 +1152,7 @@ def mark_done(state: Path, key: str, actual_saving_day: Optional[float] = None, 
         record_outcome(state, cand, actual_saving_day)
 
 
-def engine_cycle(state: Path, now: Optional[float] = None, days: float = 7.0, rng: Optional[_random.Random] = None) -> dict[str, Any]:
+def engine_cycle(state: Path, now: Optional[float] = None, days: float = 7.0, rng: Optional[_random.Random] = None, claim: bool = True) -> dict[str, Any]:
     """Detect over the aggregated bus, rank, decide (WIP 1, 10% exploration); writes engine/decision_record.json (the ranked top 10, the
     decision or why none) and, on a decision, takes the WIP slot. Read-only on everything else; never touches kernel adoption."""
     state = Path(state)
@@ -1172,7 +1172,7 @@ def engine_cycle(state: Path, now: Optional[float] = None, days: float = 7.0, rn
     d = state / ENGINE_DIR
     d.mkdir(parents=True, exist_ok=True)
     (d / RECORD_FILE).write_text(json.dumps(rec, indent=1, default=str), encoding="utf-8")
-    if pick:
+    if pick and claim:
         f = d / IN_FLIGHT_FILE
         cur = _json(f)
         cur[pick["key"]] = now
