@@ -187,3 +187,68 @@ def test_mp3_decoded_by_ffmpeg(tmp_path):
     x, sr = VP.read_wav(dst)
     assert sr == SR and 2.5 < len(x) / SR < 3.6
     assert shutil.which("ffprobe") is None or VP.duration_seconds(mp3) > 2.5
+
+
+# ---- one Nupen: the voice upload is a normal /talk request ----
+
+def _core(tmp_path):
+    c = P.Core(Path("."), chat=lambda m, more: "chat reply")
+    c.voice_rt = tmp_path
+    return c
+
+
+def test_talk_asks_consent_then_returns_upload_action(tmp_path):
+    c = _core(tmp_path)
+    code, b = c.talk("iphone", "I want to send you my friend's voice clips")
+    assert b["reply"] == "Has your friend agreed to lend their voice, sir?" and b["action"] is None
+    assert not (tmp_path / "voice_inbox" / "CONSENT.json").exists()
+    code, b = c.talk("iphone", "yes")
+    assert b["reply"] == "Of course, sir. Choose the clips."
+    a = b["action"]
+    assert a["type"] == "upload_files" and a["purpose"] == "voice" and a["endpoint"] == "/voice_upload" and "url" not in a
+    assert a["fields"] == {"consent": "friend-agreed", "speaker": "friend"}
+    assert a["shortcut"]["name"] == "Nupen Upload" and json.loads(a["shortcut"]["input"])["endpoint"] == "/voice_upload"
+    rec = json.loads((tmp_path / "voice_inbox" / "CONSENT.json").read_text())["friend"]
+    assert rec["date"] and "yes" in rec["owner_statement"]
+    code, b = c.talk("iphone", "take these voice clips")             # consent already on record: no question
+    assert b["action"]["type"] == "upload_files"
+
+
+def test_talk_consent_no_cancels_and_off_without_runtime(tmp_path):
+    c = _core(tmp_path)
+    c.talk("iphone", "send you some voice recordings")
+    code, b = c.talk("iphone", "no")
+    assert b["action"] is None and not (tmp_path / "voice_inbox" / "CONSENT.json").exists()
+    code, b = c.talk("iphone", "yes")                                # a stray yes later records nothing
+    assert not (tmp_path / "voice_inbox" / "CONSENT.json").exists()
+    off = P.Core(Path("."), chat=lambda m, more: "chat reply")
+    assert off.talk("iphone", "take these voice clips")[1]["action"] is None
+
+
+# ---- recompiling keeps the pinned voice entries ----
+
+def test_recompile_keeps_pinned_voice_entries(tmp_path, monkeypatch):
+    from creator import gpucompile as GC
+    from creator import pinned_extras as PX
+    pins = PX.load()
+    assert {"p2.voice_tts", "p2.voice_persona_data", "p2.voice_persona_17b"} <= set(pins)
+    wl = GC.phase2_wishlist(tmp_path)                                  # the compiler's own wishlist, merged with the pins
+    ids = {w["id"] for w in wl}
+    assert "p2.voice_tts" not in ids                                   # external: not a compiled job
+    out = tmp_path / "pkg"
+    (out / "specs").mkdir(parents=True)
+    (out / "wishlist.json").write_text(json.dumps({"p2.voice_tts": {"id": "p2.voice_tts", "stale": True}}))
+    monkeypatch.setattr(GC, "render_timeline", lambda *x, **k: "timeline")
+    GC.write_package({"jobs": [], "schedule": {"order": []}}, out, [{"id": "p2.x", "name": "x"}])
+    written = json.loads((out / "wishlist.json").read_text())
+    assert "p2.x" in written and written["p2.voice_tts"].get("target_minutes") is None
+    assert written["p2.voice_tts"]["extra"]["target_minutes"] == "30-60" and "stale" not in written["p2.voice_tts"]
+    assert "external" not in written["p2.voice_tts"] and "p2.voice_persona_data" in written
+
+
+def test_merge_replaces_by_id_and_drops_entries_that_need_skipped_pins():
+    from creator import pinned_extras as PX
+    pins = {"a": {"id": "a", "kind": "infer"}, "b": {"id": "b", "deps": ["a"]}, "c": {"id": "c", "x": 1}}
+    out = PX.merge([{"id": "c", "x": 0}, {"id": "z"}], pins, lambda e: e.get("kind") != "infer")
+    assert [w["id"] for w in out] == ["c", "z"] and out[0]["x"] == 1
+    assert [w["id"] for w in PX.merge([], pins)] == ["a", "b", "c"]

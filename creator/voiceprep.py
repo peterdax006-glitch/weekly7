@@ -107,6 +107,22 @@ def spoken_minutes(minutes: float) -> str:
     return f"{w.capitalize()} minute{'s' if n != 1 else ''} of speech so far."
 
 
+def has_consent(rt: Path, speaker: str) -> bool:
+    return speaker in _read_json(rt / "voice_inbox" / "CONSENT.json", {})
+
+
+def record_consent(rt: Path, speaker: str, statement: str = "", now: Optional[datetime] = None) -> None:
+    """Writes the speaker's consent (label, date, the owner's statement) to voice_inbox/CONSENT.json; an existing record is kept."""
+    inbox = rt / "voice_inbox"
+    inbox.mkdir(parents=True, exist_ok=True)
+    cpath = inbox / "CONSENT.json"
+    consent = _read_json(cpath, {})
+    if speaker not in consent:
+        consent[speaker] = {"speaker": speaker, "date": (now or datetime.now()).strftime("%Y-%m-%d %H:%M:%S"),
+                            "owner_statement": (statement or "Owner states the speaker agreed to this use of their voice.")[:300], "flag": CONSENT_FLAG}
+        cpath.write_text(json.dumps(consent, indent=1), encoding="utf-8")
+
+
 def store_upload(rt: Path, filename: str, data: bytes, fields: dict[str, str],
                  now: Optional[datetime] = None) -> tuple[int, dict[str, Any]]:
     """Validate, record consent, store the exact bytes. Returns (http status, body). Never transcodes."""
@@ -121,15 +137,10 @@ def store_upload(rt: Path, filename: str, data: bytes, fields: dict[str, str],
         return 413, {"error": "file too large (200 MB cap)"}
     speaker = safe_speaker(fields.get("speaker", ""))
     inbox.mkdir(parents=True, exist_ok=True)
-    cpath = inbox / "CONSENT.json"
-    consent = _read_json(cpath, {})
-    if speaker not in consent:
+    if not has_consent(rt, speaker):
         if fields.get("consent", "").strip().lower() != CONSENT_FLAG:
             return 403, {"error": "consent required: the first upload for each speaker needs consent=" + CONSENT_FLAG}
-        consent[speaker] = {"speaker": speaker, "date": now.strftime("%Y-%m-%d %H:%M:%S"),
-                            "owner_statement": (fields.get("statement") or "Owner states the speaker agreed to this use of their voice.")[:300],
-                            "flag": CONSENT_FLAG}
-        cpath.write_text(json.dumps(consent, indent=1), encoding="utf-8")
+        record_consent(rt, speaker, fields.get("statement") or "", now)
     name = f"{now.strftime('%Y%m%d-%H%M%S-%f')}_{speaker}_{safe_name(filename)}"
     dest = inbox / name
     dest.write_bytes(data)

@@ -1,0 +1,91 @@
+{
+ "p2.voice_tts": {
+  "id": "p2.voice_tts",
+  "name": "nupen_voice_tts",
+  "family": "voice_tts",
+  "size": "piper-medium",
+  "mixes": [],
+  "extra": {
+   "engine": "piper (fine-tune from an en_GB base voice)",
+   "data": "DATA SOURCE: the consented friend dataset (phase2_data/voice/friend/, built by creator/voiceprep.py from phone uploads; consent in phone/voice_inbox/CONSENT.json) when REPORT.json usable_minutes >= 10; otherwise the permissively licensed British-male candidate speakers (e.g. VCTK, CC BY 4.0): pick/blend 1-3 calm, deep speakers; record licence + speaker ids. Target 30-60 minutes of clean speech.",
+   "never": "no cloning of a real actor's voice",
+   "output": "ONNX voice file, real-time on the PC CPU",
+   "prep_on_pc": [
+    "download + licence check of the dataset",
+    "speaker selection by a pitch/timbre script",
+    "phonemize + Piper preprocessing"
+   ],
+   "gpu_est_h": 1.5,
+   "target_minutes": "30-60",
+   "friend_min_usable_minutes": 10
+  },
+  "families": {},
+  "value_usd": 3.0,
+  "deadline": "",
+  "status": "TODO (owner 5 Oct: free iPhone voice for now)",
+  "value_basis": "owner 5 Oct: 'our own voice with a lot of personality like Jarvis' - blueprint G3",
+  "external": true
+ },
+ "p2.voice_persona_data": {
+  "id": "p2.voice_persona_data",
+  "name": "voice_persona_data",
+  "kind": "infer",
+  "family": "infer",
+  "warm_from": "p2.dialogue_moe",
+  "warm_size": "30b-a3b",
+  "servers": [
+   {
+    "label": "MoE 30B-A3B persona writer",
+    "size": "30b-a3b",
+    "tokens": 3000000.0
+   }
+  ],
+  "yields": "20-50k ORIGINAL filtered owner->Nupen persona pairs (target 30000) -> voice_persona_17b",
+  "yield_rows": 30000,
+  "deps": [
+   "p2.dialogue_moe"
+  ],
+  "time_box_s": 2700.0,
+  "gpu_est_h": 0.75,
+  "cost_est_usd": "~0.6 at the plan rate on a 48 GB class card (cap 1.5); ~3 if the 27B dense fallback is used",
+  "estimate_basis": "UNMEASURED: 5000 prompts x ~600 output tokens = 3.0M tokens at ~3k tok/s batched (MoE, ~3B active) = ~17 min; model already warm from dialogue_moe, pilot 5 min, CPU filter 2 min; time box 45 min. 27B fallback ~1.5 h",
+  "spec": "specs/voice_persona_data.json",
+  "inputs": "phase2_data/voice/persona/gpu_prompts.jsonl (5000 prompts x 10 exchanges, ~84 weighted categories)",
+  "filter": "scripts/voice/persona_filter.py (branch h95/voice): persona, <=2 sentences, no film/character/actor names or quotes, unsafe, near-dup, balancing",
+  "pilot": "50 prompts first; need >=50% pass and zero banned-name hits",
+  "never": "no film lines, scripts or actor audio; originals only",
+  "value_usd": 3.0,
+  "value_basis": "owner 5 Oct: 'we need thousands of lines for training data'; about $1 of inference lifts persona rows from 1.5k (PC seed) to ~30k"
+ },
+ "p2.voice_persona_17b": {
+  "id": "p2.voice_persona_17b",
+  "name": "voice_persona_17b",
+  "family": "voice",
+  "size": "1.7b",
+  "mixes": [],
+  "extras": [
+   {
+    "name": "voice_persona",
+    "rows": 0,
+    "rows_target": 30000,
+    "mean": 130.0,
+    "p80": 150.0,
+    "p90": 170.0,
+    "p99": 210.0,
+    "max": 260.0,
+    "source_job": "p2.voice_persona_data"
+   }
+  ],
+  "families": {
+   "voice": 1.0
+  },
+  "epoch_prior": {
+   "voice": 2
+  },
+  "value_usd": 4.0,
+  "value_basis": "owner 5 Oct: Jarvis-style persona for the talk slot, from original model-written dialogues (the iPhone voice is the fallback)",
+  "deps": [
+   "p2.voice_persona_data"
+  ]
+ }
+}

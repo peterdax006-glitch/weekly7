@@ -200,6 +200,10 @@ def schedule(jobs: Sequence[Mapping[str, Any]], cached_evals: Sequence[str], usd
             "data_lane_end_s": round(cpu_t, 1), "downloads": {k: round(v, 1) for k, v in dl_end.items()}}
 
 
+from creator.pinned_extras import pinned  # noqa: E402
+
+
+@pinned
 def phase2_wishlist(mixes: Path) -> list[dict[str, Any]]:
     """MASTER_BLUEPRINT 12 Phase 2 as wishlist entries. Row counts of the existing mixes come from their manifests at compile time; the
     planted-bug generator rows (PINPOINT, DEBUG_FIX) are PLANNED data: the thin-mix rule sizes them."""
@@ -304,6 +308,10 @@ def render_timeline(c: Mapping[str, Any]) -> str:
     return "\n".join(L) + "\n"
 
 
+from creator.pinned_extras import pinned_written  # noqa: E402
+
+
+@pinned_written
 def write_package(c: Mapping[str, Any], out: Path, wishlist: Sequence[Mapping[str, Any]], loo: Optional[Mapping[str, Any]] = None) -> list[str]:
     out = Path(out)
     (out / "specs").mkdir(parents=True, exist_ok=True)
