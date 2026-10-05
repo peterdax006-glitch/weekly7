@@ -96,7 +96,12 @@ def test_module_jobs_are_valid_and_self_contained(tmp_path: Path, monkeypatch: p
     from creator import gpupulse as GP
     monkeypatch.setattr(TM, "load_heldout", lambda path=None: HELD)
     monkeypatch.setattr(TM, "frozen", lambda: GD.Frozen.empty())
-    names = [t.name for t in TM.TARGETS if t.module]
+    names = [t.name for t in TM.TARGETS if t.module and not t.blocked]
+    for t in TM.TARGETS:                                    # a blocked target (parked on purpose) is built and audited but never gets a GPU job
+        if t.module and t.blocked:
+            (tmp_path / t.name).mkdir()
+            (tmp_path / t.name / "MANIFEST.json").write_text(json.dumps({"rows": {"train": 400, "dev": 400, "pref": 0}, "tokens_train": 400_000}), encoding="utf-8")
+            assert not [j for j in TM.jobs({}, root=tmp_path, targets=[t.name], cleanup=False) if j["name"].startswith("ft_")]
     for n in names:
         d = tmp_path / n
         d.mkdir()
