@@ -14,7 +14,7 @@ LADDER = "".join(f"    if n == {i}:\n        return (0.0, 0.0)\n" for i in range
 
 def test_looping_catches_numbered_ladder_and_plain_repeat():
     assert RP.looping("def f(n):\n" + LADDER)
-    assert RP.looping("x = 1\n" + "    y = y + 1\n" * 6)
+    assert RP.looping("x = 1\n" + "    total = total + item.price\n" * 6)
     assert RP.looping("abcdefghijklmnop" * 5)
 
 
