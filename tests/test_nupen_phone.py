@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import socket
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -44,11 +46,17 @@ def call(srv, path="/talk", body=None, token=TOKEN, raw=None, method="POST"):
     req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}{path}", data=data, method=method)
     if token is not None:
         req.add_header("Authorization", f"Bearer {token}")
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status, json.loads(r.read())
-    except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read())
+    for attempt in range(6):                       # retry only a failed connection setup (a loaded PC aborts it); bounded, no fixed timing
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:        # the server answered: that answer is final
+            return e.code, json.loads(e.read())
+        except (ConnectionError, urllib.error.URLError, socket.timeout):
+            if attempt == 5:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+    raise AssertionError("unreachable")
 
 
 def test_auth_required_and_wrong_token_rejected(server):
@@ -62,7 +70,7 @@ def test_auth_required_and_wrong_token_rejected(server):
 def test_reply_shape_short_and_say_more(server):
     srv, _ = server
     code, d = call(srv, body={"text": "how are you", "device": "iphone"})
-    assert code == 200 and set(d) == {"reply", "action", "end", "ms", "more"} and d["action"] is None and d["end"] is False
+    assert code == 200 and set(d) == {"reply", "action", "actions", "end", "ms", "more"} and d["action"] is None and d["end"] is False
     assert "evidence" not in d["reply"] and len(d["reply"].split()) <= 62 and d["more"] is True
     code, d2 = call(srv, body={"text": "say more", "device": "iphone"})
     assert code == 200 and d2["reply"] and d2["reply"] != d["reply"]
@@ -75,10 +83,21 @@ def test_size_cap_and_bad_input(server):
     assert call(srv, body={"text": "a" * (P.MAX_TEXT + 1)})[0] == 400
 
 
-def test_rate_limit(server):
-    srv, _ = server
-    codes = [call(srv, body={"text": "hi"})[0] for _ in range(7)]
-    assert codes[:5] == [200] * 5 and codes[5:] == [429, 429]
+def test_rate_limit(monkeypatch):
+    now = [1000.0]                                  # frozen clock: the one-minute window cannot expire however slow the machine is
+    real = P.RateLimit
+    monkeypatch.setattr(P, "RateLimit", lambda per_min=P.RATE_PER_MIN: real(per_min, clock=lambda: now[0]))
+    core = P.Core(Path("."), make_conv=FakeConv)
+    srv = P.make_server("127.0.0.1", 0, TOKEN, core, per_min=5)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        codes = [call(srv, body={"text": "hi"})[0] for _ in range(7)]
+        assert codes[:5] == [200] * 5 and codes[5:] == [429, 429]
+        now[0] += 61                                # and the window does reopen
+        assert call(srv, body={"text": "hi"})[0] == 200
+    finally:
+        srv.shutdown()
+        srv.server_close()
 
 
 def test_devices_have_own_memory(server):
@@ -459,3 +478,32 @@ def test_conversation_log_written_and_rotated(tmp_path):
     (tmp_path / "c.jsonl").write_text("x" * (P.LOG_MAX + 1), encoding="utf-8")
     core.talk("iphone", "hello")
     assert (tmp_path / "c.jsonl.1").is_file() and (tmp_path / "c.jsonl").stat().st_size < 10000
+
+
+def test_add_sir_only_when_missing_and_once():
+    assert P.add_sir("It is raining.") == "It is raining, sir."
+    assert P.add_sir("Very good, sir.") == "Very good, sir."
+    assert P.add_sir("Is that so?") == "Is that so, sir?"
+    assert P.add_sir("Why did the chicken cross? To arrive.") == "Why did the chicken cross? To arrive, sir."
+    assert P.add_sir(" ".join(["word"] * 60) + ".").count("sir") == 0     # long 'say more' text is left alone
+
+
+def test_chat_reply_gets_sir_and_varied_seed_flag():
+    seen = []
+
+    def chat(messages, more):
+        seen.append(messages[0]["content"])
+        return "It is a lovely day."
+    core = P.Core(Path("."), chat=chat)
+    assert core.talk("d", "what a day")[1]["reply"] == "It is a lovely day, sir."
+    assert "sir" in seen[0] and "two short" in seen[0]
+
+
+def test_two_sentences_cap():
+    assert P.two_sentences("One. Two! Three? Four.") == "One. Two!"
+    assert P.two_sentences("One. Two.") == "One. Two."
+    assert P.two_sentences("No stop") == "No stop"
+
+
+def test_clean_reply_no_space_before_punctuation():
+    assert P.clean_reply("Hamlet was written by *Shakespeare* , sir.") == "Hamlet was written by Shakespeare, sir."

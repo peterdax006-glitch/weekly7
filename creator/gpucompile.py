@@ -391,6 +391,10 @@ def _man(mixes: Path, name: str) -> dict[str, Any]:
         return {}
 
 
+from creator.pinned_extras import pinned  # noqa: E402
+
+
+@pinned
 def phase2_wishlist(mixes: Path) -> list[dict[str, Any]]:
     """MASTER_BLUEPRINT 12 Phase 2 as wishlist entries, on the CURATED mixes of creator.gpucurate (data that exists is used as it is; the planted-bug
     generator only tops PINPOINT up to the rows its thin-mix rule needs). Plus the owner's 5 Oct additions: failure mining, the teacher (30B-A3B) solving
@@ -601,6 +605,10 @@ def render_timeline(c: Mapping[str, Any], before: Optional[Mapping[str, Any]] = 
     return "\n".join(L) + "\n"
 
 
+from creator.pinned_extras import pinned_written  # noqa: E402
+
+
+@pinned_written
 def write_package(c: Mapping[str, Any], out: Path, wishlist: Sequence[Mapping[str, Any]], loo: Optional[Mapping[str, Any]] = None,
                   before: Optional[Mapping[str, Any]] = None) -> list[str]:
     out = Path(out)
