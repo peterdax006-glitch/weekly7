@@ -960,6 +960,15 @@ def detect_missed_targets(state: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _conv_candidates(state: Path, days: float, now: Optional[float]) -> list[dict[str, Any]]:
+    """Conversation failures from the phone log (creator/convlearn.py); also refreshes the capability backlog and the voice rows."""
+    from creator import convlearn as CL                                 # lazy: only when the engine runs
+    cands = CL.detect(state, days, now)
+    if cands:
+        CL.side_effects(state, days, now)
+    return cands
+
+
 def detect_all(state: Path, days: float = 7.0, now: Optional[float] = None, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
     """All detectors over the aggregated window (one read); a failing detector is skipped, never raises."""
     state = Path(state)
@@ -968,7 +977,7 @@ def detect_all(state: Path, days: float = 7.0, now: Optional[float] = None, rate
     for fn in (lambda: detect_hot_path(rows, days, rate), lambda: detect_repeated_call(rows, days, rate), lambda: detect_shadow(state, rows, days, rate),
                lambda: detect_token_waste(rows, days, rate), lambda: detect_recurring_failure(rows, days, rate),
                lambda: detect_idle_resource(rows, days, rate), lambda: detect_weak_skill(state),
-               lambda: detect_stuck(rows, days, rate), lambda: detect_missed_targets(state)):
+               lambda: detect_stuck(rows, days, rate), lambda: detect_missed_targets(state), lambda: _conv_candidates(state, days, now)):
         try:
             cands.extend(fn())
         except Exception:                                               # noqa: BLE001
