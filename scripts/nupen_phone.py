@@ -5,6 +5,7 @@
     python scripts/nupen_phone.py --print-firewall   # the admin command to allow the port (printed, never run)
     python scripts/nupen_phone.py --print-startup    # write the optional Windows startup .cmd (not installed)
 
+    POST /voice_upload  multipart file (+ consent=friend-agreed) -> voice_inbox, then creator/voiceprep.py (Phase 2 TTS data)
     POST /talk   {"text": "...", "device": "iphone"}  ->  {"reply": "...", "action": null | {"type": ...}, "end": bool, "ms": N, "more": bool}
     GET /health.  "action" is from a fixed allow-list (timer alarm reminder note calendar message call music open_app directions flashlight focus
     home) parsed by code; "end" is true on goodbye so the Shortcut stops listening. Nothing the phone says can touch the PC.
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import hmac
+import subprocess
 import json
 import random
 import re
@@ -1320,7 +1322,8 @@ class Core:
         return False
 
 
-def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN) -> ThreadingHTTPServer:
+def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN,
+                voice_rt: Optional[Path] = None, on_voice: Optional[Callable[[Path], Any]] = None) -> ThreadingHTTPServer:
     limiter = RateLimit(per_min)
     tok = token.encode()
 
@@ -1356,9 +1359,45 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._send(200, {"ok": True, "voice_loaded": core.voice is not None})
             self._send(404, {"error": "not found"})
 
+        def _voice_upload(self) -> None:
+            from urllib.parse import parse_qs, urlparse
+            from creator import voiceprep as VP
+            if voice_rt is None:
+                return self._send(503, {"error": "voice upload is not enabled"})
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n <= 0 or n > VP.MAX_FILE + 65536:
+                return self._send(413 if n > 0 else 400, {"error": "file too large (200 MB cap)" if n > 0 else "empty body"})
+            body = self.rfile.read(n)
+            q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            ctype = self.headers.get("Content-Type", "")
+            try:
+                if ctype.lower().startswith("multipart/form-data"):
+                    fields, file = VP.parse_multipart(body, ctype)
+                    if file is None:
+                        return self._send(400, {"error": "no file part in the form"})
+                    fname, data = file[0] or fields.get("filename", ""), file[1]
+                else:
+                    fields = {}
+                    fname, data = self.headers.get("X-Filename") or q.get("filename", ""), body
+            except ValueError:
+                return self._send(400, {"error": "bad multipart body"})
+            for k in ("consent", "speaker", "statement"):
+                v = q.get(k) or self.headers.get("X-" + k.capitalize())
+                if v and k not in fields:
+                    fields[k] = v
+            code, out = VP.store_upload(voice_rt, fname, data, fields)
+            if code == 200 and on_voice is not None:
+                on_voice(voice_rt)
+            self._send(code, out)
+
         def do_POST(self) -> None:  # noqa: N802
             if not self._authed():
                 return self._send(401, {"error": "unauthorized"})
+            if self.path.split("?")[0] == "/voice_upload":
+                return self._voice_upload()
             if self.path.split("?")[0] == "/talk_audio":
                 self.rfile.read(min(max(int(self.headers.get("Content-Length") or 0), 0), MAX_BODY))      # design stub: local Piper TTS (en_GB male) returning audio/wav; not built yet
                 return self._send(501, {"error": "talk_audio is not installed yet (see IPHONE_SETUP.md, next step)"})
@@ -1385,6 +1424,33 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             self._send(code, body)
 
     return ThreadingHTTPServer((host, port), H)
+
+
+_prep_lock = threading.Lock()
+_prep_again = threading.Event()
+
+
+def prep_voice(rt: Path) -> None:
+    """After an upload: run creator/voiceprep.py at idle priority in a background thread (one run at a time; a new upload re-runs it)."""
+    _prep_again.set()
+    if not _prep_lock.acquire(blocking=False):
+        return
+
+    def run() -> None:
+        try:
+            while _prep_again.is_set():
+                _prep_again.clear()
+                py = Path(sys.executable)
+                low = ROOT / "scripts" / "lowprio.py"
+                out = rt.parent / "gpuday" / "phase2_data" / "voice" / "friend"
+                cmd = [str(py), str(low), "--idle", str(py), "-m", "creator.voiceprep", "--phone-dir", str(rt), "--out", str(out)]
+                try:
+                    subprocess.run(cmd, cwd=str(ROOT), capture_output=True, timeout=6 * 3600)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+        finally:
+            _prep_lock.release()
+    threading.Thread(target=run, daemon=True).start()
 
 
 FIREWALL = ('New-NetFirewallRule -DisplayName "Nupen phone (LAN + Tailscale only)" -Direction Inbound -Protocol TCP -LocalPort {port} '
@@ -1430,7 +1496,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     servers = []
     for h in dict.fromkeys(hosts):
         try:
-            servers.append(make_server(h, a.port, token, core, rt / "access.log"))
+            servers.append(make_server(h, a.port, token, core, rt / "access.log", voice_rt=rt, on_voice=prep_voice))
         except OSError as e:
             for sv in servers:
                 sv.server_close()
