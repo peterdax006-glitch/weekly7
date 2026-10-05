@@ -31,7 +31,7 @@ from creator import modelpool as MP
 from creator import team as TM
 
 GRAMMAR_DIR = Path(__file__).resolve().parent / "grammars"
-FORMS = ("diff", "diff1", "fnbody", "lineedit", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
+FORMS = ("diff", "diff1", "diff3", "fnbody", "lineedit", "debugfix", "confidence", "verdict", "fileline", "spec", "plan")
 BELOW_NORMAL = 0x00004000
 NO_WINDOW = 0x08000000
 
@@ -69,6 +69,7 @@ def default_specs(runtime: Optional[Path] = None, threads: int = 6) -> dict[str,
     mk = lambda name, f, ctx, mt: MP.SlotSpec(name, slots / f, threads=threads, ctx=ctx, max_tokens=mt, grammars=g)      # noqa: E731
     return {"CODER": mk("CODER", "CODER-1.7B.gguf", 8192, 512), "CHECKER": mk("CHECKER", "CHECKER-1.7B-calib.gguf", 4096, 16),
             "CHECKER_SMALL": mk("CHECKER_SMALL", "CHECKER-0.6B-judge.gguf", 2048, 16),
+            "CODER06": MP.SlotSpec("CODER06", rt / "models" / "Qwen3-0.6B-Q4_K_M.gguf", threads=threads, ctx=4096, max_tokens=512, grammars=g),
             "THINKER": MP.SlotSpec("THINKER", rt / "models" / "Qwen3-1.7B-Q4_K_M.gguf", threads=threads, ctx=4096, max_tokens=224, grammars=g)}
 
 
@@ -354,6 +355,11 @@ FAST_PLAN ="Implement the function body below the signature; keep the signature 
 CODE_CAP = {"fn": 140, "app": 420}               # per-family output caps from the measured lengths (baseline: 4 of 33 CODE calls hit 512)
 MAX_FAST_DEBUG = 0                                  # measured 0 fixes in 13 gated attempts (2 fast runs); the gate code stays (debug_worthwhile), raise to re-enable
 STUB_LAST = "    raise NotImplementedError"
+CODE_CAP_CLASS: dict[str, int] = {}               # router class (fn_s ... app_l) -> output cap measured from the class's completed-output distribution (h94)
+APP_BLOCKS_MAX = 0                                # h94: >0 -> app CODE answers use the grammar of at most 3 edit blocks (a loop of blocks cannot run to the cap)
+PACK_NO_TESTS = False                             # h94: the packed context of the CODER leaves out test files (their edits are dropped anyway)
+PREFIX_FIRST = False                              # h94 R4: the fixed text (role, plan, edit format) first, everything task-specific last -> longer KV-cache prefix shared by tasks
+COUPLED_SLOT = "slot:"                            # an envelope constraint "slot:CODER06" sends a CODE step to another slot (router, R5); it is also part of the cache key
 
 
 def _fast_request(t: dict[str, Any]) -> str:
@@ -387,6 +393,8 @@ def fast_code_user(t: dict[str, Any], pack: str, hint: str = "") -> str:
         cur = f"{NL}{NL}Relevant code:{NL}{pack}{NL}" + EDIT_FORMAT_FILES
     if hint:                                                                  # R2 regenerate: the failing visible example rides along
         cur = f"{NL}{NL}{hint}" + cur
+    if PREFIX_FIRST and fn and not hint:
+        return f"ROLE: CODE{NL}Plan:{NL}{FAST_PLAN}{NL}{NL}{EDIT_FORMAT.format(f='solution.py')}{NL}{NL}Request:{NL}{_fast_request(t)}"
     return f"ROLE: CODE{NL}Plan:{NL}{FAST_PLAN}{NL}{NL}Request:{NL}{_fast_request(t) if fn else _request(t)}{cur}"
 
 
@@ -461,7 +469,7 @@ def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
         prompt, form, pre, cap = chatml(system, user), prof.form, "", min(prof.max_tokens, int(env.budget["max_tok"]))
         if getattr(team, "fast", False) and env.step == "CODE":
             pre = fast_prefill(_task(team, env))
-            form = "fnbody" if pre else "diff1"
+            form = "fnbody" if pre else ("diff3" if APP_BLOCKS_MAX else "diff1")
             prompt += pre
         tg = _of_kind(team, env, "target") if env.step == "DEBUG_FIX" else ""
         if tg:                                                                # R2 line repair: tiny prefilled, grammar-bound answer
@@ -481,12 +489,13 @@ def slot_actor(name: str, runner: SlotRunner) -> TM.Actor:
             ex = RP.attempt_extra(_of_kind(team, env, "hint"))
             if ex:
                 kw["extra"] = ex
-        res = runner.complete(prof.slot, prompt, form, cap, wall, **kw)
+        slot = next((c[len(COUPLED_SLOT):] for c in env.constraints if c.startswith(COUPLED_SLOT)), prof.slot)
+        res = runner.complete(slot, prompt, form, cap, wall, **kw)
         if guard is not None and res.get("looped") and not res.get("error"):
             # R4 retry policy: a greedy loop would loop again, so ONE retry with a repeat penalty and a tighter cap; a second loop gives up
             extra, cap2 = RP.retry_extra(cap)
             first = res
-            res = runner.complete(prof.slot, prompt, form, cap2, wall, guard=guard, extra=extra)
+            res = runner.complete(slot, prompt, form, cap2, wall, guard=guard, extra=extra)
             for k in ("in_tok", "out_tok", "prompt_s", "gen_s", "wall_s"):
                 res[k] = res.get(k, 0) + first.get(k, 0)
             res["retried"], res["first_out_tok"], res["first_looped"] = 1, first.get("out_tok", 0), bool(first.get("looped"))
@@ -532,7 +541,10 @@ def pack_actor() -> TM.Actor:
         c: ToolContext = team.ctx
         if getattr(c, "hits", None) is None:
             c.hits = c.ix.locate(_query(team, env), k=c.k)                 # type: ignore[attr-defined]
-        return _fenced(str(c.ix.pack(c.hits, max_tokens=c.pack_tokens))) or "(nothing located)"
+        hits = c.hits
+        if PACK_NO_TESTS:                                                    # edits to test files are dropped by canonical_patch: do not pay to read them
+            hits = [h for h in hits if not _is_test_path(h.path)] or hits
+        return _fenced(str(c.ix.pack(hits, max_tokens=c.pack_tokens))) or "(nothing located)"
     return TM.actor("pack", fn)
 
 
@@ -678,3 +690,11 @@ def debug_worthwhile(ctx: Any) -> bool:
         return True
     sc = getattr(ctx, "pin_scores", None) or []
     return bool(sc) and sc[0] >= 0.8 and (len(sc) < 2 or sc[0] - sc[1] >= 0.15)
+
+
+def tests_decided(ctx: Any, val: str) -> bool:
+    """True when the visible tests ran (or could not apply the edit) and said PASS / FAIL: the outcome is known, a CONFIDENCE call adds nothing.
+    Only a task with no runnable test file still needs the checker."""
+    tdir = Path(ctx.ws) / "tests"
+    has_tests = tdir.is_dir() and any(tdir.glob("test_*.py"))
+    return bool(has_tests and val.startswith(("PASS", "FAIL")))

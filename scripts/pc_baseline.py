@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from creator import repair as RP  # noqa: E402
+from creator import router as RT  # noqa: E402
 from creator import slotteam as SL  # noqa: E402
 from creator import slowpath as SP  # noqa: E402
 from creator import team as TM  # noqa: E402
@@ -81,6 +82,16 @@ def test_example(case):
     got = _norm({name}(*case["args"]))
     assert _close(got, case["expect"]), f"{{case['args']!r:.100}} -> {{got!r:.60}} != {{case['expect']!r:.60}}"
 '''
+
+
+def stratified(tasks: list[dict[str, Any]], n: int) -> list[dict[str, Any]]:
+    """n tasks spread evenly over (family, router class) strata, deterministic (sorted by stratum then id; every k-th)."""
+    if n >= len(tasks):
+        return tasks
+    key = lambda t: (t["family"], RT.task_class(RT.features(t)), t["id"])          # noqa: E731
+    srt = sorted(tasks, key=key)
+    pick = sorted({int((i + 0.5) * len(srt) / n) for i in range(n)})
+    return [srt[i] for i in pick]
 
 
 def runtime() -> Path:
@@ -173,6 +184,8 @@ class Run:
         if a.only:
             all_t = [t for t in all_t if t["id"] in a.only]
         self.tasks = all_t[: a.limit] if a.limit else all_t
+        if getattr(a, "subset", 0):
+            self.tasks = stratified(all_t, int(a.subset))
         self.state_f = self.out / "run_state.json"
         self.st: dict[str, Any] = json.loads(self.state_f.read_text(encoding="utf-8")) if self.state_f.exists() else {"tasks": {}, "loads": []}
         SP.set_state(self.out / "state")
@@ -184,6 +197,15 @@ class Run:
             old = specs["CODER"]
             specs["CODER"] = MP.SlotSpec("CODER", Path(a.coder_gguf), threads=old.threads, ctx=old.ctx, max_tokens=old.max_tokens, grammars=old.grammars)
         SL.LEAN = bool(getattr(a, "lean_prefill", False))
+        SL.PREFIX_FIRST = bool(getattr(a, "prefix_first", False))
+        SL.APP_BLOCKS_MAX = int(getattr(a, "app_blocks", 0) or 0)
+        SL.PACK_NO_TESTS = bool(getattr(a, "pack_no_tests", False))
+        self.conf_mode = getattr(a, "conf", "auto") or "auto"             # auto: CONFIDENCE only where the tests did not decide; always: every task (the old fast path)
+        self.route = bool(getattr(a, "route", False))
+        self.class_caps: dict[str, int] = json.loads(Path(a.class_caps).read_text(encoding="utf-8")) if getattr(a, "class_caps", "") else {}
+        self.router = RT.Router({"C06": 58.0, "C17": 22.0}, Path(a.router_state) if getattr(a, "router_state", "") else None)
+        self.pack_k = int(getattr(a, "pack_k", 0) or 0)
+        self.pack_tokens = int(getattr(a, "pack_tokens", 0) or 0)
         self.repair = getattr(a, "repair", "none") or "none"
         self.repair_rounds = int(getattr(a, "repair_rounds", 3))
         self.max_fast_debug = int(a.max_fast_debug) if getattr(a, "max_fast_debug", None) is not None else MAX_FAST_DEBUG
@@ -217,6 +239,10 @@ class Run:
                                 default_path="solution.py" if t["family"] == "fn" else "")
         if not tm.ctx.orig:
             tm.ctx.snapshot()
+        if self.pack_k:
+            tm.ctx.k = self.pack_k
+        if self.pack_tokens:
+            tm.ctx.pack_tokens = self.pack_tokens
         if "task" not in ts["ids"]:
             ts["ids"]["task"] = tm.board.put(tid, "task", json.dumps(t, sort_keys=True))
         self.teams[tid] = tm
@@ -226,15 +252,20 @@ class Run:
         prof = SL.PROFILES.get(step)
         budget = {"max_tok": prof.max_tokens if prof else 400, "max_s": prof.max_s if prof else 150}
         if self.fast and step in ("CODE", "DEBUG_FIX"):
-            budget["max_tok"] = SL.CODE_CAP["fn" if self.cur_family == "fn" else "app"]
+            budget["max_tok"] = self.class_caps.get(self.cur_class) or SL.CODE_CAP["fn" if self.cur_family == "fn" else "app"]
         elif self.fast and step == "CONFIDENCE":
             budget["max_s"] = 20
         return TM.Envelope(tid, step, inputs=inputs, success_test=success, budget=budget)
 
     cur_family = ""
+    cur_class = ""
+    cur_slot = ""
 
     def step(self, tm: SL.MeasuredTeam, step: str, inputs: list[str], kind: str, success: str = "") -> tuple[str, str]:
-        out = tm.dispatch(self.env(tm.goal() or "", step, inputs, success))
+        env = self.env(tm.goal() or "", step, inputs, success)
+        if self.cur_slot and step == "CODE":
+            env.constraints = [SL.COUPLED_SLOT + self.cur_slot]
+        out = tm.dispatch(env)
         return tm.board.put(tm.goal() or "", kind, out), out
 
     # --- reuse (R3): proven code before any generation; function tasks only
@@ -281,13 +312,19 @@ class Run:
         ts["done"].append("think")
         self.save()
 
-    def stage_code(self, t: dict[str, Any]) -> None:
+    def stage_code(self, t: dict[str, Any], coder: str = "C17") -> None:
+        """One CODE attempt chain. coder C06 = the router's cheap first attempt (base 0.6B, no debug rounds): a visible pass finishes the task,
+        a failure leaves it for the 1.7B stage, which starts again from the pristine workspace."""
         tm = self.team(t)
         ts = self.st["tasks"][t["id"]]
         if "code" in ts["done"]:
             return
         ids, c, gid = ts["ids"], tm.ctx, t["id"]
         self.cur_family = t["family"]
+        self.cur_class = ts.get("route", {}).get("class") or RT.task_class(RT.features(t))
+        self.cur_slot = "CODER06" if coder == "C06" else ""
+        small = coder == "C06"
+        ts["class"] = self.cur_class
         make_ws(t, self.suite, c.ws)                                  # a resumed run starts the task from the pristine workspace
         c.snapshot()
         ids["diff"], code = self.step(tm, "CODE", [ids["task"], ids.get("spec", ids["task"]), ids.get("plan", ids["task"]), ids["pack"]], "diff")
@@ -304,8 +341,8 @@ class Run:
             if val.startswith("PASS"):
                 ok = True
                 break
-            if rnd == (self.max_fast_debug if self.fast else MAX_DEBUG):
-                if self.fast and self.repair != "none" and not ok:
+            if rnd == (0 if small else self.max_fast_debug if self.fast else MAX_DEBUG):
+                if self.fast and self.repair != "none" and not ok and not small:
                     ok, val, why = self.repair_loop(t, tm, ts, c, val)
                 break
             ids["failure"] = tm.board.put(gid, "failure", val)
@@ -324,6 +361,7 @@ class Run:
             if not fix.strip():
                 why = "empty fix"
                 break
+        ts["decided"] = bool(SL.tests_decided(c, val) or why in ("blocked", "empty answer"))
         ts["lines_added"] = sum(1 for x in c.unified_diff().splitlines() if x.startswith("+") and not x.startswith("+++") and x[1:].strip())
         ts["visible_pass"], ts["stop_reason"] = ok, why or ("pass" if ok else "debug rounds used")
         if self.fast:
@@ -331,6 +369,15 @@ class Run:
             ids["answer"] = tm.board.put(gid, "answer", SL.confidence_summary(t, c.unified_diff(), "PASS" if ok else (val or why), pin, ts.get("debug", 0)))
         else:
             ids["answer"] = tm.board.put(gid, "answer", "\n".join(answers)[:3000])
+        if small:
+            last = tm.last_call or {}
+            ts["c06"] = {"visible_pass": ok, "lines_added": ts["lines_added"], "stop": ts["stop_reason"], "decided": ts["decided"]}
+            self.router.observe(self.cur_class, "C06", ok)
+            if not ok:
+                self.cur_slot = ""
+                self.save()
+                return
+        ts["coder"] = "C06" if small else "C17"
         ts["done"].append("code")
         self.save()
 
@@ -407,6 +454,11 @@ class Run:
         if "check" in ts["done"]:
             return
         ids = ts["ids"]
+        if self.conf_mode == "auto" and ts.get("decided"):              # the tests decided: no second model call (and, if all are decided, no CHECKER server)
+            ts["confidence"], ts["verdict"] = None, "tests"
+            ts["done"].append("check")
+            self.save()
+            return
         _, out = self.step(tm, "CONFIDENCE", [ids["task"], ids.get("plan", ids["task"]), ids["pack"], ids["answer"]], "confidence")
         m = re.search(r"([01](?:\.\d+)?)", out)
         ts["confidence"] = float(m.group(1)) if m else None
@@ -419,8 +471,24 @@ class Run:
         if self.reuse_db:
             for t in self.tasks:
                 self.stage_reuse(t)
-        for name, slot, fn in (("think", "THINKER", self.stage_think), ("code", "CODER", self.stage_code), ("check", "CHECKER", self.stage_check)):
-            todo = [t for t in self.tasks if name not in self.st["tasks"].get(t["id"], {}).get("done", [])]
+        if self.route:
+            for t in self.tasks:
+                ts = self.st["tasks"].setdefault(t["id"], {"ids": {}, "done": [], "debug": 0})
+                if "route" not in ts:
+                    r = self.router.route(t, {"C06", "C17"})
+                    ts["route"] = {"class": r["class"], "start": r["start"], "expected_s": r["expected_s"], "p_solve": r["p_solve"]}
+            self.save()
+        stages = [("think", "THINKER", self.stage_think)]
+        if self.route:
+            stages.append(("code06", "CODER06", lambda t: self.stage_code(t, "C06")))
+        stages += [("code", "CODER", self.stage_code), ("check", "CHECKER", self.stage_check)]
+        for name, slot, fn in stages:
+            done_name = "code" if name == "code06" else name
+            todo = [t for t in self.tasks if done_name not in self.st["tasks"].get(t["id"], {}).get("done", [])]
+            if name == "code06":
+                todo = [t for t in todo if self.st["tasks"][t["id"]].get("route", {}).get("start") == "C06" and "c06" not in self.st["tasks"][t["id"]]]
+            if name == "check" and self.conf_mode == "auto":
+                todo = [t for t in todo if not self.st["tasks"][t["id"]].get("decided")]
             if not todo:
                 continue
             import psutil
@@ -594,7 +662,38 @@ def summarize(out: Path) -> dict[str, Any]:
           "by_strategy": {s_: {"rounds": sum(1 for _, v in rep_rows for r_ in v["rounds"] if r_["strategy"] == s_),
                                "to_pass": sum(1 for _, v in rep_rows for r_ in v["rounds"] if r_["strategy"] == s_ and r_.get("result") == "pass")}
                           for s_ in ("line", "regen")}}
-    return {"r4": r4, "r2": r2, "working_lines": wl, "working_lines_per_hour": round(wl / (total_wall / 3600), 1) if total_wall else 0,
+    by_slot: dict[str, dict[str, float]] = {}
+    for e in mev:
+        b_ = by_slot.setdefault(str(e.get("slot")), {"calls": 0, "wall_s": 0.0, "prompt_s": 0.0, "gen_s": 0.0, "in_tok": 0, "prompt_n": 0, "out_tok": 0})
+        b_["calls"] += 1
+        b_["wall_s"] += e["wall_s"]
+        b_["prompt_s"] += e.get("prompt_s", 0) or 0
+        b_["gen_s"] += e.get("gen_s", 0) or 0
+        b_["in_tok"] += e.get("in_tok", 0)
+        b_["prompt_n"] += e.get("prompt_n") or e.get("in_tok", 0)
+        b_["out_tok"] += e.get("out_tok", 0)
+    by_slot = {k: {kk: round(vv, 2) for kk, vv in v.items()} for k, v in by_slot.items()}
+    cls_tok: dict[str, list[int]] = {}
+    cls_trunc: dict[str, int] = {}
+    for e in ev:
+        if e.get("step") == "CODE" and e.get("model") and e.get("slot") in ("CODER", None):
+            c_ = tasks.get(e["goal_id"], {}).get("class", "?")
+            if e.get("outcome") == "truncated":
+                cls_trunc[c_] = cls_trunc.get(c_, 0) + 1
+            else:
+                cls_tok.setdefault(c_, []).append(int(e.get("out_tok", 0)))
+    q = lambda xs, f: sorted(xs)[min(len(xs) - 1, int(f * len(xs)))]          # noqa: E731
+    out_tok_by_class = {c_: {"n": len(v), "p50": q(v, 0.5), "p90": q(v, 0.9), "p95": q(v, 0.95), "max": max(v), "truncated": cls_trunc.get(c_, 0)} for c_, v in cls_tok.items()}
+    c06 = [(k, v) for k, v in tasks.items() if "c06" in v]
+    route = {"routed_c06": sum(1 for v in tasks.values() if v.get("route", {}).get("start") == "C06"), "c06_attempted": len(c06),
+             "c06_visible_pass": sum(1 for _, v in c06 if v["c06"]["visible_pass"]),
+             "c06_finished_and_hidden_pass": sum(1 for k, v in c06 if v["c06"]["visible_pass"] and v["graded"]["passed"]),
+             "escalated_to_c17": sum(1 for _, v in c06 if not v["c06"]["visible_pass"]),
+             "escalated_solved": sum(1 for k, v in c06 if not v["c06"]["visible_pass"] and v["graded"]["passed"]),
+             "by_class": {c_: {"n": sum(1 for v in tasks.values() if v.get("class") == c_), "solved": sum(1 for v in tasks.values() if v.get("class") == c_ and v["graded"]["passed"])}
+                          for c_ in sorted({v.get("class", "?") for v in tasks.values()})}}
+    conf_skipped = sum(1 for v in tasks.values() if v.get("verdict") == "tests")
+    return {"by_slot": by_slot, "route": route, "out_tok_by_class": out_tok_by_class, "confidence_skipped": conf_skipped, "r4": r4, "r2": r2, "working_lines": wl, "working_lines_per_hour": round(wl / (total_wall / 3600), 1) if total_wall else 0,
             "useful_token_ratio": round(good_tok / gen_tok, 4) if gen_tok else 0, "truncated_calls": trunc, "over": over,
             "n_tasks": n, "solved": len(solved), "pass_rate": round(len(solved) / n, 4) if n else 0, "pass_ci95": [lo, hi],
             "visible_first_pass": sum(1 for v in tasks.values() if v.get("visible_first")), "visible_final_pass": sum(1 for v in tasks.values() if v.get("visible_pass")),
@@ -643,6 +742,16 @@ def main(argv: list[str]) -> int:
     r.add_argument("--lean-prefill", action="store_true", help="R4 variant: stub once in the prompt, one-line SEARCH prefill (fewer prompt tokens)")
     r.add_argument("--coder-gguf", default="", help="serve CODER from this GGUF (any coder model; same prompts and grammars)")
     r.add_argument("--max-fast-debug", type=int, default=None, help="override the fast-path DEBUG_FIX rounds (default SL.MAX_FAST_DEBUG)")
+    r.add_argument("--subset", type=int, default=0, help="a deterministic stratified subset of N tasks (family x router class)")
+    r.add_argument("--conf", default="auto", choices=("auto", "always"), help="auto: CONFIDENCE only for tasks whose tests did not decide; always: the old path")
+    r.add_argument("--route", action="store_true", help="R5: router -> base 0.6B first on easy function tasks, escalate to the 1.7B on a visible failure")
+    r.add_argument("--router-state", default="", help="router counts file (measured per-class pass counts)")
+    r.add_argument("--prefix-first", action="store_true", help="R4: fixed text first, task-specific text last in the CODE prompt (longer shared KV prefix)")
+    r.add_argument("--class-caps", default="", help="JSON {router class: CODE max_tokens} from the measured output distribution")
+    r.add_argument("--app-blocks", type=int, default=0, help="app CODE grammar: at most 3 edit blocks (0 = unbounded, the old grammar)")
+    r.add_argument("--pack-no-tests", action="store_true", help="app tasks: leave test files out of the packed context")
+    r.add_argument("--pack-k", type=int, default=0, help="app tasks: located hits packed (default ToolContext.k)")
+    r.add_argument("--pack-tokens", type=int, default=0, help="app tasks: pack token budget (default ToolContext.pack_tokens)")
     c = sub.add_parser("calib")
     c.add_argument("--heldout", required=True)
     c.add_argument("--out", required=True)
