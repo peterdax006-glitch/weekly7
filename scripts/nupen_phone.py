@@ -130,6 +130,94 @@ def tailscale_ips() -> list[str]:
     return out
 
 
+FACT_CHARS = 1000
+SPOKEN_TOKENS = 60                      # ~40 words; 'say more' re-asks with MORE_TOKENS
+MORE_TOKENS = 150
+THREADS = 6
+CTX = 2048
+
+
+def pick_model(name: str, free_gb: Optional[float]) -> str:
+    """The 1.7B voice when memory is comfortable, else the 0.6B base model (smaller and ~3x faster)."""
+    if name != "1.7b" or free_gb is None or free_gb >= 4.0:
+        return name
+    return "0.6b"
+
+
+def make_voice(T: Any, model: str, persona: str, ram_free: Optional[Callable[[], Optional[float]]] = None) -> Any:
+    """A Voice over a llama.cpp server OWNED by this process: Normal priority (interactive service), 6 threads, kept warm, one slot,
+    cache_prompt so the fixed system prompt (persona included) is not re-read; output capped at ~60 words."""
+    import subprocess
+
+    from creator import generator as G
+    if ram_free is None:
+        free = G._free_ram_gb()
+    else:
+        free = ram_free()
+    name = pick_model(model, free)
+    MODELS_06 = Path(T.resolve_model("1.7b")).with_name("Qwen3-0.6B-Q4_K_M.gguf")
+    path = MODELS_06 if name == "0.6b" else T.resolve_model(name)
+
+    class PhoneVoice(T.Voice):
+        timings: list = []
+        more = False
+
+        def open(self) -> bool:
+            if self.lm is not None:
+                return True
+            try:
+                port = G.free_port()
+                flags = 0x00000020 if sys.platform == "win32" else 0         # NORMAL_PRIORITY_CLASS, not inherited BelowNormal
+                job = G._KillOnCloseJob()
+                proc = subprocess.Popen([str(G.SERVER_EXE), "-m", str(path), "--host", "127.0.0.1", "--port", str(port), "-c", str(CTX),
+                                         "-t", str(THREADS), "-np", "1", "--log-disable"], stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, creationflags=flags)
+                job.adopt(proc)
+                t0 = time.monotonic()
+                while time.monotonic() - t0 < 180:
+                    try:
+                        import urllib.request
+                        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=2) as r:
+                            if r.status == 200:
+                                break
+                    except OSError:
+                        time.sleep(0.5)
+                else:
+                    proc.kill()
+                    raise TimeoutError("voice server did not start")
+                import types
+                self.lm = types.SimpleNamespace(port=port, proc=proc, job=job, leased=False,
+                                                __exit__=lambda *a: (proc.kill(), job.close()))
+                self.load_s = time.monotonic() - t0
+            except Exception as e:  # noqa: BLE001
+                self.error = f"{type(e).__name__}: {str(e)[:160]}"
+                return False
+            return True
+
+        def close(self) -> None:
+            lm, self.lm = self.lm, None
+            if lm is not None:
+                try:
+                    lm.proc.kill()
+                finally:
+                    lm.job.close()
+
+        def ask(self, messages: list[dict[str, str]], max_tokens: int, temperature: float = 0.2) -> Any:
+            cap = MORE_TOKENS if self.more else SPOKEN_TOKENS
+            r = super().ask(with_persona(messages, persona), min(max_tokens, cap), temperature)
+            if r.tokens_out >= cap - 1:                       # cut at the last whole sentence rather than mid-word
+                cut = max(r.text.rfind(". "), r.text.rfind("! "), r.text.rfind("? "), r.text.rstrip().rfind(".") if r.text.rstrip().endswith(".") else -1)
+                if cut > len(r.text) // 3:
+                    r.text = r.text[:cut + 1]
+            self.timings.append((round(r.seconds, 2), r.tokens_in, r.tokens_out))
+            del self.timings[:-20]
+            return r
+
+    v = PhoneVoice(path, ctx=CTX, timeout_s=120)
+    v.model_name = name
+    return v
+
+
 def spoken(text: str) -> str:
     return re.sub(r"\s+", " ", _EVID.sub("", text)).strip()
 
@@ -166,14 +254,16 @@ class RateLimit:
 class Core:
     """Conversations per device over one lazily loaded voice. `make_conv(voice)` and `ram_free()` are injectable (tests)."""
 
-    def __init__(self, root: Path, model: str = "1.7b", idle_min: float = 15.0, make_conv: Optional[Callable[[], Any]] = None,
+    def __init__(self, root: Path, model: str = "1.7b", idle_min: float = 60.0, make_conv: Optional[Callable[[], Any]] = None,
                  ram_free: Optional[Callable[[], Optional[float]]] = None, clock: Callable[[], float] = time.monotonic) -> None:
         self.root, self.model, self.idle_s, self.clock = Path(root), model, idle_min * 60, clock
         self.make_conv, self.ram_free = make_conv, ram_free
         self.convs: OrderedDict[str, Any] = OrderedDict()
         self.rest: dict[str, str] = {}
+        self.prev: dict[str, str] = {}
         self.voice: Any = None
         self.last = clock()
+        self.last_split: dict[str, Any] = {}
         self.lock = threading.Lock()
 
     def _ram_ok(self) -> bool:
@@ -193,13 +283,11 @@ class Core:
         def refuse(c: Any, s: dict[str, Any]) -> Any:
             return CV.Facts("help", ["I only talk from the phone. Pausing, resuming, approving and requests need the terminal."])
         if self.voice is None:
-            persona = persona_text()
-
-            class PersonaVoice(T.Voice):
-                def ask(self, messages: list[dict[str, str]], max_tokens: int, temperature: float = 0.2) -> Any:
-                    return super().ask(with_persona(messages, persona), max_tokens, temperature)
-            self.voice = PersonaVoice(T.resolve_model(self.model), ctx=4096)
-        return T.conversation(self.root, self.voice, log=False, handlers={k: refuse for k in BLOCKED})
+            T.FACT_CHARS = FACT_CHARS                          # lean grounding: ~300 tokens of facts, chosen by the handlers' own ranking
+            self.voice = make_voice(T, self.model, persona_text(), self.ram_free)
+        conv = T.conversation(self.root, self.voice, log=False, mode="rules", handlers={k: refuse for k in BLOCKED})
+        conv.speak.retries = 0                                 # no second model call to repair a status; the rule report speaks instead
+        return conv
 
     def talk(self, device: str, text: str) -> tuple[int, dict[str, Any]]:
         t0 = time.monotonic()
@@ -208,6 +296,10 @@ class Core:
             if MORE.match(text) and self.rest.get(device):
                 head, self.rest[device] = chunk(self.rest[device])
                 return 200, {"reply": head, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
+            if MORE.match(text) and self.prev.get(device):       # nothing left over: ask the same question again with room to say more
+                text = self.prev[device]
+                if self.voice is not None:
+                    self.voice.more = True
             conv = self.convs.get(device)
             if conv is None:
                 if self.make_conv is None and self.voice is None and not self._ram_ok():
@@ -219,9 +311,20 @@ class Core:
                     self.rest.pop(old, None)
             self.convs.move_to_end(device)
             try:
+                v0 = len(getattr(self.voice, "timings", []))
+                t1 = time.monotonic()
                 raw = conv.reply(text)
+                tot = time.monotonic() - t1
+                calls = list(getattr(self.voice, "timings", []))[v0:] if self.voice is not None else []
+                vs = sum(c[0] for c in calls)
+                self.last_split = {"load_s": round(t1 - t0, 2), "voice_s": round(vs, 2), "grounding_s": round(max(tot - vs, 0), 2),
+                                   "prompt_tokens": sum(c[1] for c in calls), "out_tokens": sum(c[2] for c in calls)}
             except Exception as e:  # noqa: BLE001
                 return 500, {"reply": f"Something went wrong ({type(e).__name__}).", "ms": 0, "more": False}
+            if self.voice is not None:
+                self.voice.more = False
+            if not MORE.match(text):
+                self.prev[device] = text
             head, self.rest[device] = chunk(spoken(raw))
             return 200, {"reply": head, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
 
@@ -312,7 +415,7 @@ def startup_cmd(rt: Path) -> Path:
     p = rt / "start_nupen_phone.cmd"
     py = Path(sys.executable)
     p.write_text(f'@echo off\r\nrem Optional: copy a shortcut to this file into shell:startup. Not installed by Nupen.\r\n'
-                 f'cd /d "{ROOT}"\r\nstart "Nupen phone" /belownormal /wait "{py}" scripts/nupen_phone.py\r\npause\r\n', encoding="utf-8")
+                 f'cd /d "{ROOT}"\r\nstart "Nupen phone" /normal /wait "{py}" scripts/nupen_phone.py\r\npause\r\n', encoding="utf-8")
     return p
 
 
@@ -322,7 +425,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--allow-all", action="store_true", help="permit 0.0.0.0 (owner's explicit choice; default refuses it)")
     ap.add_argument("--port", type=int, default=PORT)
     ap.add_argument("--model", default="1.7b")
-    ap.add_argument("--idle-min", type=float, default=15.0)
+    ap.add_argument("--idle-min", type=float, default=60.0)
     ap.add_argument("--root", default=str(ROOT))
     ap.add_argument("--make-token", action="store_true", help="create the token file if missing, print its path")
     ap.add_argument("--print-firewall", action="store_true")
@@ -358,6 +461,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             time.sleep(60)
             core.reap()
     threading.Thread(target=reaper, daemon=True).start()
+    threading.Thread(target=lambda: core.talk("warmup", "hello"), daemon=True).start()     # load + prime the cache before the first request
     for sv in servers[1:]:
         threading.Thread(target=sv.serve_forever, daemon=True).start()
     print("Nupen phone server on " + ", ".join(f"http://{h}:{a.port}/talk" for h in dict.fromkeys(hosts)) +
@@ -366,6 +470,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         servers[0].serve_forever()
     except KeyboardInterrupt:
         pass
+    finally:
+        if core.voice is not None:
+            core.voice.close()
     return 0
 
 
