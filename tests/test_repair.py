@@ -104,3 +104,10 @@ def test_regen_hint_and_attempt_sampling():
     assert "[1] -> 2 != 3" in h1 and RP.attempt_extra(h1) is None
     h2 = RP.regen_hint("FAIL apply: SEARCH not found", 2)
     assert "short blocks" in h2 and RP.attempt_extra(h2)["temperature"] == 0.3
+
+
+def test_looping_catches_growing_ladder_but_not_a_short_table():
+    grow = "def f(ix):\n" + "".join(f"    if len(ix) == {i}:\n        return [{', '.join(f'ix[{j}]' for j in range(i))}]\n" for i in range(3, 8))
+    assert RP.looping(grow)
+    table = "    if op == 'add':\n        return a + b\n    if op == 'sub':\n        return a - b\n    if op == 'mul':\n        return a * b\n"
+    assert not RP.looping(table)

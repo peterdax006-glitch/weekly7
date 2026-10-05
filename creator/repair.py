@@ -30,16 +30,22 @@ def _norm(line: str) -> str:
     return DIGITS.sub("0", line.strip())
 
 
+def _shape(line: str, width: int = 18) -> str:
+    """A line's shape for the repeat test: digits normalised and only the first `width` characters, so the growing ladder
+    `if len(x) == 3: return [x[0], x[1], x[2]]` / `if len(x) == 4: return [x[0], x[1], x[2], x[3]]` has one shape."""
+    return _norm(line)[:width]
+
+
 def looping(text: str, min_chars: int = 6) -> bool:
-    """True when the generated text so far degenerated: the last complete lines repeat with a period of 1-4 lines (digits are normalised, so
-    the ladder `if n == 1: return 0` / `if n == 2: return 0` counts), or the tail repeats a 12-80 character unit four times."""
-    lines = [_norm(x) for x in text.split(NL)[:-1]]
-    lines = [x for x in lines if x]
+    """True when the generated text so far degenerated: the last complete lines repeat in shape with a period of 1-4 lines (digits are
+    normalised and long lines compared by their first 18 characters, so numbered ladders count even when each rung is longer), or the tail
+    repeats a 12-80 character unit four times."""
+    lines = [x for x in (_shape(y) for y in text.split(NL)[:-1]) if x]
     for p in (1, 2, 3, 4):
         need = 5 if p == 1 else 4
         if len(lines) >= p * need:
             tail = lines[-p * need:]
-            if all(tail[i] == tail[i % p] for i in range(len(tail))) and sum(len(x) for x in tail[:p]) >= min_chars:
+            if all(tail[i] == tail[i % p] for i in range(len(tail))) and sum(len(x) for x in tail[:p]) >= min_chars + 6 * (p == 1):
                 return True
     t = text.rstrip()
     for unit in range(12, 81, 4):
