@@ -55,6 +55,7 @@ CAPABILITIES: dict[str, str] = {
     "benchfill": "creator.benchfill",
     "selfteach": "creator.selfteach",
     "codetrust": "creator.codetrust",
+    "adopt": "creator.adopt",
 }
 
 _loaded: dict[str, Any] = {}

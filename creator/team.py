@@ -38,6 +38,7 @@ ROUTES: dict[str, str] = {
     "SPEC": "CHECKER", "LOCATE": "locate", "PACK": "pack", "PLAN": "THINKER", "CODE": "CODER",
     "DEBUG_PINPOINT": "locate", "DEBUG_FIX": "CODER", "REVIEW": "CHECKER", "VALIDATE": "tests",
     "SAFETY": "safety", "CONFIDENCE": "CHECKER", "SUMMARIZE": "CHECKER", "DESIGN": "THINKER",
+    "BENCH": "CODER",                       # P1.3: the builder's required benchmark spec for the claimed saving (VERIFY runs it, never the builder)
 }
 
 
