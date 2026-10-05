@@ -392,13 +392,20 @@ def slot_pool(spec: SlotSpec, **kw: Any) -> ModelPool:
     return ModelPool(model=spec.model, ctx=spec.ctx, threads=spec.threads, extra_args=spec.server_args(), **kw)
 
 
-def slot_complete(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
-                  timeout: float = 120.0) -> str:
-    """One completion from a running slot server: the role's max_tokens/stop/temperature and the form's grammar."""
+def slot_call(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
+              timeout: float = 120.0) -> dict[str, Any]:
+    """One completion from a running slot server, the whole llama-server answer: content, tokens_evaluated / tokens_predicted / tokens_cached,
+    timings (prompt_ms, predicted_ms), stop_type ('eos' | 'limit' | 'word')."""
     req = urllib.request.Request(f"http://127.0.0.1:{port}/completion", data=json.dumps(spec.payload(prompt, form, max_tokens)).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return str(json.loads(r.read().decode("utf-8")).get("content", ""))
+        return dict(json.loads(r.read().decode("utf-8")))
+
+
+def slot_complete(port: int, spec: SlotSpec, prompt: str, form: Optional[str] = None, max_tokens: Optional[int] = None,
+                  timeout: float = 120.0) -> str:
+    """One completion from a running slot server: the role's max_tokens/stop/temperature and the form's grammar."""
+    return str(slot_call(port, spec, prompt, form, max_tokens, timeout).get("content", ""))
 
 
 THINK_SHARE = 4                 # lessees per shared thinking server (device setting 'think_share' overrides; 1 = the old one-per-server pool)

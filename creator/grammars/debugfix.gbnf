@@ -1,0 +1,7 @@
+root ::= fence? "CAUSE: " one ("EVIDENCE: " one)? "FIX:\n" block+ ("EXPECT: " one)? fence?
+one ::= [^\n]{1,200} "\n"
+block ::= file? "<<<<<<< SEARCH\n" body "=======\n" body ">>>>>>> REPLACE\n"
+file ::= "FILE: " [A-Za-z0-9_./-]+ "\n"
+fence ::= "```\n"
+body ::= line*
+line ::= [^\n=<>] [^\n]* "\n" | [=<>] ([^\n=<>] [^\n]*)? "\n" | "\n"

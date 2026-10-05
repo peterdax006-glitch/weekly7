@@ -1,0 +1,4 @@
+root ::= fence? "REQUIREMENTS:" sline{1,4} "CONSTRAINTS:" sline{1,3} "DONE MEANS:" sline{1,3} "ACCEPTANCE TESTS:\n" tline{1,10} "OPEN QUESTIONS:" sline{1,2} fence?
+fence ::= "```\n"
+sline ::= [^\n]{1,160} "\n"
+tline ::= [^\n]{0,120} "\n"
