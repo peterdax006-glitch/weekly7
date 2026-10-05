@@ -81,6 +81,37 @@ def body_hash(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return hashlib.sha1((str(len(ren)) + "|" + ast.dump(mod, annotate_fields=False, include_attributes=False)).encode()).hexdigest()[:20]
 
 
+SKETCH_K, NEAR_JACCARD = 24, 0.7
+
+
+def shingle_set(node: ast.AST, n: int = 5) -> frozenset:
+    """Token 5-shingles of a function body: AST node kinds in walk order, plus constants and attribute names; local identifiers, the docstring,
+    comments and whitespace are not part of it."""
+    toks: list[str] = []
+
+    def walk(x: ast.AST) -> None:
+        t = type(x).__name__
+        if t in ("Load", "Store", "Del"):
+            return
+        if isinstance(x, ast.Constant):
+            t += repr(x.value)[:20]
+        elif isinstance(x, ast.Attribute):
+            t += "." + x.attr
+        toks.append("Assign" if t == "AnnAssign" else t)
+        for name, v in ast.iter_fields(x):
+            if name in ("annotation", "returns", "type_comment", "ctx"):
+                continue
+            for c in (v if isinstance(v, list) else [v]):
+                if isinstance(c, ast.AST):
+                    walk(c)
+
+    for b in _strip_doc(node):
+        walk(b)
+    if len(toks) < n + 3:
+        return frozenset()
+    return frozenset(hash(" ".join(toks[i:i + n])) & 0xFFFFFFFF for i in range(len(toks) - n + 1))
+
+
 def sigdoc_hash(name: str, args: Sequence[str], doc: str) -> str:
     return hashlib.sha1((name + "|" + ",".join(args) + "|" + " ".join(doc.split())).encode()).hexdigest()[:20]
 
@@ -115,13 +146,40 @@ class LeakGuard:
     hashes: set[str] = field(default_factory=set)
     sigdocs: set[str] = field(default_factory=set)
     heldout_files: set[str] = field(default_factory=set)
+    shingles: list = field(default_factory=list)                 # frozenset of 5-shingle hashes per source function (near-duplicate guard)
+    sketch: dict = field(default_factory=dict)                   # bottom-k hash -> indexes into `shingles`
     task_names: set[str] = field(default_factory=set)
 
     def file_blocked(self, source: str, path: str) -> bool:
         return (source, path) in self.files or (source == "self" and path in self.heldout_files) or path.startswith("minishop/")
 
-    def func_blocked(self, h: str, sd: str) -> bool:
-        return h in self.hashes or sd in self.sigdocs
+    def func_blocked(self, h: str, sd: str, node: Optional[ast.AST] = None) -> bool:
+        return h in self.hashes or sd in self.sigdocs or (node is not None and self.near_duplicate(node))
+
+    def add_source_function(self, node: ast.AST) -> None:
+        sh = shingle_set(node)
+        if sh:
+            self.shingles.append(sh)
+            for x in sorted(sh)[:SKETCH_K]:
+                self.sketch.setdefault(x, []).append(len(self.shingles) - 1)
+
+    def near_duplicate(self, node: ast.AST, threshold: float = NEAR_JACCARD) -> bool:
+        """True when the function's token 5-shingles have Jaccard >= threshold with ANY source function (renamed identifiers, comments and
+        whitespace do not matter: the tokens are AST node kinds, constants and attribute names). Candidates come from the shared bottom-k sketch."""
+        sh = shingle_set(node)
+        if not sh or not self.shingles:
+            return False
+        votes: dict[int, int] = {}
+        for x in sorted(sh)[:SKETCH_K]:
+            for i in self.sketch.get(x, ()):
+                votes[i] = votes.get(i, 0) + 1
+        for i, v in votes.items():
+            if v < SKETCH_K // 4:
+                continue
+            o = self.shingles[i]
+            if len(sh & o) / len(sh | o) >= threshold:
+                return True
+        return False
 
     # -- construction
     @classmethod
@@ -174,6 +232,7 @@ class LeakGuard:
             for n in ast.walk(tree):
                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     g.hashes.add(body_hash(n))
+                    g.add_source_function(n)
                     g.sigdocs.add(sigdoc_hash(n.name, _args(n), ast.get_docstring(n) or ""))
         return g
 
@@ -298,7 +357,7 @@ class ReuseIndex:
                     continue
                 args = _args(n)
                 h, sd = body_hash(n), sigdoc_hash(n.name, args, doc)
-                if self.guard.func_blocked(h, sd):
+                if self.guard.func_blocked(h, sd, n):
                     blocked += 1
                     continue
                 sig = " ".join(l.strip() for l in lines[n.lineno - 1:_sig_end(n)])
@@ -388,6 +447,12 @@ class ReuseIndex:
             score = 0.30 * ns + 0.20 * ar + 0.40 * min(1.0, dc) + 0.10 * ok
             root = Path(self.db.execute("SELECT root FROM repos WHERE source=?", (source,)).fetchone()[0])
             code = _read_lines(root / path, line, end)
+            try:
+                fnode = next(x for x in ast.parse(_dedent(code)).body if isinstance(x, ast.FunctionDef))
+                if self.guard.near_duplicate(fnode):
+                    continue                                                 # defence in depth for rows indexed under an older guard
+            except (SyntaxError, StopIteration):
+                pass
             out.append(Cand(source, lic, path, line, end, nm, sig, cdoc, tuple(t for t in tests.split(",") if t), round(score, 4), code))
         out.sort(key=lambda c: -c.score)
         return out[:k]

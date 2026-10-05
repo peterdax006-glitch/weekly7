@@ -162,3 +162,32 @@ def test_real_suite_never_in_index(tmp_path: Path) -> None:
         for c in ix.query(t["query"], k=20, name=pt["name"], args=pt["args"], doc=pt["doc"]):
             assert (c.source, c.path) not in bad
     assert g.files and g.hashes and g.sigdocs and g.heldout_files
+
+
+def test_near_duplicate_blocked_across_repos(tmp_path: Path) -> None:
+    """A copy with renamed identifiers, other comments, type hints and one extra statement (httpx copying requests) is excluded."""
+    pub = _public(tmp_path)
+    body = ["    out = []", "    for item in values:", "        if item is None or item < 0:", "            continue",
+            "        out.append(item * 2 + 1)", "    out.sort(reverse=True)", "    return out[:10]", ""]
+    (pub / "mitlib" / "src" / "leaked.py").write_text(chr(10).join(['def secret_mean(values):', '    """Doc."""'] + body), encoding="utf-8")
+    near = ["def tidy(xs: list) -> list:", '    """Other doc."""', "    # comment", "    out: list = []", "    for item in xs:",
+            "        if item is None or item < 0:", "            continue", "        out.append(item * 2 + 1)", "    out.sort(reverse=True)",
+            "    n = 10", "    return out[:n]", ""]
+    (pub / "mitlib" / "src" / "near.py").write_text(chr(10).join(near), encoding="utf-8")
+    ix = RU.ReuseIndex(tmp_path / "r.sqlite", _guard(tmp_path, pub))
+    ix.build(tmp_path / "selfrepo", pub)
+    names = {r[0] for r in ix.db.execute("SELECT name FROM fn")}
+    assert "tidy" not in names and "clamp" in names
+
+
+def test_real_parse_header_links_not_retrievable(tmp_path: Path) -> None:
+    if not REAL.is_file():
+        pytest.skip("real suite absent")
+    root = Path(__file__).resolve().parents[1]
+    pub = Path.home() / "creator_runtime" / "public_repos"
+    ix = RU.ReuseIndex(tmp_path / "p.sqlite", RU.default_guard(root, pub))
+    for r in ("requests", "httpx"):
+        if (pub / r).is_dir():
+            ix.add_repo(r, pub / r, cap=3000)
+    assert not [c for c in ix.query("parse_header_links parse a link header into a list of dicts", k=20, name="parse_header_links", args=["value"])
+                if c.name.lstrip("_") == "parse_header_links"]
