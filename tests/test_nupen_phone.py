@@ -7,6 +7,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -61,7 +62,7 @@ def test_auth_required_and_wrong_token_rejected(server):
 def test_reply_shape_short_and_say_more(server):
     srv, _ = server
     code, d = call(srv, body={"text": "how are you", "device": "iphone"})
-    assert code == 200 and set(d) == {"reply", "ms", "more"}
+    assert code == 200 and set(d) == {"reply", "action", "end", "ms", "more"} and d["action"] is None and d["end"] is False
     assert "evidence" not in d["reply"] and len(d["reply"].split()) <= 62 and d["more"] is True
     code, d2 = call(srv, body={"text": "say more", "device": "iphone"})
     assert code == 200 and d2["reply"] and d2["reply"] != d["reply"]
@@ -151,3 +152,181 @@ def test_persona_default_butler_no_real_names(tmp_path):
 def test_talk_audio_stub_is_501(server):
     srv, _ = server
     assert call(srv, "/talk_audio", body={"text": "hi"})[0] == 501
+
+
+# ---- phone actions, goodbye, unknown requests (code-parsed allow-list) ----
+NOW = datetime(2026, 10, 5, 10, 0)             # a Monday, 10:00
+
+
+def act(text):
+    r = P.interpret(text, NOW)
+    assert r is not None, text
+    return r
+
+
+@pytest.mark.parametrize("text,want", [
+    ("set a timer for five minutes", {"type": "timer", "minutes": 5}),
+    ("Timer for 10 minutes", {"type": "timer", "minutes": 10}),
+    ("can you start a 20 minute timer please", {"type": "timer", "minutes": 20}),
+    ("set a timer for thirty seconds", {"type": "timer", "seconds": 30}),
+    ("set a timer for an hour and a half", {"type": "timer", "minutes": 90}),
+    ("set a timer for half an hour", {"type": "timer", "minutes": 30}),
+])
+def test_timer(text, want):
+    assert act(text)[1] == want
+    assert act("set a timer for five minutes")[0] == "Timer set for five minutes, sir."
+
+
+@pytest.mark.parametrize("text,when", [
+    ("set an alarm for 7 am", "07:00"), ("set alarm for 6:30 pm", "18:30"), ("wake me up at 7:30", "07:30"),
+    ("wake me at half past six", "06:30"), ("set an alarm for seven thirty am", "07:30"),
+])
+def test_alarm(text, when):
+    assert act(text)[1] == {"type": "alarm", "time": when}
+
+
+def test_alarm_without_time_asks():
+    r, a, e = act("set an alarm")
+    assert a is None and "time" in r and e is False
+
+
+@pytest.mark.parametrize("text,want", [
+    ("remind me to call the dentist tomorrow at 9 am", {"type": "reminder", "text": "call the dentist", "when": "2026-10-06T09:00"}),
+    ("remind me to buy milk", {"type": "reminder", "text": "buy milk"}),
+    ("remind me in ten minutes to take the washing out", {"type": "reminder", "text": "take the washing out", "when": "2026-10-05T10:10"}),
+    ("set a reminder to ring mum at 5", {"type": "reminder", "text": "ring mum", "when": "2026-10-05T17:00"}),
+    ("add pay the rent to my reminders", {"type": "reminder", "text": "pay the rent"}),
+])
+def test_reminder(text, want):
+    assert act(text)[1] == want
+
+
+@pytest.mark.parametrize("text,want", [
+    ("make a note that the boiler code is 4412", {"type": "note", "text": "The boiler code is 4412"}),
+    ("note down buy stamps", {"type": "note", "text": "Buy stamps"}),
+    ("take a note: ideas for the shed", {"type": "note", "text": "Ideas for the shed"}),
+    ("jot down call the plumber", {"type": "note", "text": "Call the plumber"}),
+])
+def test_note(text, want):
+    assert act(text)[1] == want
+
+
+@pytest.mark.parametrize("text,want", [
+    ("add lunch with Sam to my calendar tomorrow at 1 pm", {"type": "calendar", "title": "Lunch with Sam", "start": "2026-10-06T13:00"}),
+    ("schedule a meeting with Anna on friday at 3 pm for an hour",
+     {"type": "calendar", "title": "Meeting with Anna", "start": "2026-10-09T15:00", "duration": 60}),
+    ("create an event called dentist tomorrow at 10 am for 45 minutes",
+     {"type": "calendar", "title": "Dentist", "start": "2026-10-06T10:00", "duration": 45}),
+    ("schedule dentist today at 4 pm", {"type": "calendar", "title": "Dentist", "start": "2026-10-05T16:00"}),
+])
+def test_calendar(text, want):
+    assert act(text)[1] == want
+
+
+def test_calendar_without_time_asks():
+    r, a, _ = act("schedule a meeting with Anna")
+    assert a is None and "time" in r
+
+
+@pytest.mark.parametrize("text,to,msg", [
+    ("text mum I'll be late", "mum", "I'll be late"),
+    ("send a message to Sarah saying dinner is ready", "Sarah", "Dinner is ready"),
+    ("message my wife that I am on my way", "wife", "I am on my way"),
+    ("send a text to John Smith: see you at eight", "John Smith", "See you at eight"),
+])
+def test_message(text, to, msg):
+    a = act(text)[1]
+    assert a["type"] == "message" and a["to"] == to and a["text"].lower() == msg.lower() and "confirm" in act(text)[0]
+
+
+@pytest.mark.parametrize("text,to", [("call mum", "mum"), ("phone my brother", "brother"), ("ring the dentist", "dentist"), ("give Sarah a call", "Sarah")])
+def test_call(text, to):
+    assert act(text)[1] == {"type": "call", "to": to}
+
+
+@pytest.mark.parametrize("text,q", [("play some jazz", "jazz"), ("play Bohemian Rhapsody by Queen", "Bohemian Rhapsody by Queen"),
+                                    ("put on the beatles", "the beatles"), ("play songs by Adele", "Adele")])
+def test_music(text, q):
+    assert act(text)[1] == {"type": "music", "query": q}
+
+
+@pytest.mark.parametrize("text,name", [("open Safari", "Safari"), ("launch the camera app", "Camera"), ("open maps", "Maps")])
+def test_open_app(text, name):
+    assert act(text)[1] == {"type": "open_app", "name": name}
+
+
+@pytest.mark.parametrize("text,to", [("directions to the airport", "the airport"), ("navigate to Heathrow", "Heathrow"),
+                                     ("take me to the train station", "the train station"), ("how do I get to Bath", "Bath")])
+def test_directions(text, to):
+    assert act(text)[1] == {"type": "directions", "to": to}
+
+
+@pytest.mark.parametrize("text,state", [("turn on the flashlight", "on"), ("torch on", "on"), ("turn off the torch", "off"), ("flashlight off", "off")])
+def test_flashlight(text, state):
+    assert act(text)[1] == {"type": "flashlight", "state": state}
+
+
+@pytest.mark.parametrize("text,name,state", [
+    ("turn on do not disturb", "Do Not Disturb", "on"), ("turn off do not disturb", "Do Not Disturb", "off"),
+    ("switch on sleep mode", "Sleep", "on"), ("enable work focus", "Work", "on"), ("disable the driving focus", "Driving", "off")])
+def test_focus(text, name, state):
+    assert act(text)[1] == {"type": "focus", "name": name, "state": state}
+
+
+@pytest.mark.parametrize("text,dev,state", [
+    ("turn on the living room lights", "living room lights", "on"), ("turn off the kettle", "kettle", "off"),
+    ("switch the bedroom lamp off", "bedroom lamp", "off"), ("turn the hall light on", "hall light", "on")])
+def test_home(text, dev, state):
+    assert act(text)[1] == {"type": "home", "device": dev, "state": state}
+
+
+@pytest.mark.parametrize("text", ["goodbye", "thanks, that's all", "that will be all, thank you", "no thanks", "thank you", "bye", "ok see you later"])
+def test_end_flag(text):
+    r, a, e = act(text)
+    assert e is True and a is None and "Goodbye" in r
+
+
+def test_end_with_action_and_not_without():
+    r, a, e = act("set a timer for five minutes, that's all thanks")
+    assert a == {"type": "timer", "minutes": 5} and e is True
+    assert act("set a timer for five minutes")[2] is False
+    assert act("please play some jazz")[2] is False
+
+
+@pytest.mark.parametrize("text", ["how are you", "what time is it", "tell me a joke", "what is the weather in Paris",
+                                  "how long does a timer on an oven take"])
+def test_conversation_goes_to_the_model(text):
+    assert P.interpret(text, NOW) is None
+
+
+@pytest.mark.parametrize("text", ["book me a flight to Rome", "order a pizza", "turn off the alarm", "play a game", "email my boss", "set a timer"])
+def test_unknown_requests_no_action_polite(text):
+    r, a, e = act(text)
+    assert a is None and e is False and r.endswith(("sir.", "sir?"))
+
+
+@pytest.mark.parametrize("text", ["shut down the computer", "restart my pc", "turn off the laptop", "open the nupen server", "delete the kernel"])
+def test_never_touches_the_pc(text):
+    r, a, e = act(text)
+    assert a is None and "computer" in r
+
+
+def test_actions_only_from_allow_list_and_http_shape(server):
+    srv, _ = server
+    code, d = call(srv, body={"text": "set a timer for five minutes", "device": "iphone"})
+    assert code == 200 and d["action"] == {"type": "timer", "minutes": 5} and d["reply"] == "Timer set for five minutes, sir." and d["end"] is False
+    assert isinstance(d["ms"], int)
+    code, d = call(srv, body={"text": "goodbye"})
+    assert code == 200 and d["end"] is True and d["action"] is None
+    allowed = {"timer", "alarm", "reminder", "note", "calendar", "message", "call", "music", "open_app", "directions", "flashlight", "focus", "home"}
+    for t in ("set an alarm for 7", "text mum hello", "call dad", "play jazz", "open maps", "turn on the torch", "turn on the hall light"):
+        assert P.interpret(t, NOW)[1]["type"] in allowed
+
+
+def test_auth_rules_unchanged_for_actions(server):
+    srv, core = server
+    assert call(srv, body={"text": "set a timer for five minutes"}, token=None)[0] == 401
+    assert call(srv, body={"text": "set a timer for five minutes"}, token="x" * 32)[0] == 401
+    assert call(srv, "/health", token=None, method="GET")[0] == 401
+    assert call(srv, raw=b"x" * (P.MAX_BODY + 1))[0] == 413
+    assert core.convs == {}                       # unauthenticated or action requests never even build a conversation

@@ -5,7 +5,9 @@
     python scripts/nupen_phone.py --print-firewall   # the admin command to allow the port (printed, never run)
     python scripts/nupen_phone.py --print-startup    # write the optional Windows startup .cmd (not installed)
 
-    POST /talk   {"text": "...", "device": "iphone"}  ->  {"reply": "...", "ms": N, "more": bool}      GET /health
+    POST /talk   {"text": "...", "device": "iphone"}  ->  {"reply": "...", "action": null | {"type": ...}, "end": bool, "ms": N, "more": bool}
+    GET /health.  "action" is from a fixed allow-list (timer alarm reminder note calendar message call music open_app directions flashlight focus
+    home) parsed by code; "end" is true on goodbye so the Shortcut stops listening. Nothing the phone says can touch the PC.
     Header  Authorization: Bearer <token>   (token: <runtime>/phone/token.txt, generated once, outside the repo)
 
 Talk only: pause/resume/approve/request are refused from the phone (they need the terminal); status and open questions are read-only.
@@ -22,6 +24,7 @@ import socket
 import sys
 import threading
 import time
+from datetime import datetime, timedelta
 from collections import OrderedDict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -234,6 +237,378 @@ def chunk(text: str, words: int = MAX_WORDS) -> tuple[str, str]:
     return head, text[len(head):].strip()
 
 
+# ---- phone actions: an allow-list parsed by CODE from the owner's words; never free-form commands; nothing here touches the PC ----
+_W1 = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+                                  "seventeen eighteen nineteen".split())}
+_W10 = {w: 10 * (i + 2) for i, w in enumerate("twenty thirty forty fifty sixty seventy eighty ninety".split())}
+_NUM_RE = re.compile(r"\b(?:(?:%s)(?:[ -](?:%s))?|%s)\b" % ("|".join(_W10), "|".join(list(_W1)[1:10]), "|".join(_W1)), re.I)
+_SAY = list(_W1)[:1] + list(_W1)[1:] + ["twenty"]
+_UNIT = r"(?:hours?|hrs?|minutes?|mins?|seconds?|secs?|days?|weeks?)"
+_ONE = rf"(?:(?:\d+(?:\.\d+)?\s*|an?\s+|half\s+an?\s+|a\s+quarter\s+of\s+an?\s+){_UNIT}|\d+\s+and\s+a\s+half\s+{_UNIT})"
+_CHAIN = rf"{_ONE}(?:(?:\s*,?\s*and\s+|\s*,\s*|\s+)(?:{_ONE}|a\s+half))*"
+_MER = r"(a\.?m\.?|p\.?m\.?)"
+_DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_FOCUS = ("do not disturb", "sleep", "work", "personal", "driving", "reading", "fitness", "gaming", "mindfulness")
+_LEAD = re.compile(r"^(?:(?:hey|hi|ok|okay|right|so|well|and|now|then|nupen|please|kindly)\b[ ,]*)+", re.I)
+_MODAL = re.compile(r"^(?:(?:can|could|would|will) you(?: possibly| please)?|i(?:'d| would) like (?:you )?to|i want (?:you )?to|i need you to|i need to|"
+                    r"go ahead and)\b[ ,]*(?:please\b[ ,]*)?", re.I)
+_TRAIL = re.compile(r"(?:[ ,.!?]+(?:please|sir|nupen|thanks|thank you|for me))+[ .!?]*$|[ ,.!?]+$", re.I)
+_Q = re.compile(r"^(?:what|what's|whats|how|when|why|who|whom|whose|where|which|is|are|was|were|did|does|do(?! not disturb)|have|has|had|am)\b", re.I)
+_DO = re.compile(r"^(?:set|turn|switch|call|ring|phone|text|message|send|play|open|launch|remind|schedule|book|order|buy|delete|cancel|shut|restart|"
+                 r"reboot|lock|unlock|navigate|email|post|pay|install|download|enable|disable|activate|dim|increase|decrease|"
+                 r"(?:stop|pause|skip|resume)\s+(?:the\s+)?(?:music|song|track|playback))\b", re.I)
+_PC = re.compile(r"\b(?:computer|pc|laptop|desktop|server|kernel|gpu|nupen)\b", re.I)
+_NO_HOME = re.compile(r"\b(?:alarm|timer|wi-?fi|bluetooth|airplane|volume|brightness|phone|data|silent|ringer)\b", re.I)
+_END = re.compile(r"\b(?:good ?bye|bye(?: bye)?|see you|that'?s all|that is all|that will be all|that'?ll be all|that'?s it|nothing else|"
+                  r"no,? thanks|no thank you|i'?m done|we'?re done|stop listening|talk later|speak later)\b", re.I)
+_THANKS = re.compile(r"^(?:ok(?:ay)?[ ,]+)?(?:thanks|thank you|cheers|ta)(?:[ ,]+(?:very much|a lot|so much|nupen|sir|then))*[ .!,]*$", re.I)
+
+
+def _numwords(s: str) -> str:
+    """Spoken numbers to digits ('seven thirty' -> '7 30'); only for time-like fields, never for message or note text."""
+    return _NUM_RE.sub(lambda m: str(sum({**_W1, **_W10}[w] for w in re.split(r"[ -]", m.group(0).lower()))), s)
+
+
+def _say(n: int) -> str:
+    return _SAY[n] if 0 <= n <= 20 else str(n)
+
+
+def _usec(u: str) -> int:
+    return {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}[u[0].lower()]
+
+
+def _dur_seconds(s: str) -> int:
+    """Sum of every duration in the words ('an hour and a half', '2 hours 10 minutes', 'half an hour', '45 seconds'); 0 when none."""
+    tot = [0.0]
+    s = s.lower()
+
+    def take(pat: str, f: Callable[[Any], float]) -> None:
+        nonlocal s
+
+        def rep(m: Any) -> str:
+            tot[0] += f(m)
+            return " "
+        s = re.sub(pat, rep, s)
+
+    def num(x: str) -> float:
+        x = x.strip()
+        return 1.0 if x in ("a", "an") else float(x)
+    n = r"((?:\d+(?:\.\d+)?\s*|an?\s+))"
+    take(rf"\b{n}({_UNIT})\s+and\s+a\s+half\b", lambda m: num(m[1]) * _usec(m[2]) * 1.5)
+    take(rf"\b(\d+)\s+and\s+a\s+half\s+({_UNIT})\b", lambda m: (float(m[1]) + 0.5) * _usec(m[2]))
+    take(rf"\bhalf\s+an?\s+({_UNIT})\b", lambda m: 0.5 * _usec(m[1]))
+    take(rf"\ba\s+quarter\s+of\s+an?\s+({_UNIT})\b", lambda m: 0.25 * _usec(m[1]))
+    take(rf"\b{n}({_UNIT})\b", lambda m: num(m[1]) * _usec(m[2]))
+    return int(round(tot[0]))
+
+
+def _find_time(s: str) -> Optional[tuple[Any, int, int, Optional[str]]]:
+    """First clock time in the words: (match, hour, minute, 'am'|'pm'|None)."""
+    pats: list[tuple[str, Callable[[Any], tuple[int, int, Optional[str]]]]] = [
+        (r"\bhalf\s+past\s+(\d{1,2})\b", lambda m: (int(m[1]), 30, None)),
+        (r"\bquarter\s+past\s+(\d{1,2})\b", lambda m: (int(m[1]), 15, None)),
+        (r"\bquarter\s+to\s+(\d{1,2})\b", lambda m: (int(m[1]) - 1 or 12, 45, None)),
+        (rf"\b(?:(?:at|by|for)\s+)?(\d{{1,2}})(?:[:.\s]\s*(\d{{2}}))?\s*{_MER}(?![A-Za-z])", lambda m: (int(m[1]), int(m[2] or 0), m[3].lower())),
+        (r"\b(?:at|by)\s+(\d{1,2})(?:[:.\s]\s*(\d{2}))?(?:\s*o'?clock)?(?![\d:])(?!\s*(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?|times))",
+         lambda m: (int(m[1]), int(m[2] or 0), None)),
+        (r"\b(\d{1,2}):(\d{2})\b", lambda m: (int(m[1]), int(m[2]), None)),
+        (r"\b(\d{1,2})\s*o'?clock\b", lambda m: (int(m[1]), 0, None)),
+        (r"\bnoon\b", lambda m: (12, 0, None)),
+        (r"\bmidnight\b", lambda m: (0, 0, None)),
+    ]
+    for pat, f in pats:
+        m = re.search(pat, s, re.I)
+        if not m:
+            continue
+        h, mi, mer = f(m)
+        if mi < 60 and ((mer and 1 <= h <= 12) or (not mer and 0 <= h <= 24)):
+            return m, h, mi, mer
+    return None
+
+
+def _extract_when(s: str, now: datetime, pm_default: bool = False) -> tuple[Optional[datetime], bool, str]:
+    """(when, has_time, the words without the time phrase). Relative ('in ten minutes'), today/tomorrow/tonight, weekdays, clock times."""
+    s = _numwords(s)
+    m = re.search(rf"\bin\s+({_CHAIN})(?!\w)", s, re.I)
+    if m and _dur_seconds(m[1]):
+        return now + timedelta(seconds=_dur_seconds(m[1])), True, s[:m.start()] + " " + s[m.end():]
+    date = None
+    period = None
+    m = re.search(r"\b(?:on\s+)?(tomorrow|today|tonight)\b", s, re.I)
+    if m:
+        w = m[1].lower()
+        date = (now + timedelta(days=1 if w == "tomorrow" else 0)).date()
+        period = "evening" if w == "tonight" else None
+        s = s[:m.start()] + " " + s[m.end():]
+    else:
+        m = re.search(r"\b(?:on\s+|next\s+|this\s+)?(" + "|".join(_DAYS) + r")\b", s, re.I)
+        if m:
+            d = (_DAYS.index(m[1].lower()) - now.weekday()) % 7
+            date = (now + timedelta(days=d or 7)).date()
+            s = s[:m.start()] + " " + s[m.end():]
+    m = re.search(r"\b(?:in\s+the\s+|this\s+)?(morning|afternoon|evening|night)\b", s, re.I)
+    if m:
+        period = period or m[1].lower()
+        s = s[:m.start()] + " " + s[m.end():]
+    t = _find_time(s)
+    has_time = t is not None
+    if t:
+        m, h, mi, mer = t
+        s = s[:m.start()] + " " + s[m.end():]
+        if mer:
+            h = (h % 12) + (12 if mer.startswith("p") else 0)
+        elif period in ("afternoon", "evening", "night") and 1 <= h < 12:
+            h += 12
+        elif pm_default and 1 <= h <= 7:
+            h += 12
+        h %= 24
+    elif date is not None or period:
+        h, mi = {"morning": (9, 0), "afternoon": (15, 0), "evening": (19, 0), "night": (21, 0)}.get(period or "", (9, 0))
+        has_time = period is not None
+    else:
+        return None, False, s
+    if date is None:
+        dt = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+        if dt <= now:
+            dt += timedelta(days=1)
+    else:
+        dt = datetime(date.year, date.month, date.day, h, mi)
+    return dt, has_time, s
+
+
+def _iso(dt: datetime) -> str:
+    return dt.strftime("%Y-%m-%dT%H:%M")
+
+
+def _tidy(t: str) -> str:
+    t = re.sub(r"\s+", " ", t).strip(" ,.;:-")
+    t = re.sub(r"\s+(?:at|on|by|for|in|to|and)$", "", t, flags=re.I)
+    return re.sub(r"^(?:to|that|about|of)\s+", "", t.strip(" ,.;:-"), flags=re.I).strip(" ,.;:-")
+
+
+def _clock12(h: int, mi: int) -> str:
+    return f"{(h % 12) or 12}{':%02d' % mi if mi else ''} {'AM' if h < 12 else 'PM'}"
+
+
+def _who(t: str) -> str:
+    return re.sub(r"^(?:my|the)\s+", "", _tidy(t), flags=re.I)
+
+
+def _clean(raw: str) -> str:
+    s = raw.strip()
+    while True:
+        s2 = _TRAIL.sub("", _MODAL.sub("", _LEAD.sub("", s))).strip()
+        if s2 == s:
+            return s
+        s = s2
+
+
+def _a_timer(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    if not re.search(r"\btimer\b", n, re.I) or re.match(r"(?:cancel|stop|delete|turn off)", n, re.I):
+        return None
+    sec = _dur_seconds(n)
+    if not sec:
+        return "For how long, sir?", None
+    if sec % 60 == 0:
+        return f"Timer set for {_say(sec // 60)} minute{'s' if sec != 60 else ''}, sir.", {"type": "timer", "minutes": sec // 60}
+    return f"Timer set for {_say(sec)} seconds, sir.", {"type": "timer", "seconds": sec}
+
+
+def _a_alarm(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    if not (re.search(r"\balarm\b", n, re.I) or re.match(r"wake me(?: up)?\b", n, re.I)) or re.match(r"(?:cancel|stop|delete|turn off|switch off)", n, re.I):
+        return None
+    dt, has_time, _ = _extract_when(re.sub(r"\balarm for (\d)", r"alarm at \1", n, flags=re.I), now)
+    if dt is None or not has_time:
+        return "For what time, sir?", None
+    return f"Alarm set for {_clock12(dt.hour, dt.minute)}, sir.", {"type": "alarm", "time": dt.strftime("%H:%M")}
+
+
+def _a_reminder(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:remind me|(?:set|create|add|make)\s+(?:a\s+|another\s+)?reminder|reminder)\b[ ,:]*(.*)$", n, re.I)
+    m2 = re.match(r"add\s+(.+?)\s+to\s+(?:my\s+)?(?:reminders?|reminder list|to-?do list)$", n, re.I)
+    if not (m or m2):
+        return None
+    dt, _, rest = _extract_when((m or m2)[1], now, pm_default=True)
+    text = _tidy(rest)
+    if not text:
+        return "What shall I remind you about, sir?", None
+    a: dict[str, Any] = {"type": "reminder", "text": text[:200]}
+    if dt is not None:
+        a["when"] = _iso(dt)
+    return "Reminder noted, sir.", a
+
+
+def _a_calendar(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:add|put)\s+(.+?)\s+(?:to|in|on|into)\s+(?:my\s+)?calendar\b(.*)$", n, re.I)
+    body = (m[1] + " " + m[2]) if m else None
+    if body is None:
+        m = re.match(r"(?:schedule|set up|create|make|add)\s+(?:an?\s+|the\s+)?(.+)$", n, re.I)
+        if not m or not (n.lower().startswith("schedule") or re.search(r"\b(?:event|meeting|appointment|calendar)\b", n, re.I)):
+            return None
+        body = m[1]
+    dur = None
+    d = re.search(rf"\bfor\s+({_CHAIN})(?!\w)", _numwords(body), re.I)
+    if d:
+        dur = max(_dur_seconds(d[1]) // 60, 1)
+        body = (_numwords(body)[:d.start()] + " " + _numwords(body)[d.end():])
+    dt, has_time, rest = _extract_when(body, now, pm_default=True)
+    title = _tidy(re.sub(r"^(?:calendar\s+)?(?:event|entry)\s+(?:called|named|titled|for|about)\s+", "", _tidy(rest), flags=re.I))
+    title = re.sub(r"\s+(?:to|in|on|into)\s+(?:my\s+)?calendar$", "", title, flags=re.I)
+    if not title:
+        return "What shall I call the event, sir?", None
+    if dt is None or not has_time:
+        return "At what time, sir?", None
+    a: dict[str, Any] = {"type": "calendar", "title": _cap(title)[:120], "start": _iso(dt)}
+    if dur:
+        a["duration"] = dur
+    return "Added to your calendar, sir.", a
+
+
+def _cap(t: str) -> str:
+    return t[:1].upper() + t[1:]
+
+
+def _a_note(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:(?:make|take|create|write|add|save)\s+(?:an?\s+)?(?:quick\s+)?note|note(?:\s+down)?|jot\s+down|write\s+down)\b"
+                 r"(?:\s+(?:saying|that|to say|to|of))?[ ,:]*(.*)$", s, re.I)
+    m2 = re.match(r"add\s+(.+?)\s+to\s+(?:my\s+)?notes?$", s, re.I)
+    if not (m or m2):
+        return None
+    text = _tidy((m or m2)[1])
+    if not text:
+        return "What shall I note, sir?", None
+    return "Noted, sir.", {"type": "note", "text": _cap(text)[:300]}
+
+
+def _a_message(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    pre = r"(?:send\s+(?:an?\s+)?(?:text|message|imessage|text message)\s+to|(?:text|message|imessage)(?:\s+to)?)"
+    m = re.match(pre + r"\s+(.+?)\s*(?:,|:|\bsaying\s+that\b|\bsaying\b|\bthat\b|\bto\s+say\b)\s*(.+)$", s, re.I)
+    if not m:
+        m = re.match(r"(?:text|message|imessage)\s+(\w+)\s+(.+)$", s, re.I)
+    if m and _who(m[1]).lower() not in ("me", "back"):
+        to, text = _who(m[1]), _tidy(m[2])
+        if to and text:
+            return f"Message to {to} ready, sir. Your phone will ask you to confirm.", {"type": "message", "to": to, "text": _cap(text)[:300]}
+    m = re.match(pre + r"\s+(.+)$", s, re.I)
+    if m:
+        return f"What shall I say to {_who(m[1])}, sir?", None
+    return None
+
+
+def _a_call(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:call|phone|ring|dial|facetime)\s+(?:up\s+)?(.+)$", s, re.I) or re.match(r"give\s+(.+?)\s+a\s+(?:call|ring)$", s, re.I)
+    if not m:
+        return None
+    to = _who(m[1])
+    if not to or to.lower() in ("me", "it", "back", "them", "a taxi", "a cab") or len(to.split()) > 5:
+        return None
+    return f"Calling {to}, sir.", {"type": "call", "to": to}
+
+
+def _a_flashlight(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    if not re.search(r"\b(?:flash ?light|torch)\b", s, re.I):
+        return None
+    off = bool(re.search(r"\b(?:off|disable|stop|kill)\b", s, re.I))
+    return f"Flashlight {'off' if off else 'on'}, sir.", {"type": "flashlight", "state": "off" if off else "on"}
+
+
+def _a_focus(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    low = s.lower()
+    name = next((f for f in _FOCUS if re.search(r"\b" + f + r"\b", low) and (f == "do not disturb" or re.search(r"\b(?:focus|mode)\b", low))), None)
+    if name is None and re.search(r"\bdnd\b", low):
+        name = "do not disturb"
+    if name is None or not re.search(r"\b(?:on|off|enable|disable|activate|deactivate|start|stop|end|exit|turn|switch|put|set)\b", low):
+        return None
+    off = bool(re.search(r"\b(?:off|disable|deactivate|stop|end|exit)\b", low))
+    nice = "Do Not Disturb" if name == "do not disturb" else _cap(name)
+    return f"{nice} {'off' if off else 'on'}, sir.", {"type": "focus", "name": nice, "state": "off" if off else "on"}
+
+
+def _a_directions(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:(?:give|get|show)\s+me\s+(?:the\s+)?(?:directions?|route|way)\s+(?:to|for)|directions?\s+(?:to|for)|navigate\s+(?:me\s+)?to|"
+                 r"take\s+me\s+to|drive\s+(?:me\s+)?to|(?:how\s+do\s+i|how\s+can\s+i|how\s+to)\s+get\s+to|(?:show|find)\s+(?:me\s+)?(?:the\s+)?(?:way|route)\s+to|"
+                 r"(?:i\s+need|i\s+want)\s+directions\s+to|let's\s+go\s+to)\s+(.+)$", s, re.I)
+    if not m:
+        return None
+    to = _tidy(m[1])
+    return (f"Directions to {to}, sir.", {"type": "directions", "to": to}) if to else ("Where to, sir?", None)
+
+
+def _a_music(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:play|put\s+on|listen\s+to|start\s+playing)\s+(.+)$", s, re.I)
+    if not m:
+        return None
+    q = re.sub(r"^(?:some\s+|the\s+(?:song|album|playlist|track)\s+|(?:songs?|music|tracks?)\s+(?:by|from)\s+)", "", _tidy(m[1]), flags=re.I)
+    if re.match(r"(?:a\s+|the\s+)?(?:game|video|movie|film|podcast)\b", q, re.I):
+        return "I can only play music from here, sir.", None
+    if not q or q.lower() in ("music", "something", "a song", "songs"):
+        return "What shall I play, sir?", None
+    return f"Playing {q}, sir.", {"type": "music", "query": q[:120]}
+
+
+def _a_home(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:turn|switch|put)\s+(on|off)\s+(?:the\s+|my\s+)?(.+)$", s, re.I)
+    if m:
+        state, dev = m[1].lower(), m[2]
+    else:
+        m = re.match(r"(?:turn|switch)\s+(?:the\s+|my\s+)?(.+?)\s+(on|off)$", s, re.I)
+        if not m:
+            return None
+        state, dev = m[2].lower(), m[1]
+    dev = _tidy(dev).lower()
+    if _NO_HOME.search(dev):
+        return "I cannot change that from here yet, sir.", None
+    if not dev or len(dev.split()) > 5:
+        return None
+    return f"Turning the {dev} {state}, sir.", {"type": "home", "device": dev, "state": state}
+
+
+def _a_open(s: str, n: str, now: datetime) -> Optional[tuple[str, Optional[dict[str, Any]]]]:
+    m = re.match(r"(?:open|launch|start|go to|switch to|run)\s+(?:up\s+)?(?:the\s+)?(.+?)(?:\s+app(?:lication)?)?$", s, re.I)
+    if not m:
+        return None
+    name = _tidy(m[1])
+    if not name or len(name.split()) > 3:
+        return None
+    name = name.title() if name.islower() else name
+    return f"Opening {name}, sir.", {"type": "open_app", "name": name}
+
+
+_ORDER = (_a_timer, _a_alarm, _a_reminder, _a_calendar, _a_note, _a_message, _a_call)
+_ORDER2 = (_a_flashlight, _a_focus, _a_directions, _a_music, _a_home, _a_open)
+
+
+def interpret(text: str, now: Optional[datetime] = None) -> Optional[tuple[str, Optional[dict[str, Any]], bool]]:
+    """(spoken reply, action or None, end) when the words are a phone command, a goodbye or a refused request; None = hand to the voice model.
+    Every action comes from the allow-list above; unknown or PC-touching requests give a polite reply and no action."""
+    now = now or datetime.now()
+    raw = text.strip().replace("’", "'")
+    s = _clean(raw)
+    n = _numwords(s)
+    end = len(raw.split()) <= 12 and bool(_END.search(raw))
+    res: Optional[tuple[str, Optional[dict[str, Any]]]] = None
+    if s:
+        res = _a_directions(s, n, now)
+        if res is None and not _Q.match(s):
+            for f in _ORDER:
+                res = f(s, n, now)
+                if res:
+                    break
+            if res is None and _DO.match(s) and _PC.search(s):
+                res = ("I am afraid I cannot touch the computer from the phone, sir.", None)
+            for f in (() if res else _ORDER2):
+                res = f(s, n, now)
+                if res:
+                    break
+            if res is None and _DO.match(s):
+                res = ("I am afraid I cannot do that yet, sir.", None)
+    if res is not None:
+        return res[0], res[1], end
+    if end or _THANKS.match(raw):
+        return "Very good, sir. Goodbye.", None, True
+    return None
+
+
 class RateLimit:
     def __init__(self, per_min: int = RATE_PER_MIN, clock: Callable[[], float] = time.monotonic) -> None:
         self.per_min, self.clock, self.hits = per_min, clock, {}
@@ -255,7 +630,9 @@ class Core:
     """Conversations per device over one lazily loaded voice. `make_conv(voice)` and `ram_free()` are injectable (tests)."""
 
     def __init__(self, root: Path, model: str = "1.7b", idle_min: float = 60.0, make_conv: Optional[Callable[[], Any]] = None,
-                 ram_free: Optional[Callable[[], Optional[float]]] = None, clock: Callable[[], float] = time.monotonic) -> None:
+                 ram_free: Optional[Callable[[], Optional[float]]] = None, clock: Callable[[], float] = time.monotonic,
+                 now: Callable[[], datetime] = datetime.now) -> None:
+        self.now = now
         self.root, self.model, self.idle_s, self.clock = Path(root), model, idle_min * 60, clock
         self.make_conv, self.ram_free = make_conv, ram_free
         self.convs: OrderedDict[str, Any] = OrderedDict()
@@ -291,11 +668,14 @@ class Core:
 
     def talk(self, device: str, text: str) -> tuple[int, dict[str, Any]]:
         t0 = time.monotonic()
+        cmd = interpret(text, self.now())                       # phone actions and goodbyes: code only, no voice model, no RAM needed
+        if cmd is not None:
+            return 200, {"reply": cmd[0], "action": cmd[1], "end": cmd[2], "ms": int((time.monotonic() - t0) * 1000), "more": False}
         with self.lock:
             self.last = self.clock()
             if MORE.match(text) and self.rest.get(device):
                 head, self.rest[device] = chunk(self.rest[device])
-                return 200, {"reply": head, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
+                return 200, {"reply": head, "action": None, "end": False, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
             if MORE.match(text) and self.prev.get(device):       # nothing left over: ask the same question again with room to say more
                 text = self.prev[device]
                 if self.voice is not None:
@@ -303,7 +683,7 @@ class Core:
             conv = self.convs.get(device)
             if conv is None:
                 if self.make_conv is None and self.voice is None and not self._ram_ok():
-                    return 503, {"reply": "I cannot load my voice now, the PC is short of memory. Try again later.", "ms": 0, "more": False}
+                    return 503, {"reply": "I cannot load my voice now, the PC is short of memory. Try again later.", "action": None, "end": False, "ms": 0, "more": False}
                 conv = self._build()
                 self.convs[device] = conv
                 while len(self.convs) > MAX_DEVICES:
@@ -320,13 +700,13 @@ class Core:
                 self.last_split = {"load_s": round(t1 - t0, 2), "voice_s": round(vs, 2), "grounding_s": round(max(tot - vs, 0), 2),
                                    "prompt_tokens": sum(c[1] for c in calls), "out_tokens": sum(c[2] for c in calls)}
             except Exception as e:  # noqa: BLE001
-                return 500, {"reply": f"Something went wrong ({type(e).__name__}).", "ms": 0, "more": False}
+                return 500, {"reply": f"Something went wrong ({type(e).__name__}).", "action": None, "end": False, "ms": 0, "more": False}
             if self.voice is not None:
                 self.voice.more = False
             if not MORE.match(text):
                 self.prev[device] = text
             head, self.rest[device] = chunk(spoken(raw))
-            return 200, {"reply": head, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
+            return 200, {"reply": head, "action": None, "end": False, "ms": int((time.monotonic() - t0) * 1000), "more": bool(self.rest[device])}
 
     def reap(self) -> bool:
         """Unload the voice after the idle time."""
