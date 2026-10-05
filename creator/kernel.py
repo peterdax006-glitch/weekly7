@@ -35,18 +35,21 @@ from typing import Any, Callable, Iterator, Mapping, Optional, Protocol, Sequenc
 
 from creator import build as B
 from creator import device
-from creator import fundamentals as FU
 from creator import gaps as G
 from creator import model as M
 from creator import objective as O
 from creator import planner as P
 from creator import sandbox as S
 from creator import selfmodel as SM
-from creator import slowpath as SP
 from creator import testrun as T
 from creator import treecache as TC
 from creator.audit import checks as AUD
 from creator.ledger import Ledger
+
+
+def _sp():                                  # the metrics bus loads on first use, not at start
+    from creator import slowpath
+    return slowpath
 
 HIDE = ("creator/devbench/sealed",)
 OMIT = ("state/research",)                          # never checked out in a sandbox (44k of 47k tracked files; 2 Oct timeout)
@@ -567,17 +570,17 @@ def plan_one(cfg: KernelConfig, led: Ledger, main: Assessed, base_sha: str, excl
 
 def _cycle(cfg: KernelConfig, worker: Worker, n: int = 1, led: Optional[Ledger] = None) -> CycleReport:
     t0 = time.monotonic()
-    SP.ensure_state(cfg.state)                          # P0.2: the metrics bus writes under this kernel's state directory
+    _sp().ensure_state(cfg.state)                          # P0.2: the metrics bus writes under this kernel's state directory
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
     main, recovered, stop = prepare(cfg, led)
-    SP.event("kernel", goal_id=f"cycle{n}", step="prepare", wall_s=time.monotonic() - t0, outcome="ok" if stop is None else "audit_red")
+    _sp().event("kernel", goal_id=f"cycle{n}", step="prepare", wall_s=time.monotonic() - t0, outcome="ok" if stop is None else "audit_red")
     if stop is not None:
         return CycleReport(n, "AUDIT_RED", reason=stop, seconds=round(time.monotonic() - t0, 1))
     assert main is not None
     base_sha = S.head(cfg.repo)
     t_plan = time.monotonic()
     plan = plan_one(cfg, led, main, base_sha)
-    SP.event("planner", goal_id=plan.package_id if plan else f"cycle{n}", step="plan", wall_s=time.monotonic() - t_plan,
+    _sp().event("planner", goal_id=plan.package_id if plan else f"cycle{n}", step="plan", wall_s=time.monotonic() - t_plan,
              outcome="ok" if plan else "nothing_to_do")
     if plan is None:
         return CycleReport(n, "NOTHING_TO_DO", reason="no unblocked worker gap and nothing to shrink",
@@ -649,7 +652,7 @@ class _Stages:
             raise
         finally:
             dt_s = time.monotonic() - t
-            SP.event("worker" if name == "worker" else "kernel", goal_id=self.goal_id, step=name, wall_s=dt_s, outcome=outcome)
+            _sp().event("worker" if name == "worker" else "kernel", goal_id=self.goal_id, step=name, wall_s=dt_s, outcome=outcome)
             self.sec[name] = round(self.sec.get(name, 0.0) + dt_s, 3)
             if pid:
                 _fast_stage_end(pid, dt_s)
@@ -666,7 +669,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
     post-merge verification, rollback) when several run in parallel; `cancel` (an Event) is checked between phases."""
     t_start = time.monotonic()
     t0 = t_start if t0 is None else t0
-    SP.ensure_state(cfg.state)
+    _sp().ensure_state(cfg.state)
     stage = _Stages(plan.package_id)
     stage.sec["before_execute"] = round(t_start - t0, 3)         # prepare + curriculum/student planning (the caller's stamp)
     led = led or Ledger(cfg.ledger_path, evidence_root=cfg.repo)
@@ -732,6 +735,7 @@ def execute(cfg: KernelConfig, worker: Worker, plan: P.Plan, main: Assessed, bas
             weak = AUD.check_test_weakening(before, after)
             planted = AUD.check_hardcoded_answers(repo=sb.path, sealed_root=cfg.sealed_root or cfg.repo)
         with stage("fundamentals"):
+            from creator import fundamentals as FU
             fund = FU.evaluate_candidate(sb.path, base_sha, list(change.paths), plan.step, work.notes)   # advisory: recorded, never blocking
         cand: list[Assessed] = []
         for r in range(2):
@@ -956,4 +960,5 @@ def summary(reports: Sequence[CycleReport]) -> dict[str, Any]:
 
 def status(cfg: KernelConfig) -> Mapping[str, Any]:
     led = Ledger(cfg.ledger_path, evidence_root=cfg.repo)
+    from creator import fundamentals as FU
     return {**G.summary(led), "fundamentals": FU.status_line(cfg.state)}

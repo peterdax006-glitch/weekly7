@@ -56,6 +56,7 @@ CAPABILITIES: dict[str, str] = {
     "selfteach": "creator.selfteach",
     "codetrust": "creator.codetrust",
     "adopt": "creator.adopt",
+    "engineloop": "creator.engineloop",
 }
 
 _loaded: dict[str, Any] = {}

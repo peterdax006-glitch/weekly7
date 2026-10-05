@@ -856,8 +856,34 @@ def minutes(t: Target, man: Mapping[str, Any]) -> dict[str, float]:
     dev_s = dev_tok * 4 * math.ceil(ep) / (3 * TRAIN_TOK_S[t.size])
     pref_s = float(man["rows"]["pref"]) * 3 * t.max_seq / 4 / TRAIN_TOK_S[t.size] * 2 if man["rows"]["pref"] >= 20 else 0.0
     tr = (train_s + dev_s + pref_s) / 60.0 + OVERHEAD_MIN[t.size]
+    basis = "trainmix"
+    meas = _measured_train_s(t, man, ep)                         # P1.5: the measured-runs model (creator.gpueff), the table above is its fallback
+    if meas is not None:
+        tr = (meas[0] + dev_s + pref_s) / 60.0 + max(0.0, OVERHEAD_MIN[t.size] - meas[1] / 60.0)
+        basis = "gpueff"
     return {"train": round(tr, 1), "eval": float(t.eval_minutes), "gate": 12.0 if t.gate else 0.0, "epochs": ep, "steps": steps_for(t, man),
-            "total": round(tr + t.eval_minutes + (12.0 if t.gate else 0.0) + 1.0, 1)}
+            "total": round(tr + t.eval_minutes + (12.0 if t.gate else 0.0) + 1.0, 1), "basis": basis}
+
+
+_EFF: list[Any] = []                                             # cached creator.gpueff.Eff (built once per process, from the recorded GPU runs)
+
+
+def _measured_train_s(t: Target, man: Mapping[str, Any], epochs: float) -> Optional[tuple[float, float]]:
+    """(train seconds, load seconds) of this module from the measured runs of the same model size, or None to use the calibrated table.
+    Needs >= 2 measured runs of the size; NUPEN_JOBCOST=off disables it. Any failure falls back silently (an estimate never breaks a build)."""
+    if os.environ.get("NUPEN_JOBCOST", "").lower() in ("off", "0", "no"):
+        return None
+    try:
+        from creator import gpueff as GE
+        if not _EFF:
+            _EFF.append(GE.Eff(GE.load_runs()))
+        eff = _EFF[0]
+        if t.size not in eff.rate or sum(1 for r in eff.runs if r["size"] == t.size) < 2:
+            return None
+        padded = GE.padded_tokens(float(man["rows"]["train"]) * epochs, None, float(man["tokens_train"]) * epochs)
+        return eff.train_s(t.size, padded), eff.load_s.get(t.size, 60.0)
+    except Exception:                                            # noqa: BLE001
+        return None
 
 
 def cap_minutes(train_minutes: float) -> float:
