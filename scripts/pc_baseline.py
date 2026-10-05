@@ -4,6 +4,8 @@
   python scripts/lowprio.py python scripts/pc_baseline.py run    --suite <suite dir> --out <run dir> [--limit N] [--only id ...]
   python scripts/lowprio.py python scripts/pc_baseline.py calib  --heldout <heldout_CALIB.jsonl> --out <run dir> [--limit N]
   python scripts/pc_baseline.py report --out <run dir>
+  R2/R4 switches of the fast path (any coder slot; the model is the CODER slot spec):
+    ... run --fast --repair none|line|regen|line+regen|regen+line --repair-rounds N [--coder-moe | --coder-gguf <file>] [--lean-prefill]
 
 The suite = the agent bake-off's held-out tasks (function tasks from the export eval split, feature/bug tasks on the minishop app) with their
 hidden tests; nothing here trains on them. `run` drives every task through creator.team with the REAL slot actors of creator.slotteam:
