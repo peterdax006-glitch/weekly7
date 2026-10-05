@@ -60,3 +60,18 @@ def test_pack_respects_the_token_budget(tmp_path: Path) -> None:
     assert "return [record_timing(f, 0)" in text
     tiny = ix.pack(hits, max_tokens=10)
     assert len(tiny) <= int(10 * 3.6)
+
+
+def test_whole_tree_update_uses_the_stat_short_circuit(tmp_path: Path) -> None:
+    root = _repo(tmp_path)
+    ix = Index(root, db=tmp_path / "ix.sqlite")
+    assert ix.update()["parsed"] == 2                                  # full listing, dirs remembered
+    assert ix.update()["parsed"] == 0                                  # quick pass: nothing moved
+    (root / "pkg" / "runner.py").write_text("def only_one(path):\n    return path\n", encoding="utf-8")
+    assert ix.update()["parsed"] == 1 and ix.defs("select_tests") == [] and len(ix.defs("only_one")) == 1
+    assert ix.locate("only one")[0].qual == "only_one"                 # the in-memory tables were rebuilt
+    (root / "pkg" / "fresh.py").write_text("def brand_new():\n    return 1\n", encoding="utf-8")   # a new file: full listing finds it
+    assert ix.update()["parsed"] == 1 and len(ix.defs("brand_new")) == 1
+    (root / "pkg" / "fresh.py").unlink()
+    ix.update()
+    assert ix.defs("brand_new") == []
