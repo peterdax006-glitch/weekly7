@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hmac
 import json
+import random
 import re
 import secrets
 import socket
@@ -86,8 +87,8 @@ def lan_ip() -> str:
 
 
 PERSONAS = {
-    "butler": ("Speak as a calm, witty British AI assistant: precise, polite, understated, with light dry wit. Address the owner as "
-               "\"sir\". Keep it to one to three short spoken sentences, no lists, no brackets, no markdown."),
+    "butler": ("Speak as a calm, precise British AI butler: polite, understated, with light dry wit. Always address the owner as "
+               "\"sir\" at least once. Keep it to one or two short spoken sentences, no lists, no brackets, no markdown."),
     "plain": "Speak plainly and briefly, in one to three short spoken sentences, no lists or markdown.",
 }
 
@@ -205,6 +206,20 @@ def make_voice(T: Any, model: str, persona: str, ram_free: Optional[Callable[[],
                     lm.proc.kill()
                 finally:
                     lm.job.close()
+
+        seed: Optional[int] = 0                                # None = a fresh random seed per call (chat variety)
+
+        def _post(self, port: int, msgs: list[dict[str, str]], max_tokens: int, temperature: float) -> tuple[str, int, int]:
+            import urllib.request
+            seed = random.randrange(1, 2**31) if self.seed is None else self.seed
+            body = json.dumps({"messages": msgs, "max_tokens": max_tokens, "temperature": temperature, "seed": seed,
+                               "cache_prompt": True}).encode()
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions", data=body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+                d = json.loads(r.read().decode("utf-8"))
+            u = d.get("usage") or {}
+            return (str(d["choices"][0]["message"].get("content") or ""), int(u.get("prompt_tokens") or 0),
+                    int(u.get("completion_tokens") or 0))
 
         def ask(self, messages: list[dict[str, str]], max_tokens: int, temperature: float = 0.2) -> Any:
             cap = MORE_TOKENS if self.more else SPOKEN_TOKENS
@@ -685,7 +700,8 @@ ABOUT = re.compile(r"\b(?:status|progress|who are you|what are you (?:working on
                    r"how(?:'s| is) (?:the )?(?:training|progress|nupen))\b", re.I)
 CHAT_SYSTEM = ("You are Nupen, the owner's personal voice assistant on their phone. Answer the owner's message directly and helpfully from general "
                "knowledge and common sense, as in a friendly conversation. Never mention documents, files, code, records or your own status "
-               "unless asked. If you do not know, say so briefly. One to three short spoken sentences.")
+               "unless asked. If you do not know, say so briefly. Calm, precise British register with light dry wit. Always address the owner as "
+               "\"sir\" at least once. At most two short spoken sentences unless the owner asks you to say more. Never name a film character or actor.")
 REWRITE_SYSTEM = ("You are Nupen. Answer the owner's question in one or two short spoken sentences using ONLY the facts given. Do not read the "
                   "facts out, do not use brackets, file names, lists or markdown; say it the way you would to a friend.")
 HIST_TURNS = 6
@@ -699,7 +715,25 @@ def clean_reply(t: str) -> str:
     t = _BRACKET.sub(" ", t).replace("/no_think", " ")
     t = re.sub("[\U0001F000-\U0001FFFF☀-➿️‍]", "", t)           # emoji are not speech
     t = re.sub(r"[*#`_]+|^\s*(?:[-\u2022]|\d{1,2}[.)])\s+", " ", t, flags=re.M)
-    return re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"\s+([,.!?;:])", r"", re.sub(r"\s+", " ", t)).strip()
+
+
+_SIR_WORD = r"\bsir\b"
+_SIR = re.compile(_SIR_WORD, re.I)
+
+
+def two_sentences(t: str) -> str:
+    """Spoken chat is two sentences at most; 'say more' asks again for the longer answer."""
+    parts = re.findall(r"[^.!?]+[.!?]+(?:[\"')]+)?\s*|[^.!?]+$", t)
+    return "".join(parts[:2]).strip() if len(parts) > 2 else t
+
+
+def add_sir(t: str) -> str:
+    """A chat reply addressed to the owner carries one "sir": added before the final punctuation of the last sentence when missing."""
+    if not t or _SIR.search(t) or len(t.split()) > 45:
+        return t
+    m = re.search(r"([.!?]+[\"')]*)\s*$", t)
+    return (t[:m.start()] + ", sir" + t[m.start():]) if m else t + ", sir."
 
 
 class Core:
@@ -751,15 +785,17 @@ class Core:
         conv.speak.retries = 0                                 # the facts are rewritten below, not repaired here
         return conv
 
-    def _ask(self, messages: list[dict[str, str]], more: bool = False) -> str:
+    def _ask(self, messages: list[dict[str, str]], more: bool = False, varied: bool = False) -> str:
         if self.chat is not None:
             return self.chat(messages, more)
         self._ensure_voice()
         self.voice.more = more
+        self.voice.seed = None if varied else 0                # chat varies (random seed); about-Nupen stays deterministic
         try:
-            return str(self.voice.ask(messages, MORE_TOKENS if more else SPOKEN_TOKENS, 0.5).text)
+            return str(self.voice.ask(messages, MORE_TOKENS if more else SPOKEN_TOKENS, 0.9 if varied else 0.5).text)
         finally:
             self.voice.more = False
+            self.voice.seed = 0
 
     def _about(self, device: str, text: str) -> str:
         """Grounded facts about Nupen, rewritten by the model into short speech; never the raw record text."""
@@ -776,7 +812,8 @@ class Core:
     def _chat(self, device: str, text: str, more: bool) -> str:
         h = self.hist.setdefault(device, deque(maxlen=2 * HIST_TURNS))
         msgs = [{"role": "system", "content": CHAT_SYSTEM}] + list(h) + [{"role": "user", "content": text}]
-        return clean_reply(self._ask(msgs, more)) or _NOANSWER
+        t = clean_reply(self._ask(msgs, more, varied=True))
+        return add_sir(t if more else two_sentences(t)) or _NOANSWER
 
     def _log(self, device: str, text: str, reply: str, intent: str, action: Any, ms: int) -> None:
         if self.log_path is None:
