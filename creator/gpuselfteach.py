@@ -54,11 +54,16 @@ def mean_ci(xs: Sequence[float]) -> tuple[float, float, float]:
 
 
 def heldout_set(questions: Sequence[Any], home_rows: Sequence[Mapping[str, Any]], bank: Mapping[str, Mapping[str, Any]], home_model: str,
-                n: int) -> tuple[list[tuple[Any, int]], float]:
+                n: int, trained: Sequence[str] = ()) -> tuple[list[tuple[Any, int]], float]:
     """(question, home correct) pairs: answered by the home model with the control prompt, not banked, newer than every banked question.
-    Deterministic order (hash of the id), at most n."""
-    cut = max((float(r.get("t") or 0.0) for r in bank.values()), default=-math.inf)
+    Deterministic order (hash of the id), at most n. `trained`: further question ids the tuned model was trained on (a training mix beyond the
+    bank, e.g. creator.trainmix's ladder-distill rows): they are excluded and the time cut moves past them too (only ever stricter)."""
     by = {q.qid: q for q in questions}
+    bank = dict(bank)
+    for qid in trained:
+        if qid not in bank:
+            bank[qid] = {"t": float(by[qid].t) if qid in by else 0.0}
+    cut = max((float(r.get("t") or 0.0) for r in bank.values()), default=-math.inf)
     home: dict[str, int] = {}
     for r in home_rows:
         if r.get("strategy") == "plain" and r.get("model") == home_model and r.get("qid") in by and r.get("correct") is not None:
@@ -125,9 +130,16 @@ def heldout_gate_job(ctx: Mapping[str, Any]) -> dict[str, Any]:
     if got is None:
         return {"verdict": "NOT_RUN", "why": f"the pulse does not serve {tuned}"}
     qs = R.generate(R.repos(repo), state)
-    pairs, cut = heldout_set(qs, R._jsonl(R.path(state)), R.trace_bank(state), home, int(a.get("n") or 400))
+    trained: list[str] = []
+    if a.get("train_qids"):                          # the training mix's question ids (creator.trainmix writes train_qids.json); unreadable = not run
+        try:
+            trained = [str(x) for x in json.loads(Path(str(a["train_qids"])).read_text(encoding="utf-8"))]
+        except (OSError, ValueError) as e:
+            return {"verdict": "NOT_RUN", "why": f"train_qids unreadable: {e}"}
+    pairs, cut = heldout_set(qs, R._jsonl(R.path(state)), R.trace_bank(state), home, int(a.get("n") or 400), trained)
     res = run_gate(GP.PodLLM(got[0], tuned, got[1]), pairs, int(ctx.get("workers") or 8), float(ctx.get("deadline") or math.inf))
     rec = {"at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"), "pulse": ctx.get("pulse"), "tuned": tuned, "home": home,
+           "trained_extra": len(trained),
            "heldout_after_t": None if not math.isfinite(cut) else cut, "candidates": len(pairs), **res}
     p = gate_path(state)
     p.parent.mkdir(parents=True, exist_ok=True)

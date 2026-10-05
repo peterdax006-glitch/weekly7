@@ -69,6 +69,9 @@ def use_unsloth(force_hf: bool) -> bool:
         return False
 
 
+GRAD_CKPT = {"on": True}            # --no-grad-ckpt: off when the measured peak VRAM allows (faster steps, more memory)
+
+
 def load(base: str, max_seq: int, qlora: bool, r: int, alpha: int, force_hf: bool, adapter: str = "", train: bool = True) -> tuple[Any, Any, str]:
     """(model with a trainable LoRA, tokenizer, backend). `adapter`: continue from an existing LoRA (e.g. SFT before DPO)."""
     if use_unsloth(force_hf):
@@ -76,7 +79,7 @@ def load(base: str, max_seq: int, qlora: bool, r: int, alpha: int, force_hf: boo
         model, tok = FastLanguageModel.from_pretrained(model_name=adapter or base, max_seq_length=max_seq, load_in_4bit=qlora, dtype=None)
         if not adapter:
             model = FastLanguageModel.get_peft_model(model, r=r, lora_alpha=alpha, lora_dropout=0.0, target_modules=TARGETS, bias="none",
-                                                     use_gradient_checkpointing="unsloth", random_state=3407)
+                                                     use_gradient_checkpointing="unsloth" if GRAD_CKPT["on"] else False, random_state=3407)
         return model, tok, "unsloth"
     import torch
     from peft import LoraConfig, PeftModel, get_peft_model
@@ -131,7 +134,9 @@ def common_args(a: argparse.Namespace, cls: Any, **extra: Any) -> Any:
     kw: dict[str, Any] = dict(output_dir=str(Path(a.out) / "ckpt"), per_device_train_batch_size=a.batch, gradient_accumulation_steps=a.accum,
                               learning_rate=a.lr, num_train_epochs=a.epochs, max_steps=a.max_steps if a.max_steps else -1,
                               logging_steps=1, save_strategy="no", report_to=[], bf16=bf16, fp16=cuda and not bf16, seed=3407,
-                              lr_scheduler_type="cosine", warmup_ratio=0.05, gradient_checkpointing=cuda and a.backend == "hf",
+                              lr_scheduler_type="cosine", warmup_ratio=0.05,
+                              gradient_checkpointing=cuda and a.backend == "hf" and GRAD_CKPT["on"],
+                              group_by_length=bool(getattr(a, "group_by_length", False)),
                               use_cpu=not cuda)
     kw.update(extra)
     import inspect
@@ -148,17 +153,70 @@ def cmd_sft(a: argparse.Namespace) -> dict[str, Any]:
     if not rows:
         raise SystemExit(f"no training rows in {a.data} fit {a.max_seq} tokens ({too_long} too long)")
     ds = Dataset.from_list(rows)
-    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=False)
-    tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, processing_class=tok)
+    ev_rows: list[dict[str, Any]] = []
+    if getattr(a, "eval_data", "") and Path(a.eval_data).is_file():
+        ev_rows, _ = fit_rows(to_prompt_completion(read_jsonl(Path(a.eval_data))), tok, a.max_seq)
+    extra: dict[str, Any] = {}
+    callbacks: list[Any] = []
+    if ev_rows:                         # early stopping on the held-out dev split: evaluate ~4x per epoch, keep the best adapter
+        es = eval_every(len(rows), a.batch, a.accum, a.eval_steps)
+        extra = dict(eval_strategy="steps", evaluation_strategy="steps", eval_steps=es, save_strategy="steps", save_steps=es,
+                     save_total_limit=2, load_best_model_at_end=True, metric_for_best_model="eval_loss", greater_is_better=False,
+                     per_device_eval_batch_size=a.batch)
+        from transformers import EarlyStoppingCallback
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=max(1, a.patience)))
+    cfg = common_args(a, SFTConfig, max_length=a.max_seq, completion_only_loss=True, packing=bool(getattr(a, "packing", False)), **extra)
+    tr = SFTTrainer(model=model, args=cfg, train_dataset=ds, eval_dataset=Dataset.from_list(ev_rows) if ev_rows else None,
+                    processing_class=tok, callbacks=callbacks or None)
     st = tr.train()
     ad = Path(a.out) / "adapter"
     model.save_pretrained(str(ad))
     tok.save_pretrained(str(ad))
     losses = [h["loss"] for h in tr.state.log_history if "loss" in h]
+    evl = [(h.get("step"), h["eval_loss"]) for h in tr.state.log_history if "eval_loss" in h]
+    if ev_rows:
+        import shutil
+        shutil.rmtree(Path(a.out) / "ckpt", ignore_errors=True)       # the best weights are loaded and saved as adapter/; checkpoints go
     return write_result(Path(a.out), "sft", {"backend": a.backend, "base": a.base, "rows": len(rows), "too_long": too_long, "steps": st.global_step,
                                              "loss_first": losses[0] if losses else None, "loss_last": losses[-1] if losses else None,
-                                             "seconds": round(time.time() - t0, 1), "adapter": str(ad),
+                                             "dev_rows": len(ev_rows), "eval_loss": evl,
+                                             "eval_loss_best": min((v for _s, v in evl), default=None),
+                                             "best_step": getattr(tr.state, "best_global_step", None) or (min(evl, key=lambda x: x[1])[0] if evl else None),
+                                             "max_steps_planned": tr.state.max_steps,
+                                             "stopped_early": bool(evl) and st.global_step < tr.state.max_steps,
+                                             "seconds": round(time.time() - t0, 1), "adapter": str(ad), **perf(a, st),
                                              "files": files_info(sorted(ad.glob("adapter_*")))})
+
+
+def perf(a: argparse.Namespace, st: Any) -> dict[str, Any]:
+    """What the scheduler learns from a run: peak VRAM (GB), steps/s, and the speed settings used."""
+    out: dict[str, Any] = {"grad_ckpt": GRAD_CKPT["on"], "packing": bool(getattr(a, "packing", False)),
+                           "group_by_length": bool(getattr(a, "group_by_length", False)), "batch": a.batch, "accum": a.accum}
+    try:
+        import torch
+        if torch.cuda.is_available():
+            out["peak_vram_gb"] = round(torch.cuda.max_memory_reserved() / 2**30, 2)
+            out["gpu"] = torch.cuda.get_device_name(0)
+    except Exception:                                   # noqa: BLE001 - perf facts are optional
+        pass
+    m = getattr(st, "metrics", None) or {}
+    if m.get("train_steps_per_second"):
+        out["steps_per_s"] = m["train_steps_per_second"]
+    try:
+        import importlib
+        for mod in ("flash_attn", "xformers"):
+            out[f"has_{mod}"] = importlib.util.find_spec(mod) is not None
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
+
+
+def eval_every(rows: int, batch: int, accum: int, eval_steps: int = 0) -> int:
+    """Optimizer steps between dev evaluations: `eval_steps` when given, else ~4 per epoch (at least 1)."""
+    if eval_steps > 0:
+        return eval_steps
+    per_epoch = max(1, -(-rows // max(1, batch * accum)))
+    return max(1, per_epoch // 4)
 
 
 def cmd_pref(a: argparse.Namespace) -> dict[str, Any]:
@@ -249,7 +307,11 @@ def cmd_lora_gguf(a: argparse.Namespace) -> dict[str, Any]:
     t0 = time.time()
     out = Path(a.out)
     conv = Path(a.convert_dir or a.llama_cpp) / "convert_lora_to_gguf.py"
-    _run([sys.executable, str(conv), str(a.adapter), "--base", str(a.base), "--outfile", str(out), "--outtype", "f16"])
+    base = str(a.base)
+    if not Path(base).is_dir():                         # an HF repo id: the converter wants a local folder with the base's config files
+        from huggingface_hub import snapshot_download
+        base = snapshot_download(base, allow_patterns=["*.json", "*.txt", "*.model", "*.jinja"])
+    _run([sys.executable, str(conv), str(a.adapter), "--base", base, "--outfile", str(out), "--outtype", "f16"])
     return write_result(out.parent, "lora_gguf", {"seconds": round(time.time() - t0, 1), "files": files_info([out])})
 
 
@@ -259,10 +321,10 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
     adapter = str(out / "adapter")
     if a.pref:
         pa = argparse.Namespace(**vars(a))
-        pa.data, pa.adapter, pa.out = a.pref, adapter, str(out / a.method)
+        pa.data, pa.adapter, pa.out, pa.eval_data = a.pref, adapter, str(out / a.method), ""
         res[a.method] = cmd_pref(pa)
         adapter = str(Path(pa.out) / "adapter")
-    if a.llama_cpp:
+    if a.llama_cpp and not getattr(a, "no_merge", False):
         ma = argparse.Namespace(**vars(a))
         ma.adapter, ma.out = adapter, str(out / "merged")
         ma.base = a.merge_base or a.base                  # QLoRA trains on a 4-bit repo; the merge always goes into the 16-bit weights
@@ -273,6 +335,13 @@ def cmd_pipeline(a: argparse.Namespace) -> dict[str, Any]:
         if not a.keep_merged:
             import shutil
             shutil.rmtree(out / "merged", ignore_errors=True)
+    if a.llama_cpp and a.adapter_gguf:                    # the adapter alone (tens of MB): what comes home; never fails the pipeline
+        la = argparse.Namespace(**vars(a))
+        la.adapter, la.out = adapter, str(out / "adapter.gguf")
+        try:
+            res["lora_gguf"] = cmd_lora_gguf(la)
+        except (SystemExit, Exception) as e:            # noqa: BLE001 - the merged GGUF and the adapter are the results that matter
+            res["lora_gguf"] = write_result(out, "lora_gguf", {"error": str(e)[-800:]})
     return write_result(out, "pipeline", {"steps": list(res)})
 
 
@@ -297,6 +366,12 @@ def main(argv: list[str]) -> int:
         p.add_argument("--accum", type=int, default=8)
         p.add_argument("--beta", type=float, default=0.1)
         p.add_argument("--method", choices=["dpo", "orpo"], default="dpo")
+        p.add_argument("--eval-data", default="", help="held-out dev split (same format): early stopping on its loss, best adapter kept")
+        p.add_argument("--eval-steps", type=int, default=0, help="optimizer steps between dev evaluations (0 = ~4 per epoch)")
+        p.add_argument("--patience", type=int, default=2, help="dev evaluations without improvement before training stops")
+        p.add_argument("--packing", action="store_true", help="pack short rows into max-seq sequences (fewer steps; loss on the answers only)")
+        p.add_argument("--no-grad-ckpt", action="store_true", help="no gradient checkpointing (faster; only when the measured peak VRAM allows)")
+        p.add_argument("--group-by-length", action="store_true", help="batch rows of similar length (less padding when not packing)")
     p = sub.add_parser("sft")
     train_opts(p)
     p = sub.add_parser("pref")
@@ -329,9 +404,12 @@ def main(argv: list[str]) -> int:
     p.add_argument("--keep-f16", action="store_true")
     p.add_argument("--keep-merged", action="store_true")
     p.add_argument("--merge-base", default="", help="16-bit base for the merge (QLoRA runs train on a pre-quantised repo)")
+    p.add_argument("--adapter-gguf", action="store_true", help="also write the adapter alone as GGUF (llama-server --lora)")
+    p.add_argument("--no-merge", action="store_true", help="no merge / f16 / quantised GGUF: the adapter (and its GGUF) only - served as base + --lora")
     p.add_argument("--bf16", action="store_true")
     a = ap.parse_args(argv)
     a.backend = "hf"
+    GRAD_CKPT["on"] = not getattr(a, "no_grad_ckpt", False)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     {"sft": cmd_sft, "pref": cmd_pref, "merge": cmd_merge, "gguf": cmd_gguf, "lora-gguf": cmd_lora_gguf, "pipeline": cmd_pipeline}[a.cmd](a)
     return 0
