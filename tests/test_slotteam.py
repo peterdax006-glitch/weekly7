@@ -127,3 +127,37 @@ def test_fast_prefill_holds_search_and_replace_head():
     assert pre.startswith("<<<<<<< SEARCH\ndef f(x):") and pre.count("raise NotImplementedError") == 1
     assert pre.endswith("=======\ndef f(x):\n    \"\"\"Doc.\"\"\"\n")
     assert S.fast_prefill({"family": "app"}) == ""
+
+
+# ---- h94 speed: tests decide, router slot, fixed-prefix-first prompt
+def test_tests_decided_only_when_runnable_tests_gave_a_verdict(tmp_path: Path):
+    ws = tmp_path / "ws"
+    (ws / "tests").mkdir(parents=True)
+    ctx = type("C", (), {"ws": ws})()
+    assert not S.tests_decided(ctx, "PASS")                       # no test file: the checker is still needed
+    (ws / "tests" / "test_x.py").write_text("def test_a():\n    pass\n", encoding="utf-8")
+    assert S.tests_decided(ctx, "PASS") and S.tests_decided(ctx, "FAIL FAILED: x") and S.tests_decided(ctx, "FAIL apply: no match")
+    assert not S.tests_decided(ctx, "")
+
+
+def test_prefix_first_puts_the_task_last_and_keeps_the_fixed_text_identical():
+    t1 = {"family": "fn", "name": "foo", "examples": "foo(1) == 2", "stub": "def foo(x):\n    raise NotImplementedError\n"}
+    t2 = dict(t1, name="bar", examples="bar(3) == 9")
+    old = S.PREFIX_FIRST
+    try:
+        S.PREFIX_FIRST = True
+        a, b = S.fast_code_user(t1, ""), S.fast_code_user(t2, "")
+        n = len(__import__("os").path.commonprefix([a, b]))
+        assert "Edit format" in a[:n] and a.rstrip().endswith("foo(1) == 2")
+        S.PREFIX_FIRST = False
+        c = S.fast_code_user(t1, "")
+        assert len(__import__("os").path.commonprefix([c, S.fast_code_user(t2, "")])) < n
+    finally:
+        S.PREFIX_FIRST = old
+
+
+def test_coder06_slot_exists_and_slot_constraint_is_in_the_cache_key():
+    assert "CODER06" in S.default_specs() and S.default_specs()["CODER06"].model.name.startswith("Qwen3-0.6B")
+    a = TM.Envelope("g", "CODE", inputs=["b:abcdef12"])
+    b = TM.Envelope("g", "CODE", inputs=["b:abcdef12"], constraints=[S.COUPLED_SLOT + "CODER06"])
+    assert TM._sig(a) != TM._sig(b)
