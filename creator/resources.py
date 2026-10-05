@@ -597,3 +597,115 @@ def simulate(cores: int = 14, total_gb: float = 33.8, base_gb: float = 8.0, kind
         by[p.kind] = by.get(p.kind, 0) + 1
     return {"workers": len(running), "by_kind": by, "cpu_pct": round(m.cpu_pct, 1), "demand_cores": round(sum(p.cores for p in running), 1),
             "ram_used_pct": round(100.0 * (1 - m.free_gb / total_gb), 1)}
+
+
+# ------------------------------------------------------------------------------------------------ R11: resource-aware model config
+# Owner 5 Oct 2026: "Nupen knows how much compute/memory it has and adjusts, using only the part of the brain the current task needs."
+# plan_models() turns one reading of the machine (free RAM, CPU load, or a GPU pod profile) into the model/quant/ctx/threads/parallel
+# slots to run THIS task with. Pure function of its inputs: tests pass fake readings. The same code serves both profiles.
+FLOOR_FREE_GB = 1.5                                 # never load a model that would leave less than this free (owner rule)
+OVERHEAD_X = 1.1                                    # resident size = file size x this + KV cache
+KV_GB_PER_1K = 0.12                                 # KV cache per 1k context tokens per slot (Qwen3 0.6B/1.7B/30B-A3B, f16: ~0.10-0.12)
+# name -> {quants: [(label, file, gb)] best first, tok_s per profile (measured on the PC 5 Oct; None = pending, `tok_s_assumed` is a guess),
+# ctx, small = True when several parallel slots are worth it}
+MODEL_CATALOG: dict[str, dict[str, Any]] = {
+    "C06": {"quants": [("Q4_K_M", "Qwen3-0.6B-Q4_K_M.gguf", 0.40)], "tok_s": {"pc": 58.0, "gpu": 400.0}, "ctx": 4096, "small": True},
+    "C17": {"quants": [("Q4_K_M", "slots/CODER-1.7B.gguf", 1.11)], "tok_s": {"pc": 22.0, "gpu": 250.0}, "ctx": 8192, "small": True},
+    "MOE": {"quants": [("Q4_K_M", "Qwen3-30B-A3B-Q4_K_M.gguf", 18.6), ("Q3_K_M", "Qwen3-30B-A3B-Q3_K_M.gguf", 14.7),
+                       ("Q2_K", "Qwen3-30B-A3B-Q2_K.gguf", 11.3)],
+            "tok_s": {"pc": None, "gpu": None}, "tok_s_assumed": {"pc": 9.0, "gpu": 120.0}, "ctx": 8192, "small": False},
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class ModelPlan:
+    name: str
+    loadable: bool
+    quant: str = ""
+    file: str = ""
+    ctx: int = 0
+    threads: int = 0
+    parallel: int = 1
+    resident_gb: float = 0.0
+    reason: str = ""
+
+
+def resident_gb(gb: float, ctx: int, parallel: int = 1) -> float:
+    return round(gb * OVERHEAD_X + KV_GB_PER_1K * (ctx / 1024.0) * max(1, parallel), 2)
+
+
+def free_cores(m: Machine) -> float:
+    """Cores nobody else is using: logical cores minus the busy ones (the scheduled cores' load when measured)."""
+    load = m.cpu_usable if m.cpu_usable >= 0 else m.cpu_pct
+    return max(0.0, m.cores * (1.0 - min(100.0, max(0.0, load)) / 100.0))
+
+
+def plan_models(m: Machine, want: list[str], profile: str = "pc", floor_gb: float = FLOOR_FREE_GB, gpu_vram_gb: Optional[float] = None,
+                exists: Callable[[str], bool] = lambda f: True, catalog: Optional[dict[str, dict[str, Any]]] = None,
+                resident: Optional[dict[str, float]] = None) -> dict[str, ModelPlan]:
+    """Pick quant/ctx/threads/parallel for each wanted model, in priority order, against what is free right now.
+    profile 'pc': budget = free RAM (+ what our already-resident models hold) minus floor_gb; threads from the free cores, capped.
+    profile 'gpu': budget = gpu_vram_gb (RAM is not the limit); many threads are not needed, many parallel slots are.
+    A model that fits at no quant is not loadable (reason says why); a bigger quant is taken only if it fits with the floor intact."""
+    cat = catalog or MODEL_CATALOG
+    gpu = profile == "gpu"
+    mine = sum((resident or {}).values())
+    budget = (float(gpu_vram_gb or 0.0) if gpu else m.free_gb + mine - floor_gb)
+    cores = free_cores(m)
+    out: dict[str, ModelPlan] = {}
+    for name in want:
+        spec = cat.get(name)
+        if spec is None:
+            out[name] = ModelPlan(name, False, reason="unknown model")
+            continue
+        small = bool(spec.get("small"))
+        ctx = int(spec.get("ctx", 4096))
+        if gpu:
+            threads, par = 4, (4 if small else 8)
+        else:
+            threads = int(max(2, min(6, round(cores)))) if cores >= 2 else 2
+            par = 2 if small and cores >= 2 * threads else 1
+        pick: Optional[ModelPlan] = None
+        for label, f, gb in spec["quants"]:
+            if not exists(f):
+                continue
+            for p in sorted({par, 1}, reverse=True):
+                need = resident_gb(gb, ctx, p)
+                if need <= budget:
+                    pick = ModelPlan(name, True, label, f, ctx, threads, p, need, "fits")
+                    break
+            if pick:
+                break
+        if pick is None:
+            have = [q for q in spec["quants"] if exists(q[1])]
+            why = "no file present" if not have else f"needs {resident_gb(min(q[2] for q in have), ctx):.1f} GB, budget {max(0.0, budget):.1f} GB (floor {floor_gb} GB)"
+            out[name] = ModelPlan(name, False, reason=why)
+            continue
+        budget -= pick.resident_gb
+        out[name] = pick
+    return out
+
+
+def keep_warm_plan(usage: dict[str, int], plans: dict[str, ModelPlan], m: Machine, floor_gb: float = FLOOR_FREE_GB) -> dict[str, float]:
+    """Seconds each model stays loaded after its last call, from measured reuse (calls in the recent window): a model used for >= 20% of
+    calls stays 600 s, >= 5% stays 120 s, rarer ones unload at once; a large model is kept only while the machine keeps its floor."""
+    total = sum(usage.values()) or 1
+    out: dict[str, float] = {}
+    for name, p in plans.items():
+        share = usage.get(name, 0) / total
+        s = 600.0 if share >= 0.20 else 120.0 if share >= 0.05 else 0.0
+        if s and p.resident_gb > 4.0 and m.free_gb < floor_gb + 1.0:
+            s = 0.0                                                         # tight: let a big idle model go
+        out[name] = s
+    return out
+
+
+def slot_specs(plans: dict[str, ModelPlan], runtime: Path, warm: Optional[dict[str, float]] = None) -> dict[str, Any]:
+    """modelpool.SlotSpec per loadable plan (lazy import), ready for modelpool.slot_pool."""
+    from creator import modelpool as MP
+    out: dict[str, Any] = {}
+    for n, p in plans.items():
+        if p.loadable:
+            out[n] = MP.SlotSpec(n, Path(runtime) / "models" / p.file, threads=p.threads, ctx=p.ctx, max_tokens=512, parallel=p.parallel,
+                                 quant=p.quant, keep_warm_s=(warm or {}).get(n, 0.0))
+    return out
