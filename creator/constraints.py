@@ -758,3 +758,367 @@ def format_report(rep: dict[str, Any], n: int = 8) -> str:
     for s in rep.get("messages", []):
         lines.append("  " + s)
     return "\n".join(lines)
+
+
+# ================================================================================================ improvement engine (blueprint 7.2-7.4, 7.11)
+# DETECT (opportunity detectors over AGGREGATED metrics-bus events) -> VALUE (payback, one currency) -> DECIDE (top ROI, WIP 1,
+# 10% exploration) and the TARGET REGISTRY (a ratchet: targets only get stricter). Extra fields on bus events the detectors read:
+# sig (envelope signature), form_in/form_out (form-minimum tokens), cls (task class), err (error text), progress, queue,
+# idle_frac, cores. Shadow results: metrics/shadow.jsonl {cls, rung, pass_rate, cost, n, current}; skill scores: metrics/skills.jsonl.
+import random as _random
+import time as _time
+
+ENGINE_DIR = "engine"
+REPEAT_N = 5                    # same envelope signature this many times per week -> cache / code tool
+FAIL_N = 3                      # same error signature this many times in the window
+STUCK_K = 5                     # cycles of one goal without progress
+HOT_SHARE = 0.15                # a non-model actor above this share of total cost is a hot path
+TOKEN_WASTE_X = 2.0             # mean prompt+output tokens this many times the form minimum
+SHADOW_TOL = 0.02               # a smaller rung "passes" at current pass_rate minus this
+SHADOW_MIN_N = 20
+PAYBACK_MAX_DAYS = 3.0
+ROI_HORIZON_DAYS = 30.0
+EXPLORE_SHARE = 0.10
+RISK_ORDER = {"low": 0, "medium": 1, "high": 2}
+RISK_B_FACTOR = {"low": 1.0, "medium": 2.0, "high": 6.0}      # risk penalty on build cost (protected/core code = high)
+CALIB_KEEP = 10
+CALIB_CLAMP = (0.1, 2.0)
+DAY_S = 86400.0
+
+
+def cost_units(r: dict[str, Any], rate: Optional[dict[str, float]] = None) -> float:
+    """ONE currency, CPU-seconds on this PC: cpu_s (else wall_s); + RAM-seconds (GB x wall) when RAM binds; + GPU-$ x cpu_s_per_gpu_usd."""
+    rate = rate or {}
+    c = float(r.get("cpu_s") if r.get("cpu_s") is not None else r.get("wall_s") or 0)
+    if rate.get("ram_binds"):
+        c += float(r.get("ram_peak_mb") or 0) / 1024.0 * float(r.get("wall_s") or 0) * float(rate.get("ram_weight", 1.0))
+    return c + float(r.get("gpu_usd") or 0) * float(rate.get("cpu_s_per_gpu_usd", 0.0))
+
+
+def load_events(state: Path, days: float, now: Optional[float] = None) -> list[dict[str, Any]]:
+    now = _time.time() if now is None else now
+    d = Path(state) / "metrics"
+    out: list[dict[str, Any]] = []
+    for f in sorted(d.glob("events-*.jsonl")) if d.is_dir() else []:
+        for r in _jsonl(f):
+            if now - float(r.get("t") or 0) <= days * DAY_S:
+                out.append(r)
+    return out
+
+
+def _cand(kind: str, key: str, evidence: dict[str, Any], f_day: float, c0: float, c1: float, p: float, fix: str, risk: str = "low",
+          build_s: float = 1800.0) -> dict[str, Any]:
+    return {"kind": kind, "key": f"{kind}:{key}", "evidence": evidence, "f_per_day": round(f_day, 4), "c0": round(c0, 6), "c1": round(max(0.0, c1), 6),
+            "p": p, "fix": fix, "risk": risk, "build_s": build_s}
+
+
+def detect_hot_path(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
+    tot, by = 0.0, {}
+    for r in rows:
+        c = cost_units(r, rate)
+        tot += c
+        if not r.get("model"):
+            a = by.setdefault(str(r.get("actor")), [0.0, 0])
+            a[0] += c
+            a[1] += 1
+    return [_cand("hot_path", a, {"share": round(c / tot, 3), "total_cost": round(c, 2), "events": n}, n / days, c / n, c / n * 0.5, 0.6,
+                  "optimize / cache / vectorize / move to idle") for a, (c, n) in by.items() if tot and c / tot >= HOT_SHARE]
+
+
+def detect_repeated_call(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None, n_week: int = REPEAT_N) -> list[dict[str, Any]]:
+    g: dict[str, list[float]] = {}
+    for r in rows:
+        if r.get("model") and r.get("sig") and not r.get("cache_hit"):
+            g.setdefault(str(r["sig"]), []).append(cost_units(r, rate))
+    out = []
+    for s, cs in g.items():
+        per_week = len(cs) * 7.0 / days
+        if per_week >= n_week:
+            c0 = sum(cs) / len(cs)
+            out.append(_cand("repeated_call", s, {"calls": len(cs), "per_week": round(per_week, 1)}, (len(cs) - 1) / days, c0, c0 * 0.01, 0.9,
+                             "result cache keyed on the envelope signature, or a code tool"))
+    return out
+
+
+def detect_shadow(state: Path, rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
+    """model_too_big (a cheaper rung passes the class in shadow) and qwen_replaceable (the Nupen-own rung does)."""
+    freq: dict[str, int] = {}
+    for r in rows:
+        if r.get("model") and r.get("cls"):
+            freq[str(r["cls"])] = freq.get(str(r["cls"]), 0) + 1
+    by: dict[str, list[dict[str, Any]]] = {}
+    for s in _jsonl(Path(state) / "metrics" / "shadow.jsonl"):
+        by.setdefault(str(s.get("cls")), []).append(s)
+    out = []
+    for cls, ss in by.items():
+        cur = next((s for s in reversed(ss) if s.get("current")), None)
+        if not cur or cls not in freq:
+            continue
+        ok = [s for s in ss if not s.get("current") and int(s.get("n", 0)) >= SHADOW_MIN_N and float(s["cost"]) < float(cur["cost"])
+              and float(s["pass_rate"]) >= float(cur["pass_rate"]) - SHADOW_TOL]
+        if not ok:
+            continue
+        best = min(ok, key=lambda s: float(s["cost"]))
+        own = str(best.get("rung")) == "own"
+        out.append(_cand("qwen_replaceable" if own else "model_too_big", f"{cls}->{best['rung']}",
+                         {"cls": cls, "from": cur.get("rung"), "to": best["rung"], "pass_from": cur["pass_rate"], "pass_to": best["pass_rate"], "n": best.get("n")},
+                         freq[cls] / days, float(cur["cost"]), float(best["cost"]), 0.7 if own else 0.85,
+                         "unload Qwen for this class" if own else "move the class down a rung"))
+    return out
+
+
+def detect_token_waste(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
+    g: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        if r.get("model") and r.get("form_in") is not None:
+            g.setdefault(str(r.get("actor")), []).append(r)
+    out = []
+    for a, rs in g.items():
+        tok = sum(int(r.get("in_tok") or 0) + int(r.get("out_tok") or 0) for r in rs) / len(rs)
+        mn = sum(int(r.get("form_in") or 0) + int(r.get("form_out") or 0) for r in rs) / len(rs)
+        if mn > 0 and tok >= TOKEN_WASTE_X * mn:
+            c0 = sum(cost_units(r, rate) for r in rs) / len(rs)
+            out.append(_cand("token_waste", a, {"mean_tok": round(tok, 1), "form_min_tok": round(mn, 1), "ratio": round(tok / mn, 2)}, len(rs) / days, c0,
+                             c0 * mn / tok, 0.7, "tighter context packer rule / grammar / max_tokens"))
+    return out
+
+
+def detect_recurring_failure(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None, n: int = FAIL_N) -> list[dict[str, Any]]:
+    g: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        if r.get("outcome") not in (None, "ok"):
+            g.setdefault(f"{r.get('actor')}|{str(r.get('err') or r.get('outcome'))[:80]}", []).append(r)
+    try:
+        from creator import knownfix as KF
+    except Exception:                                                   # noqa: BLE001
+        KF = None
+    out = []
+    for sig, rs in g.items():
+        if len(rs) >= n:
+            text = str(rs[0].get("err") or rs[0].get("outcome"))
+            kf = KF.match_line(text) if KF else []
+            c0 = sum(cost_units(r, rate) for r in rs) / len(rs)
+            out.append(_cand("recurring_failure", sig, {"count": len(rs), "known_fix": [k.id for k in kf]}, len(rs) / days, c0, 0.0, 0.85 if kf else 0.5,
+                              "apply the known-fix entry" if kf else "add a known-fix entry or a code fix", "low" if kf else "medium"))
+    return out
+
+
+def detect_idle_resource(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
+    s = [r for r in rows if r.get("idle_frac") is not None]
+    busy = [r for r in s if float(r["idle_frac"]) >= 0.3 and int(r.get("queue") or 0) > 0]
+    if len(s) < 5 or len(busy) / len(s) < 0.5:
+        return []
+    c0 = sum(float(r["idle_frac"]) * float(r.get("cores") or 1) * float(r.get("wall_s") or 1) for r in busy) / len(busy)
+    return [_cand("idle_resource", "cpu", {"samples": len(s), "idle_while_queued": len(busy)}, len(busy) / days, c0, c0 * 0.3, 0.7,
+                  "scheduler rule: start queued work when CPU idle", "medium")]
+
+
+def detect_weak_skill(state: Path) -> list[dict[str, Any]]:
+    last: dict[str, dict[str, Any]] = {}
+    for s in _jsonl(Path(state) / "metrics" / "skills.jsonl"):
+        last[str(s.get("role"))] = s
+    out = []
+    for role, s in last.items():
+        if float(s["score"]) < float(s["target"]):
+            fc = float(s.get("fail_cost", 0))
+            out.append(_cand("weak_skill", role, {"score": s["score"], "target": s["target"], "gap": round(float(s["target"]) - float(s["score"]), 3)},
+                             float(s.get("uses_per_day", 0)), fc * (1 - float(s["score"])), fc * (1 - float(s["target"])), 0.6,
+                             "training module (GPU queue)", "low", float(s.get("train_cost_s", 7200))))
+    return out
+
+
+def detect_stuck(rows: list[dict[str, Any]], days: float, rate: Optional[dict[str, float]] = None, k: int = STUCK_K) -> list[dict[str, Any]]:
+    g: dict[str, list[dict[str, Any]]] = {}
+    for r in sorted(rows, key=lambda r: float(r.get("t") or 0)):
+        if r.get("goal_id") and r.get("step") == "cycle":
+            g.setdefault(str(r["goal_id"]), []).append(r)
+    out = []
+    for gid, rs in g.items():
+        tail = 0
+        for r in reversed(rs):
+            if r.get("progress"):
+                break
+            tail += 1
+        if tail >= k:
+            c0 = sum(cost_units(r, rate) for r in rs[-tail:]) / tail
+            out.append(_cand("stuck", gid, {"cycles_without_progress": tail}, tail / days, c0, 0.0, 0.5, "fallback ladder: park, split, or escalate"))
+    return out
+
+
+def detect_missed_targets(state: Path) -> list[dict[str, Any]]:
+    out = []
+    for m, e in registry_load(state).items():
+        cur = e.get("last_measured")
+        if cur is not None and not _meets(e, cur):
+            out.append(_cand("missed_target", m, {"last": cur, "target": e["target"], "floor": e["floor"]}, float(e.get("f_per_day", 0)),
+                             float(e.get("c0", 0)), float(e.get("c1", 0)), 0.5, f"reach target {e['target']} for {m}"))
+    return out
+
+
+def detect_all(state: Path, days: float = 7.0, now: Optional[float] = None, rate: Optional[dict[str, float]] = None) -> list[dict[str, Any]]:
+    """All detectors over the aggregated window (one read); a failing detector is skipped, never raises."""
+    state = Path(state)
+    rows = load_events(state, days, now)
+    cands: list[dict[str, Any]] = []
+    for fn in (lambda: detect_hot_path(rows, days, rate), lambda: detect_repeated_call(rows, days, rate), lambda: detect_shadow(state, rows, days, rate),
+               lambda: detect_token_waste(rows, days, rate), lambda: detect_recurring_failure(rows, days, rate),
+               lambda: detect_idle_resource(rows, days, rate), lambda: detect_weak_skill(state),
+               lambda: detect_stuck(rows, days, rate), lambda: detect_missed_targets(state)):
+        try:
+            cands.extend(fn())
+        except Exception:                                               # noqa: BLE001
+            continue
+    return cands
+
+
+# ------------------------------------------------------------------------------------------------ VALUE (7.3) and DECIDE (7.4)
+def _hist_file(state: Path) -> Path:
+    return Path(state) / ENGINE_DIR / "predicted_vs_actual.jsonl"
+
+
+def record_outcome(state: Path, cand: dict[str, Any], actual_saving_day: float) -> None:
+    """After an attempt: predicted vs actual saving/day, the history that recalibrates the estimates."""
+    v = cand.get("value") or value(cand)
+    p = _hist_file(state)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "ab") as f:
+        f.write((json.dumps({"kind": cand["kind"], "key": cand["key"], "pred_saving_day": v["raw_saving_day"],
+                             "actual_saving_day": actual_saving_day, "at": _time.time()}) + "\n").encode())
+
+
+def calibration(state: Optional[Path]) -> dict[str, float]:
+    """Per kind: median(actual / predicted) over the last CALIB_KEEP attempts, clamped. Kinds without history are absent (= 1.0)."""
+    by: dict[str, list[float]] = {}
+    for r in _jsonl(_hist_file(state)) if state is not None else []:
+        if float(r.get("pred_saving_day") or 0) > 0:
+            by.setdefault(r["kind"], []).append(float(r["actual_saving_day"]) / float(r["pred_saving_day"]))
+    lo, hi = CALIB_CLAMP
+    return {k: min(hi, max(lo, statistics.median(v[-CALIB_KEEP:]))) for k, v in by.items()}
+
+
+def value(cand: dict[str, Any], calib: Optional[dict[str, float]] = None, allowed_risk: str = "medium") -> dict[str, Any]:
+    """saving/day = f x (c0 - c1) x p x calibration; B = build seconds x risk factor; payback = B / saving; worth = payback <= 3 d
+    (equivalently ROI over 30 d >= 10) AND the risk class is allowed. Saving is in CPU-seconds/day, B in seconds: same currency."""
+    raw = cand["f_per_day"] * max(0.0, cand["c0"] - cand["c1"]) * cand["p"]
+    sav = raw * (calib or {}).get(cand["kind"], 1.0)
+    b = cand["build_s"] * RISK_B_FACTOR[cand["risk"]]
+    payback = b / sav if sav > 0 else float("inf")
+    roi = sav * ROI_HORIZON_DAYS / b if b > 0 else 0.0
+    allowed = RISK_ORDER[cand["risk"]] <= RISK_ORDER[allowed_risk]
+    return {"raw_saving_day": raw, "saving_day": sav, "build_cost": b, "payback_days": payback, "roi_30d": roi, "risk_allowed": allowed,
+            "worth": bool(allowed and (payback <= PAYBACK_MAX_DAYS or roi >= 10.0))}
+
+
+def rank(cands: list[dict[str, Any]], state: Optional[Path] = None, allowed_risk: str = "medium") -> list[dict[str, Any]]:
+    cal = calibration(state)
+    out = [{**c, "value": value(c, cal, allowed_risk)} for c in cands]
+    return sorted(out, key=lambda c: (-c["value"]["roi_30d"], c["key"]))
+
+
+def decide(state: Path, cands: list[dict[str, Any]], in_flight: int = 0, rng: Optional[_random.Random] = None,
+           allowed_risk: str = "medium") -> Optional[dict[str, Any]]:
+    """Top ROI among the worth-it candidates; WIP 1 (nothing while a build is in flight); with probability EXPLORE_SHARE take a
+    lower-ranked, allowed, still-uncertain (p < 0.7) candidate instead so estimates do not lock in. Logged to engine/decisions.jsonl."""
+    if in_flight >= 1:
+        return None
+    rk = rank(cands, state, allowed_risk)
+    worth = [c for c in rk if c["value"]["worth"]]
+    if not worth:
+        return None
+    rng = rng or _random.Random()
+    pick, mode = worth[0], "exploit"
+    pool = [c for c in rk if c is not worth[0] and c["value"]["risk_allowed"] and c["p"] < 0.7 and c["value"]["saving_day"] > 0]
+    if pool and rng.random() < EXPLORE_SHARE:
+        pick, mode = pool[0], "explore"
+    d = Path(state) / ENGINE_DIR / "decisions.jsonl"
+    d.parent.mkdir(parents=True, exist_ok=True)
+    with open(d, "ab") as f:
+        f.write((json.dumps({"at": _time.time(), "mode": mode, "key": pick["key"], "value": pick["value"]}, default=str) + "\n").encode())
+    return {**pick, "mode": mode}
+
+
+# ------------------------------------------------------------------------------------------------ TARGET REGISTRY (7.11)
+TARGETS_FILE = "targets.json"
+TARGET_X = 1.5                  # target = TARGET_X x floor (lower-is-better); the mirror image for higher-is-better
+
+
+def registry_load(state: Path) -> dict[str, dict[str, Any]]:
+    return _json(Path(state) / ENGINE_DIR / TARGETS_FILE)
+
+
+def _registry_save(state: Path, reg: dict[str, dict[str, Any]]) -> None:
+    p = Path(state) / ENGINE_DIR / TARGETS_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(reg, indent=1, sort_keys=True), encoding="utf-8")
+
+
+def _meets(e: dict[str, Any], v: float) -> bool:
+    return v >= e["target"] if e.get("higher_is_better") else v <= e["target"]
+
+
+def target_set(state: Path, metric: str, *, floor: float, target: float, higher_is_better: bool = False, best_measured: Optional[float] = None,
+               evidence: str = "", **extra: Any) -> dict[str, Any]:
+    """Create a metric record, or re-set an existing one (an existing target is only ever replaced by a stricter one)."""
+    reg = registry_load(state)
+    e = reg.get(metric)
+    if e:
+        hib = bool(e.get("higher_is_better"))
+        target = max(target, e["target"]) if hib else min(target, e["target"])
+        e.update({"floor": floor, "target": target, "evidence": evidence or e["evidence"], **extra})
+    else:
+        e = {"floor": floor, "target": target, "higher_is_better": higher_is_better, "best_measured": best_measured, "last_measured": None,
+             "evidence": evidence, "history": [], **extra}
+    e["history"].append({"event": "set", "target": e["target"], "floor": floor, "evidence": evidence, "at": _time.time()})
+    reg[metric] = e
+    _registry_save(state, reg)
+    return e
+
+
+def target_measure(state: Path, metric: str, value_: float, evidence: str = "") -> dict[str, Any]:
+    """Record a measurement. When the best measured beats the target, the target moves toward ~1.5x the (re-estimated) floor, in the
+    strict direction only, with the evidence logged. Higher-is-better metrics are handled on the reciprocal scale."""
+    reg = registry_load(state)
+    e = reg[metric]
+    hib = bool(e.get("higher_is_better"))
+    e["last_measured"] = value_
+    b = e.get("best_measured")
+    if b is None or (value_ > b if hib else value_ < b):
+        e["best_measured"] = b = value_
+    if (b >= e["target"]) if hib else (b <= e["target"]):
+        t = (lambda x: 1.0 / x) if hib else (lambda x: x)               # work on a lower-is-better scale
+        floor, old, best = t(e["floor"]), t(e["target"]), t(b)
+        floor = min(floor, best * 0.75)                                 # beating the target is evidence the floor is lower than thought
+        new = min(old, max(TARGET_X * floor, min(best * 1.1, old * 0.9)))     # never less strict
+        if new < old * (1 - 1e-9):
+            e["history"].append({"event": "raised", "from": e["target"], "to": t(new), "best": b, "floor": t(floor), "evidence": evidence, "at": _time.time()})
+            e["target"], e["floor"] = t(new), t(floor)
+    reg[metric] = e
+    _registry_save(state, reg)
+    return e
+
+
+# Seeded from the PHASE0_WORK.md ratchet log (floor, target as of 4 Oct 23:45; best_measured where one was measured).
+RATCHET_SEED: dict[str, dict[str, Any]] = {
+    "p0.2_event_us": dict(floor=4.0, target=10.0, best_measured=7.4, evidence="ratchet 4 Oct 23:05/23:30: 940->38->8 us/event"),
+    "p0.3_locate_p50_ms": dict(floor=2.5, target=5.0, best_measured=7.0, evidence="ratchet 23:05: one indexed query; measured p50 7-18 ms"),
+    "p0.3_locate_p95_ms": dict(floor=3.0, target=15.0, best_measured=20.0, evidence="ratchet 23:05; measured p95 20-67 ms"),
+    "p0.3_incremental_update_s": dict(floor=0.04, target=0.1, evidence="ratchet 23:05: stat 1730 files"),
+    "p0.8_envelope_median_tok": dict(floor=27.0, target=35.0, best_measured=27.5, evidence="ratchet 23:20: at floor"),
+    "p0.8_envelope_max_tok": dict(floor=39.0, target=60.0, best_measured=39.0, evidence="ratchet 23:20: at floor"),
+    "p0.4_tool_overhead_s": dict(floor=0.06, target=0.1, evidence="ratchet 23:10"),
+    "p0.6_diff_check_ms": dict(floor=5.0, target=5.0, best_measured=5.0, evidence="ratchet 23:05: at floor, kept"),
+    "p0.5_locate_top1": dict(floor=0.9, target=0.6, higher_is_better=True, evidence="ratchet 23:05: published methods reach 0.6 (floor = limit)"),
+    "p0.5_locate_top5": dict(floor=0.97, target=0.8, higher_is_better=True, evidence="ratchet 23:05"),
+}
+
+
+def seed_registry(state: Path) -> int:
+    """Add the ratchet-log metrics not yet in the registry; returns how many were added."""
+    reg, n = registry_load(state), 0
+    for m, s in RATCHET_SEED.items():
+        if m not in reg:
+            target_set(state, m, **s)
+            if s.get("best_measured") is not None:
+                target_measure(state, m, s["best_measured"], s["evidence"])
+            n += 1
+    return n
