@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 import urllib.parse
@@ -184,8 +185,24 @@ def _kind_ok(kind: str, v: str) -> bool:
     return opt
 
 
-def validate(code: str) -> list[str]:
-    """Static check: returns a list of problems (empty = valid). Syntax shape, known actions, parameter types, safety rules."""
+def validate(code: str, compiler: Optional[Callable[[str], dict[str, Any]]] = None) -> list[str]:
+    """Static check: returns a list of problems (empty = valid). Syntax shape, known actions, parameter types, safety rules.
+    Optional second check: the real Jelly compiler (creator.jellyc, Open-Jellycore in WSL) when `compiler` is given or env
+    NUPEN_JELLY_CHECK=1; it runs only after the static rules pass, and a missing compiler adds no error."""
+    errs = _static_validate(code)
+    if errs:
+        return errs
+    if compiler is None and os.environ.get("NUPEN_JELLY_CHECK") == "1":
+        from creator import jellyc
+        compiler = jellyc.compile_code
+    if compiler is not None:
+        r = compiler(code)
+        if r.get("available") and not r.get("ok"):
+            errs += [f"jelly compiler: {e[:200]}" for e in (r.get("errors") or ["rejected the code"])]
+    return errs
+
+
+def _static_validate(code: str) -> list[str]:
     errs: list[str] = []
     seen_import, magic = False, set()
     for no, raw in enumerate(code.splitlines(), 1):
@@ -387,7 +404,7 @@ def fetch(rt: Optional[Path], sid: str) -> Optional[dict[str, Any]]:
         rec = json.loads((_dir(rt) / f"{sid}.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(rec, dict) or (rec.get("trusted") is not True and validate(str(rec.get("code", "")))):
+    if not isinstance(rec, dict) or (rec.get("trusted") is not True and _static_validate(str(rec.get("code", "")))):
         return None
     return {k: rec[k] for k in ("id", "name", "code", "deliver") if k in rec}
 
