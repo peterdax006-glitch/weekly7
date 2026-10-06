@@ -65,7 +65,7 @@ EXAMPLES = [
     ("create a shortcut for my morning routine",
      ["speakText(", "getCurrentConditions() >> weather", "setBrightness(value: 0.7)", "setDND(state: false)", "batteryLevel() >> battery", "play(behavior: Play)"]),
     ("make a shortcut that starts a 10 minute timer and plays some jazz",
-     ["timer(duration: 10 min)", "term=jazz", "play(behavior: Play)"]),
+     ['timer(duration: "10 min")', "term=jazz", "play(behavior: Play)"]),
     ("build me a shortcut that lets me speak a reminder",
      ["dictateText() >> said", 'createNote(text: "${said}", show: false)']),
     ("make a shortcut that tells me my battery level",

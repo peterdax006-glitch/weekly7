@@ -75,8 +75,8 @@ def parse(rc: int, out: str) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
     for ln in lines:
-        if OK_LINE in ln or ln.startswith("Found "):
-            continue
+        if OK_LINE in ln or ln.startswith("Found ") or ln.startswith("Unable to get core node") or ln.isdigit():
+            continue                                                                     # compiler debug prints, not diagnostics
         parts = ln.split("\t")
         if len(parts) >= 3 and parts[0] in ERROR_LEVELS + ("warning",):
             msg = (f"line {parts[1]}: " if parts[1] != "-" else "") + parts[2] + (f" ({parts[3]})" if len(parts) > 3 and parts[3] else "")
@@ -89,11 +89,22 @@ def parse(rc: int, out: str) -> dict[str, Any]:
 
 
 def compile_file(path: Path, export: Optional[Path] = None, run: Runner = _run) -> dict[str, Any]:
-    args = [_bin(), wsl_path(path)]
-    if export is not None:
-        args += ["--export", "--out", wsl_path(export)]
-    rc, out = run(_wsl(args), TIMEOUT_S)
-    return parse(rc, out)
+    """CRLF files (git checkouts on Windows) are compiled from an LF copy: Open-Jellycore slices names by byte offsets and a
+    stray \\r garbles every identifier after the first line (the phone always receives LF)."""
+    path = Path(path)
+    tmp = None
+    if b"\r" in path.read_bytes():
+        tmp = Path(tempfile.mkdtemp(prefix="jellyc_")) / path.name
+        tmp.write_bytes(path.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n"))
+    try:
+        args = [_bin(), wsl_path(tmp or path)]
+        if export is not None:
+            args += ["--export", "--out", wsl_path(export)]
+        rc, out = run(_wsl(args), TIMEOUT_S)
+        return parse(rc, out)
+    finally:
+        if tmp:
+            shutil.rmtree(tmp.parent, ignore_errors=True)
 
 
 def compile_code(code: str, run: Runner = _run, check: Callable[[], bool] | None = None) -> dict[str, Any]:

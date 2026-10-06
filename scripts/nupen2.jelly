@@ -9,8 +9,10 @@ import Shortcuts
 // Home Wi-Fi address of the PC. From anywhere: install Tailscale on PC and phone and use the PC's Tailscale
 // address (100.x.y.z) or its MagicDNS name instead; nothing else changes.
 var base = "http://PASTE_PC_ADDRESS:8765"
-// Token: PASTE_TOKEN appears in every Authorization header below. Jelly dictionary literals cannot hold variables,
-// so it cannot be a var. The setup link fills both in for you.
+// Token: PASTE_TOKEN appears in every Authorization header below. Headers are written as a JSON string
+// (headers: "{\"Authorization\": ...}"), which the compiler turns into a dictionary; it cannot hold variables,
+// so the token cannot be a var. Timer lengths are quoted too (duration: "5 min"). Both forms were checked with the
+// Open-Jellycore compiler (0 errors, 5 Oct). The setup link fills in the address and token for you.
 var okv = "false"
 var det = ""
 var stopNow = "no"
@@ -24,7 +26,7 @@ var lastSaid = ""
 var k = 0
 
 // ---- 2. Shortcut builder: a shortcut Nupen wrote for you is waiting -------------------------------------
-downloadURL(url: "${base}/shortcut/next", method: GET, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> nextResp
+downloadURL(url: "${base}/shortcut/next", method: GET, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}") >> nextResp
 valueFor(key: "code", dictionary: nextResp) >> jellyCode
 if(jellyCode != nil) {
     text(text: "${jellyCode}")
@@ -49,7 +51,7 @@ repeat(20) {
         }
         lastSaid = said
         encodeURL(url: "${said}") >> saidQ
-        downloadURL(url: "${base}/talk?device=iphone&battery=${bat}&location=${cityQ}&text=${saidQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> resp
+        downloadURL(url: "${base}/talk?device=iphone&battery=${bat}&location=${cityQ}&text=${saidQ}", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}") >> resp
         valueFor(key: "reply", dictionary: resp) >> reply
         speakText(text: "${reply}")
         valueFor(key: "by_index", dictionary: resp) >> byIdx
@@ -67,7 +69,7 @@ repeat(20) {
                 det = "no block for this type"
                 // A failing iOS action stops the whole shortcut (Jelly has no try/catch): the start report lets Nupen
                 // see an action that began but never finished.
-                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=start", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=start", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}")
                 if(link != nil) {
                     openURL(url: "${link}")
                     okv = "true"
@@ -78,137 +80,137 @@ repeat(20) {
                     valueFor(key: "seconds", dictionary: act) >> tSec
                     det = "no preset for this length (Jelly timers take fixed lengths)"
                     if(tMin == 1) {
-                        timer(duration: 1 min)
+                        timer(duration: "1 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 2) {
-                        timer(duration: 2 min)
+                        timer(duration: "2 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 3) {
-                        timer(duration: 3 min)
+                        timer(duration: "3 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 4) {
-                        timer(duration: 4 min)
+                        timer(duration: "4 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 5) {
-                        timer(duration: 5 min)
+                        timer(duration: "5 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 6) {
-                        timer(duration: 6 min)
+                        timer(duration: "6 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 7) {
-                        timer(duration: 7 min)
+                        timer(duration: "7 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 8) {
-                        timer(duration: 8 min)
+                        timer(duration: "8 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 9) {
-                        timer(duration: 9 min)
+                        timer(duration: "9 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 10) {
-                        timer(duration: 10 min)
+                        timer(duration: "10 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 12) {
-                        timer(duration: 12 min)
+                        timer(duration: "12 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 15) {
-                        timer(duration: 15 min)
+                        timer(duration: "15 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 20) {
-                        timer(duration: 20 min)
+                        timer(duration: "20 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 25) {
-                        timer(duration: 25 min)
+                        timer(duration: "25 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 30) {
-                        timer(duration: 30 min)
+                        timer(duration: "30 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 40) {
-                        timer(duration: 40 min)
+                        timer(duration: "40 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 45) {
-                        timer(duration: 45 min)
+                        timer(duration: "45 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 50) {
-                        timer(duration: 50 min)
+                        timer(duration: "50 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 60) {
-                        timer(duration: 60 min)
+                        timer(duration: "60 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 90) {
-                        timer(duration: 90 min)
+                        timer(duration: "90 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tMin == 120) {
-                        timer(duration: 120 min)
+                        timer(duration: "120 min")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 10) {
-                        timer(duration: 10 sec)
+                        timer(duration: "10 sec")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 15) {
-                        timer(duration: 15 sec)
+                        timer(duration: "15 sec")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 20) {
-                        timer(duration: 20 sec)
+                        timer(duration: "20 sec")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 30) {
-                        timer(duration: 30 sec)
+                        timer(duration: "30 sec")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 45) {
-                        timer(duration: 45 sec)
+                        timer(duration: "45 sec")
                         okv = "true"
                         det = "timer started"
                     }
                     if(tSec == 90) {
-                        timer(duration: 90 sec)
+                        timer(duration: "90 sec")
                         okv = "true"
                         det = "timer started"
                     }
@@ -357,7 +359,7 @@ repeat(20) {
                     }
                     batteryLevel() >> bat2
                     encodeURL(url: "${lastSaid}") >> askQ
-                    downloadURL(url: "${base}/talk?device=iphone&battery=${bat2}&location=${cityQ}&weather=${wxQ}&text=${askQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> resp2
+                    downloadURL(url: "${base}/talk?device=iphone&battery=${bat2}&location=${cityQ}&weather=${wxQ}&text=${askQ}", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}") >> resp2
                     valueFor(key: "reply", dictionary: resp2) >> reply2
                     speakText(text: "${reply2}")
                     okv = "true"
@@ -379,7 +381,7 @@ repeat(20) {
                     det = "upload queued after the conversation"
                 }
                 encodeURL(url: "${det}") >> detQ
-                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=done&ok=${okv}&detail=${detQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=done&ok=${okv}&detail=${detQ}", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}")
             }
         }
         // ---- 6. Goodbye ends the chat ----
@@ -406,12 +408,12 @@ if(mediaWanted == "yes") {
         picked = pickedChosen
     }
     repeatEach(picked) {
-        downloadURL(url: "${base}${mediaEndpoint}?consent=friend-agreed&speaker=friend&filename=nupen2", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}, requestType: File, requestVar: RepeatItem) >> upResp
+        downloadURL(url: "${base}${mediaEndpoint}?consent=friend-agreed&speaker=friend&filename=nupen2", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}", requestType: File, requestVar: RepeatItem) >> upResp
         valueFor(key: "reply", dictionary: upResp) >> upReply
         speakText(text: "${upReply}")
     }
     encodeURL(url: "uploads finished") >> upQ
-    downloadURL(url: "${base}/action_report?id=${mediaId}&type=send_media&phase=uploaded&ok=true&detail=${upQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+    downloadURL(url: "${base}/action_report?id=${mediaId}&type=send_media&phase=uploaded&ok=true&detail=${upQ}", method: POST, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}")
 }
 
 // Sources (each page read on 5 Oct 2026):

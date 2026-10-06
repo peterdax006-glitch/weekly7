@@ -61,3 +61,25 @@ def test_validate_uses_compiler_only_after_static_rules(monkeypatch):
     monkeypatch.setenv("NUPEN_JELLY_CHECK", "1")
     monkeypatch.setattr(J, "compile_code", lambda code: {"available": True, "ok": True, "errors": []})
     assert S.validate(GOOD) == []
+
+
+NUPEN2 = Path(__file__).resolve().parents[1] / "scripts" / "nupen2.jelly"
+
+
+def test_nupen2_avoids_what_open_jellycore_cannot_parse():
+    import re
+    src = NUPEN2.read_text(encoding="utf-8")
+    assert not re.search(r"headers: \{", src), "dictionary literal: write headers as a JSON string"
+    assert not re.search(r"duration: \d", src), "bare time span: write duration: \"10 min\""
+    assert "PASTE_TOKEN" in src and "PASTE_PC_ADDRESS" in src                            # the template keeps its placeholders
+
+
+def test_real_compiler_accepts_nupen2_and_generated_code():
+    import pytest
+    if not J.available():
+        pytest.skip("Open-Jellycore not built in WSL on this machine")
+    r = J.compile_file(NUPEN2)
+    assert r["ok"] and r["errors"] == [], r["errors"]
+    made = S.make("make a shortcut that sets a timer for 10 minutes and says done")
+    assert made["ok"], made
+    assert S.validate(made["code"], compiler=J.compile_code) == []

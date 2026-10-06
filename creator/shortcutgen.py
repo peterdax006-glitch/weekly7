@@ -70,8 +70,8 @@ def _num(x: Any, lo: float, hi: float, d: float) -> str:
 
 def _dur(step: dict[str, Any]) -> str:
     if step.get("seconds") is not None:
-        return f"{_num(step['seconds'], 1, 86400, 60)} sec"
-    return f"{_num(step.get('minutes', 5), 1, 1440, 5)} min"
+        return '"%s sec"' % _num(step["seconds"], 1, 86400, 60)          # quoted: Open-Jellycore parses "10 min", not 10 min
+    return '"%s min"' % _num(step.get("minutes", 5), 1, 1440, 5)
 
 
 def _onoff(step: dict[str, Any]) -> str:
@@ -179,7 +179,7 @@ def _kind_ok(kind: str, v: str) -> bool:
     if kind == "bool":
         return v in ("true", "false")
     if kind == "dur":
-        return bool(re.fullmatch(r"\d+(?:\.\d+)? (?:sec|min|hr)", v))
+        return bool(re.fullmatch(r'"?\d+(?:\.\d+)? (?:sec|min|hr)"?', v))    # quoted: Open-Jellycore parses "10 min", not 10 min
     if kind.startswith("enum:"):
         return v in kind[5:].split("|")
     return opt
