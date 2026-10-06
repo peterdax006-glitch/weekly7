@@ -1505,7 +1505,6 @@ _HDR_STR = re.compile(r'headers: "\{\\"Authorization\\": \\"(Bearer [^"\\]*)\\"\
 _DUR_STR = re.compile(r'duration: "(\d+ (?:min|sec|hr))"')
 _BT_CALL = re.compile(r'setBluetooth\(value: (?:true|false)\)')
 _NUM_CMP = re.compile(r'(\bif\(\s*\w+\s*(?:==|!=)\s*)(-?\d+(?:\.\d+)?)\s*\)')
-_POST_NOBODY = re.compile(r'(downloadURL\([^()\n]*method: POST, headers: \{"Authorization": "[^"]*"\})\)')
 
 
 def app_dialect(text: str) -> str:
@@ -1518,9 +1517,20 @@ def app_dialect(text: str) -> str:
     text = _BT_CALL.sub('okv = "false"', text)
     # the right side of an if must be a variable or a string: if(tMin == 1) -> if(tMin == "1")
     text = _NUM_CMP.sub(lambda m: f'{m[1]}"{m[2]}")', text)
-    # a POST needs a body in the app ("Unable to find valid JSON" otherwise): empty JSON, or alongside the file upload
-    text = _POST_NOBODY.sub(lambda m: m[1] + ", requestType: Json, requestJSON: {\"via\": \"nupen2\"})", text)
-    return text.replace("requestType: File, requestVar:", "requestType: File, requestJSON: {\"via\": \"nupen2\"}, requestVar:")
+    # the app rejects every headers/requestJSON literal ("Unable to find valid JSON", even on a plain GET): no headers at all - the token
+    # goes in the URL as ?key= (the server accepts it there), talk/report become plain GETs, the file upload keeps POST + File body
+    return _DL_HDR.sub(_dl_plain, text)
+
+
+_DL_HDR = re.compile(r'downloadURL\(url: "([^"]*)", method: (GET|POST), headers: \{"Authorization": "Bearer ([^"]*)"\}([^\n]*?)\)(\s*>>\s*\w+)?')
+
+
+def _dl_plain(m: "re.Match[str]") -> str:
+    url, method, tok_, rest, out = m[1], m[2], m[3], m[4], m[5] or ""
+    url += ("&" if "?" in url else "?") + "key=" + tok_
+    if "requestType: File" in rest:
+        return f'downloadURL(url: "{url}", method: POST{rest}){out}'
+    return f'downloadURL(url: "{url}", method: GET){out}'
 
 
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
@@ -1559,6 +1569,7 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             try:
                 line = _SETUP_RE.sub("/setup/<key>", fmt % args)       # one-time setup keys never reach the log
                 line = re.sub(r"([?&](?:text|detail)=)[^&\s]*", r"\1<text>", line)   # nor what was said (query-string talk)
+                line = re.sub(r"([?&]key=)[^&\s]*", r"\1<key>", line)                # nor the token (Nupen 2 sends it as ?key=)
                 with open(log_path, "a", encoding="utf-8") as f:
                     f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {self.client_address[0]} {line}\n")
             except OSError:
@@ -1573,8 +1584,9 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             self.wfile.write(data)
 
         def _authed(self) -> bool:
+            """Bearer header, or ?key=<token> for Nupen 2 (the Jellycuts app rejects every headers literal)."""
             h = self.headers.get("Authorization", "")
-            got = h[7:].strip().encode() if h.lower().startswith("bearer ") else b""
+            got = h[7:].strip().encode() if h.lower().startswith("bearer ") else _query(self.path).get("key", "").encode()
             return hmac.compare_digest(got, tok)
 
         def _setup(self) -> None:
@@ -1607,6 +1619,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._setup()
             if not self._authed():
                 return self._send(401, {"error": "unauthorized"})
+            if self.path.split("?")[0] in ("/talk", "/action_report"):   # Nupen 2 sends these as plain GETs with a query string
+                return self.do_POST()
             if self.path.split("?")[0] == "/health":
                 return self._send(200, {"ok": True, "voice_loaded": core.voice is not None})
             if self.path.split("?")[0] == "/shortcut/next":     # "is a shortcut waiting for me?" - asked each time the Nupen shortcut runs

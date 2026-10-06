@@ -69,7 +69,7 @@ def test_template_passes_checker_and_has_only_placeholders():
     assert P.PLACE_BASE in src and P.PLACE_TOKEN in src and "192.168." not in src and "Bearer PASTE_TOKEN" in src
     served = P.served_script("http://pc.example:8765", TOKEN)
     errs, _ = J.check(served, served=True)
-    assert errs == [] and "PASTE_" not in served and f"Bearer {TOKEN}" in served and 'var base = "http://pc.example:8765"' in served
+    assert errs == [] and "PASTE_" not in served and f"key={TOKEN}" in served and 'var base = "http://pc.example:8765"' in served
     assert J.check(src, served=True)[0]                                 # the unfilled template is refused as a served copy
 
 
@@ -156,7 +156,7 @@ def test_setup_link_serves_filled_script_three_times(srv, monkeypatch):
     for _ in range(P.SETUP_USES):
         code, ctype, raw = req(s, f"/setup/{key}", token=None, method="GET")
         txt = raw.decode("utf-8")
-        assert code == 200 and ctype.startswith("text/plain") and f"Bearer {TOKEN}" in txt and 'var base = "http://pc.example:8765"' in txt
+        assert code == 200 and ctype.startswith("text/plain") and f"key={TOKEN}" in txt and 'var base = "http://pc.example:8765"' in txt
         assert "PASTE_" not in txt and J.check(txt, served=True)[0] == []
     assert req(s, f"/setup/{key}", token=None, method="GET")[0] == 404                 # used up
     assert req(s, "/setup/" + "A" * P.SETUP_KEY_LEN, token=None, method="GET")[0] == 404  # unknown
@@ -241,13 +241,25 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     src = ('downloadURL(url: "x", method: GET, headers: "{\\"Authorization\\": \\"Bearer abc\\"}") >> r\n'
            'timer(duration: "9 min")\nsetBluetooth(value: false)\n')
     out = P.app_dialect(src)
-    assert 'headers: {"Authorization": "Bearer abc"}' in out
+    assert 'downloadURL(url: "x?key=abc", method: GET) >> r' in out
     assert "timer(duration: 9 min)" in out and 'okv = "false"' in out and "setBluetooth" not in out
     served = "\n".join(ln for ln in P.served_script("http://pc.invalid:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
-    assert 'headers: "{' not in served and 'duration: "' not in served and "setBluetooth(" not in served
-    assert served.count('headers: {"Authorization": "Bearer tok123"}') >= 7
+    assert "headers:" not in served and "requestJSON" not in served                # the app rejects both literals
+    assert 'duration: "' not in served and "setBluetooth(" not in served
+    calls = [ln for ln in served.splitlines() if "downloadURL(" in ln]
+    assert len(calls) >= 7 and all("key=tok123" in ln for ln in calls)
+    posts = [ln for ln in calls if "method: POST" in ln]
+    assert len(posts) == 1 and "requestType: File" in posts[0]                     # only the media upload stays a POST
     import re
     assert not re.search(r"\bif\(\s*\w+\s*(?:==|!=)\s*-?\d", served)          # numbers on the right side are quoted
-    posts = [ln for ln in served.splitlines() if "method: POST" in ln]
-    assert posts and all('requestJSON: {"via": "nupen2"}' in ln for ln in posts)
     assert P.app_dialect('if(tMin == 12) {') == 'if(tMin == "12") {'
+
+
+def test_key_query_auth_and_get_talk(srv):
+    s, rt = srv
+    code, _, body = req(s, "/talk?device=iphone&text=hello&key=" + TOKEN, token=None, method="GET")
+    assert code == 200 and "reply" in json.loads(body)
+    assert req(s, "/talk?text=hello&key=wrong", token=None, method="GET")[0] == 401
+    code, _, body = req(s, "/action_report?id=a1b2c3d4&type=timer&phase=start&key=" + TOKEN, token=None, method="GET")
+    assert code == 200 and json.loads(body)["ok"] is True
+    assert TOKEN not in (rt / "access.log").read_text(encoding="utf-8")       # the key never reaches the access log
