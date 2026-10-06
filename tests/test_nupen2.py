@@ -241,15 +241,16 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     src = ('downloadURL(url: "x", method: GET, headers: "{\\"Authorization\\": \\"Bearer abc\\"}") >> r\n'
            'timer(duration: "9 min")\nsetBluetooth(value: false)\n')
     out = P.app_dialect(src)
-    assert 'downloadURL(url: "x?key=abc", method: GET) >> r' in out
+    assert "downloadURL" not in out and 'text(text: "x?key=abc") >> nnUrl' in out
+    assert 'runShortcut(name: "Nupen Net", input: nnUrl' in out and out.split("\n")[1].endswith(", show: false) >> r")
     assert "timer(duration: 9 min)" in out and 'okv = "false"' in out and "setBluetooth" not in out
     served = "\n".join(ln for ln in P.served_script("http://pc.invalid:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
     assert "headers:" not in served and "requestJSON" not in served                # the app rejects both literals
     assert 'duration: "' not in served and "setBluetooth(" not in served
-    calls = [ln for ln in served.splitlines() if "downloadURL(" in ln]
-    assert len(calls) >= 7 and all("key=tok123" in ln for ln in calls)
-    posts = [ln for ln in calls if "method: POST" in ln]
-    assert len(posts) == 1 and "requestType: File" in posts[0]                     # only the media upload stays a POST
+    assert "downloadURL(" not in served                                          # broken in the app: every request goes via Nupen Net
+    urls = [ln for ln in served.splitlines() if ln.lstrip().startswith("text(text: ") and ">> nnUrl" in ln]
+    assert len(urls) >= 6 and all("key=tok123" in ln for ln in urls)
+    assert served.count('runShortcut(name: "Nupen Net"') == len(urls)
     import re
     assert not re.search(r"\bif\(\s*\w+\s*(?:==|!=)\s*-?\d", served)          # numbers on the right side are quoted
     assert P.app_dialect('if(tMin == 12) {') == 'if(tMin == "12") {'

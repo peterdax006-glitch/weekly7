@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import hmac
+import itertools
 import subprocess
 import json
 import random
@@ -1462,7 +1463,7 @@ def _save_setup(rt: Path, d: dict[str, dict[str, Any]]) -> None:
     tmp.replace(p)
 
 
-def make_setup_link(rt: Path, base: str, now: Optional[float] = None) -> str:
+def make_setup_link(rt: Path, base: str, now: Optional[float] = None, file: str = "") -> str:
     """A one-time link that hands the filled-in Nupen 2 Jelly source to the phone's browser (no header needed): valid SETUP_TTL_S,
     at most SETUP_USES fetches. The key lives only in <rt>/setup_links.json (outside the repo). Returns the full URL."""
     now = time.time() if now is None else now
@@ -1473,6 +1474,8 @@ def make_setup_link(rt: Path, base: str, now: Optional[float] = None) -> str:
     with _setup_lock:
         d = {k: v for k, v in _load_setup(rt).items() if isinstance(v, dict) and float(v.get("exp", 0)) > now}
         d[key] = {"exp": now + SETUP_TTL_S, "uses": 0, "base": base.rstrip("/")}
+        if file:
+            d[key]["file"] = str(Path(file).resolve())
         _save_setup(rt, d)
     return f"{base.rstrip('/')}/setup/{key}"
 
@@ -1525,12 +1528,22 @@ def app_dialect(text: str) -> str:
 _DL_HDR = re.compile(r'downloadURL\(url: "([^"]*)", method: (GET|POST), headers: \{"Authorization": "Bearer ([^"]*)"\}([^\n]*?)\)(\s*>>\s*\w+)?')
 
 
+NET_SHORTCUT = "Nupen Net"     # hand-built helper: Receive text -> Get Contents of URL (Shortcut Input) -> Stop and output Contents of URL
+
+
 def _dl_plain(m: "re.Match[str]") -> str:
-    url, method, tok_, rest, out = m[1], m[2], m[3], m[4], m[5] or ""
+    """Jellycuts' downloadURL is broken in the app (every form, even the docs' one-liner: "Unable to find valid JSON", read off the
+    phone 6 Oct). Each request becomes: the URL as text -> runShortcut("Nupen Net") -> its output is the response. The token rides
+    in the URL (?key=). The one file upload has no such route; it is reported as unsupported for now."""
+    url, tok_, rest, out = m[1], m[3], m[4], m[5] or ""
     url += ("&" if "?" in url else "?") + "key=" + tok_
     if "requestType: File" in rest:
-        return f'downloadURL(url: "{url}", method: POST{rest}){out}'
-    return f'downloadURL(url: "{url}", method: GET){out}'
+        return 'okv = "false"\ntext(text: "media upload is not supported in Nupen 2 yet")' + out
+    n = next(_NET_SEQ)
+    return f'text(text: "{url}") >> nnUrl{n}\nrunShortcut(name: "{NET_SHORTCUT}", input: nnUrl{n}, show: false){out}'
+
+
+_NET_SEQ = itertools.count(1)
 
 
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
@@ -1599,7 +1612,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             if not base:
                 return self._send(404, {"error": "not found"})
             try:
-                text = served_script(base, token)
+                tpl = str((_load_setup(Path(voice_rt)).get(m[1]) or {}).get("file") or "")    # owner-made test scripts (CLI only)
+                text = served_script(base, token, Path(tpl)) if tpl else served_script(base, token)
             except OSError:
                 return self._send(404, {"error": "not found"})
             ctype = "text/plain; charset=utf-8"
@@ -1831,12 +1845,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="print a one-time link (30 min, 3 uses) that serves the filled-in Nupen 2 Jelly source to the phone's browser")
     ap.add_argument("--queue-nupen2", action="store_true",
                     help="queue the filled-in Nupen 2 as a trusted waiting shortcut and push a Confirm notification (no browser, no paste)")
+    ap.add_argument("--setup-file", default="", help="serve this local .jelly file through the setup link instead of Nupen 2 (tests)")
     ap.add_argument("--setup-base", default="", help="address the phone uses, e.g. http://<tailscale ip>:8765 (default: this PC's LAN address)")
     a = ap.parse_args(argv)
     rt = runtime_dir()
     if a.make_setup_link:
         load_token(rt)                           # refuses when the token file is missing (the served copy needs it)
-        print(make_setup_link(rt, a.setup_base or f"http://{lan_ip()}:{a.port}"))
+        print(make_setup_link(rt, a.setup_base or f"http://{lan_ip()}:{a.port}", file=a.setup_file))
         print(f"Valid {SETUP_TTL_S // 60} minutes, {SETUP_USES} uses. Open it in Chrome on the phone, select all, copy, paste into Jellycuts.")
         return 0
     if a.queue_nupen2:
