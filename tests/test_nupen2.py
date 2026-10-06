@@ -252,7 +252,9 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     assert "downloadURL(" not in served                                          # broken in the app: every request goes via Nupen Net
     urls = [ln for ln in served.splitlines() if ln.lstrip().startswith("text(text: ") and ">> nnUrl" in ln]
     assert len(urls) >= 6 and all("key=tok123" in ln for ln in urls)
-    assert served.count('runShortcut(name: "Nupen Net"') == len(urls)
+    # every request goes through Nupen Net: the converted downloadURLs plus the signed-shortcut download (h106, >> installUrl)
+    assert served.count('runShortcut(name: "Nupen Net"') == len(urls) + served.count("input: installUrl")
+    assert 'text(text: "${base}${installPath}?key=tok123") >> installUrl' in served
     import re
     assert not re.search(r"\bif\(\s*\w+\s*(?:==|!=)\s*-?\d", served)          # numbers on the right side are quoted
     assert P.app_dialect('if(tMin == 12) {') == 'if(tMin == "12") {'

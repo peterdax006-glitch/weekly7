@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -406,7 +407,37 @@ def fetch(rt: Optional[Path], sid: str) -> Optional[dict[str, Any]]:
         return None
     if not isinstance(rec, dict) or (rec.get("trusted") is not True and _static_validate(str(rec.get("code", "")))):
         return None
-    return {k: rec[k] for k in ("id", "name", "code", "deliver") if k in rec}
+    return {**{k: rec[k] for k in ("id", "name", "code", "deliver") if k in rec}, **install_fields(rt, rec)}
+
+
+def install_fields(rt: Optional[Path], rec: dict[str, Any]) -> dict[str, str]:
+    """How Nupen 2 installs this one: install=signed -> GET install_path (a signed .shortcut made on the PC, creator/shortcutsign)
+    and hand it to Shortcuts; install=jelly -> the old path (Jellycuts). install_path is URL-ready; the file name becomes the
+    shortcut's name on Apple's Add sheet."""
+    from creator import shortcutsign as SS
+    signer, _ = SS.signer_config(_dir(rt).parent)
+    ok = signer != "off" and (signer == "local" or SS.remote_ok(rec)[0])
+    if not ok:
+        return {"install": "jelly"}
+    fname = re.sub(r"[^A-Za-z0-9 _-]", "", clean_name(str(rec.get("name", "")))).strip() or "Nupen shortcut"
+    return {"install": "signed", "install_path": f"/install/{rec['id']}/" + urllib.parse.quote(fname + ".shortcut")}
+
+
+def prepare_signed(rt: Optional[Path], sid: str, secrets: tuple[str, ...] = (), wait: bool = False) -> Optional[dict[str, Any]]:
+    """Compile + sign one stored shortcut (cached). wait=False runs it in the background so it is ready when the owner taps Confirm."""
+    from creator import shortcutsign as SS
+    try:
+        rec = json.loads((_dir(rt) / f"{sid}.json").read_text(encoding="utf-8")) if re.fullmatch(r"[0-9a-f]{12}", sid or "") else None
+    except (OSError, ValueError):
+        rec = None
+    if not isinstance(rec, dict) or fetch(rt, sid) is None:
+        return {"ok": False, "signer": "-", "error": "no such shortcut"}
+    if not wait:
+        if install_fields(rt, rec).get("install") != "signed":
+            return None
+        threading.Thread(target=SS.build, args=(_dir(rt), rec, _dir(rt).parent, secrets), daemon=True).start()
+        return None
+    return SS.build(_dir(rt), rec, _dir(rt).parent, secrets)
 
 
 def build_action(name: str, code: str, deliver: str = DELIVER) -> dict[str, Any]:
@@ -504,6 +535,7 @@ def handle(text: str, rt: Optional[Path], llm: Optional[Callable[[str], str]] = 
     if not r["ok"]:
         return {"reply": "I cannot build that shortcut safely, sir. " + r["errors"][0].rstrip(".") + ".", "action": None}
     sid = store(rt, r["name"], r["code"])
+    prepare_signed(rt, sid)                                   # signed file ready by the time the owner taps Confirm
     pushed = notify_ready(r["name"], sid, rt)
     reply = f"Your shortcut {r['name']} is ready, sir." + (" Tap Confirm on the notification." if pushed else " Your Nupen shortcut will install it now.")
     return {"reply": reply, "action": build_action(r["name"], r["code"]), "id": sid, "pushed": pushed}

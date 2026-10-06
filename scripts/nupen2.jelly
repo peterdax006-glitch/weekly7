@@ -27,6 +27,17 @@ var k = 0
 
 // ---- 2. Shortcut builder: a shortcut Nupen wrote for you is waiting -------------------------------------
 downloadURL(url: "${base}/shortcut/next", method: GET, headers: "{\"Authorization\": \"Bearer PASTE_TOKEN\"}") >> nextResp
+// 2a. Signed on the PC (h106): the server compiled and signed it; Nupen Net downloads the .shortcut file and Shortcuts opens it,
+// which shows Apple's Add Shortcut sheet. The owner taps Add. (INSTALL_ROUTE.md in the phone runtime folder.)
+valueFor(key: "install", dictionary: nextResp) >> installMode
+valueFor(key: "install_path", dictionary: nextResp) >> installPath
+if(installMode == "signed") {
+    text(text: "${base}${installPath}?key=PASTE_TOKEN") >> installUrl
+    runShortcut(name: "Nupen Net", input: installUrl, show: false) >> newShortcut
+    openIn(input: newShortcut, app: "com.apple.shortcuts", ask: false)
+    exit()
+}
+// 2b. Not signable on the PC (signing off, or the shortcut holds private data): the old Jellycuts path.
 valueFor(key: "code", dictionary: nextResp) >> jellyCode
 if(jellyCode != nil) {
     text(text: "${jellyCode}")
