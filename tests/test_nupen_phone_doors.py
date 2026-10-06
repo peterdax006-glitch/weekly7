@@ -205,7 +205,7 @@ def test_context_not_kept_between_requests():
     core = P.Core(Path("."), make_conv=lambda: None, chat=lambda m, more: "Fine, sir.")
     assert core.talk("d", "where am I", {"location": "Provo, Utah"})[1]["reply"] == "You are in Provo, Utah, sir."
     r = core.talk("d", "where am I")[1]
-    assert r["action"] == {"type": "report", "what": "location"} and "Provo" not in json.dumps(r)
+    assert r["action"].pop("id") and r["action"] == {"type": "report", "what": "location"} and "Provo" not in json.dumps(r)
     assert not any("Provo" in json.dumps(v, default=str) for v in vars(core).values())
 
 

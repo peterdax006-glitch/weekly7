@@ -34,7 +34,9 @@ BACKLOG_NAME = "capability_backlog.json"
 VOICE_FILE = "conv_rows.jsonl"
 FIX_KINDS = ("new_action", "style", "bug", "knowledge")
 SUBTYPE_FIX = {"repeat": "knowledge", "correction": "style", "unsupported": "new_action", "action_failed": "bug", "no_url": "bug",
-               "leak": "bug", "long": "style", "abandon": "knowledge", "boilerplate": "style"}
+               "leak": "bug", "long": "style", "abandon": "knowledge", "boilerplate": "style", "action_failed_report": "bug"}
+REPORTS_NAME = "action_reports.jsonl"         # written by scripts/nupen_phone.py POST /action_report (the phone's own outcome per action)
+STALE_START_S = 300.0                         # a 'start' with no 'done' after this long = the action stopped the shortcut
 # Value model (engine currency: CPU-seconds): a conversation failure costs the owner about a minute of attention.
 C0_FAIL, C1_FIXED, P_FIX, BUILD_S = 60.0, 0.0, 0.5, 1800.0
 
@@ -189,6 +191,54 @@ def detect_failures(rows: list[dict[str, Any]], now: Optional[float] = None) -> 
     return out
 
 
+def load_action_reports(path: Path, days: Optional[float] = None, now: Optional[float] = None) -> list[dict[str, Any]]:
+    """phone/action_reports.jsonl rows {t, id, type, phase, ok, detail, ms}; missing/bad lines skipped; optional age window."""
+    now = _time.time() if now is None else now
+    out = []
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(r, dict) or not r.get("id") or not r.get("type"):
+            continue
+        t = float(r.get("t") or 0)
+        if days is not None and now - t > days * 86400:
+            continue
+        out.append(r)
+    return out
+
+
+def detect_action_reports(reps: list[dict[str, Any]], now: Optional[float] = None, stale_s: float = STALE_START_S) -> list[dict[str, Any]]:
+    """'action_failed_report': the phone itself said an action failed (phase done, ok false), or an action started and never finished
+    (an iOS action error stops the whole shortcut, so no 'done' ever comes). One failure per action id."""
+    now = _time.time() if now is None else now
+    by_id: dict[str, dict[str, Any]] = {}
+    for r in reps:
+        e = by_id.setdefault(str(r["id"]), {"type": str(r["type"]), "start": None, "done": None})
+        ph = r.get("phase") or "done"
+        if ph == "start":
+            e["start"] = r
+        elif ph in ("done", "uploaded"):
+            e["done"] = r
+    out = []
+    for aid, e in by_id.items():
+        d, s = e["done"], e["start"]
+        if d is not None and d.get("ok") is False:
+            ts, detail = float(d.get("t") or 0), str(d.get("detail") or "failed")
+        elif d is None and s is not None and now - float(s.get("t") or 0) > stale_s:
+            ts, detail = float(s.get("t") or 0), "started but never finished (the action stopped the shortcut)"
+        else:
+            continue
+        out.append({"subtype": "action_failed_report", "fix": SUBTYPE_FIX["action_failed_report"], "ts": ts, "turn": -1,
+                    "text": f"{e['type']}: {detail}", "reply": "", "atype": e["type"], "detail": detail[:120], "id": aid})
+    return sorted(out, key=lambda f: f["ts"])
+
+
 # ------------------------------------------------------------------------------------------------ anonymising, candidates, backlog
 def anonymize(text: str, n: int = EXCERPT) -> str:
     t = re.sub(r"https?://\S+|www\.\S+", "<url>", text)
@@ -201,13 +251,18 @@ def anonymize(text: str, n: int = EXCERPT) -> str:
 def candidates(fails: list[dict[str, Any]], days: float) -> list[dict[str, Any]]:
     """One engine candidate per (subtype): {kind: conv_failure, subtype, evidence, f_per_day, proposed fix kind} in the engine's shape."""
     g: dict[str, list[dict[str, Any]]] = {}
-    for f in fails:
-        g.setdefault(f["subtype"], []).append(f)
+    for f in fails:                       # phone action reports are grouped per action type: each type gets its own fix
+        g.setdefault(f["subtype"] + (":" + f["atype"] if f.get("atype") else ""), []).append(f)
     out = []
-    for sub, fs in sorted(g.items()):
+    for key, fs in sorted(g.items()):
+        sub = fs[0]["subtype"]
         fix = SUBTYPE_FIX[sub]
-        out.append({"kind": "conv_failure", "key": f"conv_failure:{sub}", "subtype": sub, "fix_kind": fix,
-                    "evidence": {"count": len(fs), "excerpt": anonymize(fs[-1]["text"]), "fix_kind": fix},
+        ev: dict[str, Any] = {"count": len(fs), "excerpt": anonymize(fs[-1]["text"]), "fix_kind": fix}
+        if fs[0].get("atype"):
+            ev.update({"action_type": fs[0]["atype"], "details": sorted({anonymize(f["detail"]) for f in fs})[:5],
+                       "proposal": f"send a different payload (or a url) for action type '{fs[0]['atype']}'"})
+        out.append({"kind": "conv_failure", "key": f"conv_failure:{key}", "subtype": sub, "fix_kind": fix,
+                    "evidence": ev,
                     "f_per_day": round(len(fs) / max(days, 1e-9), 4), "c0": C0_FAIL, "c1": C1_FIXED, "p": P_FIX,
                     "fix": f"conversation failure '{sub}': {fix}", "risk": "low", "build_s": BUILD_S})
     return out
@@ -217,7 +272,7 @@ def backlog(fails: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Unsupported / failed-action requests aggregated by normalised request, ranked by how often they were asked."""
     g: dict[str, dict[str, Any]] = {}
     for f in fails:
-        if f["subtype"] not in ("unsupported", "no_url", "action_failed"):
+        if f["subtype"] not in ("unsupported", "no_url", "action_failed", "action_failed_report"):
             continue
         k = _norm(f["text"])[:80]
         if not k:
@@ -310,7 +365,8 @@ def detect(state: Path, days: float = 7.0, now: Optional[float] = None) -> list[
     """Engine candidates from the conversation log (empty when there is none)."""
     now = _time.time() if now is None else now
     rows = load_log(phone_dir(state) / LOG_NAME, days, now)
-    return candidates(detect_failures(rows, now), days) if rows else []
+    fails = (detect_failures(rows, now) if rows else []) + detect_action_reports(load_action_reports(phone_dir(state) / REPORTS_NAME, days, now), now)
+    return candidates(fails, days) if fails else []
 
 
 def side_effects(state: Path, days: float = 7.0, now: Optional[float] = None) -> dict[str, int]:
@@ -318,11 +374,12 @@ def side_effects(state: Path, days: float = 7.0, now: Optional[float] = None) ->
     try:
         now = _time.time() if now is None else now
         rows = load_log(phone_dir(state) / LOG_NAME, days, now)
-        if not rows:
+        reps = detect_action_reports(load_action_reports(phone_dir(state) / REPORTS_NAME, days, now), now)
+        if not rows and not reps:
             return {"backlog": 0, "voice_rows": 0}
-        items = backlog(detect_failures(rows, now))
+        items = backlog((detect_failures(rows, now) if rows else []) + reps)
         if items:
             write_backlog(phone_dir(state) / BACKLOG_NAME, items)
-        return {"backlog": len(items), "voice_rows": write_voice_rows(voice_dir(state) / VOICE_FILE, voice_rows(rows, now))}
+        return {"backlog": len(items), "voice_rows": write_voice_rows(voice_dir(state) / VOICE_FILE, voice_rows(rows, now)) if rows else 0}
     except Exception:                                                   # noqa: BLE001
         return {"backlog": 0, "voice_rows": 0}

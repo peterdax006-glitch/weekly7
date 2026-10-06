@@ -141,7 +141,8 @@ def test_weather_elsewhere_goes_to_web_not_to_the_phone_helper():
     net = Net({"api.duckduckgo.com": (200, json.dumps({"AbstractText": "Paris is mild and cloudy this week.", "AbstractSource": "Wikipedia"}))})
     d = core(brain(net)).talk("d", "what is the weather in Paris")[1]
     assert d["reply"].startswith("According to Wikipedia") and d["actions"] == []
-    assert core(brain(net)).talk("d", "what's the weather like")[1]["action"] == {"type": "report", "what": "weather"}
+    a = core(brain(net)).talk("d", "what's the weather like")[1]["action"]
+    assert a.pop("id") and a == {"type": "report", "what": "weather"}
 
 
 # ---- calculator

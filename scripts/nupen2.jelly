@@ -1,0 +1,450 @@
+import Shortcuts
+#Color: purple, #Icon: microphone
+// Nupen 2: talk to Nupen and let it act on the phone. Paste into Jellycuts, Build/Export, Add Shortcut; name it Nupen 2.
+// Every function below was checked on docs.jellycuts.com (list with links at the end) and against the Open-Jellycore
+// compiler source (github.com/OpenJelly/Open-Jellycore). No Shortcuts action here deletes data or sends data anywhere
+// except to your own PC.
+
+// ---- 1. Config ------------------------------------------------------------------------------------------
+// Home Wi-Fi address of the PC. From anywhere: install Tailscale on PC and phone and use the PC's Tailscale
+// address (100.x.y.z) or its MagicDNS name instead; nothing else changes.
+var base = "http://PASTE_PC_ADDRESS:8765"
+// Token: PASTE_TOKEN appears in every Authorization header below. Jelly dictionary literals cannot hold variables,
+// so it cannot be a var. The setup link fills both in for you.
+var okv = "false"
+var det = ""
+var stopNow = "no"
+var mediaWanted = "no"
+var mediaSource = ""
+var mediaKind = ""
+var mediaCount = 0
+var mediaEndpoint = ""
+var mediaId = ""
+var lastSaid = ""
+var k = 0
+
+// ---- 2. Shortcut builder: a shortcut Nupen wrote for you is waiting -------------------------------------
+downloadURL(url: "${base}/shortcut/next", method: GET, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> nextResp
+valueFor(key: "code", dictionary: nextResp) >> jellyCode
+if(jellyCode != nil) {
+    text(text: "${jellyCode}")
+    // ADD BY HAND after export: the Jellycuts action 'Compile Jelly Text' right here (its input is the Text above).
+    // Jelly has no function for it, so the export cannot contain it.
+    speakText(text: "Sir, a new shortcut is ready to install.")
+    exit()
+}
+
+// ---- 3. Phone context, read once per run (battery and city only; never clipboard) ------------------------
+batteryLevel() >> bat
+getLocation() >> here
+locationDetail(detail: City, location: here) >> city
+encodeURL(url: "${city}") >> cityQ
+
+// ---- 4. Conversation: up to 20 turns ----------------------------------------------------------------------
+repeat(20) {
+    if(stopNow == "no") {
+        dictateText() >> said
+        if(said == nil) {
+            exit()
+        }
+        lastSaid = said
+        encodeURL(url: "${said}") >> saidQ
+        downloadURL(url: "${base}/talk?device=iphone&battery=${bat}&location=${cityQ}&text=${saidQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> resp
+        valueFor(key: "reply", dictionary: resp) >> reply
+        speakText(text: "${reply}")
+        valueFor(key: "by_index", dictionary: resp) >> byIdx
+        k = 0
+        // ---- 5. Each action of this answer (at most 8), in order ----
+        repeat(8) {
+            calculate(input: "${k} + 1") >> kNext
+            k = kNext
+            valueFor(key: "${k}", dictionary: byIdx) >> act
+            if(act != nil) {
+                valueFor(key: "type", dictionary: act) >> atype
+                valueFor(key: "id", dictionary: act) >> aid
+                valueFor(key: "url", dictionary: act) >> link
+                okv = "false"
+                det = "no block for this type"
+                // A failing iOS action stops the whole shortcut (Jelly has no try/catch): the start report lets Nupen
+                // see an action that began but never finished.
+                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=start", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+                if(link != nil) {
+                    openURL(url: "${link}")
+                    okv = "true"
+                    det = "opened link"
+                }
+                if(atype == "timer") {
+                    valueFor(key: "minutes", dictionary: act) >> tMin
+                    valueFor(key: "seconds", dictionary: act) >> tSec
+                    det = "no preset for this length (Jelly timers take fixed lengths)"
+                    if(tMin == 1) {
+                        timer(duration: 1 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 2) {
+                        timer(duration: 2 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 3) {
+                        timer(duration: 3 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 4) {
+                        timer(duration: 4 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 5) {
+                        timer(duration: 5 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 6) {
+                        timer(duration: 6 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 7) {
+                        timer(duration: 7 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 8) {
+                        timer(duration: 8 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 9) {
+                        timer(duration: 9 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 10) {
+                        timer(duration: 10 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 12) {
+                        timer(duration: 12 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 15) {
+                        timer(duration: 15 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 20) {
+                        timer(duration: 20 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 25) {
+                        timer(duration: 25 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 30) {
+                        timer(duration: 30 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 40) {
+                        timer(duration: 40 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 45) {
+                        timer(duration: 45 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 50) {
+                        timer(duration: 50 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 60) {
+                        timer(duration: 60 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 90) {
+                        timer(duration: 90 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tMin == 120) {
+                        timer(duration: 120 min)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 10) {
+                        timer(duration: 10 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 15) {
+                        timer(duration: 15 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 20) {
+                        timer(duration: 20 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 30) {
+                        timer(duration: 30 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 45) {
+                        timer(duration: 45 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                    if(tSec == 90) {
+                        timer(duration: 90 sec)
+                        okv = "true"
+                        det = "timer started"
+                    }
+                }
+                if(atype == "reminder") {
+                    valueFor(key: "text", dictionary: act) >> remText
+                    valueFor(key: "when", dictionary: act) >> remWhen
+                    createNote(text: "Reminder: ${remText} ${remWhen}", show: false)
+                    speakText(text: "I saved that as a note, sir. Nupen 2 cannot add reminders yet.")
+                    det = "no Add Reminder action in Jelly; saved as a note"
+                }
+                if(atype == "alarm") {
+                    speakText(text: "I cannot set alarms from Nupen 2 yet, sir.")
+                    det = "no Create Alarm action in Jelly"
+                }
+                if(atype == "calendar") {
+                    valueFor(key: "title", dictionary: act) >> calTitle
+                    valueFor(key: "start", dictionary: act) >> calStart
+                    createNote(text: "Calendar: ${calTitle} ${calStart}", show: false)
+                    speakText(text: "I saved that as a note, sir. Nupen 2 cannot add calendar events yet.")
+                    det = "no Add New Event action in Jelly; saved as a note"
+                }
+                if(atype == "note") {
+                    valueFor(key: "text", dictionary: act) >> noteText
+                    createNote(text: "${noteText}", show: false)
+                    okv = "true"
+                    det = "note created"
+                }
+                if(atype == "flashlight") {
+                    valueFor(key: "state", dictionary: act) >> flState
+                    if(flState == "off") {
+                        setFlashlight(state: false)
+                    } else {
+                        setFlashlight(state: true)
+                    }
+                    okv = "true"
+                    det = "flashlight set"
+                }
+                if(atype == "focus") {
+                    valueFor(key: "name", dictionary: act) >> focName
+                    valueFor(key: "state", dictionary: act) >> focState
+                    det = "only Do Not Disturb can be set from Jelly"
+                    if(focName == "Do Not Disturb") {
+                        if(focState == "off") {
+                            setDND(state: false)
+                        } else {
+                            setDND(state: true)
+                        }
+                        okv = "true"
+                        det = "do not disturb set"
+                    }
+                }
+                if(atype == "volume") {
+                    valueFor(key: "level", dictionary: act) >> volLevel
+                    det = "up/down change is not supported in Nupen 2; say a level"
+                    if(volLevel != nil) {
+                        calculate(input: "${volLevel} / 100") >> volLevelFrac
+                        setVolume(level: volLevelFrac)
+                        okv = "true"
+                        det = "volume set"
+                    }
+                }
+                if(atype == "brightness") {
+                    valueFor(key: "level", dictionary: act) >> briLevel
+                    det = "up/down change is not supported in Nupen 2; say a level"
+                    if(briLevel != nil) {
+                        calculate(input: "${briLevel} / 100") >> briLevelFrac
+                        setBrightness(value: briLevelFrac)
+                        okv = "true"
+                        det = "brightness set"
+                    }
+                }
+                if(atype == "wifi") {
+                    valueFor(key: "state", dictionary: act) >> wifiState
+                    if(wifiState == "off") {
+                        setWiFi(state: false)
+                    } else {
+                        setWiFi(state: true)
+                    }
+                    okv = "true"
+                    det = "wifi set"
+                }
+                if(atype == "bluetooth") {
+                    valueFor(key: "state", dictionary: act) >> btState
+                    if(btState == "off") {
+                        setBluetooth(value: false)
+                    } else {
+                        setBluetooth(value: true)
+                    }
+                    okv = "true"
+                    det = "bluetooth set"
+                }
+                if(atype == "low_power") {
+                    valueFor(key: "state", dictionary: act) >> lpState
+                    if(lpState == "off") {
+                        lowPowerMode(state: false)
+                    } else {
+                        lowPowerMode(state: true)
+                    }
+                    okv = "true"
+                    det = "low power set"
+                }
+                if(atype == "dark_mode") {
+                    valueFor(key: "state", dictionary: act) >> dmState
+                    if(dmState == "off") {
+                        setAppearance(mode: "light")
+                    } else {
+                        setAppearance(mode: "dark")
+                    }
+                    okv = "true"
+                    det = "appearance set"
+                }
+                if(atype == "clipboard") {
+                    valueFor(key: "text", dictionary: act) >> clipText
+                    setClipboard(variable: clipText)
+                    okv = "true"
+                    det = "copied"
+                }
+                if(atype == "home") {
+                    det = "no Control Home action in Jelly"
+                }
+                if(atype == "music") {
+                    if(link == nil) {
+                        det = "library music search needs a fixed filter in Jelly; send a url"
+                    }
+                }
+                if(atype == "message") {
+                    if(link == nil) {
+                        det = "messages to a contact name need the Send Message action; send a url"
+                    }
+                }
+                if(atype == "call") {
+                    if(link == nil) {
+                        det = "calls to a contact name need the Call action; send a url"
+                    }
+                }
+                if(atype == "report") {
+                    valueFor(key: "what", dictionary: act) >> repWhat
+                    var wxQ = ""
+                    if(repWhat == "weather") {
+                        getCurrentConditions() >> wx
+                        conditionDetail(detail: Temperature, condition: wx) >> wxTemp
+                        conditionDetail(detail: Condition, condition: wx) >> wxCond
+                        encodeURL(url: "${wxTemp}, ${wxCond}") >> wxEnc
+                        wxQ = wxEnc
+                    }
+                    batteryLevel() >> bat2
+                    encodeURL(url: "${lastSaid}") >> askQ
+                    downloadURL(url: "${base}/talk?device=iphone&battery=${bat2}&location=${cityQ}&weather=${wxQ}&text=${askQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}) >> resp2
+                    valueFor(key: "reply", dictionary: resp2) >> reply2
+                    speakText(text: "${reply2}")
+                    okv = "true"
+                    det = "context sent"
+                }
+                if(atype == "send_media") {
+                    valueFor(key: "source", dictionary: act) >> mSource
+                    valueFor(key: "kind", dictionary: act) >> mKind
+                    valueFor(key: "count", dictionary: act) >> mCount
+                    valueFor(key: "endpoint", dictionary: act) >> mEndpoint
+                    mediaSource = mSource
+                    mediaKind = mKind
+                    mediaCount = mCount
+                    mediaEndpoint = mEndpoint
+                    mediaId = aid
+                    mediaWanted = "yes"
+                    stopNow = "yes"
+                    okv = "true"
+                    det = "upload queued after the conversation"
+                }
+                encodeURL(url: "${det}") >> detQ
+                downloadURL(url: "${base}/action_report?id=${aid}&type=${atype}&phase=done&ok=${okv}&detail=${detQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+            }
+        }
+        // ---- 6. Goodbye ends the chat ----
+        valueFor(key: "next", dictionary: resp) >> nextStep
+        if(nextStep == "stop") {
+            if(mediaWanted == "no") {
+                exit()
+            }
+            stopNow = "yes"
+        }
+    }
+}
+
+// ---- 7. Send media from Photos (after the chat, so the loop below is not nested) -----------------------
+if(mediaWanted == "yes") {
+    var picked = ""
+    if(mediaSource == "latest") {
+        getLastVideo(count: mediaCount) >> pickedLatest
+        picked = pickedLatest
+    } else {
+        // Album / 'from today': Jelly's Find Photos filter only takes fixed values, so you choose the clips.
+        speakText(text: "Choose the clips, sir.")
+        selectPhoto(multiple: true) >> pickedChosen
+        picked = pickedChosen
+    }
+    repeatEach(picked) {
+        downloadURL(url: "${base}${mediaEndpoint}?consent=friend-agreed&speaker=friend&filename=nupen2", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"}, requestType: File, requestVar: RepeatItem) >> upResp
+        valueFor(key: "reply", dictionary: upResp) >> upReply
+        speakText(text: "${upReply}")
+    }
+    encodeURL(url: "uploads finished") >> upQ
+    downloadURL(url: "${base}/action_report?id=${mediaId}&type=send_media&phase=uploaded&ok=true&detail=${upQ}", method: POST, headers: {"Authorization": "Bearer PASTE_TOKEN"})
+}
+
+// Sources (each page read on 5 Oct 2026):
+// Language: https://docs.jellycuts.com/Language_Guide/variables.html , magic_variables.html , if_else.html , repeat.html ,
+//   strings.html , global.html , metadata.html , importing.html (same folder); first script: /Getting_Started/writing_first_script.html
+//   downloadURL: https://docs.jellycuts.com/Documentation/Shortcuts/downloadURL.html
+//   valueFor: https://docs.jellycuts.com/Documentation/Shortcuts/valueFor.html
+//   text: https://docs.jellycuts.com/Documentation/Shortcuts/text.html
+//   speakText: https://docs.jellycuts.com/Documentation/Shortcuts/speakText.html
+//   exit: https://docs.jellycuts.com/Documentation/Shortcuts/exit.html
+//   batteryLevel: https://docs.jellycuts.com/Documentation/Shortcuts/batteryLevel.html
+//   getLocation: https://docs.jellycuts.com/Documentation/Shortcuts/getLocation.html
+//   locationDetail: https://docs.jellycuts.com/Documentation/Shortcuts/locationDetail.html
+//   encodeURL: https://docs.jellycuts.com/Documentation/Shortcuts/encodeURL.html
+//   dictateText: https://docs.jellycuts.com/Documentation/Shortcuts/dictateText.html
+//   calculate: https://docs.jellycuts.com/Documentation/Shortcuts/calculate.html
+//   openURL: https://docs.jellycuts.com/Documentation/Shortcuts/openURL.html
+//   timer: https://docs.jellycuts.com/Documentation/Shortcuts/timer.html
+//   createNote: https://docs.jellycuts.com/Documentation/Shortcuts/createNote.html
+//   setFlashlight: https://docs.jellycuts.com/Documentation/Shortcuts/setFlashlight.html
+//   setDND: https://docs.jellycuts.com/Documentation/Shortcuts/setDND.html
+//   setVolume: https://docs.jellycuts.com/Documentation/Shortcuts/setVolume.html
+//   setBrightness: https://docs.jellycuts.com/Documentation/Shortcuts/setBrightness.html
+//   setWiFi: https://docs.jellycuts.com/Documentation/Shortcuts/setWiFi.html
+//   setBluetooth: https://docs.jellycuts.com/Documentation/Shortcuts/setBluetooth.html
+//   lowPowerMode: https://docs.jellycuts.com/Documentation/Shortcuts/lowPowerMode.html
+//   setAppearance: https://docs.jellycuts.com/Documentation/Shortcuts/setAppearance.html
+//   setClipboard: https://docs.jellycuts.com/Documentation/Shortcuts/setClipboard.html
+//   getCurrentConditions: https://docs.jellycuts.com/Documentation/Shortcuts/getCurrentConditions.html
+//   conditionDetail: https://docs.jellycuts.com/Documentation/Shortcuts/conditionDetail.html
+//   getLastVideo: https://docs.jellycuts.com/Documentation/Shortcuts/getLastVideo.html
+//   selectPhoto: https://docs.jellycuts.com/Documentation/Shortcuts/selectPhoto.html
+// Compiler behaviour (enum spellings, required names, repeat scopes, no variables inside dictionary literals):
+//   https://github.com/OpenJelly/Open-Jellycore (Sources/Open-Jellycore/Core) and https://github.com/Jellycuts/tree-sitter-jelly (grammar.js)
+// Not in Jelly's Shortcuts library (so not in this script): Add New Reminder, Create Alarm, Add New Event, Set Focus (other than
+//   Do Not Disturb), Control Home, Find Music with a spoken name, Find Photos with a spoken album, Compile Jelly Text.

@@ -7,6 +7,9 @@
 
     POST /voice_upload  multipart file (+ consent=friend-agreed) -> voice_inbox, then creator/voiceprep.py (Phase 2 TTS data)
     POST /talk   {"text": "...", "device": "iphone"}  ->  {"reply": "...", "action": null | {"type": ...}, "end": bool, "ms": N, "more": bool}
+    POST /talk?text=...&device=...&battery=...&location=...   the same, query-string form (the Jelly 'Nupen 2' shortcut, scripts/nupen2.jelly)
+    POST /action_report  {id, type, phase start|done|uploaded, ok, detail, ms} (body or query) -> <runtime>/phone/action_reports.jsonl
+    GET /setup/<key>     one-time (30 min, 3 uses) text/plain Nupen 2 source with address+token filled in; key from --make-setup-link
     GET /health.  "action" is from a fixed allow-list (timer alarm reminder note calendar message call music open_app directions flashlight focus
     home) parsed by code; "end" is true on goodbye so the Shortcut stops listening. Nothing the phone says can touch the PC.
     Header  Authorization: Bearer <token>   (token: <runtime>/phone/token.txt, generated once, outside the repo)
@@ -1279,6 +1282,7 @@ class Core:
         t0 = time.monotonic()
         ctx = safe_context(context)                               # used for this request only; never kept on the Core
         code, body, intent = self._talk(device, text, t0, ctx)
+        tag_actions(body)                                         # ids for /action_report + by_index/n/next for the Jelly shortcut
         body["ms"] = int((time.monotonic() - t0) * 1000)
         reply = body["reply"]
         if intent == "context" and ctx.get("clipboard"):
@@ -1374,6 +1378,138 @@ class Core:
         return False
 
 
+# --------------------------------------------------------------------------------------------- Nupen 2 (Jelly shortcut) support
+MAX_ACTIONS = 8                                   # Nupen 2 walks at most this many actions per answer (scripts/nupen2.jelly repeat(8))
+QUERY_CTX = ("battery", "location", "weather", "now_playing")     # context a phone may send as query parameters (never clipboard)
+REPORT_PHASES = ("start", "done", "uploaded")
+ACTION_REPORTS = "action_reports.jsonl"
+_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,40}")
+SETUP_FILE = "setup_links.json"
+SETUP_TTL_S = 30 * 60
+SETUP_USES = 3
+SETUP_KEY_LEN = 24
+_SETUP_RE = re.compile(r"/setup/([A-Za-z0-9]{%d})" % SETUP_KEY_LEN)
+_setup_lock = threading.Lock()
+TEMPLATE = ROOT / "scripts" / "nupen2.jelly"
+PLACE_BASE = "http://PASTE_PC_ADDRESS:" + str(PORT)
+PLACE_TOKEN = "PASTE_TOKEN"
+
+
+def _query(path: str) -> dict[str, str]:
+    from urllib.parse import parse_qs, urlparse
+    return {k: v[0] for k, v in parse_qs(urlparse(path).query).items() if v}
+
+
+def tag_actions(body: dict[str, Any], new_id: Callable[[], str] = lambda: "a" + secrets.token_hex(4)) -> dict[str, Any]:
+    """Every action gets a short unique id (kept if it has one), so the phone can report each outcome (POST /action_report).
+    Adds the Jelly-friendly fields: by_index {"1": a1, ...} (Jelly cannot index a list without an enum), n, and next = stop|listen."""
+    acts = [a for a in (body.get("actions") or []) if isinstance(a, dict)][:MAX_ACTIONS]
+    for a in acts:
+        if not _ID_RE.fullmatch(str(a.get("id", ""))):
+            a["id"] = new_id()
+    body["actions"] = acts
+    body["action"] = acts[0] if acts else None
+    body["by_index"] = {str(i + 1): a for i, a in enumerate(acts)}
+    body["n"] = len(acts)
+    body["next"] = "stop" if body.get("end") else "listen"
+    return body
+
+
+def _flag(v: Any) -> Optional[bool]:
+    s = str(v).strip().lower()
+    return True if s in ("true", "yes", "1", "ok") else False if s in ("false", "no", "0", "fail", "failed") else None
+
+
+def record_action_report(rt: Path, d: dict[str, Any], now: Optional[float] = None) -> tuple[bool, str]:
+    """POST /action_report: the phone says how one action went. Whitelisted, length-capped fields only; appended to
+    <rt>/action_reports.jsonl (outside the repo). creator/convlearn reads it as the 'action_failed_report' signal."""
+    aid, typ = str(d.get("id", "")).strip(), str(d.get("type", "")).strip().lower()
+    if not _ID_RE.fullmatch(aid):
+        return False, "bad id"
+    if not re.fullmatch(r"[a-z_]{1,24}", typ):
+        return False, "bad type"
+    phase = str(d.get("phase") or "done").strip().lower()
+    if phase not in REPORT_PHASES:
+        return False, "bad phase"
+    rec: dict[str, Any] = {"t": time.time() if now is None else now, "id": aid, "type": typ, "phase": phase,
+                           "ok": _flag(d["ok"]) if "ok" in d else None, "detail": scrub(_text(d.get("detail", ""), 200))}
+    try:
+        rec["ms"] = max(0, min(int(float(d["ms"])), 3_600_000)) if str(d.get("ms", "")).strip() else None
+    except (TypeError, ValueError):
+        rec["ms"] = None
+    p = Path(rt) / ACTION_REPORTS
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if p.is_file() and p.stat().st_size > LOG_MAX:
+        p.replace(p.with_name(p.name + ".1"))
+    with open(p, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return True, "recorded"
+
+
+def _load_setup(rt: Path) -> dict[str, dict[str, Any]]:
+    try:
+        d = json.loads((Path(rt) / SETUP_FILE).read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_setup(rt: Path, d: dict[str, dict[str, Any]]) -> None:
+    p = Path(rt) / SETUP_FILE
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, indent=1), encoding="utf-8")
+    tmp.replace(p)
+
+
+def make_setup_link(rt: Path, base: str, now: Optional[float] = None) -> str:
+    """A one-time link that hands the filled-in Nupen 2 Jelly source to the phone's browser (no header needed): valid SETUP_TTL_S,
+    at most SETUP_USES fetches. The key lives only in <rt>/setup_links.json (outside the repo). Returns the full URL."""
+    now = time.time() if now is None else now
+    if not re.fullmatch(r"https?://[A-Za-z0-9.:\[\]_-]+", base.rstrip("/")):
+        raise ValueError("base must look like http://<pc address>:8765")
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+    key = "".join(secrets.choice(alphabet) for _ in range(SETUP_KEY_LEN))
+    with _setup_lock:
+        d = {k: v for k, v in _load_setup(rt).items() if isinstance(v, dict) and float(v.get("exp", 0)) > now}
+        d[key] = {"exp": now + SETUP_TTL_S, "uses": 0, "base": base.rstrip("/")}
+        _save_setup(rt, d)
+    return f"{base.rstrip('/')}/setup/{key}"
+
+
+def use_setup_link(rt: Path, key: str, now: Optional[float] = None) -> Optional[str]:
+    """Counts one use; returns the base address stored with the key, or None when the key is unknown, expired or used up."""
+    now = time.time() if now is None else now
+    with _setup_lock:
+        d = _load_setup(rt)
+        e = d.get(key)
+        if not isinstance(e, dict) or float(e.get("exp", 0)) <= now or int(e.get("uses", 0)) >= SETUP_USES:
+            return None
+        e["uses"] = int(e.get("uses", 0)) + 1
+        _save_setup(rt, d)
+        return str(e.get("base", ""))
+
+
+def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
+    """The Jelly template with the real address and token filled in (never written to the repo)."""
+    return template.read_text(encoding="utf-8").replace("\r\n", "\n").replace(PLACE_BASE, base.rstrip("/")).replace(PLACE_TOKEN, token)
+
+
+def sniff_media_ext(data: bytes) -> str:
+    """Extension for an upload that arrived without one (Nupen 2 posts the raw file): ISO media boxes, WAV, MP3, CAF. '' if unknown."""
+    head = data[:64]
+    if head[4:8] == b"ftyp":
+        brand = head[8:12]
+        return ".mov" if brand == b"qt  " else ".m4a" if brand in (b"M4A ", b"M4B ") else ".3gp" if brand.startswith(b"3g") else ".mp4"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return ".wav"
+    if head[:4] == b"caff":
+        return ".caf"
+    if head[:3] == b"ID3" or head[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"):
+        return ".mp3"
+    return ""
+
+
 def make_server(host: str, port: int, token: str, core: Core, log_path: Optional[Path] = None, per_min: int = RATE_PER_MIN,
                 voice_rt: Optional[Path] = None, on_voice: Optional[Callable[[Path], Any]] = None,
                 decisions_dir: Optional[Path] = None) -> ThreadingHTTPServer:
@@ -1387,8 +1523,10 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             if log_path is None:
                 return
             try:
+                line = _SETUP_RE.sub("/setup/<key>", fmt % args)       # one-time setup keys never reach the log
+                line = re.sub(r"([?&](?:text|detail)=)[^&\s]*", r"\1<text>", line)   # nor what was said (query-string talk)
                 with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {self.client_address[0]} {fmt % args}\n")
+                    f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {self.client_address[0]} {line}\n")
             except OSError:
                 pass
 
@@ -1405,7 +1543,29 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             got = h[7:].strip().encode() if h.lower().startswith("bearer ") else b""
             return hmac.compare_digest(got, tok)
 
+        def _setup(self) -> None:
+            """GET /setup/<key>: the filled-in Nupen 2 Jelly source as text/plain for a phone browser that cannot send headers.
+            The key is the credential: made by --make-setup-link, 30 minutes, 3 uses; anything else is a plain 404."""
+            if not limiter.ok(self.client_address[0]):
+                return self._send(429, {"error": "slow down"})
+            m = _SETUP_RE.fullmatch(self.path.split("?")[0])
+            base = use_setup_link(Path(voice_rt), m[1]) if (m and voice_rt is not None) else None
+            if not base:
+                return self._send(404, {"error": "not found"})
+            try:
+                data = served_script(base, token).encode("utf-8")
+            except OSError:
+                return self._send(404, {"error": "not found"})
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
         def do_GET(self) -> None:  # noqa: N802
+            if self.path.startswith("/setup/"):
+                return self._setup()
             if not self._authed():
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/health":
@@ -1472,6 +1632,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 else:
                     fields = {}
                     fname, data = self.headers.get("X-Filename") or q.get("filename", ""), body
+                if Path(fname or "").suffix.lower() not in VP.EXTS and (ext := sniff_media_ext(data)):
+                    fname = (Path(fname).stem if fname else "upload") + ext      # Nupen 2 posts the raw clip without a name
             except ValueError:
                 return self._send(400, {"error": "bad multipart body"})
             for k in ("consent", "speaker", "statement"):
@@ -1482,6 +1644,29 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             if code == 200 and on_voice is not None:
                 on_voice(voice_rt)
             self._send(code, out)
+
+        def _action_report(self) -> None:
+            if not limiter.ok(self.client_address[0]):
+                return self._send(429, {"error": "slow down"})
+            if voice_rt is None:
+                return self._send(503, {"error": "reports are not enabled"})
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > MAX_BODY:
+                return self._send(413, {"error": "request too large"})
+            raw = self.rfile.read(n) if n > 0 else b""
+            d: Any = _query(self.path)
+            if not d.get("id"):
+                try:
+                    d = json.loads(raw.decode("utf-8")) if raw.strip() else {}
+                except (ValueError, UnicodeDecodeError):
+                    d = None
+            if not isinstance(d, dict):
+                return self._send(400, {"error": 'expected {"id", "type", "ok", "detail", "phase"?, "ms"?}'})
+            ok, why = record_action_report(Path(voice_rt), d)
+            self._send(200 if ok else 400, {"ok": ok, "why": why})
 
         def do_POST(self) -> None:  # noqa: N802
             if self.path.split("?")[0] == "/decision":
@@ -1501,6 +1686,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                     return self._send(400, {"error": 'expected JSON {"id": "...", "result_type": "...", "has_value": "..."}'})
                 ok, why = SG.record_report(Path(voice_rt) if voice_rt else None, d)
                 return self._send(200 if ok else 400, {"ok": ok, "why": why})
+            if self.path.split("?")[0] == "/action_report":     # how one action went on the phone (Nupen 2); logged only
+                return self._action_report()
             if self.path.split("?")[0] == "/talk_audio":
                 self.rfile.read(min(max(int(self.headers.get("Content-Length") or 0), 0), MAX_BODY))      # design stub: local Piper TTS (en_GB male) returning audio/wav; not built yet
                 return self._send(501, {"error": "talk_audio is not installed yet (see IPHONE_SETUP.md, next step)"})
@@ -1514,8 +1701,16 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 n = -1
             if n < 0 or n > MAX_BODY:
                 return self._send(413, {"error": "request too large"})
+            q = _query(self.path)
             try:
-                d = json.loads(self.rfile.read(n).decode("utf-8"))
+                raw_body = self.rfile.read(n) if n > 0 else b""
+                if q.get("text"):                                 # Nupen 2 (Jelly) sends everything in the query string
+                    d = {"text": q["text"], "device": q.get("device", "phone")}
+                    qctx = {k: q[k] for k in QUERY_CTX if q.get(k)}
+                    if qctx:
+                        d["context"] = qctx
+                else:
+                    d = json.loads(raw_body.decode("utf-8"))
                 text = str(d["text"]).strip()
                 device = re.sub(r"[^A-Za-z0-9_-]", "", str(d.get("device") or "phone"))[:24] or "phone"
             except (ValueError, KeyError, TypeError, UnicodeDecodeError):
@@ -1579,8 +1774,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--make-token", action="store_true", help="create the token file if missing, print its path")
     ap.add_argument("--print-firewall", action="store_true")
     ap.add_argument("--print-startup", action="store_true")
+    ap.add_argument("--make-setup-link", action="store_true",
+                    help="print a one-time link (30 min, 3 uses) that serves the filled-in Nupen 2 Jelly source to the phone's browser")
+    ap.add_argument("--setup-base", default="", help="address the phone uses, e.g. http://<tailscale ip>:8765 (default: this PC's LAN address)")
     a = ap.parse_args(argv)
     rt = runtime_dir()
+    if a.make_setup_link:
+        load_token(rt)                           # refuses when the token file is missing (the served copy needs it)
+        print(make_setup_link(rt, a.setup_base or f"http://{lan_ip()}:{a.port}"))
+        print(f"Valid {SETUP_TTL_S // 60} minutes, {SETUP_USES} uses. Open it in Chrome on the phone, select all, copy, paste into Jellycuts.")
+        return 0
     if a.print_firewall:
         print(FIREWALL.format(port=a.port, cgnat=CGNAT))
         return 0
