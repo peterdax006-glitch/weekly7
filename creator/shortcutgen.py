@@ -1,4 +1,4 @@
-﻿"""Owner's words -> a shortcut plan -> Jelly source (Jellycuts language) -> static validation -> stored -> owner notified.
+"""Owner's words -> a shortcut plan -> Jelly source (Jellycuts language) -> static validation -> stored -> owner notified.
 
 Nupen cannot sign .shortcut files on Windows, so it writes Jelly source code and the Jellycuts iOS app (or its 'Compile Jelly Text'
 Shortcuts action) builds the shortcut on the phone; Apple's own 'Add Shortcut' sheet is the owner's one confirmation.
