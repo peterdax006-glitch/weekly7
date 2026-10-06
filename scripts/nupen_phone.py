@@ -1520,9 +1520,32 @@ def app_dialect(text: str) -> str:
     text = _BT_CALL.sub('okv = "false"', text)
     # the right side of an if must be a variable or a string: if(tMin == 1) -> if(tMin == "1")
     text = _NUM_CMP.sub(lambda m: f'{m[1]}"{m[2]}")', text)
+    text = _menus_for_app(text)
     # the app rejects every headers/requestJSON literal ("Unable to find valid JSON", even on a plain GET): no headers at all - the token
     # goes in the URL as ?key= (the server accepts it there), talk/report become plain GETs, the file upload keeps POST + File body
     return _DL_HDR.sub(_dl_plain, text)
+
+
+_MENU = re.compile(r'^(\s*)menu "([^"]*)" \{\s*$')
+_CASE = re.compile(r'^(\s*)case "([^"]*)":\s*$')
+
+
+def _menus_for_app(text: str) -> str:
+    """Open-Jellycore writes `menu "T" {` / `case "A":`; the app's documented form (docs.jellycuts.com Language_Guide/control_flow)
+    is `menu("T", ["A", "B"]) {` / `case("A"):` - the array lists every case."""
+    lines = text.split("\n")
+    for i, ln in enumerate(lines):
+        m = _MENU.match(ln)
+        if not m:
+            continue
+        labels, j = [], i + 1
+        while j < len(lines) and lines[j].rstrip() != m[1] + "}":
+            if (c := _CASE.match(lines[j])) and len(c[1]) == len(m[1]):
+                labels.append(c[2])
+                lines[j] = f'{c[1]}case("{c[2]}"):'
+            j += 1
+        lines[i] = f'{m[1]}menu("{m[2]}", [' + ", ".join(f'"{x}"' for x in labels) + "]) {"
+    return "\n".join(lines)
 
 
 _DL_HDR = re.compile(r'downloadURL\(url: "([^"]*)", method: (GET|POST), headers: \{"Authorization": "Bearer ([^"]*)"\}([^\n]*?)\)(\s*>>\s*\w+)?')
@@ -1549,6 +1572,30 @@ def _dl_plain(m: "re.Match[str]") -> str:
 
 
 _NET_SEQ = itertools.count(1)
+
+
+PROBE_TEMPLATE = ROOT / "scripts" / "install_probe.jelly"
+PROBE_LETTERS = ("A", "B", "C", "E")          # D re-offers the probe itself (Jellycuts' last export), no PC file
+
+
+def make_install_probe(rt: Path, token: str, template: Path = PROBE_TEMPLATE,
+                       sign: Optional[Callable[[str], dict[str, Any]]] = None) -> tuple[str, bool]:
+    """Stores one tiny test shortcut per probe entry ('Nupen Probe X' shows a line of text), signs each now, and writes the probe
+    Jelly with their ids to <rt>/install_probe.jelly (served through a setup link). -> (path or error, ok)."""
+    from creator import shortcutgen as SG
+    text = template.read_text(encoding="utf-8").replace("\r\n", "\n")
+    for x in PROBE_LETTERS:
+        name = f"Nupen Probe {x}"
+        sid = SG.store(rt, name, f'import Shortcuts #Color: green, #Icon: shortcuts\nshowResult(text: "Nupen probe {x} installed. It works.")\n')
+        rec_p = SG._dir(rt) / f"{sid}.json"                    # never offered by /shortcut/next: only the probe asks for it
+        rec_p.write_text(json.dumps({**json.loads(rec_p.read_text(encoding="utf-8")), "delivered_at": time.time()}), encoding="utf-8")
+        res = (sign or (lambda s: SG.prepare_signed(rt, s, secrets=(token,), wait=True) or {}))(sid)
+        if not res.get("ok"):
+            return f"{name}: {res.get('error', 'not signed')}", False
+        text = text.replace(f"PROBE_{x}", sid)
+    out = Path(rt) / "install_probe.jelly"
+    out.write_text(text, encoding="utf-8", newline="\n")
+    return str(out), True
 
 
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
@@ -1633,6 +1680,29 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             self.end_headers()
             self.wfile.write(data)
 
+        def _install(self) -> None:
+            """GET /install/<id>/<Name>.shortcut: compile + sign the stored shortcut (cached; creator/shortcutsign) and send the signed
+            file. The name in the path becomes the file name, which Apple's Add sheet shows. Trusted records (Nupen 2 itself, which
+            holds the token) are never signed by a third party: 409 and Nupen 2 keeps the old path."""
+            from creator import shortcutgen as SG
+            m = re.fullmatch(r"/install/([0-9a-f]{12})(?:/([^/?]{1,120}))?", self.path.split("?")[0])
+            if not m:
+                return self._send(404, {"error": "not found"})
+            rt_ = Path(voice_rt) if voice_rt else None
+            res = SG.prepare_signed(rt_, m[1], secrets=(token,), wait=True) or {"ok": False, "error": "not built"}
+            if not res.get("ok"):
+                return self._send(409, {"error": res.get("error", "cannot sign"), "signer": res.get("signer", "-")})
+            data = Path(res["path"]).read_bytes()
+            from urllib.parse import unquote
+            fname = re.sub(r'[^A-Za-z0-9 ._-]', "", unquote(m[2] or "")) or "Nupen shortcut.shortcut"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
         def do_GET(self) -> None:  # noqa: N802
             if self.path.startswith("/setup/"):
                 return self._setup()
@@ -1645,6 +1715,8 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             if self.path.split("?")[0] == "/shortcut/next":     # "is a shortcut waiting for me?" - asked each time the Nupen shortcut runs
                 from creator import shortcutgen as SG
                 return self._send(200, SG.next_pending(Path(voice_rt) if voice_rt else None) or {})
+            if self.path.startswith("/install/"):                # a signed .shortcut built on this PC (Nupen 2 hands it to Shortcuts)
+                return self._install()
             if self.path.split("?")[0] == "/shortcut":          # the Nupen shortcut fetches a generated shortcut's Jelly source by id
                 from urllib.parse import parse_qs, urlparse
                 from creator import shortcutgen as SG
@@ -1850,6 +1922,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="print a one-time link (30 min, 3 uses) that serves the filled-in Nupen 2 Jelly source to the phone's browser")
     ap.add_argument("--queue-nupen2", action="store_true",
                     help="queue the filled-in Nupen 2 as a trusted waiting shortcut and push a Confirm notification (no browser, no paste)")
+    ap.add_argument("--sign-shortcut", default="", metavar="ID",
+                    help="compile + sign one stored shortcut now (creator/shortcutsign) and print where the signed file is")
+    ap.add_argument("--make-install-probe", action="store_true",
+                    help="store + sign the probe test shortcuts and print a setup link for scripts/install_probe.jelly (INSTALL_ROUTE.md)")
     ap.add_argument("--setup-file", default="", help="serve this local .jelly file through the setup link instead of Nupen 2 (tests)")
     ap.add_argument("--setup-base", default="", help="address the phone uses, e.g. http://<tailscale ip>:8765 (default: this PC's LAN address)")
     a = ap.parse_args(argv)
@@ -1858,6 +1934,21 @@ def main(argv: Optional[list[str]] = None) -> int:
         load_token(rt)                           # refuses when the token file is missing (the served copy needs it)
         print(make_setup_link(rt, a.setup_base or f"http://{lan_ip()}:{a.port}", file=a.setup_file))
         print(f"Valid {SETUP_TTL_S // 60} minutes, {SETUP_USES} uses. Open it in Chrome on the phone, select all, copy, paste into Jellycuts.")
+        return 0
+    if a.sign_shortcut:
+        from creator import shortcutgen as SG
+        res = SG.prepare_signed(rt, a.sign_shortcut, secrets=(load_token(rt),), wait=True) or {}
+        print(json.dumps(res))
+        return 0 if res.get("ok") else 1
+    if a.make_install_probe:
+        tok = load_token(rt)
+        base = a.setup_base or f"http://{lan_ip()}:{a.port}"
+        out, ok = make_install_probe(rt, tok)
+        if not ok:
+            print("probe NOT ready: " + out, file=sys.stderr)
+            return 1
+        print(make_setup_link(rt, base, file=out))
+        print("Open it on the phone, copy all, paste into Jellycuts as 'Nupen Install Probe', Export, Add. Then see INSTALL_ROUTE.md.")
         return 0
     if a.queue_nupen2:
         from creator import shortcutgen as SG

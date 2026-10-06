@@ -1,0 +1,31 @@
+import Shortcuts
+import Jellycuts
+#Color: green, #Icon: shortcuts
+// Nupen Install Probe (h106): which way of opening a signed .shortcut file shows Apple's Add Shortcut sheet on this iPhone?
+// Made by: python scripts/nupen_phone.py --make-install-probe (fills in the probe ids, the address and the key).
+// Each menu entry installs a different tiny test shortcut ("Nupen Probe A/B/C/E; D re-offers the probe itself"), so the Add sheet tells which entry worked.
+// Nothing here sends data anywhere except to your own PC; the test shortcuts only show a line of text.
+var base = "http://PASTE_PC_ADDRESS:8765"
+
+menu "Nupen install probe" {
+case "A Open In Shortcuts":
+    text(text: "${base}/install/PROBE_A/Nupen%20Probe%20A.shortcut?key=PASTE_TOKEN") >> urlA
+    runShortcut(name: "Nupen Net", input: urlA, show: false) >> fileA
+    openIn(input: fileA, app: "com.apple.shortcuts", ask: false)
+case "B Quick Look":
+    text(text: "${base}/install/PROBE_B/Nupen%20Probe%20B.shortcut?key=PASTE_TOKEN") >> urlB
+    runShortcut(name: "Nupen Net", input: urlB, show: false) >> fileB
+    quicklook(input: fileB)
+case "C Give it to Jellycuts Helper":
+    text(text: "${base}/install/PROBE_C/Nupen%20Probe%20C.shortcut?key=PASTE_TOKEN") >> urlC
+    runShortcut(name: "Nupen Net", input: urlC, show: false) >> fileC
+    runShortcut(name: "Jellycuts Helper", input: fileC, show: false)
+case "D Jellycuts last export":
+    grabJellycut() >> lastExport
+    openIn(input: lastExport, app: "com.apple.shortcuts", ask: false)
+case "E Rename then Open In":
+    text(text: "${base}/install/PROBE_E/Nupen%20Probe%20E.shortcut?key=PASTE_TOKEN") >> urlE
+    runShortcut(name: "Nupen Net", input: urlE, show: false) >> fileE
+    setName(input: fileE, name: "Nupen Probe E.shortcut", dontIncludeExtension: false) >> namedE
+    openIn(input: namedE, app: "com.apple.shortcuts", ask: false)
+}

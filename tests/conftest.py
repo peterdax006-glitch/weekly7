@@ -21,6 +21,7 @@ from typing import Any, Iterator, Mapping, Optional
 
 import pytest
 
+os.environ.setdefault("NUPEN_SIGNER", "off")      # tests never send a shortcut to a signing service (creator/shortcutsign)
 os.environ.setdefault("NUPEN_TEST_MB_FILE", os.path.join(tempfile.gettempdir(), f"nupen_test_mb_{os.getpid()}.json"))
 
 # 5 Oct 2026 (h86, test speed): under pytest-xdist every worker is its own process; lightgbm (n_jobs=-1), OpenMP and BLAS would each start one
