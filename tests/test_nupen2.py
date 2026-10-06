@@ -242,7 +242,9 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
            'timer(duration: "9 min")\nsetBluetooth(value: false)\n')
     out = P.app_dialect(src)
     assert "downloadURL" not in out and 'text(text: "x?key=abc") >> nnUrl' in out
-    assert 'runShortcut(name: "Nupen Net", input: nnUrl' in out and out.split("\n")[1].endswith(", show: false) >> r")
+    lines = out.split("\n")
+    assert 'runShortcut(name: "Nupen Net", input: nnUrl' in lines[1] and lines[1].endswith(", show: false) >> rRaw")
+    assert lines[2] == "getDictionaryFrom(input: rRaw) >> r"                     # the reply is read as a dictionary
     assert "timer(duration: 9 min)" in out and 'okv = "false"' in out and "setBluetooth" not in out
     served = "\n".join(ln for ln in P.served_script("http://pc.invalid:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
     assert "headers:" not in served and "requestJSON" not in served                # the app rejects both literals

@@ -23,6 +23,7 @@ FUNCS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "downloadURL": (("url",), ("method", "headers", "requestType", "requestJSON", "requestVar")),
     "valueFor": (("key", "dictionary"), ()),
     "runShortcut": (("name",), ("input", "show")),
+    "getDictionaryFrom": (("input",), ()),
     "text": (("text",), ()),
     "speakText": (("text",), ("wait", "rate", "pitch", "language")),
     "exit": ((), ("var",)),

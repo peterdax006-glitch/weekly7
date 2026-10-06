@@ -1540,7 +1540,12 @@ def _dl_plain(m: "re.Match[str]") -> str:
     if "requestType: File" in rest:
         return 'okv = "false"\ntext(text: "media upload is not supported in Nupen 2 yet")' + out
     n = next(_NET_SEQ)
-    return f'text(text: "{url}") >> nnUrl{n}\nrunShortcut(name: "{NET_SHORTCUT}", input: nnUrl{n}, show: false){out}'
+    call = f'text(text: "{url}") >> nnUrl{n}\nrunShortcut(name: "{NET_SHORTCUT}", input: nnUrl{n}, show: false)'
+    name = out.split(">>")[-1].strip() if out else ""
+    if not name:
+        return call
+    # Run Shortcut hands back the raw download; "Get Value for reply" failed on it on the phone - make it a dictionary first
+    return f"{call} >> {name}Raw\ngetDictionaryFrom(input: {name}Raw) >> {name}"
 
 
 _NET_SEQ = itertools.count(1)
