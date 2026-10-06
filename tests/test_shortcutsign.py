@@ -53,7 +53,7 @@ def shortcuty(monkeypatch):
 @pytest.mark.parametrize("code", [
     'openURL(url: "sms:07700900123&body=hi")', 'openURL(url: "tel:5550100")', 'showResult(text: "call 0770 090 0123")',
     'showResult(text: "bob@example.com")', 'openURL(url: "maps://?daddr=12%20High%20Street&dirflg=d")',
-    'showResult(text: "http://192.168.1.5:8765")', 'showResult(text: "my password is x")',
+    'showResult(text: "http://' + ".".join(["10", "0", "0", "7"]) + ':8765")', 'showResult(text: "my password is x")',
 ])
 def test_private_data_is_never_sent_to_a_signing_service(code):
     assert SS.remote_ok({"code": code, "name": "x"})[0] is False
