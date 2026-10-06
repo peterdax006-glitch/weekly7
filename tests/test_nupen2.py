@@ -229,3 +229,9 @@ def test_convlearn_action_reports_signal(tmp_path, monkeypatch):
     got = CL.detect(state, 7.0, now)
     assert {c["key"] for c in got} == {"conv_failure:action_failed_report:timer", "conv_failure:action_failed_report:alarm"}
     assert CL.side_effects(state, 7.0, now)["backlog"] == 2
+
+
+def test_copy_page_escapes_and_has_a_copy_button():
+    page = P.copy_page('a < b & "c"\n</textarea><script>x</script>')
+    assert "Copy the whole script" in page and "execCommand" in page
+    assert "&lt;/textarea&gt;&lt;script&gt;" in page and page.count("</textarea>") == 1

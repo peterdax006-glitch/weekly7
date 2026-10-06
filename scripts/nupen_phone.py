@@ -1490,6 +1490,17 @@ def use_setup_link(rt: Path, key: str, now: Optional[float] = None) -> Optional[
         return str(e.get("base", ""))
 
 
+def copy_page(text: str) -> str:
+    """The script in a read-only box plus a Copy button (execCommand works on plain http, where navigator.clipboard does not)."""
+    import html
+    return ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<button id="b" style="font-size:28px;width:100%;padding:18px;margin-bottom:10px" onclick="c()">Copy the whole script</button>'
+            '<textarea id="t" readonly style="width:100%;height:60vh;font:12px monospace">' + html.escape(text) + '</textarea>'
+            '<script>function c(){var t=document.getElementById("t");t.removeAttribute("readonly");t.focus();t.select();'
+            't.setSelectionRange(0,t.value.length);var ok=false;try{ok=document.execCommand("copy")}catch(e){}t.setAttribute("readonly","");'
+            'document.getElementById("b").textContent=ok?"Copied - now paste it into Jellycuts":"Copy failed - press and hold in the box, Select All, Copy";}</script>')
+
+
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
     """The Jelly template with the real address and token filled in (never written to the repo)."""
     return template.read_text(encoding="utf-8").replace("\r\n", "\n").replace(PLACE_BASE, base.rstrip("/")).replace(PLACE_TOKEN, token)
@@ -1553,11 +1564,16 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
             if not base:
                 return self._send(404, {"error": "not found"})
             try:
-                data = served_script(base, token).encode("utf-8")
+                text = served_script(base, token)
             except OSError:
                 return self._send(404, {"error": "not found"})
+            ctype = "text/plain; charset=utf-8"
+            data = text.encode("utf-8")
+            if "copy=1" in self.path.split("?", 1)[-1]:                  # a page with one big Copy button (phones without easy Select All)
+                ctype = "text/html; charset=utf-8"
+                data = copy_page(text).encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Type", ctype)
             self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
