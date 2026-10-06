@@ -243,6 +243,6 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     out = P.app_dialect(src)
     assert 'headers: {"Authorization": "Bearer abc"}' in out
     assert "timer(duration: 9 min)" in out and 'okv = "false"' in out and "setBluetooth" not in out
-    served = "\n".join(ln for ln in P.served_script("http://192.0.2.5:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
+    served = "\n".join(ln for ln in P.served_script("http://pc.invalid:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
     assert 'headers: "{' not in served and 'duration: "' not in served and "setBluetooth(" not in served
     assert served.count('headers: {"Authorization": "Bearer tok123"}') >= 7
