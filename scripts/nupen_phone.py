@@ -1519,8 +1519,8 @@ def app_dialect(text: str) -> str:
     # the right side of an if must be a variable or a string: if(tMin == 1) -> if(tMin == "1")
     text = _NUM_CMP.sub(lambda m: f'{m[1]}"{m[2]}")', text)
     # a POST needs a body in the app ("Unable to find valid JSON" otherwise): empty JSON, or alongside the file upload
-    text = _POST_NOBODY.sub(lambda m: m[1] + ", requestType: Json, requestJSON: {})", text)
-    return text.replace("requestType: File, requestVar:", "requestType: File, requestJSON: {}, requestVar:")
+    text = _POST_NOBODY.sub(lambda m: m[1] + ", requestType: Json, requestJSON: {\"via\": \"nupen2\"})", text)
+    return text.replace("requestType: File, requestVar:", "requestType: File, requestJSON: {\"via\": \"nupen2\"}, requestVar:")
 
 
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:

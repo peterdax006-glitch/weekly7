@@ -249,5 +249,5 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     import re
     assert not re.search(r"\bif\(\s*\w+\s*(?:==|!=)\s*-?\d", served)          # numbers on the right side are quoted
     posts = [ln for ln in served.splitlines() if "method: POST" in ln]
-    assert posts and all("requestJSON: {}" in ln for ln in posts)
+    assert posts and all('requestJSON: {"via": "nupen2"}' in ln for ln in posts)
     assert P.app_dialect('if(tMin == 12) {') == 'if(tMin == "12") {'
