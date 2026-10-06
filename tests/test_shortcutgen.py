@@ -192,6 +192,36 @@ class _NoCore:
     voice = None
 
 
+def test_next_pending_hands_out_the_newest_once_and_expires(env):
+    _, rt = env
+    r = S.make(EXAMPLES[4][0])
+    old = S.store(rt, "Old", r["code"], now=1000.0)
+    new = S.store(rt, "New", r["code"], now=1500.0)
+    assert S.next_pending(rt, now=1600.0)["id"] == new
+    assert S.next_pending(rt, now=1601.0)["id"] == old       # the newest was handed out; the older one is still waiting
+    assert S.next_pending(rt, now=1602.0) is None
+    late = S.store(rt, "Late", r["code"], now=2000.0)
+    assert S.next_pending(rt, now=2000.0 + S.PENDING_S + 1) is None and late
+
+
+def test_shortcut_next_endpoint_needs_the_token(env):
+    _, rt = env
+    res = S.handle(EXAMPLES[4][0], rt)
+    srv = P.make_server("127.0.0.1", 0, TOKEN, _NoCore(), None, decisions_dir=rt)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}/shortcut/next"
+        got = json.loads(urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "Bearer " + TOKEN})).read())
+        assert got["id"] == res["id"] and got["code"].startswith("// ")
+        assert json.loads(urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "Bearer " + TOKEN})).read()) == {}
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(url)
+        assert e.value.code == 401
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
 def test_shortcut_report_is_logged_with_the_token_only(env):
     _, rt = env
     res = S.handle(EXAMPLES[4][0], rt)

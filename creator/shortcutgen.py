@@ -413,6 +413,36 @@ def notify_ready(name: str, sid: str, rt: Optional[Path] = None) -> bool:
         return False
 
 
+PENDING_S = 900.0     # a shortcut waits this long for the owner's Confirm before it is no longer offered
+
+
+def next_pending(rt: Optional[Path], now: Optional[float] = None, max_age: float = PENDING_S) -> Optional[dict[str, Any]]:
+    """GET /shortcut/next: the newest stored shortcut younger than max_age that was never handed out, marked as handed out.
+    The Nupen shortcut asks this every time it runs, so the Confirm button only has to START it (iOS drops run-shortcut text input
+    on some setups); Apple's Add sheet is still the owner's final yes. None when nothing is waiting."""
+    now = time.time() if now is None else now
+    best: Optional[tuple[float, Path, dict[str, Any]]] = None
+    for p in _dir(rt).glob("*.json"):
+        try:
+            rec = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        at = float(rec.get("at", 0)) if isinstance(rec, dict) else 0.0
+        if not isinstance(rec, dict) or rec.get("delivered_at") or now - at > max_age:
+            continue
+        if best is None or at > best[0]:
+            best = (at, p, rec)
+    if best is None:
+        return None
+    _, p, rec = best
+    out = fetch(rt, str(rec.get("id", "")))
+    if out is None:
+        return None
+    rec["delivered_at"] = now
+    p.write_text(json.dumps(rec), encoding="utf-8")
+    return out
+
+
 REPORT_FIELDS = ("id", "result_type", "has_value", "error")
 
 

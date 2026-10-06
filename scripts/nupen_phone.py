@@ -1410,6 +1410,9 @@ def make_server(host: str, port: int, token: str, core: Core, log_path: Optional
                 return self._send(401, {"error": "unauthorized"})
             if self.path.split("?")[0] == "/health":
                 return self._send(200, {"ok": True, "voice_loaded": core.voice is not None})
+            if self.path.split("?")[0] == "/shortcut/next":     # "is a shortcut waiting for me?" - asked each time the Nupen shortcut runs
+                from creator import shortcutgen as SG
+                return self._send(200, SG.next_pending(Path(voice_rt) if voice_rt else None) or {})
             if self.path.split("?")[0] == "/shortcut":          # the Nupen shortcut fetches a generated shortcut's Jelly source by id
                 from urllib.parse import parse_qs, urlparse
                 from creator import shortcutgen as SG
