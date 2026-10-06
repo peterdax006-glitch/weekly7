@@ -1504,6 +1504,8 @@ def copy_page(text: str) -> str:
 _HDR_STR = re.compile(r'headers: "\{\\"Authorization\\": \\"(Bearer [^"\\]*)\\"\}"')
 _DUR_STR = re.compile(r'duration: "(\d+ (?:min|sec|hr))"')
 _BT_CALL = re.compile(r'setBluetooth\(value: (?:true|false)\)')
+_NUM_CMP = re.compile(r'(\bif\(\s*\w+\s*(?:==|!=)\s*)(-?\d+(?:\.\d+)?)\s*\)')
+_POST_NOBODY = re.compile(r'(downloadURL\([^()\n]*method: POST, headers: \{"Authorization": "[^"]*"\})\)')
 
 
 def app_dialect(text: str) -> str:
@@ -1513,7 +1515,12 @@ def app_dialect(text: str) -> str:
     that block becomes a reported failure."""
     text = _HDR_STR.sub(lambda m: 'headers: {"Authorization": "' + m[1] + '"}', text)
     text = _DUR_STR.sub(lambda m: "duration: " + m[1], text)
-    return _BT_CALL.sub('okv = "false"', text)
+    text = _BT_CALL.sub('okv = "false"', text)
+    # the right side of an if must be a variable or a string: if(tMin == 1) -> if(tMin == "1")
+    text = _NUM_CMP.sub(lambda m: f'{m[1]}"{m[2]}")', text)
+    # a POST needs a body in the app ("Unable to find valid JSON" otherwise): empty JSON, or alongside the file upload
+    text = _POST_NOBODY.sub(lambda m: m[1] + ", requestType: Json, requestJSON: {})", text)
+    return text.replace("requestType: File, requestVar:", "requestType: File, requestJSON: {}, requestVar:")
 
 
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:

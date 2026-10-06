@@ -246,3 +246,8 @@ def test_app_dialect_matches_what_the_jellycuts_app_accepts():
     served = "\n".join(ln for ln in P.served_script("http://pc.invalid:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
     assert 'headers: "{' not in served and 'duration: "' not in served and "setBluetooth(" not in served
     assert served.count('headers: {"Authorization": "Bearer tok123"}') >= 7
+    import re
+    assert not re.search(r"\bif\(\s*\w+\s*(?:==|!=)\s*-?\d", served)          # numbers on the right side are quoted
+    posts = [ln for ln in served.splitlines() if "method: POST" in ln]
+    assert posts and all("requestJSON: {}" in ln for ln in posts)
+    assert P.app_dialect('if(tMin == 12) {') == 'if(tMin == "12") {'
