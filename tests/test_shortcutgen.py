@@ -258,3 +258,13 @@ def test_no_ntfy_configured_is_silent(tmp_path, monkeypatch):
     monkeypatch.delenv("NUPEN_NTFY_TOPIC", raising=False)
     res = S.handle(EXAMPLES[4][0], tmp_path / "phone")
     assert res and res["pushed"] is False and res["action"]["type"] == "build_shortcut"
+
+
+def test_trusted_records_skip_the_validator_only_when_stored_trusted(env):
+    _, rt = env
+    code = 'import Shortcuts\nurlContents(url: "http://192.0.2.1:8765/talk")\n'
+    assert S.validate(code)                                   # a model-written shortcut with web calls is refused
+    plain = S.store(rt, "Plain", code, now=1.0)
+    assert S.fetch(rt, plain) is None
+    sid = S.store(rt, "Nupen 2", code, now=2.0, trusted=True)
+    assert S.fetch(rt, sid)["code"] == code

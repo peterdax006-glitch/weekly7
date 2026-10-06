@@ -1,4 +1,4 @@
-"""Owner's words -> a shortcut plan -> Jelly source (Jellycuts language) -> static validation -> stored -> owner notified.
+﻿"""Owner's words -> a shortcut plan -> Jelly source (Jellycuts language) -> static validation -> stored -> owner notified.
 
 Nupen cannot sign .shortcut files on Windows, so it writes Jelly source code and the Jellycuts iOS app (or its 'Compile Jelly Text'
 Shortcuts action) builds the shortcut on the phone; Apple's own 'Add Shortcut' sheet is the owner's one confirmation.
@@ -366,12 +366,16 @@ def new_id(name: str, code: str, now: Optional[float] = None) -> str:
     return hashlib.sha256(f"{name}\n{code}\n{time.time() if now is None else now}".encode()).hexdigest()[:12]
 
 
-def store(rt: Optional[Path], name: str, code: str, now: Optional[float] = None) -> str:
+def store(rt: Optional[Path], name: str, code: str, now: Optional[float] = None, trusted: bool = False) -> str:
+    """trusted=True only from the owner's PC (CLI --queue-nupen2): skips the generated-code validator, e.g. for Nupen 2 itself,
+    which needs web requests the validator forbids for model-written shortcuts. Nothing reachable from the phone sets it."""
     sid = new_id(name, code, now)
     d = _dir(rt)
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"{sid}.json").write_text(json.dumps({"id": sid, "name": name, "code": code, "at": time.time() if now is None else now,
-                                               "deliver": DELIVER}), encoding="utf-8")
+    rec = {"id": sid, "name": name, "code": code, "at": time.time() if now is None else now, "deliver": DELIVER}
+    if trusted:
+        rec["trusted"] = True
+    (d / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
     return sid
 
 
@@ -383,7 +387,7 @@ def fetch(rt: Optional[Path], sid: str) -> Optional[dict[str, Any]]:
         rec = json.loads((_dir(rt) / f"{sid}.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(rec, dict) or validate(str(rec.get("code", ""))):
+    if not isinstance(rec, dict) or (rec.get("trusted") is not True and validate(str(rec.get("code", "")))):
         return None
     return {k: rec[k] for k in ("id", "name", "code", "deliver") if k in rec}
 

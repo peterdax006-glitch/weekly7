@@ -1776,6 +1776,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--print-startup", action="store_true")
     ap.add_argument("--make-setup-link", action="store_true",
                     help="print a one-time link (30 min, 3 uses) that serves the filled-in Nupen 2 Jelly source to the phone's browser")
+    ap.add_argument("--queue-nupen2", action="store_true",
+                    help="queue the filled-in Nupen 2 as a trusted waiting shortcut and push a Confirm notification (no browser, no paste)")
     ap.add_argument("--setup-base", default="", help="address the phone uses, e.g. http://<tailscale ip>:8765 (default: this PC's LAN address)")
     a = ap.parse_args(argv)
     rt = runtime_dir()
@@ -1783,6 +1785,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         load_token(rt)                           # refuses when the token file is missing (the served copy needs it)
         print(make_setup_link(rt, a.setup_base or f"http://{lan_ip()}:{a.port}"))
         print(f"Valid {SETUP_TTL_S // 60} minutes, {SETUP_USES} uses. Open it in Chrome on the phone, select all, copy, paste into Jellycuts.")
+        return 0
+    if a.queue_nupen2:
+        from creator import shortcutgen as SG
+        tok = load_token(rt)
+        sid = SG.store(rt, "Nupen 2", served_script(a.setup_base or f"http://{lan_ip()}:{a.port}", tok), trusted=True)
+        pushed = SG.notify_ready("Nupen 2", sid, rt)
+        print(f"queued {sid} (waits {int(SG.PENDING_S // 60)} min); notification {'sent' if pushed else 'NOT sent'}")
         return 0
     if a.print_firewall:
         print(FIREWALL.format(port=a.port, cgnat=CGNAT))
