@@ -235,3 +235,14 @@ def test_copy_page_escapes_and_has_a_copy_button():
     page = P.copy_page('a < b & "c"\n</textarea><script>x</script>')
     assert "Copy the whole script" in page and "execCommand" in page
     assert "&lt;/textarea&gt;&lt;script&gt;" in page and page.count("</textarea>") == 1
+
+
+def test_app_dialect_matches_what_the_jellycuts_app_accepts():
+    src = ('downloadURL(url: "x", method: GET, headers: "{\\"Authorization\\": \\"Bearer abc\\"}") >> r\n'
+           'timer(duration: "9 min")\nsetBluetooth(value: false)\n')
+    out = P.app_dialect(src)
+    assert 'headers: {"Authorization": "Bearer abc"}' in out
+    assert "timer(duration: 9 min)" in out and 'okv = "false"' in out and "setBluetooth" not in out
+    served = "\n".join(ln for ln in P.served_script("http://192.0.2.5:8765", "tok123").splitlines() if not ln.lstrip().startswith("//"))
+    assert 'headers: "{' not in served and 'duration: "' not in served and "setBluetooth(" not in served
+    assert served.count('headers: {"Authorization": "Bearer tok123"}') >= 7

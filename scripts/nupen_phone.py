@@ -1501,9 +1501,25 @@ def copy_page(text: str) -> str:
             'document.getElementById("b").textContent=ok?"Copied - now paste it into Jellycuts":"Copy failed - press and hold in the box, Select All, Copy";}</script>')
 
 
+_HDR_STR = re.compile(r'headers: "\{\\"Authorization\\": \\"(Bearer [^"\\]*)\\"\}"')
+_DUR_STR = re.compile(r'duration: "(\d+ (?:min|sec|hr))"')
+_BT_CALL = re.compile(r'setBluetooth\(value: (?:true|false)\)')
+
+
+def app_dialect(text: str) -> str:
+    """The Jellycuts APP (what the owner pastes into) differs from Open-Jellycore, which the template is checked with. Read off the phone
+    on 5 Oct: the app wants headers as a dictionary literal ("Unable to find valid JSON" on the string form), bare time spans
+    (`timer(duration: 9 min)`; a quoted one reads `9` as a variable), and rejects setBluetooth here ("Variable name cannot be empty") -
+    that block becomes a reported failure."""
+    text = _HDR_STR.sub(lambda m: 'headers: {"Authorization": "' + m[1] + '"}', text)
+    text = _DUR_STR.sub(lambda m: "duration: " + m[1], text)
+    return _BT_CALL.sub('okv = "false"', text)
+
+
 def served_script(base: str, token: str, template: Path = TEMPLATE) -> str:
-    """The Jelly template with the real address and token filled in (never written to the repo)."""
-    return template.read_text(encoding="utf-8").replace("\r\n", "\n").replace(PLACE_BASE, base.rstrip("/")).replace(PLACE_TOKEN, token)
+    """The Jelly template with the real address and token filled in (never written to the repo), in the Jellycuts app's dialect."""
+    text = template.read_text(encoding="utf-8").replace("\r\n", "\n").replace(PLACE_BASE, base.rstrip("/")).replace(PLACE_TOKEN, token)
+    return app_dialect(text)
 
 
 def sniff_media_ext(data: bytes) -> str:
