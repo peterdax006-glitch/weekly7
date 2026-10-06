@@ -1135,7 +1135,7 @@ class Core:
             free = CV.ram_free_gb()
         else:
             free = self.ram_free()
-        return free is None or free - 2.0 >= MIN_FREE_GB     # ~2 GB for the 1.7B voice; keep 2 GB free after
+        return free is None or free - 1.0 >= MIN_FREE_GB     # ~1 GB for the 0.6B fallback (pick_model takes the 1.7B at >= 4 GB)
 
     def _ensure_voice(self) -> None:
         if self.voice is None:

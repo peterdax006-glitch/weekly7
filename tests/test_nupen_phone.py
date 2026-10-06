@@ -108,7 +108,7 @@ def test_devices_have_own_memory(server):
 
 
 def test_low_ram_refuses_voice():
-    core = P.Core(Path("."), ram_free=lambda: 3.0)
+    core = P.Core(Path("."), ram_free=lambda: 2.5)   # below 3 GB even the 0.6B fallback is refused
     code, d = core.talk("d", "hi")
     assert code == 503 and "memory" in d["reply"]
 
