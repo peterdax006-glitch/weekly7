@@ -1,7 +1,12 @@
 {
- "t": "2026-10-09T18:55:18-04:00",
+ "t": "2026-10-10T11:34:16-04:00",
  "jobs": [
-  "close"
+  "weekly"
  ],
- "errors": []
+ "errors": [
+  {
+   "job": "weekly",
+   "trace": "Traceback (most recent call last):\n  File \"/home/runner/work/weekly7/weekly7/engine/tick.py\", line 55, in main\n    {\"risk\": live.risk, \"decide\": live.decide, \"close\": live.close,\n  File \"/home/runner/work/weekly7/weekly7/engine/tick.py\", line 56, in <lambda>\n    \"weekly\": lambda: __import__(\"engine.improve\", fromlist=[\"x\"]).weekly()}[j]()\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/weekly7/weekly7/engine/improve.py\", line 343, in weekly\n    stocks = load(\"stocks\")\n             ^^^^^^^^^^^^^^\n  File \"/home/runner/work/weekly7/weekly7/engine/data.py\", line 106, in load\n    return {f: pd.read_parquet(CACHE / f\"{name}_{f.lower()}.parquet\") for f in FIELDS}\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/weekly7/weekly7/engine/data.py\", line 106, in <dictcomp>\n    return {f: pd.read_parquet(CACHE / f\"{name}_{f.lower()}.parquet\") for f in FIELDS}\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/pandas/io/parquet.py\", line 671, in read_parquet\n    return impl.read(\n           ^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/pandas/io/parquet.py\", line 253, in read\n    path_or_handle, handles, filesystem = _get_path_or_handle(\n                                          ^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/pandas/io/parquet.py\", line 141, in _get_path_or_handle\n    handles = get_handle(\n              ^^^^^^^^^^^\n  File \"/opt/hostedtoolcache/Python/3.11.17/x64/lib/python3.11/site-packages/pandas/io/common.py\", line 939, in get_handle\n    handle = open(handle, ioargs.mode)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/home/runner/work/weekly7/weekly7/data/cache/stocks_low.parquet'\n"
+  }
+ ]
 }
